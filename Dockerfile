@@ -57,6 +57,9 @@ COPY --from=builder --chown=foi:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=foi:nodejs /app/public ./public
 # Applied on boot by instrumentation.ts.
 COPY --from=builder --chown=foi:nodejs /app/drizzle ./drizzle
+# Operational entry point: the stack creates no users on its own, so the first
+# administrator has to be made from inside the container.
+COPY --from=builder --chown=foi:nodejs /app/scripts/create-admin.cjs ./scripts/
 
 USER foi
 EXPOSE 3000

@@ -18,6 +18,13 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  {
+    // Operational scripts run inside the standalone image, and must also work
+    // when piped through `node -`, which parses stdin as CommonJS regardless
+    // of extension. require() is deliberate there.
+    files: ["scripts/**/*.cjs"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

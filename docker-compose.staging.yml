@@ -1,0 +1,11 @@
+# Staging overlay. Enabled by setting this in the staging .env:
+#
+#   COMPOSE_FILE=docker-compose.prod.yml:docker-compose.staging.yml
+#
+# Staging is not exposed through Caddy, so it publishes a host port instead and
+# is reached over the tailnet at http://<tailnet-host>:<FOI_PORT>.
+
+services:
+  app:
+    ports:
+      - "${FOI_PORT:-3001}:3000"

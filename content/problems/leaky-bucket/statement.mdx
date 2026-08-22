@@ -1,0 +1,30 @@
+import { InstanceControl } from "./InstanceControl";
+
+<Constraints extra={{ 分类: "Web", 初始分值: "300", 计分: "动态" }} />
+
+某内部服务号称对优惠券兑换接口做了严格的限流：每个账号每分钟只能兑换一次。
+但开发者在实现时用错了 key，导致限流器形同虚设。
+
+找出绕过方法，把优惠券余额刷成负数，服务就会在响应头里吐出 flag。
+
+<InstanceControl />
+
+## 提示
+
+<Callout kind="note">
+
+限流器的 key 由若干请求特征拼接而成。仔细观察哪些特征是你能够控制的。
+
+</Callout>
+
+<Callout kind="warning">
+
+请不要对靶机发起高并发压测。这道题不需要爆破，暴力请求只会让实例被回收。
+
+</Callout>
+
+## 提交格式
+
+flag 形如 `FOI{...}`，直接粘贴到下方提交框。
+
+<SubmitPanel />

@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: foi-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: foi
+      POSTGRES_PASSWORD: foi_dev_password
+      POSTGRES_DB: foi
+    ports:
+      - "5433:5432"
+    volumes:
+      - foi-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foi -d foi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  foi-pgdata:

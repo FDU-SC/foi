@@ -1,0 +1,88 @@
+import { MazeVisualizer } from "./MazeVisualizer";
+
+<Constraints time="1 s" memory="256 MB" extra={{ 测试点: "20", 子任务: "3" }} />
+
+## 题目描述
+
+给定一个 $n \times m$ 的迷宫。迷宫中每个格子要么是空地，要么是墙。你从左上角
+$(1, 1)$ 出发，每一步可以向上、下、左、右移动一格，但不能走出迷宫边界，也不能
+走进墙里。
+
+请求出走到右下角 $(n, m)$ 所需的最少步数。如果无法到达，输出 `-1`。
+
+<MazeVisualizer />
+
+## 输入格式
+
+第一行两个整数 $n$ 和 $m$，表示迷宫的行数与列数。
+
+接下来 $n$ 行，每行 $m$ 个字符。字符 `.` 表示空地，`#` 表示墙。
+
+## 输出格式
+
+一行一个整数，表示最少步数；若无法到达则输出 `-1`。
+
+<Sample
+  n={1}
+  input={`4 4
+....
+.##.
+...#
+##..`}
+  output={`6`}
+  note="一条可行路径是先向下走到第三行，再向右走到终点。"
+/>
+
+<Sample
+  n={2}
+  input={`2 2
+.#
+#.`}
+  output={`-1`}
+  note="起点被墙完全封死，无法到达终点。"
+/>
+
+## 数据范围
+
+对于全部数据，保证 $1 \le n, m \le 1000$，且起点与终点均为空地。
+
+| 子任务 | 分值 | 限制 |
+| --- | --- | --- |
+| 1 | 30 | $n, m \le 10$ |
+| 2 | 30 | $n, m \le 100$ |
+| 3 | 40 | 无特殊限制 |
+
+<Callout kind="tip" title="解题提示">
+
+每条边的权值都是 $1$，因此从起点开始做一次广度优先搜索即可。第一次访问到某个
+格子时得到的距离，一定就是到该格子的最短距离。
+
+</Callout>
+
+## 参考实现片段
+
+```cpp title="bfs.cpp" showLineNumbers
+queue<pair<int, int>> q;
+q.push({0, 0});
+dist[0][0] = 0;
+
+while (!q.empty()) {
+    auto [r, c] = q.front();
+    q.pop();
+    for (int k = 0; k < 4; ++k) {
+        int nr = r + dr[k], nc = c + dc[k];
+        if (nr < 0 || nr >= n || nc < 0 || nc >= m) continue;
+        if (grid[nr][nc] == '#' || dist[nr][nc] != -1) continue;
+        dist[nr][nc] = dist[r][c] + 1;
+        q.push({nr, nc});
+    }
+}
+```
+
+<Callout kind="warning">
+
+注意 $n \times m$ 最大可达 $10^6$，请不要使用递归实现的深度优先搜索，否则会栈溢出。
+
+</Callout>
+
+<SubmitPanel />

@@ -1,0 +1,117 @@
+import { z } from "zod";
+import {
+  assignRanks,
+  scoredSubmissions,
+  type Ruleset,
+  type StandingsInput,
+  type StandingsRow,
+} from "../types";
+
+const configSchema = z.object({
+  /** "best" scores the highest submission, "last" scores the final one. */
+  take: z.enum(["best", "last"]).default("best"),
+});
+
+export interface OiCell {
+  score: number;
+  maxScore: number;
+  attempts: number;
+  /** Milliseconds from contest start for the submission that counted. */
+  at: number | null;
+}
+
+function OiCellView({ cell }: { cell: OiCell | undefined }) {
+  if (!cell || cell.attempts === 0) {
+    return <span className="text-fg-subtle">·</span>;
+  }
+
+  const full = cell.score >= cell.maxScore;
+  const zero = cell.score <= 0;
+  const tone = full ? "text-ok" : zero ? "text-err" : "text-partial";
+
+  return (
+    <span className={`font-mono text-xs font-medium tabular-nums ${tone}`}>
+      {Math.round(cell.score)}
+    </span>
+  );
+}
+
+/**
+ * OI scoring: sum per-problem scores, taking each problem's best (or last)
+ * submission. Ties break on how early the deciding submissions came in.
+ */
+export const oiRuleset: Ruleset<OiCell> = {
+  id: "oi",
+  name: "OI",
+  description: "每题取最高分（或最后一次提交），按总分排名。",
+
+  computeStandings(input: StandingsInput) {
+    const { take } = configSchema.parse(input.config ?? {});
+    const start = input.contest.startsAt.getTime();
+    const maxScoreOf = new Map(
+      input.problems.map((problem) => [
+        problem.slug,
+        problem.points ?? problem.maxScore,
+      ]),
+    );
+
+    const byUser = new Map<string, Map<string, OiCell>>();
+    for (const participant of input.participants) {
+      byUser.set(participant.userId, new Map());
+    }
+
+    for (const submission of scoredSubmissions(input)) {
+      const cells = byUser.get(submission.userId);
+      if (!cells) continue;
+
+      const maxScore = maxScoreOf.get(submission.problemSlug) ?? 0;
+      const cell = cells.get(submission.problemSlug) ?? {
+        score: 0,
+        maxScore,
+        attempts: 0,
+        at: null,
+      };
+      cells.set(submission.problemSlug, cell);
+      cell.attempts += 1;
+
+      const score = submission.score ?? 0;
+      // Submissions arrive oldest first, so "last" simply overwrites and
+      // "best" keeps the first submission that reached the highest score.
+      if (take === "last" || score > cell.score) {
+        cell.score = score;
+        cell.at = submission.createdAt.getTime() - start;
+      }
+    }
+
+    const rows = input.participants.map((participant) => {
+      const cells = Object.fromEntries(byUser.get(participant.userId) ?? []);
+      let total = 0;
+      let lastAt = 0;
+
+      for (const cell of Object.values(cells)) {
+        total += cell.score;
+        if (cell.score > 0 && cell.at !== null) {
+          lastAt = Math.max(lastAt, cell.at);
+        }
+      }
+
+      return { participant, total, tiebreak: lastAt, cells };
+    });
+
+    return {
+      rows: assignRanks<OiCell>(rows),
+      totalLabel: "总分",
+      tiebreakLabel: "用时",
+      frozen: false,
+    };
+  },
+
+  render: {
+    Cell: OiCellView,
+    Total: ({ row }: { row: StandingsRow<OiCell> }) => (
+      <span className="text-fg font-mono font-semibold tabular-nums">
+        {Math.round(row.total)}
+      </span>
+    ),
+  },
+};

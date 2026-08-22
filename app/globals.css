@@ -1,0 +1,165 @@
+@import "tailwindcss";
+@import "katex/dist/katex.min.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: oklch(99% 0.002 265);
+  --surface: oklch(100% 0 0);
+  --surface-2: oklch(97.2% 0.004 265);
+  --surface-3: oklch(94.5% 0.006 265);
+
+  --fg: oklch(21% 0.021 265);
+  --fg-muted: oklch(48% 0.016 265);
+  --fg-subtle: oklch(62% 0.012 265);
+
+  --border: oklch(91% 0.006 265);
+  --border-strong: oklch(84% 0.009 265);
+
+  --primary: oklch(52% 0.19 268);
+  --primary-hover: oklch(46% 0.19 268);
+  --primary-fg: oklch(100% 0 0);
+  --primary-subtle: oklch(95% 0.03 268);
+
+  --ok: oklch(56% 0.15 152);
+  --ok-subtle: oklch(95.5% 0.04 152);
+  --err: oklch(56% 0.2 25);
+  --err-subtle: oklch(95.5% 0.035 25);
+  --warn: oklch(64% 0.16 62);
+  --warn-subtle: oklch(96% 0.045 62);
+  --partial: oklch(66% 0.14 95);
+  --partial-subtle: oklch(96% 0.05 95);
+  --info: oklch(58% 0.13 240);
+  --info-subtle: oklch(95.5% 0.03 240);
+
+  --ring: oklch(52% 0.19 268 / 0.45);
+}
+
+.dark {
+  --bg: oklch(16.5% 0.014 265);
+  --surface: oklch(20% 0.016 265);
+  --surface-2: oklch(24% 0.017 265);
+  --surface-3: oklch(28% 0.018 265);
+
+  --fg: oklch(95% 0.006 265);
+  --fg-muted: oklch(72% 0.014 265);
+  --fg-subtle: oklch(58% 0.014 265);
+
+  --border: oklch(30% 0.017 265);
+  --border-strong: oklch(38% 0.019 265);
+
+  --primary: oklch(70% 0.16 268);
+  --primary-hover: oklch(76% 0.15 268);
+  --primary-fg: oklch(18% 0.02 268);
+  --primary-subtle: oklch(30% 0.06 268);
+
+  --ok: oklch(72% 0.16 152);
+  --ok-subtle: oklch(29% 0.06 152);
+  --err: oklch(69% 0.18 25);
+  --err-subtle: oklch(30% 0.07 25);
+  --warn: oklch(77% 0.15 62);
+  --warn-subtle: oklch(31% 0.06 62);
+  --partial: oklch(80% 0.14 95);
+  --partial-subtle: oklch(32% 0.06 95);
+  --info: oklch(72% 0.13 240);
+  --info-subtle: oklch(29% 0.06 240);
+
+  --ring: oklch(70% 0.16 268 / 0.5);
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+  --color-primary-subtle: var(--primary-subtle);
+
+  --color-ok: var(--ok);
+  --color-ok-subtle: var(--ok-subtle);
+  --color-err: var(--err);
+  --color-err-subtle: var(--err-subtle);
+  --color-warn: var(--warn);
+  --color-warn-subtle: var(--warn-subtle);
+  --color-partial: var(--partial);
+  --color-partial-subtle: var(--partial-subtle);
+  --color-info: var(--info);
+  --color-info-subtle: var(--info-subtle);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--primary-subtle);
+  }
+}
+
+/* rehype-pretty-code emits both themes; swap them off the root class. */
+:where(html:not(.dark)) [data-theme="dark"],
+:where(html.dark) [data-theme="light"] {
+  display: none;
+}
+
+[data-rehype-pretty-code-figure] pre {
+  overflow-x: auto;
+  padding: 1rem 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+[data-rehype-pretty-code-figure] code {
+  display: grid;
+  counter-reset: line;
+}
+
+[data-rehype-pretty-code-figure] [data-line] {
+  padding: 0 1rem;
+  border-left: 2px solid transparent;
+}
+
+[data-rehype-pretty-code-figure] [data-highlighted-line] {
+  background-color: var(--primary-subtle);
+  border-left-color: var(--primary);
+}
+
+[data-rehype-pretty-code-title] {
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+}

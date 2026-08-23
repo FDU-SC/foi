@@ -1,8 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { problems, submissions } from "@/lib/db/schema";
+import { accounts, problems, submissions } from "@/lib/db/schema";
 import type { SubmissionRow } from "@/lib/db/schema";
-import { getMember } from "@/lib/roster/registry";
 import type { SubmissionListItem, SubmissionView } from "./types";
 
 export function toView(row: SubmissionRow): SubmissionView {
@@ -44,27 +43,27 @@ export async function listSubmissions(options: {
       : undefined,
   ].filter((clause) => clause !== undefined);
 
+  // The display name is a join again. It was a roster lookup for as long as
+  // identity lived in the repository; now that people supply their own, the
+  // authoritative copy is one table over and the foreign key guarantees the
+  // row is there.
   const rows = await db
     .select({
       submission: submissions,
       problemTitle: problems.title,
+      displayName: accounts.displayName,
     })
     .from(submissions)
     .innerJoin(problems, eq(problems.slug, submissions.problemSlug))
+    .innerJoin(accounts, eq(accounts.handle, submissions.handle))
     .where(filters.length > 0 ? and(...filters) : undefined)
     .orderBy(desc(submissions.createdAt))
     .limit(options.limit ?? 50);
 
-  // The display name used to come from a join. It comes from the roster now,
-  // which also means a rename in `content/roster/` shows up on historical
-  // submissions without touching a row.
-  return rows.map((row) => {
-    const member = getMember(row.submission.handle);
-    return {
-      ...toView(row.submission),
-      handle: row.submission.handle,
-      displayName: member?.displayName ?? row.submission.handle,
-      problemTitle: row.problemTitle,
-    };
-  });
+  return rows.map((row) => ({
+    ...toView(row.submission),
+    handle: row.submission.handle,
+    displayName: row.displayName,
+    problemTitle: row.problemTitle,
+  }));
 }

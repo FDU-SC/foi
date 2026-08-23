@@ -21,15 +21,19 @@ export async function register() {
 
   // Registries are the source of truth; the mirror tables exist only so
   // submissions can carry foreign keys. Pushing them here means a deploy is
-  // consistent before it serves a single request.
+  // consistent before it serves a single request. Grants come along for the
+  // same reason: the bootstrap administrator needs a row before anything can
+  // reference it, and nobody can create one through the UI.
   const { syncProblems } = await import("@/lib/problems/sync");
   const { syncContests } = await import("@/lib/contests/queries");
-  const [problems, contests] = await Promise.all([
+  const { syncGrants } = await import("@/lib/accounts/sync");
+  const [problems, contests, grants] = await Promise.all([
     syncProblems(),
     syncContests(),
+    syncGrants(),
   ]);
   console.log(
-    `[foi] 已同步 ${problems.synced} 道题目、${contests.synced} 场比赛`,
+    `[foi] 已同步 ${problems.synced} 道题目、${contests.synced} 场比赛、${grants.synced} 个声明账号`,
   );
 
   // A roster with nobody in it, or with no administrator, is almost always a

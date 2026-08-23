@@ -5,41 +5,106 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { SubmissionState, Verdict } from "@/lib/judge/types";
 
 /**
  * The database holds three kinds of thing and nothing else:
  *
- *   1. secrets, which cannot be committed — `credentials`
+ *   1. secrets and personal data, which cannot be committed — `accounts`
+ *      (the email address), `credentials`, `auth_tokens`
  *   2. mirrors of the filesystem registries, which exist only so that
  *      submissions can carry foreign keys — `problems`, `contests`
- *   3. things that actually happened — `submissions`
+ *   3. things that actually happened — `submissions`, and every row in
+ *      `accounts` that came from someone filling in the registration form
  *
- * Anything declarative — who exists, what they may do, which problems are in
- * which contest — lives in `content/` and `lib/auth/policy.ts` instead, where
- * it is typed, reviewable and versioned. If you find yourself adding a column
- * an administrator would want to edit, it probably belongs in the repository.
+ * What is deliberately absent is any column an administrator would want to
+ * edit in order to change what somebody may do. Roles and cohort tags are not
+ * stored: `content/enrollment/` declares the rules that produce them and
+ * `lib/auth/policy.ts` declares what each role means, so a privilege change is
+ * a reviewed commit rather than an UPDATE nobody can find afterwards.
  */
+
+/**
+ * Who exists.
+ *
+ * Almost every row here is created by the registration form, which is why the
+ * table holds no authority of its own: `handle`, `displayName` and `email` say
+ * who someone claims to be, and `status` says whether they may act at all. The
+ * answer to "what may they do" is computed in `lib/accounts/resolve.ts` from
+ * the email address and the grants in `content/enrollment/`, and is never
+ * written back — see the note on tags there.
+ *
+ * `email` is null only for bootstrap accounts, which are declared in the
+ * repository and given a password over the CLI. The unique index tolerates
+ * that because Postgres does not consider two nulls equal.
+ */
+export const accountStatuses = ["pending", "active", "suspended"] as const;
+export type AccountStatus = (typeof accountStatuses)[number];
+
+export const accountSources = ["bootstrap", "registration"] as const;
+export type AccountSource = (typeof accountSources)[number];
+
+export const accounts = pgTable(
+  "accounts",
+  {
+    /** Lowercased. `normalizeHandle` in `lib/accounts/types.ts` does this. */
+    handle: text("handle").primaryKey(),
+    displayName: text("display_name").notNull(),
+
+    /**
+     * Normalised (lowercased, optionally sub-address stripped) before it gets
+     * here, because it decides which cohort tags the account resolves to and
+     * two spellings of one mailbox must not become two cohorts.
+     */
+    email: text("email"),
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+
+    source: text("source")
+      .$type<AccountSource>()
+      .notNull()
+      .default("registration"),
+    status: text("status").$type<AccountStatus>().notNull().default("pending"),
+
+    /**
+     * Suspension is data rather than a line in the repository: banning a spam
+     * signup should not require a pull request. It is still an accountable
+     * act, hence the audit columns.
+     */
+    suspendedAt: timestamp("suspended_at", { withTimezone: true }),
+    suspendedBy: text("suspended_by"),
+    suspendedReason: text("suspended_reason"),
+
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("accounts_email_key").on(table.email),
+    index("accounts_status_idx").on(table.status),
+  ],
+);
 
 /**
  * The one thing that genuinely cannot live in Git.
  *
- * A row here means "this handle has been issued something to log in with on
- * this deployment". Identity, role and display name are not stored: they come
- * from `content/roster/`, so a row is only ever a secret plus its metadata.
+ * A row here means "this handle has been given a way to log in on this
+ * deployment". It carries no identity of its own — that is what `accounts` is
+ * for — which is why the module in `lib/auth/credentials.ts` deals only in
+ * handles and hashes.
  *
- * `passwordHash` is nullable because a setup code can be issued before the
- * person has chosen a password.
+ * `passwordHash` is nullable because an account can exist, and a setup code be
+ * issued against it, before anyone has chosen a password.
  */
 export const credentials = pgTable("credentials", {
-  /** Lowercased handle. `normalizeHandle` in the roster registry does this. */
-  handle: text("handle").primaryKey(),
+  handle: text("handle")
+    .primaryKey()
+    .references(() => accounts.handle, { onDelete: "cascade" }),
   passwordHash: text("password_hash"),
-
-  /** SHA-256 of a single-use code that lets its holder set a password. */
-  setupCodeHash: text("setup_code_hash"),
-  setupExpiresAt: timestamp("setup_expires_at", { withTimezone: true }),
 
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -48,6 +113,64 @@ export const credentials = pgTable("credentials", {
     .notNull()
     .defaultNow(),
 });
+
+/**
+ * Single-use, hashed, expiring secrets sent to an email address.
+ *
+ * Verifying a new address, recovering a password, confirming a change of
+ * address and the administrator-issued setup code are the same mechanism with
+ * different consequences, so they are one table with a `purpose` rather than
+ * four pairs of nullable columns on `credentials` — which is where the setup
+ * code used to live, and which could only ever hold one outstanding code.
+ *
+ * Only the digest is stored. A row is consumed rather than deleted so that
+ * "this link has already been used" stays distinguishable from "this link
+ * never existed", and so that a recently issued token can throttle the next
+ * request for one without a separate rate-limit store.
+ */
+export const tokenPurposes = [
+  "setup_code",
+  "email_verify",
+  "password_reset",
+  "email_change",
+] as const;
+export type TokenPurpose = (typeof tokenPurposes)[number];
+
+/** Extra data a token carries; the new address, for `email_change`. */
+export interface TokenPayload {
+  email?: string;
+}
+
+export const authTokens = pgTable(
+  "auth_tokens",
+  {
+    id: text("id").primaryKey(),
+    handle: text("handle")
+      .notNull()
+      .references(() => accounts.handle, { onDelete: "cascade" }),
+    purpose: text("purpose").$type<TokenPurpose>().notNull(),
+
+    /** SHA-256. The plaintext is 160 bits of randomness, shown once. */
+    tokenHash: text("token_hash").notNull(),
+    payload: jsonb("payload").$type<TokenPayload>(),
+
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // A link in an email carries the token and nothing else, so redemption
+    // has to be able to find the row from the digest alone.
+    uniqueIndex("auth_tokens_token_hash_key").on(table.tokenHash),
+    index("auth_tokens_handle_idx").on(
+      table.handle,
+      table.purpose,
+      table.createdAt,
+    ),
+  ],
+);
 
 /**
  * Mirror of the filesystem registry. `content/problems` remains the source of
@@ -87,11 +210,12 @@ export const submissions = pgTable(
 
     /**
      * Restrict rather than cascade: a submission is an audit record, and
-     * clearing someone's credentials should not quietly erase what they did.
+     * deleting an account should not quietly erase what it did. Suspending is
+     * the reversible action; removal has to deal with the history first.
      */
     handle: text("handle")
       .notNull()
-      .references(() => credentials.handle, { onDelete: "restrict" }),
+      .references(() => accounts.handle, { onDelete: "restrict" }),
 
     problemSlug: text("problem_slug")
       .notNull()
@@ -135,6 +259,8 @@ export const submissions = pgTable(
   ],
 );
 
+export type AccountRow = typeof accounts.$inferSelect;
+export type AuthTokenRow = typeof authTokens.$inferSelect;
 export type CredentialRow = typeof credentials.$inferSelect;
 export type ProblemRow = typeof problems.$inferSelect;
 export type ContestRow = typeof contests.$inferSelect;

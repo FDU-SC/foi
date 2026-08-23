@@ -5,31 +5,35 @@ import { pathToFileURL } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import { Pool } from "pg";
-import { credentials } from "../lib/db/schema";
-import { rosterEntrySchema, normalizeHandle } from "../lib/roster/types";
+import { accounts, credentials } from "../lib/db/schema";
+import { normalizeHandle } from "../lib/accounts/types";
+import { rosterEntrySchema } from "../lib/roster/types";
 
 /**
- * Gives everyone in the roster a development password.
+ * Creates the development accounts and gives them all one password.
  *
- * The account list is no longer here — it moved to `content/roster/`, and this
- * script only supplies the one thing that cannot live in the repository. That
- * also means seeding is idempotent with respect to who exists: adding someone
- * is a roster edit, and re-running this hands them a password too.
+ * In production nobody is seeded: people register, and the bootstrap
+ * administrator gets a password over `scripts/set-password.cjs`. This exists
+ * so that a fresh checkout has somebody to log in as without setting up a mail
+ * server first, which is the same reason `scripts/mock-judge.ts` exists.
  *
  * The roster is read straight off disk rather than through the registry,
  * because the registry is built by Turbopack's `import.meta.glob`, which a
  * standalone script cannot evaluate.
- *
- * Development only. Production issues setup codes via
- * `scripts/set-password.cjs`, so no shared password ever exists.
  */
 
 const ARGON2_OPTIONS = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
 
-async function loadRoster(): Promise<{ handle: string; role: string }[]> {
+interface SeedAccount {
+  handle: string;
+  displayName: string;
+  role: string;
+}
+
+async function loadRoster(): Promise<SeedAccount[]> {
   const dir = join(process.cwd(), "content", "roster");
   const files = readdirSync(dir).filter((file) => file.endsWith(".ts"));
-  const entries: { handle: string; role: string }[] = [];
+  const entries: SeedAccount[] = [];
 
   for (const file of files) {
     const mod: unknown = await import(pathToFileURL(join(dir, file)).href);
@@ -39,7 +43,11 @@ async function loadRoster(): Promise<{ handle: string; role: string }[]> {
     }
     for (const raw of members) {
       const parsed = rosterEntrySchema.parse(raw);
-      entries.push({ handle: normalizeHandle(parsed.handle), role: parsed.role });
+      entries.push({
+        handle: normalizeHandle(parsed.handle),
+        displayName: parsed.displayName,
+        role: parsed.role,
+      });
     }
   }
 
@@ -61,6 +69,20 @@ async function main() {
   const passwordHash = await hash(password, ARGON2_OPTIONS);
 
   for (const entry of roster) {
+    // The account has to exist before the credential can reference it.
+    await db
+      .insert(accounts)
+      .values({
+        handle: entry.handle,
+        displayName: entry.displayName,
+        source: "bootstrap",
+        status: "active",
+      })
+      .onConflictDoUpdate({
+        target: accounts.handle,
+        set: { status: sql`'active'`, updatedAt: new Date() },
+      });
+
     await db
       .insert(credentials)
       .values({ handle: entry.handle, passwordHash })
@@ -68,8 +90,6 @@ async function main() {
         target: credentials.handle,
         set: {
           passwordHash: sql`excluded.password_hash`,
-          setupCodeHash: null,
-          setupExpiresAt: null,
           updatedAt: new Date(),
         },
       });
@@ -77,8 +97,8 @@ async function main() {
   }
 
   console.log(
-    `\n已为名册中的 ${roster.length} 个账号写入密码: ${password}` +
-      `\n角色与显示名来自 content/roster/，不在数据库中。`,
+    `\n已为 ${roster.length} 个账号建行并写入密码: ${password}` +
+      `\n角色来自 content/roster/，不在数据库中。`,
   );
   await pool.end();
 }

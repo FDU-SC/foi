@@ -3,12 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getSessionUser } from "@/auth";
-import { issueSetupCode } from "@/lib/auth/credentials";
+import { resolveUser } from "@/lib/accounts/resolve";
 import type { Capability } from "@/lib/auth/policy";
 import { userCan } from "@/lib/auth/session";
+import { issueToken } from "@/lib/auth/tokens";
 import { syncContests } from "@/lib/contests/queries";
 import { syncProblems } from "@/lib/problems/sync";
-import { getMember } from "@/lib/roster/registry";
 
 export interface ActionState {
   error?: string;
@@ -64,13 +64,12 @@ const issueSchema = z.object({
 });
 
 /**
- * The one write an administrator still has, because a password is the one
- * thing the repository cannot hold. Everything else on this console — who
- * exists, what they may do, which problems are in which contest — is a pull
- * request against `content/`.
+ * Hands somebody a way to set a password without knowing their old one.
  *
- * The handle must be in the roster: issuing a code for someone the roster
- * does not know would create a credentials row that can never be used.
+ * This is the fallback for an account with no address to mail — the bootstrap
+ * administrator, or anyone whose mailbox has stopped working. Everyone else
+ * uses the self-service reset, which sends the same kind of token to an
+ * address that has already been proved.
  */
 export async function issueSetupCodeAction(
   _prev: ActionState,
@@ -83,19 +82,19 @@ export async function issueSetupCodeAction(
     return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
   }
 
-  const member = getMember(parsed.data.handle);
-  if (!member) {
-    return { error: "该用户名不在名册中，请先在 content/roster/ 中登记" };
+  const user = await resolveUser(parsed.data.handle);
+  if (!user) {
+    return { error: "没有这个账号" };
   }
-  if (member.disabled) {
-    return { error: "该用户已在名册中停用，无法签发设置码" };
+  if (user.disabled) {
+    return { error: "该账号已停用，无法签发设置码" };
   }
 
-  const { code } = await issueSetupCode(member.handle);
+  const { token } = await issueToken(user.handle, "setup_code");
 
-  revalidatePath("/admin/credentials");
+  revalidatePath("/admin/roster");
   return {
-    message: `已为 ${member.handle} 签发设置码，7 天内有效。`,
-    setupCode: code,
+    message: `已为 ${user.handle} 签发设置码，7 天内有效。`,
+    setupCode: token,
   };
 }

@@ -6,6 +6,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { listCredentials } from "@/lib/auth/credentials";
 import { roleName } from "@/lib/auth/policy";
 import { userCan } from "@/lib/auth/session";
+import { listPendingTokens } from "@/lib/auth/tokens";
 import { listMembers, listTags } from "@/lib/roster/registry";
 import { IssueCodeForm } from "./issue-code-form";
 
@@ -18,13 +19,15 @@ const formatter = new Intl.DateTimeFormat("zh-CN", {
 });
 
 export default async function AdminRosterPage() {
-  const [user, members, credentials] = await Promise.all([
+  const [user, members, credentials, pendingCodes] = await Promise.all([
     getSessionUser(),
     Promise.resolve(listMembers({ includeDisabled: true })),
     listCredentials(),
+    listPendingTokens("setup_code"),
   ]);
 
   const byHandle = new Map(credentials.map((row) => [row.handle, row]));
+  const awaitingCode = new Set(pendingCodes.map((row) => row.handle));
   const canManage = userCan(user, "credential.manage");
   const tags = listTags();
 
@@ -129,7 +132,7 @@ export default async function AdminRosterPage() {
                       <span className="text-fg-subtle font-mono text-xs">
                         {formatter.format(credential.updatedAt)}
                       </span>
-                    ) : credential?.setupExpiresAt ? (
+                    ) : awaitingCode.has(member.handle) ? (
                       <Badge tone="info">设置码待用</Badge>
                     ) : (
                       <Badge tone="warn">未设置密码</Badge>

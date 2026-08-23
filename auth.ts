@@ -2,8 +2,9 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 import { authConfig } from "./auth.config";
+import { resolveUser } from "@/lib/accounts/resolve";
+import type { ResolvedUser } from "@/lib/accounts/types";
 import { verifyPassword } from "@/lib/auth/credentials";
-import { getMember } from "@/lib/roster/registry";
 import type { SessionUser } from "@/lib/auth/session";
 
 const credentialsSchema = z.object({
@@ -21,42 +22,58 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
 
       /**
-       * Two independent checks, against two different sources of truth: the
-       * roster says whether this person exists and may log in, the database
-       * says whether they got the password right. Neither can stand in for
-       * the other, which is the whole point of the split — removing someone
-       * from the roster locks them out even though their hash is still on
-       * disk.
+       * Two independent checks against two different tables: the account says
+       * whether this person exists and is in a state to log in, the
+       * credentials row says whether they got the password right. Neither can
+       * stand in for the other — suspending someone locks them out even
+       * though their hash is untouched.
        */
       async authorize(raw) {
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
 
         const { handle, password } = parsed.data;
-        const member = getMember(handle);
+        const user = await resolveUser(handle);
 
-        // Still verify against a decoy so an unlisted handle costs the same
-        // wall time as a listed one with the wrong password.
-        if (!member || member.disabled) {
+        // Still verify against a decoy so an unknown handle costs the same
+        // wall time as a known one with the wrong password.
+        if (!user || user.disabled) {
           await verifyPassword(handle, password);
           return null;
         }
 
-        if (!(await verifyPassword(member.handle, password))) return null;
+        if (!(await verifyPassword(user.handle, password))) return null;
 
-        // Only the handle travels onwards; the session callback re-reads the
-        // rest from the roster on every request.
-        return { id: member.handle, handle: member.handle };
+        // Only the handle travels onwards; everything else is re-resolved on
+        // each request so a suspension or a demotion lands immediately.
+        return { id: user.handle, handle: user.handle };
       },
     }),
   ],
 });
 
-/** Current user for server components and route handlers. */
-export async function getSessionUser(): Promise<SessionUser | null> {
+/**
+ * The authoritative answer to "who is making this request", and the place
+ * every protected page, route handler and server action starts from.
+ *
+ * The session callback in `auth.config.ts` produces an optimistic view for the
+ * proxy out of the token and the repository alone. This is the one that reads
+ * the account row, so it is the one that notices a suspension. Anything
+ * guarding data must call this rather than trusting the session object.
+ */
+export async function getResolvedUser(): Promise<ResolvedUser | null> {
   const session = await auth();
-  const user = session?.user;
-  if (!user?.handle) return null;
+  const handle = session?.user?.handle;
+  if (!handle) return null;
+
+  const user = await resolveUser(handle);
+  return user && !user.disabled ? user : null;
+}
+
+/** The narrowed shape most callers want. */
+export async function getSessionUser(): Promise<SessionUser | null> {
+  const user = await getResolvedUser();
+  if (!user) return null;
   return {
     handle: user.handle,
     displayName: user.displayName,

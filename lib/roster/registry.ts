@@ -1,5 +1,6 @@
+import { normalizeHandle } from "@/lib/accounts/types";
 import { rosterModules } from "@/content";
-import { normalizeHandle, rosterEntrySchema, type RosterEntry } from "./types";
+import { rosterEntrySchema, type RosterEntry } from "./types";
 
 /**
  * The roster is discovered from the filesystem at build time, exactly like the

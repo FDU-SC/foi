@@ -6,8 +6,7 @@ import {
 } from "@/lib/contests/queries";
 import type { ContestConfig } from "@/lib/contests/types";
 import { db } from "@/lib/db";
-import { submissions } from "@/lib/db/schema";
-import { getMember } from "@/lib/roster/registry";
+import { accounts, submissions } from "@/lib/db/schema";
 import { cachedStandings } from "./cache";
 import { getRuleset } from "./registry";
 import type {
@@ -51,8 +50,10 @@ async function loadAndCompute(slug: string): Promise<ContestStandings | null> {
       verdict: submissions.verdict,
       score: submissions.score,
       createdAt: submissions.createdAt,
+      displayName: accounts.displayName,
     })
     .from(submissions)
+    .innerJoin(accounts, eq(accounts.handle, submissions.handle))
     .where(eq(submissions.contestSlug, contest.slug))
     .orderBy(asc(submissions.createdAt));
 
@@ -92,18 +93,19 @@ async function loadAndCompute(slug: string): Promise<ContestStandings | null> {
 }
 
 /**
- * Display names come from the roster where possible. A handle that is no
- * longer listed keeps its submissions on the board under the bare handle
- * rather than vanishing from a contest it took part in.
+ * An open contest has no declared entry list, so whoever submitted competes.
+ * Their display name rode along on the join above, which is what keeps this a
+ * pure function of the rows it was handed.
  */
-function deriveParticipants(rows: { handle: string }[]): Participant[] {
+function deriveParticipants(
+  rows: { handle: string; displayName: string }[],
+): Participant[] {
   const seen = new Map<string, Participant>();
   for (const row of rows) {
     if (seen.has(row.handle)) continue;
-    const member = getMember(row.handle);
     seen.set(row.handle, {
-      handle: member?.handle ?? row.handle,
-      displayName: member?.displayName ?? row.handle,
+      handle: row.handle,
+      displayName: row.displayName,
       unofficial: false,
     });
   }

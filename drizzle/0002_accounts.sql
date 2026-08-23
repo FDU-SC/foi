@@ -46,7 +46,6 @@ CREATE TABLE "auth_tokens" (
 	"handle" text NOT NULL,
 	"purpose" text NOT NULL,
 	"token_hash" text NOT NULL,
-	"payload" jsonb,
 	"expires_at" timestamp with time zone NOT NULL,
 	"consumed_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL

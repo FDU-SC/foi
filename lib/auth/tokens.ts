@@ -4,14 +4,14 @@ import { ulid } from "ulid";
 import { normalizeHandle } from "@/lib/accounts/types";
 import { db } from "@/lib/db";
 import { authTokens } from "@/lib/db/schema";
-import type { TokenPayload, TokenPurpose } from "@/lib/db/schema";
+import type { TokenPurpose } from "@/lib/db/schema";
 
 /**
  * Single-use secrets that arrive by email, and the administrator-issued setup
  * code that predates them.
  *
- * All four purposes are the same three steps — mint, mail, redeem — so they
- * are one module rather than four. What differs is only what redemption is
+ * All three purposes are the same three steps — mint, mail, redeem — so they
+ * are one module rather than three. What differs is only what redemption is
  * allowed to do, which is the caller's business.
  *
  * Tokens are 160 bits of randomness, so a fast digest is enough: there is no
@@ -24,7 +24,6 @@ const DEFAULT_TTL_MS = {
   setup_code: 7 * 24 * 60 * 60 * 1000,
   email_verify: 24 * 60 * 60 * 1000,
   password_reset: 60 * 60 * 1000,
-  email_change: 60 * 60 * 1000,
 } as const satisfies Record<TokenPurpose, number>;
 
 function digest(token: string): string {
@@ -46,7 +45,7 @@ export interface IssuedToken {
 export async function issueToken(
   handle: string,
   purpose: TokenPurpose,
-  options?: { ttlMs?: number; payload?: TokenPayload },
+  options?: { ttlMs?: number },
 ): Promise<IssuedToken> {
   const normalized = normalizeHandle(handle);
   const token = randomBytes(20).toString("base64url");
@@ -61,7 +60,6 @@ export async function issueToken(
     handle: normalized,
     purpose,
     tokenHash: digest(token),
-    payload: options?.payload ?? null,
     expiresAt,
   });
 
@@ -69,7 +67,7 @@ export async function issueToken(
 }
 
 export type RedeemResult =
-  | { ok: true; handle: string; payload: TokenPayload | null }
+  | { ok: true; handle: string }
   | { ok: false; reason: "invalid" | "expired" };
 
 /**
@@ -97,7 +95,7 @@ export async function redeemToken(
         sql`${authTokens.expiresAt} > now()`,
       ),
     )
-    .returning({ handle: authTokens.handle, payload: authTokens.payload });
+    .returning({ handle: authTokens.handle });
 
   if (row) {
     // A setup code is typed in alongside a handle, so the two have to agree.
@@ -108,7 +106,7 @@ export async function redeemToken(
     ) {
       return { ok: false, reason: "invalid" };
     }
-    return { ok: true, handle: row.handle, payload: row.payload };
+    return { ok: true, handle: row.handle };
   }
 
   // Nothing was consumed. Separate "you waited too long" from "this was never

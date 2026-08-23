@@ -8,6 +8,7 @@ import type { Capability } from "@/lib/auth/policy";
 import { userCan } from "@/lib/auth/session";
 import { issueToken } from "@/lib/auth/tokens";
 import { syncContests } from "@/lib/contests/queries";
+import { sendSetupCode } from "@/lib/mail/notify";
 import { syncProblems } from "@/lib/problems/sync";
 
 export interface ActionState {
@@ -15,6 +16,19 @@ export interface ActionState {
   message?: string;
   /** Shown once and never persisted in plaintext. */
   setupCode?: string;
+}
+
+/**
+ * Whether the code was handed over on screen or sent to the account's inbox.
+ *
+ * Mailing it is better when there is an address to mail: the code then only
+ * ever exists in the recipient's mailbox, rather than passing through an
+ * administrator's screen and whatever they paste it into.
+ */
+function issuedMessage(handle: string, mailed: boolean): string {
+  return mailed
+    ? `已把设置链接发送到 ${handle} 的邮箱，7 天内有效。`
+    : `已为 ${handle} 签发设置码，7 天内有效。该账号没有邮箱，请当面转交。`;
 }
 
 /**
@@ -90,11 +104,35 @@ export async function issueSetupCodeAction(
     return { error: "该账号已停用，无法签发设置码" };
   }
 
-  const { token } = await issueToken(user.handle, "setup_code");
+  const { token, expiresAt } = await issueToken(user.handle, "setup_code");
+
+  if (user.email && user.emailVerified) {
+    try {
+      await sendSetupCode(
+        {
+          handle: user.handle,
+          displayName: user.displayName,
+          email: user.email,
+        },
+        token,
+        expiresAt,
+      );
+      revalidatePath("/admin/roster");
+      return { message: issuedMessage(user.handle, true) };
+    } catch (error) {
+      // The token is already minted, so falling back to showing it beats
+      // stranding the administrator with a code they cannot see.
+      console.error("[foi] 设置码邮件发送失败", error);
+      return {
+        message: `邮件发送失败（${error instanceof Error ? error.message : "未知错误"}），请手动转交下面的设置码。`,
+        setupCode: token,
+      };
+    }
+  }
 
   revalidatePath("/admin/roster");
   return {
-    message: `已为 ${user.handle} 签发设置码，7 天内有效。`,
+    message: issuedMessage(user.handle, false),
     setupCode: token,
   };
 }

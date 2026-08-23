@@ -1,5 +1,5 @@
 {
-  "id": "94cc5d4a-5a9b-4968-87cb-19cb59d1399c",
+  "id": "f27bb78b-aae9-45b3-8ef2-55976b11ce7c",
   "prevId": "9f4ceb8c-85fc-4ce7-97d1-6a08e6e08852",
   "version": "7",
   "dialect": "postgresql",
@@ -145,12 +145,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "payload": {
-          "name": "payload",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
         },
         "expires_at": {
           "name": "expires_at",

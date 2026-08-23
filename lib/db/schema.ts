@@ -117,11 +117,11 @@ export const credentials = pgTable("credentials", {
 /**
  * Single-use, hashed, expiring secrets sent to an email address.
  *
- * Verifying a new address, recovering a password, confirming a change of
- * address and the administrator-issued setup code are the same mechanism with
- * different consequences, so they are one table with a `purpose` rather than
- * four pairs of nullable columns on `credentials` — which is where the setup
- * code used to live, and which could only ever hold one outstanding code.
+ * Verifying a new address, recovering a password and the
+ * administrator-issued setup code are the same mechanism with different
+ * consequences, so they are one table with a `purpose` rather than three pairs
+ * of nullable columns on `credentials` — which is where the setup code used to
+ * live, and which could only ever hold one outstanding code.
  *
  * Only the digest is stored. A row is consumed rather than deleted so that
  * "this link has already been used" stays distinguishable from "this link
@@ -132,14 +132,8 @@ export const tokenPurposes = [
   "setup_code",
   "email_verify",
   "password_reset",
-  "email_change",
 ] as const;
 export type TokenPurpose = (typeof tokenPurposes)[number];
-
-/** Extra data a token carries; the new address, for `email_change`. */
-export interface TokenPayload {
-  email?: string;
-}
 
 export const authTokens = pgTable(
   "auth_tokens",
@@ -152,7 +146,6 @@ export const authTokens = pgTable(
 
     /** SHA-256. The plaintext is 160 bits of randomness, shown once. */
     tokenHash: text("token_hash").notNull(),
-    payload: jsonb("payload").$type<TokenPayload>(),
 
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     consumedAt: timestamp("consumed_at", { withTimezone: true }),

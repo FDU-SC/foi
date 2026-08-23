@@ -52,8 +52,11 @@ export const policy: EnrollmentPolicyInput = {
 export const rules: EnrollmentRuleInput[] = [
   {
     label: "示例：按入学年份分流",
-    // 23300240001@example.test → 2023级
-    match: /^(\d{2})30\d{6}@example\.test$/i,
+    // 学号 11 位，前两位是入学年份：23300240001@example.test → 2023级。
+    // 位数一定要跟真实学号对齐——少数一位，这条规则在 code review 里看着完全
+    // 正常，在生产里一个人也匹配不上。`/admin/enrollment` 的「命中账号」列就
+    // 是为了让这种错误在开赛前暴露出来。
+    match: /^(\d{2})30\d{7}@example\.test$/i,
     tags: (m) => [`20${m[1]}级`, "本科生"],
   },
   {

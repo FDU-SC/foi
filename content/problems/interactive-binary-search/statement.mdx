@@ -1,0 +1,56 @@
+<Constraints time="1 s" memory="256 MB" />
+
+## 题目描述
+
+裁判在心里想了一个 $1 \dots n$ 之间的整数，你的程序要通过**查询**把它
+确定下来。$n = 10^6$。
+
+## 交互协议
+
+你的代码需要实现一个函数 `void solve()`。判题机（grader）会调用它，并在
+其中向你提供两个函数：
+
+- `int query(int x)`：询问「答案是否大于 $x$」。若答案 $> x$ 返回 `1`，否则返回 `0`。**每调用一次计一次查询。**
+- `void answer(int x)`：提交你确定的答案。调用后应尽快结束 `solve()`。
+
+你的代码**不要定义 `main()`**——grader 会提供。程序在 `solve()` 返回后立即
+结束，因此最后一次 `query` 必须保证答案范围已经收敛。
+
+## 计分
+
+| 情况 | 分数 |
+| --- | --- |
+| 答案正确，且查询次数 $\le 30$ | 100 |
+| 答案正确，但查询次数超过 30 | 50 |
+| 答案错误 / 未调用 answer | 0 |
+
+## 示例（C++）
+
+```cpp
+void solve() {
+  int lo = 1, hi = 1000000;
+  while (lo < hi) {
+    int mid = (lo + hi) / 2;
+    if (query(mid)) lo = mid + 1;
+    else hi = mid;
+  }
+  answer(lo);
+}
+```
+
+<Callout kind="tip" title="为什么二分一定够">
+
+$2^{20} = 1048576 > 10^6$，所以 20 次二分查询就足以把范围缩到 1——远在
+30 次上限之内。
+
+</Callout>
+
+<Callout kind="warning" title="常见错误">
+
+- 写了 `main()`：与 grader 的 `main` 冲突，编译失败
+- 没实现 `solve()`：链接失败
+- `query` 后不更新边界：死循环或超时
+
+</Callout>
+
+<SubmitPanel />

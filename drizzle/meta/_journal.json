@@ -8,6 +8,13 @@
       "when": 1787331035434,
       "tag": "0000_cool_hobgoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787450317981,
+      "tag": "0001_config_as_code",
+      "breakpoints": true
     }
   ]
 }

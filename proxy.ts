@@ -1,8 +1,10 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "./auth.config";
+import { can } from "@/lib/auth/policy";
 
-// Instantiated from the database-free config: the proxy only reads the JWT.
+// Instantiated from the database-free config: the proxy only reads the JWT
+// and resolves it against the roster registry.
 const { auth } = NextAuth(authConfig);
 
 export default auth((req) => {
@@ -10,18 +12,22 @@ export default auth((req) => {
   const user = req.auth?.user;
   const path = nextUrl.pathname;
 
+  // The session callback blanks the handle when the token no longer matches
+  // an active roster entry, so this covers deleted and suspended members too.
+  const signedIn = Boolean(user?.handle);
+
   const needsAuth =
     path.startsWith("/admin") ||
     path.startsWith("/submissions") ||
     path.startsWith("/judges");
 
-  if (needsAuth && !user) {
+  if (needsAuth && !signedIn) {
     const login = new URL("/login", nextUrl);
     login.searchParams.set("next", path + nextUrl.search);
     return NextResponse.redirect(login);
   }
 
-  if (path.startsWith("/admin") && user?.role !== "admin") {
+  if (path.startsWith("/admin") && !can(user, "admin.access")) {
     return NextResponse.redirect(new URL("/", nextUrl));
   }
 

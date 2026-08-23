@@ -2,11 +2,9 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ulid } from "ulid";
 import { getSessionUser } from "@/auth";
-import {
-  contestHasProblem,
-  contestPhase,
-  getContestById,
-} from "@/lib/contests/queries";
+import { ensureContest } from "@/lib/contests/queries";
+import { getContest } from "@/lib/contests/registry";
+import { contestPhase } from "@/lib/contests/types";
 import { db } from "@/lib/db";
 import { submissions } from "@/lib/db/schema";
 import {
@@ -53,22 +51,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "题目不存在" }, { status: 404 });
   }
 
-  // The client supplies contestId, so re-derive whether it is legitimate:
-  // the contest must be running and must actually contain this problem.
-  let contestId: string | null = null;
-  if (parsed.data.contestId) {
-    const contest = await getContestById(parsed.data.contestId);
+  // The client supplies contestSlug, so re-derive whether it is legitimate:
+  // the contest must be running and must actually contain this problem. Both
+  // facts come from the registry, so this no longer costs a query.
+  let contestSlug: string | null = null;
+  if (parsed.data.contestSlug) {
+    const contest = getContest(parsed.data.contestSlug);
     const eligible =
       contest !== undefined &&
       contestPhase(contest) === "running" &&
-      (await contestHasProblem(contest.id, problem.slug));
+      contest.problems.some((entry) => entry.slug === problem.slug);
     if (!eligible) {
       return NextResponse.json(
         { error: "该比赛未在进行中，或不包含这道题目" },
         { status: 400 },
       );
     }
-    contestId = contest.id;
+    await ensureContest(contest);
+    contestSlug = contest.slug;
   }
 
   let judge;
@@ -92,9 +92,9 @@ export async function POST(request: Request) {
     .insert(submissions)
     .values({
       id,
-      userId: user.id,
+      handle: user.handle,
       problemSlug: problem.slug,
-      contestId,
+      contestSlug,
       payload: parsed.data.payload,
       judgeId: judge.id,
       callbackTokenHash: hash,
@@ -142,9 +142,9 @@ export async function GET(request: Request) {
 
   return NextResponse.json(
     await listSubmissions({
-      userId: searchParams.get("mine") === "1" ? user.id : undefined,
+      handle: searchParams.get("mine") === "1" ? user.handle : undefined,
       problemSlug: searchParams.get("problem") ?? undefined,
-      contestId: searchParams.get("contest") ?? undefined,
+      contestSlug: searchParams.get("contest") ?? undefined,
       limit: 50,
     }),
   );

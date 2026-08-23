@@ -20,7 +20,7 @@ export default async function SubmissionsPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login?next=/submissions");
 
-  const rows = await listSubmissions({ userId: user.id, limit: 50 });
+  const rows = await listSubmissions({ handle: user.handle, limit: 50 });
 
   // One sweep of the judges covers every unfinished row on the page.
   const positions = await locateInQueues(

@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { getSessionUser } from "@/auth";
 import { ProblemProvider } from "@/components/problem/problem-context";
 import { Badge } from "@/components/ui/badge";
-import { contestHasProblem, contestPhase, getContestBySlug } from "@/lib/contests/queries";
+import { getContest } from "@/lib/contests/registry";
+import { contestPhase } from "@/lib/contests/types";
 import {
   getProblem,
   listProblems,
@@ -28,22 +29,23 @@ export async function generateMetadata({
 }
 
 /**
- * Resolves `?contest=<slug>` into a contest id, but only if the problem is
- * actually part of that contest and the contest is running. Without both
- * checks a player could attribute a submission to any contest they like.
+ * Resolves `?contest=<slug>`, but only if the problem is actually part of that
+ * contest and the contest is running. Without both checks a player could
+ * attribute a submission to any contest they like. The API re-derives the same
+ * two facts, since this only decides what the page shows.
  */
-async function resolveContest(
+function resolveContest(
   raw: string | string[] | undefined,
   problemSlug: string,
-): Promise<{ id: string; title: string; slug: string } | null> {
+): { title: string; slug: string } | null {
   if (typeof raw !== "string") return null;
 
-  const contest = await getContestBySlug(raw);
+  const contest = getContest(raw);
   if (!contest) return null;
   if (contestPhase(contest) !== "running") return null;
-  if (!(await contestHasProblem(contest.id, problemSlug))) return null;
+  if (!contest.problems.some((entry) => entry.slug === problemSlug)) return null;
 
-  return { id: contest.id, title: contest.title, slug: contest.slug };
+  return { title: contest.title, slug: contest.slug };
 }
 
 export default async function ProblemPage({
@@ -57,16 +59,14 @@ export default async function ProblemPage({
   const Statement = await loadStatement(slug);
   if (!Statement) notFound();
 
-  const [user, contest] = await Promise.all([
-    getSessionUser(),
-    resolveContest((await searchParams).contest, slug),
-  ]);
+  const user = await getSessionUser();
+  const contest = resolveContest((await searchParams).contest, slug);
 
   return (
     <ProblemProvider
       value={{
         config: toPublicConfig(config),
-        contestId: contest?.id ?? null,
+        contestSlug: contest?.slug ?? null,
         canSubmit: Boolean(user),
       }}
     >

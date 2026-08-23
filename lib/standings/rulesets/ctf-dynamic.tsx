@@ -78,18 +78,18 @@ export const ctfDynamicRuleset: Ruleset<CtfCell> = {
     const official = new Set(
       input.participants
         .filter((participant) => !participant.unofficial)
-        .map((participant) => participant.userId),
+        .map((participant) => participant.handle),
     );
 
     const submissions = scoredSubmissions(input);
 
     // Pass 1: earliest accepted submission per (user, problem).
-    const solves = new Map<string, { userId: string; at: number }[]>();
+    const solves = new Map<string, { handle: string; at: number }[]>();
     const attempts = new Map<string, number>();
     const solvedKeys = new Set<string>();
 
     for (const submission of submissions) {
-      const key = `${submission.userId}:${submission.problemSlug}`;
+      const key = `${submission.handle}:${submission.problemSlug}`;
       if (solvedKeys.has(key)) continue;
 
       attempts.set(key, (attempts.get(key) ?? 0) + 1);
@@ -98,7 +98,7 @@ export const ctfDynamicRuleset: Ruleset<CtfCell> = {
       solvedKeys.add(key);
       const list = solves.get(submission.problemSlug) ?? [];
       list.push({
-        userId: submission.userId,
+        handle: submission.handle,
         at: submission.createdAt.getTime() - start,
       });
       solves.set(submission.problemSlug, list);
@@ -107,39 +107,39 @@ export const ctfDynamicRuleset: Ruleset<CtfCell> = {
     // Pass 2: value each problem from its official solve count, then award.
     const cellsByUser = new Map<string, Record<string, CtfCell>>();
     for (const participant of input.participants) {
-      cellsByUser.set(participant.userId, {});
+      cellsByUser.set(participant.handle, {});
     }
 
     for (const problem of input.problems) {
       const list = (solves.get(problem.slug) ?? []).sort((a, b) => a.at - b.at);
       const officialSolves = list.filter((solve) =>
-        official.has(solve.userId),
+        official.has(solve.handle),
       ).length;
       const value = decayedValue(config, officialSolves);
 
       list.forEach((solve, index) => {
-        const cells = cellsByUser.get(solve.userId);
+        const cells = cellsByUser.get(solve.handle);
         if (!cells) return;
         const bonus = config.bloodBonus[index] ?? 0;
         cells[problem.slug] = {
           score: value * (1 + bonus),
           solvedAt: solve.at,
           blood: index < config.bloodBonus.length ? index + 1 : null,
-          attempts: attempts.get(`${solve.userId}:${problem.slug}`) ?? 1,
+          attempts: attempts.get(`${solve.handle}:${problem.slug}`) ?? 1,
         };
       });
     }
 
     // Unsolved problems still need a cell so failed attempts are visible.
     for (const [key, count] of attempts) {
-      const [userId, slug] = splitKey(key);
-      const cells = cellsByUser.get(userId);
+      const [handle, slug] = splitKey(key);
+      const cells = cellsByUser.get(handle);
       if (!cells || cells[slug]) continue;
       cells[slug] = { score: 0, solvedAt: null, blood: null, attempts: count };
     }
 
     const rows = input.participants.map((participant) => {
-      const cells = cellsByUser.get(participant.userId) ?? {};
+      const cells = cellsByUser.get(participant.handle) ?? {};
       let total = 0;
       let lastSolve = 0;
       for (const cell of Object.values(cells)) {

@@ -57,11 +57,11 @@ export const oiRuleset: Ruleset<OiCell> = {
 
     const byUser = new Map<string, Map<string, OiCell>>();
     for (const participant of input.participants) {
-      byUser.set(participant.userId, new Map());
+      byUser.set(participant.handle, new Map());
     }
 
     for (const submission of scoredSubmissions(input)) {
-      const cells = byUser.get(submission.userId);
+      const cells = byUser.get(submission.handle);
       if (!cells) continue;
 
       const maxScore = maxScoreOf.get(submission.problemSlug) ?? 0;
@@ -84,7 +84,7 @@ export const oiRuleset: Ruleset<OiCell> = {
     }
 
     const rows = input.participants.map((participant) => {
-      const cells = Object.fromEntries(byUser.get(participant.userId) ?? []);
+      const cells = Object.fromEntries(byUser.get(participant.handle) ?? []);
       let total = 0;
       let lastAt = 0;
 

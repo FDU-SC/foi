@@ -2,12 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import {
-  contestPhase,
-  getContestBySlug,
-  getContestProblems,
-  PHASE_LABEL,
-} from "@/lib/contests/queries";
+import { resolveContestProblems } from "@/lib/contests/queries";
+import { getContest } from "@/lib/contests/registry";
+import { contestPhase, PHASE_LABEL } from "@/lib/contests/types";
 import { getRuleset } from "@/lib/standings/registry";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +13,7 @@ export async function generateMetadata({
   params,
 }: PageProps<"/contests/[slug]">): Promise<Metadata> {
   const { slug } = await params;
-  return { title: (await getContestBySlug(slug))?.title ?? "比赛" };
+  return { title: getContest(slug)?.title ?? "比赛" };
 }
 
 const formatter = new Intl.DateTimeFormat("zh-CN", {
@@ -28,13 +25,11 @@ export default async function ContestPage({
   params,
 }: PageProps<"/contests/[slug]">) {
   const { slug } = await params;
-  const contest = await getContestBySlug(slug);
+  const contest = getContest(slug);
   if (!contest) notFound();
 
-  const [problems, ruleset] = [
-    await getContestProblems(contest.id),
-    getRuleset(contest.rulesetId),
-  ];
+  const problems = resolveContestProblems(contest);
+  const ruleset = getRuleset(contest.ruleset.id);
   const phase = contestPhase(contest);
 
   return (
@@ -44,7 +39,7 @@ export default async function ContestPage({
           <Badge tone={phase === "running" ? "ok" : "neutral"}>
             {PHASE_LABEL[phase]}
           </Badge>
-          <Badge>{ruleset?.name ?? contest.rulesetId}</Badge>
+          <Badge>{ruleset?.name ?? contest.ruleset.id}</Badge>
         </div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">
           {contest.title}
@@ -77,6 +72,12 @@ export default async function ContestPage({
       {problems.length === 0 ? (
         <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
           这场比赛还没有添加题目。
+          <br />
+          在{" "}
+          <code className="font-mono">
+            content/contests/{contest.slug}/contest.ts
+          </code>{" "}
+          的 problems 中登记。
         </p>
       ) : (
         <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">

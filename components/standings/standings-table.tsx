@@ -68,7 +68,7 @@ export function StandingsTable({ data }: { data: ContestStandings }) {
         </thead>
         <tbody className="divide-border divide-y">
           {standings.rows.map((row) => (
-            <tr key={row.participant.userId} className="hover:bg-surface-2/60">
+            <tr key={row.participant.handle} className="hover:bg-surface-2/60">
               <td className="text-fg-muted px-3 py-2 text-right font-mono text-xs tabular-nums">
                 {row.rank}
               </td>

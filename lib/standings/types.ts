@@ -12,7 +12,7 @@ export interface ContestProblem {
 }
 
 export interface Participant {
-  userId: string;
+  /** Identifies the person everywhere: roster, credentials and submissions. */
   handle: string;
   displayName: string;
   unofficial: boolean;
@@ -20,7 +20,7 @@ export interface Participant {
 
 export interface SubmissionRecord {
   id: string;
-  userId: string;
+  handle: string;
   problemSlug: string;
   state: SubmissionState;
   verdict: Verdict | null;
@@ -29,7 +29,7 @@ export interface SubmissionRecord {
 }
 
 export interface ContestWindow {
-  id: string;
+  slug: string;
   startsAt: Date;
   endsAt: Date;
   freezeAt: Date | null;

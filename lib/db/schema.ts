@@ -1,38 +1,58 @@
 import {
-  boolean,
   doublePrecision,
   index,
-  integer,
   jsonb,
   pgTable,
-  primaryKey,
   text,
   timestamp,
-  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { SubmissionState, Verdict } from "@/lib/judge/types";
-import type { UserRole } from "@/lib/auth/session";
 
-export const users = pgTable(
-  "users",
-  {
-    id: text("id").primaryKey(),
-    handle: text("handle").notNull(),
-    displayName: text("display_name").notNull(),
-    passwordHash: text("password_hash").notNull(),
-    role: text("role").$type<UserRole>().notNull().default("user"),
-    disabled: boolean("disabled").notNull().default(false),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [uniqueIndex("users_handle_key").on(table.handle)],
-);
+/**
+ * The database holds three kinds of thing and nothing else:
+ *
+ *   1. secrets, which cannot be committed — `credentials`
+ *   2. mirrors of the filesystem registries, which exist only so that
+ *      submissions can carry foreign keys — `problems`, `contests`
+ *   3. things that actually happened — `submissions`
+ *
+ * Anything declarative — who exists, what they may do, which problems are in
+ * which contest — lives in `content/` and `lib/auth/policy.ts` instead, where
+ * it is typed, reviewable and versioned. If you find yourself adding a column
+ * an administrator would want to edit, it probably belongs in the repository.
+ */
+
+/**
+ * The one thing that genuinely cannot live in Git.
+ *
+ * A row here means "this handle has been issued something to log in with on
+ * this deployment". Identity, role and display name are not stored: they come
+ * from `content/roster/`, so a row is only ever a secret plus its metadata.
+ *
+ * `passwordHash` is nullable because a setup code can be issued before the
+ * person has chosen a password.
+ */
+export const credentials = pgTable("credentials", {
+  /** Lowercased handle. `normalizeHandle` in the roster registry does this. */
+  handle: text("handle").primaryKey(),
+  passwordHash: text("password_hash"),
+
+  /** SHA-256 of a single-use code that lets its holder set a password. */
+  setupCodeHash: text("setup_code_hash"),
+  setupExpiresAt: timestamp("setup_expires_at", { withTimezone: true }),
+
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 /**
  * Mirror of the filesystem registry. `content/problems` remains the source of
  * truth; this table exists so submissions can carry a foreign key and so
- * standings queries can join without reading the registry.
+ * listings can join without reading the registry.
  */
 export const problems = pgTable("problems", {
   slug: text("slug").primaryKey(),
@@ -43,76 +63,40 @@ export const problems = pgTable("problems", {
     .defaultNow(),
 });
 
-export const contests = pgTable(
-  "contests",
-  {
-    id: text("id").primaryKey(),
-    slug: text("slug").notNull(),
-    title: text("title").notNull(),
-    description: text("description"),
-    rulesetId: text("ruleset_id").notNull(),
-    rulesetConfig: jsonb("ruleset_config").$type<unknown>(),
-    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
-    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
-    freezeAt: timestamp("freeze_at", { withTimezone: true }),
-    visible: boolean("visible").notNull().default(true),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [uniqueIndex("contests_slug_key").on(table.slug)],
-);
-
-export const contestProblems = pgTable(
-  "contest_problems",
-  {
-    contestId: text("contest_id")
-      .notNull()
-      .references(() => contests.id, { onDelete: "cascade" }),
-    problemSlug: text("problem_slug")
-      .notNull()
-      .references(() => problems.slug, { onDelete: "cascade" }),
-    label: text("label").notNull(),
-    points: doublePrecision("points"),
-    /** Per-contest overrides handed to the ruleset. Opaque to the kernel. */
-    config: jsonb("config").$type<unknown>(),
-    order: integer("order").notNull().default(0),
-  },
-  (table) => [
-    primaryKey({ columns: [table.contestId, table.problemSlug] }),
-    index("contest_problems_contest_idx").on(table.contestId, table.order),
-  ],
-);
-
-export const contestParticipants = pgTable(
-  "contest_participants",
-  {
-    contestId: text("contest_id")
-      .notNull()
-      .references(() => contests.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    /** Excluded from standings but still able to submit. */
-    unofficial: boolean("unofficial").notNull().default(false),
-    joinedAt: timestamp("joined_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [primaryKey({ columns: [table.contestId, table.userId] })],
-);
+/**
+ * Mirror of `content/contests`, for the same reason as above and no other.
+ * Schedule, problem set and entry rules are all in the registry — this table
+ * is a foreign key anchor, which is why it has no `starts_at`.
+ *
+ * Sync never deletes: a contest removed from the repository keeps its row so
+ * that submissions made during it stay attributable. `/admin` reports the
+ * orphan instead of the sync silently detaching history.
+ */
+export const contests = pgTable("contests", {
+  slug: text("slug").primaryKey(),
+  title: text("title").notNull(),
+  syncedAt: timestamp("synced_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 export const submissions = pgTable(
   "submissions",
   {
     id: text("id").primaryKey(),
-    userId: text("user_id")
+
+    /**
+     * Restrict rather than cascade: a submission is an audit record, and
+     * clearing someone's credentials should not quietly erase what they did.
+     */
+    handle: text("handle")
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+      .references(() => credentials.handle, { onDelete: "restrict" }),
+
     problemSlug: text("problem_slug")
       .notNull()
       .references(() => problems.slug, { onDelete: "cascade" }),
-    contestId: text("contest_id").references(() => contests.id, {
+    contestSlug: text("contest_slug").references(() => contests.slug, {
       onDelete: "set null",
     }),
 
@@ -140,19 +124,18 @@ export const submissions = pgTable(
   },
   (table) => [
     index("submissions_standings_idx").on(
-      table.contestId,
+      table.contestSlug,
       table.problemSlug,
-      table.userId,
+      table.handle,
       table.createdAt,
     ),
     // Drives the reconciler sweep for submissions whose callback never landed.
     index("submissions_pending_idx").on(table.state, table.createdAt),
-    index("submissions_user_idx").on(table.userId, table.createdAt),
+    index("submissions_handle_idx").on(table.handle, table.createdAt),
   ],
 );
 
-export type UserRow = typeof users.$inferSelect;
+export type CredentialRow = typeof credentials.$inferSelect;
 export type ProblemRow = typeof problems.$inferSelect;
 export type ContestRow = typeof contests.$inferSelect;
-export type ContestProblemRow = typeof contestProblems.$inferSelect;
 export type SubmissionRow = typeof submissions.$inferSelect;

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StandingsTable } from "@/components/standings/standings-table";
 import { Badge } from "@/components/ui/badge";
-import { getContestBySlug } from "@/lib/contests/queries";
+import { getContest } from "@/lib/contests/registry";
 import { getContestStandings } from "@/lib/standings/compute";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export async function generateMetadata({
   params,
 }: PageProps<"/contests/[slug]/standings">): Promise<Metadata> {
   const { slug } = await params;
-  const contest = await getContestBySlug(slug);
+  const contest = getContest(slug);
   return { title: contest ? `${contest.title} 排行榜` : "排行榜" };
 }
 
@@ -20,10 +20,10 @@ export default async function StandingsPage({
   params,
 }: PageProps<"/contests/[slug]/standings">) {
   const { slug } = await params;
-  const contest = await getContestBySlug(slug);
+  const contest = getContest(slug);
   if (!contest) notFound();
 
-  const data = await getContestStandings(contest.id);
+  const data = await getContestStandings(contest.slug);
   if (!data) notFound();
 
   return (

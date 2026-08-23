@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/auth";
+import { userCan } from "@/lib/auth/session";
 import { isTerminalState } from "@/lib/judge/types";
 import { locateOne } from "@/lib/judge/queue-lookup";
 import { getSubmissionRow, toView } from "@/lib/submissions/queries";
@@ -21,7 +22,7 @@ export async function GET(
     return NextResponse.json({ error: "提交不存在" }, { status: 404 });
   }
 
-  if (row.userId !== user.id && user.role !== "admin") {
+  if (row.handle !== user.handle && !userCan(user, "submission.readAny")) {
     return NextResponse.json({ error: "无权查看该提交" }, { status: 403 });
   }
 

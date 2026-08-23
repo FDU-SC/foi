@@ -67,7 +67,7 @@ export async function reconcileStaleSubmissions(): Promise<{
           .returning();
 
         publish(toView(updated));
-        if (updated.contestId) invalidateStandings(updated.contestId);
+        if (updated.contestSlug) invalidateStandings(updated.contestSlug);
         resolved += 1;
         continue;
       }

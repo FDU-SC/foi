@@ -1,34 +1,15 @@
-import { hash, verify } from "@node-rs/argon2";
-import { eq } from "drizzle-orm";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 import { authConfig } from "./auth.config";
-import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { verifyPassword } from "@/lib/auth/credentials";
+import { getMember } from "@/lib/roster/registry";
 import type { SessionUser } from "@/lib/auth/session";
 
 const credentialsSchema = z.object({
   handle: z.string().min(1),
   password: z.string().min(1),
 });
-
-// Argon2id with parameters in line with the OWASP baseline.
-const ARGON2_OPTIONS = {
-  memoryCost: 19456,
-  timeCost: 2,
-  parallelism: 1,
-} as const;
-
-/**
- * A real hash, verified against when the account does not exist, so a missing
- * handle costs the same wall time as a wrong password.
- */
-const decoyHash = hash("decoy-for-constant-time-login", ARGON2_OPTIONS);
-
-export function hashPassword(password: string): Promise<string> {
-  return hash(password, ARGON2_OPTIONS);
-}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -38,32 +19,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         handle: { label: "用户名", type: "text" },
         password: { label: "密码", type: "password" },
       },
+
+      /**
+       * Two independent checks, against two different sources of truth: the
+       * roster says whether this person exists and may log in, the database
+       * says whether they got the password right. Neither can stand in for
+       * the other, which is the whole point of the split — removing someone
+       * from the roster locks them out even though their hash is still on
+       * disk.
+       */
       async authorize(raw) {
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
 
         const { handle, password } = parsed.data;
-        const [user] = await db
-          .select()
-          .from(users)
-          .where(eq(users.handle, handle))
-          .limit(1);
+        const member = getMember(handle);
 
-        if (!user) {
-          await verify(await decoyHash, password).catch(() => false);
+        // Still verify against a decoy so an unlisted handle costs the same
+        // wall time as a listed one with the wrong password.
+        if (!member || member.disabled) {
+          await verifyPassword(handle, password);
           return null;
         }
-        if (user.disabled) return null;
 
-        const ok = await verify(user.passwordHash, password).catch(() => false);
-        if (!ok) return null;
+        if (!(await verifyPassword(member.handle, password))) return null;
 
-        return {
-          id: user.id,
-          handle: user.handle,
-          displayName: user.displayName,
-          role: user.role,
-        };
+        // Only the handle travels onwards; the session callback re-reads the
+        // rest from the roster on every request.
+        return { id: member.handle, handle: member.handle };
       },
     }),
   ],
@@ -72,12 +55,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 /** Current user for server components and route handlers. */
 export async function getSessionUser(): Promise<SessionUser | null> {
   const session = await auth();
-  if (!session?.user?.id) return null;
+  const user = session?.user;
+  if (!user?.handle) return null;
   return {
-    id: session.user.id,
-    handle: session.user.handle,
-    displayName: session.user.displayName,
-    role: session.user.role,
+    handle: user.handle,
+    displayName: user.displayName,
+    role: user.role,
   };
 }
 

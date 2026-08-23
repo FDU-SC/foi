@@ -26,6 +26,12 @@ export default async function LoginPage({
         <LoginForm next={target} />
         <p className="text-fg-subtle mt-6 text-center text-xs leading-relaxed">
           账号由管理员统一分配。
+          <br />
+          第一次登录或忘记密码，请用设置码{" "}
+          <Link href="/setup" className="hover:text-fg underline">
+            设置密码
+          </Link>
+          。
         </p>
       </div>
     </div>

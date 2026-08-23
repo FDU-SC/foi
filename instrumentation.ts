@@ -19,9 +19,26 @@ export async function register() {
     console.log("[foi] 数据库迁移已应用");
   }
 
+  // Registries are the source of truth; the mirror tables exist only so
+  // submissions can carry foreign keys. Pushing them here means a deploy is
+  // consistent before it serves a single request.
   const { syncProblems } = await import("@/lib/problems/sync");
-  const { synced } = await syncProblems();
-  console.log(`[foi] 已同步 ${synced} 道题目`);
+  const { syncContests } = await import("@/lib/contests/queries");
+  const [problems, contests] = await Promise.all([
+    syncProblems(),
+    syncContests(),
+  ]);
+  console.log(
+    `[foi] 已同步 ${problems.synced} 道题目、${contests.synced} 场比赛`,
+  );
+
+  // A roster with nobody in it, or with no administrator, is almost always a
+  // misconfiguration. Say so loudly rather than refusing to boot: the CLI can
+  // still recover the deployment, and an outage would be the worse failure.
+  const { rosterWarnings } = await import("@/lib/roster/registry");
+  for (const warning of rosterWarnings()) {
+    console.warn(`[foi] ${warning}`);
+  }
 
   const { reconcileStaleSubmissions } = await import("@/lib/judge/reconciler");
 

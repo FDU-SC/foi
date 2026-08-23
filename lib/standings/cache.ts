@@ -28,31 +28,31 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 export async function cachedStandings<T>(
-  contestId: string,
+  contestSlug: string,
   compute: () => Promise<T>,
   ttlMs = DEFAULT_TTL_MS,
 ): Promise<T> {
-  const hit = cache.get(contestId);
+  const hit = cache.get(contestSlug);
   if (hit && hit.expiresAt > Date.now()) return hit.value as T;
 
   // Collapse concurrent misses so a burst of viewers triggers one recompute.
-  const pending = inflight.get(contestId);
+  const pending = inflight.get(contestSlug);
   if (pending) return pending as Promise<T>;
 
   const promise = compute()
     .then((value) => {
-      cache.set(contestId, { value, expiresAt: Date.now() + ttlMs });
+      cache.set(contestSlug, { value, expiresAt: Date.now() + ttlMs });
       return value;
     })
     .finally(() => {
-      inflight.delete(contestId);
+      inflight.delete(contestSlug);
     });
 
-  inflight.set(contestId, promise);
+  inflight.set(contestSlug, promise);
   return promise;
 }
 
 /** Called after a verdict lands so the next standings read recomputes. */
-export function invalidateStandings(contestId: string): void {
-  cache.delete(contestId);
+export function invalidateStandings(contestSlug: string): void {
+  cache.delete(contestSlug);
 }

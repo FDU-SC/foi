@@ -1,48 +1,39 @@
--- Fills the demo contest with submissions from several users so the standings
--- have something to rank. Judging itself is verified end-to-end elsewhere;
--- these rows stand in for already-judged results.
+-- Fills the demo contest with submissions from several handles so the
+-- standings have something to rank. Judging itself is verified end-to-end
+-- elsewhere; these rows stand in for already-judged results.
+--
+-- The contest and its problem set are no longer inserted here: they live in
+-- content/contests/demo-acm/contest.ts and reach the mirror table through the
+-- startup sync. Run the app once (or press 同步 on /admin) before this script.
 
 \set contest_slug 'demo-acm'
 
-WITH c AS (
-  SELECT id, starts_at FROM contests WHERE slug = :'contest_slug'
-),
-b AS (
-  INSERT INTO contest_problems (contest_id, problem_slug, label, "order")
-  SELECT c.id, 'leaky-bucket', 'B', 1 FROM c
-  ON CONFLICT (contest_id, problem_slug) DO UPDATE SET label = 'B'
-  RETURNING contest_id
-)
-SELECT 1 FROM b;
-
--- (user handle, problem, minutes after start, accepted)
-WITH c AS (
-  SELECT id, starts_at FROM contests WHERE slug = :'contest_slug'
-),
-plan(handle, slug, minute, ok) AS (
+-- (handle, problem, minutes after contest start, accepted)
+WITH plan(handle, slug, minute, ok) AS (
   VALUES
-    ('alice', 'maze-runner',  20, true),
-    ('alice', 'leaky-bucket', 30, false),
-    ('alice', 'leaky-bucket', 45, true),
-    ('bob',   'maze-runner',  15, true),
-    ('bob',   'leaky-bucket', 22, false),
-    ('bob',   'leaky-bucket', 40, false),
-    ('carol', 'maze-runner',  18, false),
-    ('carol', 'maze-runner',  33, false),
-    ('carol', 'maze-runner',  50, true),
-    ('carol', 'leaky-bucket', 60, true),
-    ('admin', 'maze-runner',  10, false)
+    ('alice', 'maze-runner', 20, true),
+    ('alice', 'maze-runner', 12, false),
+    ('bob',   'maze-runner', 15, true),
+    ('carol', 'maze-runner', 18, false),
+    ('carol', 'maze-runner', 33, false),
+    ('carol', 'maze-runner', 50, true),
+    ('admin', 'maze-runner', 10, false)
+),
+-- Mirrors the window declared in the contest file. Kept here rather than read
+-- from the database because the mirror table holds no schedule any more.
+window_start(at) AS (
+  VALUES (timestamptz '2026-08-01T13:00:00+08:00')
 )
 INSERT INTO submissions (
-  id, user_id, problem_slug, contest_id, payload, state,
+  id, handle, problem_slug, contest_slug, payload, state,
   verdict, score, max_score, judge_id, callback_token_hash,
   created_at, judged_at
 )
 SELECT
-  'sub_demo_' || u.handle || '_' || plan.slug || '_' || plan.minute,
-  u.id,
+  'sub_demo_' || plan.handle || '_' || plan.slug || '_' || plan.minute,
+  plan.handle,
   plan.slug,
-  c.id,
+  :'contest_slug',
   '{"seeded": true}'::jsonb,
   'completed',
   jsonb_build_object(
@@ -54,10 +45,10 @@ SELECT
   p.max_score,
   'traditional',
   'seeded',
-  c.starts_at + (plan.minute || ' minutes')::interval,
-  c.starts_at + (plan.minute || ' minutes')::interval
+  w.at + (plan.minute || ' minutes')::interval,
+  w.at + (plan.minute || ' minutes')::interval
 FROM plan
-JOIN users u ON u.handle = plan.handle
+JOIN credentials c ON c.handle = plan.handle
 JOIN problems p ON p.slug = plan.slug
-CROSS JOIN c
+CROSS JOIN window_start w
 ON CONFLICT (id) DO NOTHING;

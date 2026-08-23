@@ -96,7 +96,7 @@ export async function PUT(request: Request) {
     .returning();
 
   publish(toView(updated));
-  if (updated.contestId) invalidateStandings(updated.contestId);
+  if (updated.contestSlug) invalidateStandings(updated.contestSlug);
 
   return NextResponse.json({ ok: true });
 }

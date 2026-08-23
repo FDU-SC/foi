@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
+import { userCan } from "@/lib/auth/session";
 import { JudgeStatusBoard } from "@/components/judges/judge-status-board";
 import { fetchAllJudgeQueues, redactJudgeStatus } from "@/lib/judge/client";
 
@@ -13,7 +14,7 @@ export default async function JudgesPage() {
 
   const statuses = await fetchAllJudgeQueues();
   const visible =
-    user.role === "admin" ? statuses : statuses.map(redactJudgeStatus);
+    userCan(user, "judge.inspect") ? statuses : statuses.map(redactJudgeStatus);
 
   return (
     <div className="space-y-5">

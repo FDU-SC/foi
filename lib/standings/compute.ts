@@ -1,13 +1,13 @@
 import { asc, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { getContest } from "@/lib/contests/registry";
 import {
-  contestParticipants,
-  contestProblems,
-  contests,
-  problems,
-  submissions,
-  users,
-} from "@/lib/db/schema";
+  resolveContestProblems,
+  resolveParticipants,
+} from "@/lib/contests/queries";
+import type { ContestConfig } from "@/lib/contests/types";
+import { db } from "@/lib/db";
+import { submissions } from "@/lib/db/schema";
+import { getMember } from "@/lib/roster/registry";
 import { cachedStandings } from "./cache";
 import { getRuleset } from "./registry";
 import type {
@@ -19,83 +19,64 @@ import type {
 } from "./types";
 
 export interface ContestStandings {
-  contest: typeof contests.$inferSelect;
+  contest: ContestConfig;
   problems: ContestProblem[];
   ruleset: AnyRuleset;
   standings: Standings<unknown>;
 }
 
-async function loadAndCompute(
-  contestId: string,
-): Promise<ContestStandings | null> {
-  const [contest] = await db
-    .select()
-    .from(contests)
-    .where(eq(contests.id, contestId))
-    .limit(1);
+/**
+ * The contest, its problem set and its roster all come from the registry now;
+ * the database is queried only for the submissions. That removes three joins
+ * and, more usefully, means the standings reflect the repository rather than
+ * whatever a past administrator clicked.
+ */
+async function loadAndCompute(slug: string): Promise<ContestStandings | null> {
+  const contest = getContest(slug);
   if (!contest) return null;
 
-  const ruleset = getRuleset(contest.rulesetId);
+  const ruleset = getRuleset(contest.ruleset.id);
   if (!ruleset) {
-    throw new Error(`未知的赛制 "${contest.rulesetId}"`);
+    throw new Error(`未知的赛制 "${contest.ruleset.id}"`);
   }
 
-  const problemRows = await db
-    .select({
-      slug: contestProblems.problemSlug,
-      label: contestProblems.label,
-      points: contestProblems.points,
-      config: contestProblems.config,
-      title: problems.title,
-      maxScore: problems.maxScore,
-    })
-    .from(contestProblems)
-    .innerJoin(problems, eq(problems.slug, contestProblems.problemSlug))
-    .where(eq(contestProblems.contestId, contestId))
-    .orderBy(asc(contestProblems.order));
+  const problemRows = resolveContestProblems(contest);
 
   const submissionRows = await db
     .select({
       id: submissions.id,
-      userId: submissions.userId,
+      handle: submissions.handle,
       problemSlug: submissions.problemSlug,
       state: submissions.state,
       verdict: submissions.verdict,
       score: submissions.score,
       createdAt: submissions.createdAt,
-      handle: users.handle,
-      displayName: users.displayName,
     })
     .from(submissions)
-    .innerJoin(users, eq(users.id, submissions.userId))
-    .where(eq(submissions.contestId, contestId))
+    .where(eq(submissions.contestSlug, contest.slug))
     .orderBy(asc(submissions.createdAt));
 
-  const registered = await db
-    .select({
-      userId: contestParticipants.userId,
-      unofficial: contestParticipants.unofficial,
-      handle: users.handle,
-      displayName: users.displayName,
-    })
-    .from(contestParticipants)
-    .innerJoin(users, eq(users.id, contestParticipants.userId))
-    .where(eq(contestParticipants.contestId, contestId));
+  const declared = resolveParticipants(contest);
 
-  // Without an explicit roster, anyone who submitted counts as a participant.
-  // This keeps casual contests usable without a registration step.
+  // A contest with `participants: { mode: "open" }` has no declared roster, so
+  // anyone who submitted counts. This keeps casual contests usable with no
+  // registration step, which is what the old empty-roster fallback did.
   const participants: Participant[] =
-    registered.length > 0
-      ? registered
-      : dedupeParticipants(submissionRows);
+    declared === null
+      ? deriveParticipants(submissionRows)
+      : declared.map((member) => ({
+          handle: member.handle,
+          displayName: member.displayName,
+          unofficial: false,
+        }));
 
   const input = {
-    config: contest.rulesetConfig,
+    config: contest.ruleset.config,
     contest: {
-      id: contest.id,
+      slug: contest.slug,
       startsAt: contest.startsAt,
       endsAt: contest.endsAt,
-      freezeAt: contest.freezeAt,
+      freezeAt: contest.freezeAt ?? null,
     },
     problems: problemRows satisfies ContestProblem[],
     participants,
@@ -110,16 +91,19 @@ async function loadAndCompute(
   };
 }
 
-function dedupeParticipants(
-  rows: { userId: string; handle: string; displayName: string }[],
-): Participant[] {
+/**
+ * Display names come from the roster where possible. A handle that is no
+ * longer listed keeps its submissions on the board under the bare handle
+ * rather than vanishing from a contest it took part in.
+ */
+function deriveParticipants(rows: { handle: string }[]): Participant[] {
   const seen = new Map<string, Participant>();
   for (const row of rows) {
-    if (seen.has(row.userId)) continue;
-    seen.set(row.userId, {
-      userId: row.userId,
-      handle: row.handle,
-      displayName: row.displayName,
+    if (seen.has(row.handle)) continue;
+    const member = getMember(row.handle);
+    seen.set(row.handle, {
+      handle: member?.handle ?? row.handle,
+      displayName: member?.displayName ?? row.handle,
       unofficial: false,
     });
   }
@@ -127,7 +111,7 @@ function dedupeParticipants(
 }
 
 export function getContestStandings(
-  contestId: string,
+  slug: string,
 ): Promise<ContestStandings | null> {
-  return cachedStandings(contestId, () => loadAndCompute(contestId));
+  return cachedStandings(slug, () => loadAndCompute(slug));
 }

@@ -6,7 +6,7 @@ import type { PublicProblemConfig } from "@/lib/problems/types";
 export interface ProblemContextValue {
   config: PublicProblemConfig;
   /** Null when the problem is being viewed outside of any contest. */
-  contestId: string | null;
+  contestSlug: string | null;
   canSubmit: boolean;
 }
 

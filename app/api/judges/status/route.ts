@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/auth";
+import { userCan } from "@/lib/auth/session";
 import { fetchAllJudgeQueues, redactJudgeStatus } from "@/lib/judge/client";
 
 export const runtime = "nodejs";
@@ -13,7 +14,9 @@ export async function GET() {
 
   const statuses = await fetchAllJudgeQueues();
   const visible =
-    user.role === "admin" ? statuses : statuses.map(redactJudgeStatus);
+    userCan(user, "judge.inspect")
+      ? statuses
+      : statuses.map(redactJudgeStatus);
 
   return NextResponse.json(visible, {
     headers: { "cache-control": "no-store" },

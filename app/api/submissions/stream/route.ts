@@ -1,4 +1,5 @@
 import { getSessionUser } from "@/auth";
+import { userCan } from "@/lib/auth/session";
 import { isTerminalState } from "@/lib/judge/types";
 import { subscribe } from "@/lib/submissions/events";
 import { getSubmissionRow, toView } from "@/lib/submissions/queries";
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
 
   const initial = await getSubmissionRow(id);
   if (!initial) return new Response("Not found", { status: 404 });
-  if (initial.userId !== user.id && user.role !== "admin") {
+  if (initial.handle !== user.handle && !userCan(user, "submission.readAny")) {
     return new Response("Forbidden", { status: 403 });
   }
 

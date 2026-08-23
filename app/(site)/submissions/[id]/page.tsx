@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
+import { userCan } from "@/lib/auth/session";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { VerdictDetail } from "@/components/problem/verdict-detail";
@@ -45,7 +46,9 @@ export default async function SubmissionPage({
   // 404 rather than 403 for other people's submissions: no reason to confirm
   // that an id exists to someone who cannot read it.
   if (!row) notFound();
-  if (row.userId !== user.id && user.role !== "admin") notFound();
+  if (row.handle !== user.handle && !userCan(user, "submission.readAny")) {
+    notFound();
+  }
 
   const problem = getProblem(row.problemSlug);
   const source = extractSource(row.payload);

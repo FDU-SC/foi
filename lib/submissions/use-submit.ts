@@ -16,7 +16,7 @@ const POLL_INTERVALS_MS = [800, 1200, 2000, 3000, 5000];
  * state first wins.
  */
 export function useSubmit() {
-  const { config, contestId, canSubmit } = useProblem();
+  const { config, contestSlug, canSubmit } = useProblem();
   const [submission, setSubmission] = useState<SubmissionView | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +92,7 @@ export function useSubmit() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             problemSlug: config.slug,
-            contestId,
+            contestSlug,
             payload,
           }),
         });
@@ -115,7 +115,7 @@ export function useSubmit() {
         setSubmitting(false);
       }
     },
-    [config.slug, contestId, track],
+    [config.slug, contestSlug, track],
   );
 
   return { submit, submission, submitting, error, canSubmit };

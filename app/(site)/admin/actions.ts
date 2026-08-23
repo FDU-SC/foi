@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getSessionUser } from "@/auth";
+import { reinstateAccount, suspendAccount } from "@/lib/accounts/queries";
 import { resolveUser } from "@/lib/accounts/resolve";
 import type { Capability } from "@/lib/auth/policy";
 import { userCan } from "@/lib/auth/session";
@@ -135,4 +136,74 @@ export async function issueSetupCodeAction(
     message: issuedMessage(user.handle, false),
     setupCode: token,
   };
+}
+
+const moderateSchema = z.object({
+  handle: z.string().min(1, "请选择账号"),
+  reason: z.string().trim().max(200).optional(),
+});
+
+/**
+ * Locks an account out.
+ *
+ * This is the one authorisation decision that is data rather than code, and
+ * deliberately so: banning a spam signup should not require a pull request,
+ * and adding one throwaway handle per incident to a repository file would make
+ * that file useless. It is still an accountable act, so who did it and why is
+ * recorded on the row.
+ *
+ * It bites immediately. `getResolvedUser()` reads the account by primary key
+ * on every request and never through the snapshot, so an open session stops
+ * working on its next page load rather than when a token expires.
+ */
+export async function suspendAccountAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireCapability("account.moderate");
+
+  const parsed = moderateSchema.safeParse({
+    handle: formData.get("handle"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
+  }
+
+  const actor = await getSessionUser();
+  const target = await resolveUser(parsed.data.handle);
+  if (!target) return { error: "没有这个账号" };
+
+  // Locking yourself out of the only administrator account would need a
+  // database session to undo.
+  if (actor && actor.handle === target.handle) {
+    return { error: "不能封禁自己" };
+  }
+
+  await suspendAccount(
+    target.handle,
+    actor?.handle ?? "unknown",
+    parsed.data.reason || "未填写原因",
+  );
+
+  revalidatePath("/admin/accounts");
+  return { message: `已封禁 ${target.handle}，其已登录的会话在下一个请求即失效。` };
+}
+
+export async function reinstateAccountAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireCapability("account.moderate");
+
+  const parsed = moderateSchema.safeParse({ handle: formData.get("handle") });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
+  }
+
+  const row = await reinstateAccount(parsed.data.handle);
+  if (!row) return { error: "没有这个账号" };
+
+  revalidatePath("/admin/accounts");
+  return { message: `已解封 ${row.handle}。` };
 }

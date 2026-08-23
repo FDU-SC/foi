@@ -8,7 +8,10 @@ import { listCredentials } from "@/lib/auth/credentials";
 import { roleName } from "@/lib/auth/policy";
 import { userCan } from "@/lib/auth/session";
 import { listPendingTokens } from "@/lib/auth/tokens";
+import { Field, Input } from "@/components/ui/field";
+import { Button } from "@/components/ui/button";
 import { IssueCodeForm } from "../issue-code-form";
+import { ModerateForm } from "../moderate-form";
 
 export const metadata: Metadata = { title: "账号" };
 export const dynamic = "force-dynamic";
@@ -24,18 +27,36 @@ const STATUS: Record<string, { label: string; tone: "ok" | "warn" | "err" }> = {
   suspended: { label: "已封禁", tone: "err" },
 };
 
-export default async function AdminAccountsPage() {
-  const [user, rows, credentials, pendingCodes] = await Promise.all([
+export default async function AdminAccountsPage({
+  searchParams,
+}: PageProps<"/admin/accounts">) {
+  const [user, rows, credentials, pendingCodes, params] = await Promise.all([
     getSessionUser(),
     listAccounts(),
     listCredentials(),
     listPendingTokens("setup_code"),
+    searchParams,
   ]);
 
-  const accounts = rows.map(resolveFromRow);
+  const query = typeof params.q === "string" ? params.q.trim().toLowerCase() : "";
+  const suspensions = new Map(rows.map((row) => [row.handle, row]));
+
+  const accounts = rows
+    .map(resolveFromRow)
+    .filter(
+      (account) =>
+        query.length === 0 ||
+        account.handle.includes(query) ||
+        account.displayName.toLowerCase().includes(query) ||
+        (account.email?.includes(query) ?? false) ||
+        account.tags.some((tag) => tag.toLowerCase().includes(query)),
+    );
+
   const byHandle = new Map(credentials.map((row) => [row.handle, row]));
   const awaitingCode = new Set(pendingCodes.map((row) => row.handle));
   const canManage = userCan(user, "credential.manage");
+  const canModerate = userCan(user, "account.moderate");
+  const showActions = canManage || canModerate;
 
   return (
     <div className="space-y-6">
@@ -56,11 +77,34 @@ export default async function AdminAccountsPage() {
           <code className="font-mono">content/enrollment/</code> 的 grants
           ，标签由邮箱按{" "}
           <Link href="/admin/enrollment" className="hover:text-fg underline">
-            分流规则
-          </Link>{" "}
-          现算。要给谁提权或改分组，提 PR 改规则，部署后下一个请求就生效。
+          分流规则
+        </Link>{" "}
+        现算。要给谁提权或改分组，提 PR 改规则，部署后下一个请求就生效。
         </p>
       </div>
+
+      <form className="flex gap-2" action="/admin/accounts">
+        <Field label="">
+          <Input
+            name="q"
+            defaultValue={query}
+            placeholder="按用户名、显示名、邮箱或标签筛选"
+            className="w-72"
+            spellCheck={false}
+          />
+        </Field>
+        <Button type="submit" size="sm" className="self-start">
+          筛选
+        </Button>
+        {query ? (
+          <Link
+            href="/admin/accounts"
+            className="text-fg-subtle hover:text-fg self-center text-xs underline"
+          >
+            清除
+          </Link>
+        ) : null}
+      </form>
 
       <div className="border-border overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
@@ -87,7 +131,7 @@ export default async function AdminAccountsPage() {
               <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
                 凭据
               </th>
-              {canManage ? (
+              {showActions ? (
                 <th className="border-border border-b px-4 py-2.5 text-right font-semibold">
                   操作
                 </th>
@@ -120,6 +164,13 @@ export default async function AdminAccountsPage() {
                   </td>
                   <td className="px-4 py-2.5">
                     <Badge tone={status.tone}>{status.label}</Badge>
+                    {account.status === "suspended" ? (
+                      <p className="text-fg-subtle mt-1 text-xs leading-4">
+                        {suspensions.get(account.handle)?.suspendedReason}
+                        <br />
+                        由 {suspensions.get(account.handle)?.suspendedBy}
+                      </p>
+                    ) : null}
                   </td>
                   <td className="px-4 py-2.5">
                     <Badge
@@ -150,16 +201,22 @@ export default async function AdminAccountsPage() {
                       <Badge tone="warn">未设置密码</Badge>
                     )}
                   </td>
-                  {canManage ? (
-                    <td className="px-4 py-2.5 text-right">
-                      {account.disabled ? (
-                        <span className="text-fg-subtle text-xs">—</span>
-                      ) : (
-                        <IssueCodeForm
-                          handle={account.handle}
-                          hasPassword={credential?.hasPassword ?? false}
-                        />
-                      )}
+                  {showActions ? (
+                    <td className="px-4 py-2.5">
+                      <div className="flex flex-col items-end gap-1.5">
+                        {canManage && !account.disabled ? (
+                          <IssueCodeForm
+                            handle={account.handle}
+                            hasPassword={credential?.hasPassword ?? false}
+                          />
+                        ) : null}
+                        {canModerate ? (
+                          <ModerateForm
+                            handle={account.handle}
+                            suspended={account.status === "suspended"}
+                          />
+                        ) : null}
+                      </div>
                     </td>
                   ) : null}
                 </tr>

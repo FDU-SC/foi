@@ -31,6 +31,14 @@ export const CAPABILITIES = [
   "registry.sync",
   /** Issue setup codes and reset passwords. */
   "credential.manage",
+  /**
+   * Suspend and reinstate accounts.
+   *
+   * Separate from `credential.manage` because they answer different questions:
+   * one is "help this person get back in", the other is "keep this person
+   * out". Handing over the first should not imply the second.
+   */
+  "account.moderate",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -43,22 +51,22 @@ export interface RoleDefinition {
 }
 
 /**
- * The roster's `role` field must name one of these.
+ * A grant's `role` field must name one of these.
  *
  * `staff` exists to make the point that the middle ground is now free: it can
  * watch the judges and read everyone's submissions without being handed the
- * ability to reset passwords. Before capabilities, that role would have needed
- * a schema change.
+ * ability to reset passwords or lock people out. Before capabilities, that
+ * role would have needed a schema change.
  */
 export const ROLES = {
   admin: {
     name: "管理员",
-    description: "完整权限，包括凭据管理与注册表同步。",
+    description: "完整权限，包括凭据管理、账号封禁与注册表同步。",
     capabilities: [...CAPABILITIES],
   },
   staff: {
     name: "助教",
-    description: "可查看判题机细节与全部提交，但不能管理凭据。",
+    description: "可查看判题机细节与全部提交，但不能管理凭据或封禁账号。",
     capabilities: ["admin.access", "judge.inspect", "submission.readAny"],
   },
   user: {

@@ -20,4 +20,10 @@ export const judges: Record<string, JudgeEndpoint> = {
   "flag-checker": {
     url: process.env.FOI_JUDGE_FLAG_CHECKER_URL ?? "http://localhost:4100",
   },
+  "output-only": {
+    url: process.env.FOI_JUDGE_OUTPUT_ONLY_URL ?? "http://localhost:4100",
+  },
+  interactive: {
+    url: process.env.FOI_JUDGE_INTERACTIVE_URL ?? "http://localhost:4100",
+  },
 };

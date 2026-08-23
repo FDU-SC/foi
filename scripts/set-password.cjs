@@ -2,10 +2,11 @@
 /**
  * Manages the one thing that cannot live in the repository: a password.
  *
- * Roles, display names and membership all come from `content/roster/`, so this
- * script no longer creates accounts — it only issues credentials for handles
- * the roster already knows. A credentials row for an unlisted handle is inert:
- * login checks the roster first and rejects anyone who is not on it.
+ * People get accounts by registering, and recover them over email. What is
+ * left for this script is the case where neither is possible — the bootstrap
+ * administrator on a fresh deploy, who is declared in the repository and has
+ * no address to mail. It therefore refuses to invent an account: the handle
+ * must already have one.
  *
  * Runs inside the app container, which already has the database URL and the
  * same argon2 implementation the login path uses:
@@ -44,7 +45,7 @@ const USAGE = `用法:
   node scripts/set-password.cjs --issue-code <handle> 签发一次性设置码
   node scripts/set-password.cjs --revoke <handle>     清除凭据
 
-用户名、显示名与角色的真源是 content/roster/，本脚本不创建账号。`;
+本脚本不创建账号：账号由注册产生，引导管理员由 content/enrollment/ 声明并在启动时建行。`;
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -86,7 +87,30 @@ function parseArgs(argv) {
   return { mode, handle };
 }
 
+/**
+ * Credentials hang off an account now, so there has to be one. The bootstrap
+ * administrator gets theirs from the grant sync at startup, which is why the
+ * remedy is a deploy rather than a flag on this script: an account nobody
+ * declared and nobody registered should not spring into being from a shell.
+ */
+async function requireAccount(client, handle) {
+  const { rows } = await client.query(
+    "select status from accounts where handle = $1",
+    [handle],
+  );
+  if (rows.length === 0) {
+    console.error(`没有名为 ${handle} 的账号。`);
+    console.error(
+      "账号由注册产生。若要开通引导管理员，先在 content/enrollment/ 的 grants 中声明该 handle（带 displayName），重新部署后启动同步会建行。",
+    );
+    process.exit(1);
+  }
+  return rows[0];
+}
+
 async function setPassword(client, handle) {
+  const account = await requireAccount(client, handle);
+
   let password = await readStdin();
   let generated = false;
   if (!password) {
@@ -102,12 +126,18 @@ async function setPassword(client, handle) {
     `insert into credentials (handle, password_hash)
      values ($1, $2)
      on conflict (handle) do update
-       set password_hash    = excluded.password_hash,
-           setup_code_hash  = null,
-           setup_expires_at = null,
-           updated_at       = now()
+       set password_hash = excluded.password_hash,
+           updated_at    = now()
      returning (xmax = 0) as created`,
     [handle, passwordHash],
+  );
+
+  // Setting a password by hand retires any outstanding code, the same way
+  // redeeming one does.
+  await client.query(
+    `update auth_tokens set consumed_at = now()
+     where handle = $1 and purpose = 'setup_code' and consumed_at is null`,
+    [handle],
   );
 
   console.log(
@@ -117,24 +147,30 @@ async function setPassword(client, handle) {
     console.log(`密码: ${password}`);
     console.log("这是唯一一次显示，请立即保存。");
   }
-  console.log(
-    `提醒: ${handle} 还需要出现在 content/roster/ 中才能登录，角色也在那里定义。`,
-  );
+  if (account.status !== "active") {
+    console.log(
+      `提醒: ${handle} 当前状态为 ${account.status}，密码已设置但尚不能登录。`,
+    );
+  }
 }
 
 async function issueCode(client, handle) {
+  await requireAccount(client, handle);
+
   const code = crypto.randomBytes(20).toString("base64url");
   const codeHash = crypto.createHash("sha256").update(code).digest("hex");
   const expiresAt = new Date(Date.now() + SETUP_CODE_TTL_MS);
 
+  // One outstanding code per handle, matching lib/auth/tokens.ts.
   await client.query(
-    `insert into credentials (handle, setup_code_hash, setup_expires_at)
-     values ($1, $2, $3)
-     on conflict (handle) do update
-       set setup_code_hash  = excluded.setup_code_hash,
-           setup_expires_at = excluded.setup_expires_at,
-           updated_at       = now()`,
-    [handle, codeHash, expiresAt],
+    `update auth_tokens set consumed_at = now()
+     where handle = $1 and purpose = 'setup_code' and consumed_at is null`,
+    [handle],
+  );
+  await client.query(
+    `insert into auth_tokens (id, handle, purpose, token_hash, expires_at)
+     values ($1, $2, 'setup_code', $3, $4)`,
+    [`tok_${crypto.randomUUID()}`, handle, codeHash, expiresAt],
   );
 
   console.log(`已为 ${handle} 签发设置码:`);
@@ -165,8 +201,8 @@ async function main() {
     process.exit(1);
   }
 
-  // The database keeps handles in one canonical form; the roster registry
-  // looks them up the same way.
+  // The database keeps handles in one canonical form; every registry lookup
+  // normalises the same way.
   const normalized = handle.trim().toLowerCase();
 
   const client = new Client({ connectionString: process.env.DATABASE_URL });

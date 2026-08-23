@@ -21,7 +21,13 @@ function SubmitButton() {
   );
 }
 
-export function SetupForm({ handle }: { handle: string }) {
+export function SetupForm({
+  handle,
+  code,
+}: {
+  handle: string;
+  code: string;
+}) {
   const [state, formAction] = useActionState<SetupState, FormData>(
     redeemSetupCodeAction,
     {},
@@ -57,7 +63,13 @@ export function SetupForm({ handle }: { handle: string }) {
       </Field>
 
       <Field label="设置码" hint="由管理员一次性签发">
-        <Input name="code" autoFocus={Boolean(handle)} required spellCheck={false} />
+        <Input
+          name="code"
+          defaultValue={code}
+          autoFocus={Boolean(handle) && !code}
+          required
+          spellCheck={false}
+        />
       </Field>
 
       <Field label="新密码" hint="至少 8 位">

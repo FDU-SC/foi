@@ -1,66 +1,98 @@
 import { hash } from "@node-rs/argon2";
-import { readdirSync } from "node:fs";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import { Pool } from "pg";
-import { credentials } from "../lib/db/schema";
-import { rosterEntrySchema, normalizeHandle } from "../lib/roster/types";
+import { accounts, credentials } from "../lib/db/schema";
 
 /**
- * Gives everyone in the roster a development password.
+ * Creates the development accounts and gives them all one password.
  *
- * The account list is no longer here — it moved to `content/roster/`, and this
- * script only supplies the one thing that cannot live in the repository. That
- * also means seeding is idempotent with respect to who exists: adding someone
- * is a roster edit, and re-running this hands them a password too.
+ * This used to hand a password to everybody in the roster, because the roster
+ * was who existed. Now people exist by registering, so a seed has to actually
+ * create them — which is the honest shape for a seed script, and means the
+ * rows it writes look exactly like the ones the registration form produces.
  *
- * The roster is read straight off disk rather than through the registry,
- * because the registry is built by Turbopack's `import.meta.glob`, which a
- * standalone script cannot evaluate.
+ * The addresses are chosen to match the rules in
+ * `content/enrollment/example.ts`: `demo` for everyone, and an intake year for
+ * the three that carry a student-number-shaped local part. That is what makes
+ * `content/contests/demo-acm/` — which selects its field by tag — show a
+ * populated standings page on a fresh checkout.
  *
- * Development only. Production issues setup codes via
- * `scripts/set-password.cjs`, so no shared password ever exists.
+ * Development only. In production nobody is seeded: people register, and the
+ * bootstrap administrator gets a password from `scripts/set-password.cjs`.
  */
 
 const ARGON2_OPTIONS = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
 
-async function loadRoster(): Promise<{ handle: string; role: string }[]> {
-  const dir = join(process.cwd(), "content", "roster");
-  const files = readdirSync(dir).filter((file) => file.endsWith(".ts"));
-  const entries: { handle: string; role: string }[] = [];
-
-  for (const file of files) {
-    const mod: unknown = await import(pathToFileURL(join(dir, file)).href);
-    const members = (mod as { members?: unknown }).members;
-    if (!Array.isArray(members)) {
-      throw new Error(`content/roster/${file} 必须导出名为 members 的数组`);
-    }
-    for (const raw of members) {
-      const parsed = rosterEntrySchema.parse(raw);
-      entries.push({ handle: normalizeHandle(parsed.handle), role: parsed.role });
-    }
-  }
-
-  return entries;
+interface SeedAccount {
+  handle: string;
+  displayName: string;
+  email: string | null;
+  source: "bootstrap" | "registration";
 }
+
+/**
+ * Written out rather than derived from the enrollment grants, because these
+ * are meant to stand in for people who registered. Only `admin` is declared in
+ * the repository, and it has no address for the same reason the real one will
+ * not: nobody mailed it an invitation.
+ */
+const SEED_ACCOUNTS: SeedAccount[] = [
+  { handle: "admin", displayName: "管理员", email: null, source: "bootstrap" },
+  {
+    handle: "alice",
+    displayName: "Alice",
+    email: "23300240001@example.test",
+    source: "registration",
+  },
+  {
+    handle: "bob",
+    displayName: "Bob",
+    email: "23300240002@example.test",
+    source: "registration",
+  },
+  {
+    handle: "carol",
+    displayName: "Carol",
+    email: "24300240003@example.test",
+    source: "registration",
+  },
+];
 
 async function main() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error("缺少环境变量 DATABASE_URL");
-
-  const roster = await loadRoster();
-  if (roster.length === 0) {
-    throw new Error("名册为空，请先在 content/roster/ 下添加成员");
-  }
 
   const password = process.env.FOI_SEED_PASSWORD ?? "foi-dev-2026";
   const pool = new Pool({ connectionString });
   const db = drizzle(pool);
   const passwordHash = await hash(password, ARGON2_OPTIONS);
 
-  for (const entry of roster) {
+  for (const entry of SEED_ACCOUNTS) {
+    await db
+      .insert(accounts)
+      .values({
+        handle: entry.handle,
+        displayName: entry.displayName,
+        email: entry.email,
+        // Seeded accounts skip the mail round trip but are otherwise ordinary
+        // verified ones, so cohort rules apply to them exactly as they would
+        // to somebody who clicked the link.
+        emailVerifiedAt: entry.email ? new Date() : null,
+        source: entry.source,
+        status: "active",
+      })
+      .onConflictDoUpdate({
+        target: accounts.handle,
+        set: {
+          displayName: sql`excluded.display_name`,
+          email: sql`excluded.email`,
+          emailVerifiedAt: sql`excluded.email_verified_at`,
+          status: sql`'active'`,
+          updatedAt: new Date(),
+        },
+      });
+
     await db
       .insert(credentials)
       .values({ handle: entry.handle, passwordHash })
@@ -68,17 +100,16 @@ async function main() {
         target: credentials.handle,
         set: {
           passwordHash: sql`excluded.password_hash`,
-          setupCodeHash: null,
-          setupExpiresAt: null,
           updatedAt: new Date(),
         },
       });
-    console.log(`  ${entry.handle.padEnd(8)} ${entry.role}`);
+
+    console.log(`  ${entry.handle.padEnd(8)} ${entry.email ?? "（无邮箱）"}`);
   }
 
   console.log(
-    `\n已为名册中的 ${roster.length} 个账号写入密码: ${password}` +
-      `\n角色与显示名来自 content/roster/，不在数据库中。`,
+    `\n已创建 ${SEED_ACCOUNTS.length} 个账号，密码统一为: ${password}` +
+      `\n角色与标签不在数据库中：角色来自 content/enrollment/ 的 grants，标签由邮箱按规则现算。`,
   );
   await pool.end();
 }

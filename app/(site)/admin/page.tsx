@@ -15,7 +15,7 @@ export default async function AdminPage() {
   const overview = await loadAdminOverview();
 
   const stats = [
-    { label: "名册", value: overview.rosterSize, href: "/admin/roster" },
+    { label: "账号", value: overview.accountCount, href: "/admin/accounts" },
     { label: "题目", value: overview.problemCount, href: "/problems" },
     { label: "比赛", value: overview.contestCount, href: "/admin/contests" },
     { label: "提交", value: overview.submissionCount, href: null },
@@ -26,8 +26,8 @@ export default async function AdminPage() {
       <div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">管理</h1>
         <p className="text-fg-muted mt-2 text-sm leading-6">
-          这个页面不改配置。名册、权限、比赛与题目的真源都在仓库里，改动走 pull
-          request；这里只负责核对仓库与数据库是否一致，以及签发密码设置码——密码是唯一不能写进仓库的东西。
+          这个页面不改配置。分流规则、权限、比赛与题目的真源都在仓库里，改动走
+          pull request；这里核对仓库与数据库是否一致。唯二的写操作是签发密码设置码和封禁账号——密码不能写进仓库，而封禁一个垃圾注册号不该需要一次 code review。
         </p>
       </div>
 
@@ -69,7 +69,9 @@ export default async function AdminPage() {
               <span className="text-fg font-mono">{overview.problemCount}</span>{" "}
               道题目和{" "}
               <span className="text-fg font-mono">{overview.contestCount}</span>{" "}
-              场比赛都已镜像，名册中的每个人都有可用的凭据。
+              场比赛都已镜像，
+              <span className="text-fg font-mono">{overview.accountCount}</span>{" "}
+              个账号的邮箱都能匹配到分流规则。
             </p>
           ) : (
             <ul className="space-y-3">

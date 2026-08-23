@@ -1,17 +1,15 @@
 import { sql } from "drizzle-orm";
+import { accountSnapshot } from "@/lib/accounts/cache";
 import { db } from "@/lib/db";
 import { contests } from "@/lib/db/schema";
+import { tagsFor } from "@/lib/enrollment/registry";
 import { getProblem } from "@/lib/problems/registry";
-import { getMember, membersWithTag } from "@/lib/roster/registry";
-import type { RosterEntry } from "@/lib/roster/types";
 import { listContests as listContestConfigs } from "./registry";
 import type { ContestConfig } from "./types";
 
 /**
  * Resolves the registry's declarative references into the shapes the
- * standings and the contest pages consume. Everything here is a pure function
- * of the registries — the only database contact in this module is the mirror
- * sync at the bottom.
+ * standings and the contest pages consume.
  */
 
 export interface ResolvedContestProblem {
@@ -48,26 +46,49 @@ export function resolveContestProblems(
   });
 }
 
+export interface ResolvedParticipant {
+  handle: string;
+  displayName: string;
+}
+
 /**
  * Who competes, per the contest's entry rule.
  *
- * `open` returns null rather than a list: the caller derives the roster from
+ * `open` returns null rather than a list: the caller derives the field from
  * whoever submitted, which is what makes a casual contest work with no setup.
+ *
+ * The other two now read accounts rather than a compiled roster, because that
+ * is where people are. `tag` in particular has to run the cohort rules over
+ * every address, so it goes through the snapshot in `lib/accounts/cache.ts`
+ * rather than issuing a query per contest view. A few seconds of staleness
+ * only ever means a just-registered competitor appears on the board one
+ * refresh late; nothing here grants access.
  */
-export function resolveParticipants(
+export async function resolveParticipants(
   contest: ContestConfig,
-): RosterEntry[] | null {
-  switch (contest.participants.mode) {
-    case "open":
-      return null;
-    case "tag":
-      return membersWithTag(contest.participants.tag);
-    case "list":
-      return contest.participants.handles.flatMap((handle) => {
-        const member = getMember(handle);
-        return member && !member.disabled ? [member] : [];
-      });
+): Promise<ResolvedParticipant[] | null> {
+  if (contest.participants.mode === "open") return null;
+
+  const accounts = await accountSnapshot();
+
+  if (contest.participants.mode === "list") {
+    return contest.participants.handles.flatMap((handle) => {
+      const account = accounts.get(handle.toLowerCase());
+      return account && account.status === "active"
+        ? [{ handle: account.handle, displayName: account.displayName }]
+        : [];
+    });
   }
+
+  const wanted = contest.participants.tag;
+  const matched: ResolvedParticipant[] = [];
+  for (const account of accounts.values()) {
+    if (account.status !== "active") continue;
+    if (!tagsFor(account.handle, account.email).includes(wanted)) continue;
+    matched.push({ handle: account.handle, displayName: account.displayName });
+  }
+
+  return matched.sort((a, b) => a.handle.localeCompare(b.handle));
 }
 
 /**

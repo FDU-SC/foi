@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Button } from "@/components/ui/button";
-import { issueSetupCodeAction, type ActionState } from "../actions";
+import { issueSetupCodeAction, type ActionState } from "./actions";
 
 function Submit({ label }: { label: string }) {
   const { pending } = useFormStatus();

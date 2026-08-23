@@ -1,8 +1,9 @@
 "use server";
 
 import { z } from "zod";
-import { redeemSetupCode } from "@/lib/auth/credentials";
-import { getMember } from "@/lib/roster/registry";
+import { resolveUser } from "@/lib/accounts/resolve";
+import { setPassword } from "@/lib/auth/credentials";
+import { redeemToken } from "@/lib/auth/tokens";
 
 export interface SetupState {
   error?: string;
@@ -26,7 +27,7 @@ const setupSchema = z
  *
  * Every failure returns the same message. Distinguishing "no such handle"
  * from "wrong code" would turn this form into a way to find out who has been
- * invited, and the roster is not public.
+ * invited, and who has been is not public.
  */
 export async function redeemSetupCodeAction(
   _prev: SetupState,
@@ -43,12 +44,15 @@ export async function redeemSetupCodeAction(
   }
 
   const { handle, code, password } = parsed.data;
-  const member = getMember(handle);
-  if (!member || member.disabled) {
+
+  // Checked before the code is spent, so a suspended account does not burn
+  // somebody's one-shot token on its way to being refused.
+  const user = await resolveUser(handle);
+  if (!user || user.disabled) {
     return { error: "用户名或设置码无效" };
   }
 
-  const result = await redeemSetupCode(member.handle, code, password);
+  const result = await redeemToken(code, "setup_code", { expectHandle: handle });
   if (!result.ok) {
     return {
       error:
@@ -58,5 +62,6 @@ export async function redeemSetupCodeAction(
     };
   }
 
-  return { message: `密码已设置，现在可以用 ${member.handle} 登录了。` };
+  await setPassword(result.handle, password);
+  return { message: `密码已设置，现在可以用 ${result.handle} 登录了。` };
 }

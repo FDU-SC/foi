@@ -57,9 +57,9 @@ COPY --from=builder --chown=foi:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=foi:nodejs /app/public ./public
 # Applied on boot by instrumentation.ts.
 COPY --from=builder --chown=foi:nodejs /app/drizzle ./drizzle
-# Operational entry point. Who exists comes from content/roster/ in the image,
-# but passwords never ship with it, so the first administrator's credential has
-# to be issued from inside the container.
+# Operational entry point. The bootstrap administrator is declared in
+# content/enrollment/ and materialised at startup, but passwords never ship in
+# an image, so their credential has to be issued from inside the container.
 COPY --from=builder --chown=foi:nodejs /app/scripts/set-password.cjs ./scripts/
 
 USER foi

@@ -57,17 +57,17 @@ async function loadAndCompute(slug: string): Promise<ContestStandings | null> {
     .where(eq(submissions.contestSlug, contest.slug))
     .orderBy(asc(submissions.createdAt));
 
-  const declared = resolveParticipants(contest);
+  const declared = await resolveParticipants(contest);
 
-  // A contest with `participants: { mode: "open" }` has no declared roster, so
-  // anyone who submitted counts. This keeps casual contests usable with no
-  // registration step, which is what the old empty-roster fallback did.
+  // A contest with `participants: { mode: "open" }` names no field, so anyone
+  // who submitted counts. This keeps casual contests usable with no entry step
+  // at all.
   const participants: Participant[] =
     declared === null
       ? deriveParticipants(submissionRows)
-      : declared.map((member) => ({
-          handle: member.handle,
-          displayName: member.displayName,
+      : declared.map((entrant) => ({
+          handle: entrant.handle,
+          displayName: entrant.displayName,
           unofficial: false,
         }));
 

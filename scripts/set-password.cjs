@@ -45,7 +45,7 @@ const USAGE = `用法:
   node scripts/set-password.cjs --issue-code <handle> 签发一次性设置码
   node scripts/set-password.cjs --revoke <handle>     清除凭据
 
-本脚本不创建账号：账号由注册产生，引导管理员由 content/roster/ 声明并在启动时建行。`;
+本脚本不创建账号：账号由注册产生，引导管理员由 content/enrollment/ 声明并在启动时建行。`;
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -101,7 +101,7 @@ async function requireAccount(client, handle) {
   if (rows.length === 0) {
     console.error(`没有名为 ${handle} 的账号。`);
     console.error(
-      "账号由注册产生。若要开通引导管理员，先在 content/roster/ 中声明该 handle，重新部署后启动同步会建行。",
+      "账号由注册产生。若要开通引导管理员，先在 content/enrollment/ 的 grants 中声明该 handle（带 displayName），重新部署后启动同步会建行。",
     );
     process.exit(1);
   }
@@ -201,8 +201,8 @@ async function main() {
     process.exit(1);
   }
 
-  // The database keeps handles in one canonical form; the roster registry
-  // looks them up the same way.
+  // The database keeps handles in one canonical form; every registry lookup
+  // normalises the same way.
   const normalized = handle.trim().toLowerCase();
 
   const client = new Client({ connectionString: process.env.DATABASE_URL });

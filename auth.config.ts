@@ -1,14 +1,15 @@
 import type { NextAuthConfig } from "next-auth";
-import { getMember } from "@/lib/roster/registry";
+import { getGrant } from "@/lib/enrollment/registry";
 
 /**
  * Claims FOI stores on the JWT.
  *
  * Only the handle. Role and display name used to ride along, which meant a
- * roster change did not reach anyone until their token expired — someone
- * demoted or suspended kept their old powers for up to a week. Resolving from
- * the registry on every request costs a Map lookup and makes an edit to
- * `content/roster/` take effect on the next page load.
+ * change did not reach anyone until their token expired — someone demoted or
+ * suspended kept their old powers for up to a week. Resolving on every request
+ * costs a Map lookup for the role and one indexed read for the rest, and makes
+ * both an edit to `content/enrollment/` and a suspension take effect on the
+ * next page load.
  *
  * Declared locally rather than by augmenting `next-auth/jwt`: that module only
  * re-exports `@auth/core/jwt`, which pnpm does not expose at the project root,
@@ -61,17 +62,11 @@ export const authConfig = {
         return session;
       }
 
-      // Most people have no entry here at all — they signed themselves up, so
-      // they are ordinary competitors. An entry that exists and is suspended
-      // is a revocation the repository can make on its own, and it still lands
-      // on the next request.
-      const grant = getMember(handle);
-      if (grant?.disabled) {
-        session.user.handle = "";
-        session.user.displayName = "";
-        session.user.role = "user";
-        return session;
-      }
+      // Almost nobody has an entry here: people sign themselves up, and an
+      // ordinary competitor needs no grant. Revoking a role is a commit and
+      // lands on the next request; suspending an account is a database write
+      // and is caught one layer in, by `getResolvedUser()`.
+      const grant = getGrant(handle);
 
       session.user.handle = handle;
       // A placeholder until `getResolvedUser()` reads the real one. Nothing

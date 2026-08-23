@@ -131,6 +131,32 @@ export async function redeemToken(
   };
 }
 
+/**
+ * Looks a token up without spending it.
+ *
+ * This exists for one case: somebody refreshing the page a verification link
+ * landed on. The token is gone by then, and reporting "invalid link" to a
+ * person whose account was just verified would be both wrong and alarming.
+ * The caller checks the account instead and reports what is actually true.
+ */
+export async function inspectToken(
+  token: string,
+  purpose: TokenPurpose,
+): Promise<{ handle: string; consumedAt: Date | null } | null> {
+  const [row] = await db
+    .select({ handle: authTokens.handle, consumedAt: authTokens.consumedAt })
+    .from(authTokens)
+    .where(
+      and(
+        eq(authTokens.tokenHash, digest(token)),
+        eq(authTokens.purpose, purpose),
+      ),
+    )
+    .limit(1);
+
+  return row ?? null;
+}
+
 export async function revokeTokens(
   handle: string,
   purpose: TokenPurpose,

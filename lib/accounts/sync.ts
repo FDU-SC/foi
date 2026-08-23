@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
-import { listMembers } from "@/lib/roster/registry";
+import { listGrants } from "@/lib/enrollment/registry";
 import { invalidateAccounts } from "./cache";
 import { normalizeHandle } from "./types";
 
@@ -18,15 +18,18 @@ import { normalizeHandle } from "./types";
  * declared handle needs a row before a foreign key can point at it.
  */
 export async function syncGrants(): Promise<{ synced: number }> {
-  const declared = listMembers({ includeDisabled: true });
+  // A grant naming somebody who registered normally is about their
+  // privileges; there is no account to materialise and nothing to seed a
+  // display name from. Only entries carrying one are bootstrap accounts.
+  const declared = listGrants().filter((grant) => grant.displayName);
   if (declared.length === 0) return { synced: 0 };
 
   await db
     .insert(accounts)
     .values(
-      declared.map((member) => ({
-        handle: normalizeHandle(member.handle),
-        displayName: member.displayName,
+      declared.map((grant) => ({
+        handle: normalizeHandle(grant.handle),
+        displayName: grant.displayName as string,
         source: "bootstrap" as const,
         status: "active" as const,
       })),

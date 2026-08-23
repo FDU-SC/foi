@@ -17,8 +17,14 @@ export const problemStatementModules = import.meta.glob(
   "./problems/*/statement.mdx",
 );
 
-/** Accounts, roles and cohort tags. Consumed by `lib/roster/registry.ts`. */
-export const rosterModules = import.meta.glob("./roster/*.ts", { eager: true });
+/**
+ * Who may register, which cohort an address belongs to, and who holds a role.
+ * Not who exists — that is the `accounts` table. See
+ * `lib/enrollment/registry.ts`.
+ */
+export const enrollmentModules = import.meta.glob("./enrollment/*.ts", {
+  eager: true,
+});
 
 /** Schedules, problem sets and entry rules. See `lib/contests/registry.ts`. */
 export const contestModules = import.meta.glob("./contests/*/contest.ts", {

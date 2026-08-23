@@ -29,8 +29,19 @@ function participantsLabel(
   }
 }
 
-export default function AdminContestsPage() {
+export default async function AdminContestsPage() {
   const all = listContests({ includeHidden: true });
+
+  // Entry lists come from the account table now, so they are resolved up front
+  // rather than inside the render loop.
+  const entrantCounts = new Map(
+    await Promise.all(
+      all.map(
+        async (contest) =>
+          [contest.slug, (await resolveParticipants(contest))?.length ?? null] as const,
+      ),
+    ),
+  );
 
   return (
     <div className="space-y-6">
@@ -62,7 +73,6 @@ export default function AdminContestsPage() {
         all.map((contest) => {
           const phase = contestPhase(contest);
           const ruleset = getRuleset(contest.ruleset.id);
-          const resolved = resolveParticipants(contest);
 
           return (
             <Card key={contest.slug}>
@@ -102,7 +112,7 @@ export default function AdminContestsPage() {
                     参赛{" "}
                     {participantsLabel(
                       contest.participants.mode,
-                      resolved?.length ?? null,
+                      entrantCounts.get(contest.slug) ?? null,
                     )}
                   </div>
                 </dl>

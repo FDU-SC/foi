@@ -2,15 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getSessionUser } from "@/auth";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { listAccounts } from "@/lib/accounts/queries";
+import { resolveFromRow } from "@/lib/accounts/resolve";
 import { listCredentials } from "@/lib/auth/credentials";
 import { roleName } from "@/lib/auth/policy";
 import { userCan } from "@/lib/auth/session";
 import { listPendingTokens } from "@/lib/auth/tokens";
-import { listMembers, listTags } from "@/lib/roster/registry";
-import { IssueCodeForm } from "./issue-code-form";
+import { IssueCodeForm } from "../issue-code-form";
 
-export const metadata: Metadata = { title: "名册" };
+export const metadata: Metadata = { title: "账号" };
 export const dynamic = "force-dynamic";
 
 const formatter = new Intl.DateTimeFormat("zh-CN", {
@@ -18,18 +18,24 @@ const formatter = new Intl.DateTimeFormat("zh-CN", {
   timeStyle: "short",
 });
 
-export default async function AdminRosterPage() {
-  const [user, members, credentials, pendingCodes] = await Promise.all([
+const STATUS: Record<string, { label: string; tone: "ok" | "warn" | "err" }> = {
+  active: { label: "正常", tone: "ok" },
+  pending: { label: "待验证", tone: "warn" },
+  suspended: { label: "已封禁", tone: "err" },
+};
+
+export default async function AdminAccountsPage() {
+  const [user, rows, credentials, pendingCodes] = await Promise.all([
     getSessionUser(),
-    Promise.resolve(listMembers({ includeDisabled: true })),
+    listAccounts(),
     listCredentials(),
     listPendingTokens("setup_code"),
   ]);
 
+  const accounts = rows.map(resolveFromRow);
   const byHandle = new Map(credentials.map((row) => [row.handle, row]));
   const awaitingCode = new Set(pendingCodes.map((row) => row.handle));
   const canManage = userCan(user, "credential.manage");
-  const tags = listTags();
 
   return (
     <div className="space-y-6">
@@ -38,36 +44,23 @@ export default async function AdminRosterPage() {
           管理
         </Link>
         <span className="mx-1.5">/</span>
-        <span>名册</span>
+        <span>账号</span>
       </nav>
 
       <div>
-        <h1 className="text-fg text-2xl font-bold tracking-tight">名册</h1>
+        <h1 className="text-fg text-2xl font-bold tracking-tight">账号</h1>
         <p className="text-fg-muted mt-2 text-sm leading-6">
-          这张表是 <code className="font-mono">content/roster/</code>{" "}
-          的只读视图。增删成员、改角色、停用账号都在那里改，提 PR
-          即可——角色在每个请求解析，部署上线后立刻对已登录的人生效。这里唯一能做的写操作是签发密码设置码，因为密码是唯一不能写进仓库的东西。
+          账号由注册产生，这里列出的是数据库里的真实记录。
+          <strong className="text-fg font-medium">角色和标签不在这张表里</strong>
+          ：角色来自{" "}
+          <code className="font-mono">content/enrollment/</code> 的 grants
+          ，标签由邮箱按{" "}
+          <Link href="/admin/enrollment" className="hover:text-fg underline">
+            分流规则
+          </Link>{" "}
+          现算。要给谁提权或改分组，提 PR 改规则，部署后下一个请求就生效。
         </p>
       </div>
-
-      {tags.length > 0 ? (
-        <Card>
-          <CardHeader title="标签" />
-          <CardBody>
-            <p className="text-fg-muted mb-2 text-xs leading-5">
-              比赛用 <code className="font-mono">participants.tag</code>{" "}
-              引用这些标签来确定参赛名单。
-            </p>
-            <ul className="flex flex-wrap gap-1.5">
-              {tags.map((tag) => (
-                <li key={tag}>
-                  <Badge tone="primary">{tag}</Badge>
-                </li>
-              ))}
-            </ul>
-          </CardBody>
-        </Card>
-      ) : null}
 
       <div className="border-border overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
@@ -80,10 +73,16 @@ export default async function AdminRosterPage() {
                 显示名
               </th>
               <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
+                邮箱
+              </th>
+              <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
+                状态
+              </th>
+              <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
                 角色
               </th>
               <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
-                标签
+                标签（派生）
               </th>
               <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
                 凭据
@@ -96,32 +95,45 @@ export default async function AdminRosterPage() {
             </tr>
           </thead>
           <tbody className="divide-border divide-y">
-            {members.map((member) => {
-              const credential = byHandle.get(member.handle);
+            {accounts.map((account) => {
+              const credential = byHandle.get(account.handle);
+              const status = STATUS[account.status];
               return (
-                <tr key={member.handle} className="hover:bg-surface-2/60">
+                <tr key={account.handle} className="hover:bg-surface-2/60">
                   <td className="text-fg px-4 py-2.5 font-mono text-xs">
-                    {member.handle}
+                    {account.handle}
                   </td>
-                  <td className="text-fg px-4 py-2.5">{member.displayName}</td>
+                  <td className="text-fg px-4 py-2.5">{account.displayName}</td>
+                  <td className="px-4 py-2.5">
+                    {account.email ? (
+                      <span className="text-fg-muted font-mono text-xs">
+                        {account.email}
+                        {account.emailVerified ? null : (
+                          <Badge tone="warn" className="ml-1.5">
+                            未验证
+                          </Badge>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-fg-subtle text-xs">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <Badge tone={status.tone}>{status.label}</Badge>
+                  </td>
                   <td className="px-4 py-2.5">
                     <Badge
-                      tone={member.role === "user" ? "neutral" : "primary"}
+                      tone={account.role === "user" ? "neutral" : "primary"}
                     >
-                      {roleName(member.role)}
+                      {roleName(account.role)}
                     </Badge>
-                    {member.disabled ? (
-                      <Badge tone="err" className="ml-1.5">
-                        已停用
-                      </Badge>
-                    ) : null}
                   </td>
                   <td className="px-4 py-2.5">
-                    {member.tags.length === 0 ? (
+                    {account.tags.length === 0 ? (
                       <span className="text-fg-subtle text-xs">—</span>
                     ) : (
                       <span className="flex flex-wrap gap-1">
-                        {member.tags.map((tag) => (
+                        {account.tags.map((tag) => (
                           <Badge key={tag}>{tag}</Badge>
                         ))}
                       </span>
@@ -132,7 +144,7 @@ export default async function AdminRosterPage() {
                       <span className="text-fg-subtle font-mono text-xs">
                         {formatter.format(credential.updatedAt)}
                       </span>
-                    ) : awaitingCode.has(member.handle) ? (
+                    ) : awaitingCode.has(account.handle) ? (
                       <Badge tone="info">设置码待用</Badge>
                     ) : (
                       <Badge tone="warn">未设置密码</Badge>
@@ -140,11 +152,11 @@ export default async function AdminRosterPage() {
                   </td>
                   {canManage ? (
                     <td className="px-4 py-2.5 text-right">
-                      {member.disabled ? (
+                      {account.disabled ? (
                         <span className="text-fg-subtle text-xs">—</span>
                       ) : (
                         <IssueCodeForm
-                          handle={member.handle}
+                          handle={account.handle}
                           hasPassword={credential?.hasPassword ?? false}
                         />
                       )}

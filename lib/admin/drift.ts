@@ -1,18 +1,24 @@
 import { countDistinct } from "drizzle-orm";
-import { listCredentials } from "@/lib/auth/credentials";
+import { listAccounts } from "@/lib/accounts/queries";
 import { listContests } from "@/lib/contests/registry";
 import { db } from "@/lib/db";
 import { contests, problems, submissions } from "@/lib/db/schema";
+import { listGrants, tagsFor } from "@/lib/enrollment/registry";
 import { listProblems } from "@/lib/problems/registry";
-import { hasMember, listMembers } from "@/lib/roster/registry";
 
 /**
- * What the operations console is for now that it cannot edit anything.
+ * What the operations console is for, now that it cannot edit anything.
  *
- * With the repository as the source of truth, the interesting question is no
- * longer "what should I change" but "where has reality drifted from what the
- * repository says". Each finding below names a specific divergence and how to
- * resolve it — usually a pull request, occasionally a setup code.
+ * The interesting question is not "what should I change" but "where has
+ * reality drifted from what the repository says". Each finding names a
+ * specific divergence and how to resolve it.
+ *
+ * Two of these used to read the other way round. A credential with no roster
+ * entry was once a warning; it is now simply what an ordinary competitor looks
+ * like. What replaced it is the mirror image — an address that no cohort rule
+ * recognises — because that is the failure this design can actually have: the
+ * rules are code and the addresses are data, so a rule that has fallen behind
+ * its intake shows up as people quietly belonging to nothing.
  */
 export type DriftSeverity = "info" | "warn";
 
@@ -24,7 +30,9 @@ export interface DriftFinding {
 }
 
 export interface AdminOverview {
-  rosterSize: number;
+  accountCount: number;
+  pendingCount: number;
+  suspendedCount: number;
   problemCount: number;
   contestCount: number;
   submissionCount: number;
@@ -36,13 +44,13 @@ export interface AdminOverview {
 }
 
 export async function loadAdminOverview(): Promise<AdminOverview> {
-  const roster = listMembers({ includeDisabled: true });
   const registryProblems = listProblems({ includeHidden: true });
   const registryContests = listContests({ includeHidden: true });
+  const grants = listGrants();
 
-  const [credentialRows, problemRows, contestRows, submissionStats] =
+  const [accountRows, problemRows, contestRows, submissionStats] =
     await Promise.all([
-      listCredentials(),
+      listAccounts(),
       db.select({ slug: problems.slug }).from(problems),
       db.select({ slug: contests.slug }).from(contests),
       db
@@ -53,43 +61,61 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
         .from(submissions),
     ]);
 
-  const credentialHandles = new Set(credentialRows.map((row) => row.handle));
+  const accountHandles = new Set(accountRows.map((row) => row.handle));
   const mirroredProblemSlugs = new Set(problemRows.map((row) => row.slug));
   const mirroredContestSlugs = new Set(contestRows.map((row) => row.slug));
 
   const findings: DriftFinding[] = [];
 
-  // Someone on the roster who has never been given a way to log in. Expected
-  // right after adding people; the fix is a setup code, not a schema change.
-  const withoutCredentials = roster
-    .filter((member) => !member.disabled)
-    .filter((member) => {
-      const row = credentialRows.find((entry) => entry.handle === member.handle);
-      return !row?.hasPassword;
-    })
-    .map((member) => member.handle);
+  // The rules are code and the addresses are data, so this is where the two
+  // fall out of step: a new intake whose address format nobody added a rule
+  // for lands here, silently in no cohort, entered in no contest.
+  const untagged = accountRows
+    .filter((row) => row.status === "active" && row.email)
+    .filter((row) => tagsFor(row.handle, row.email).length === 0)
+    .map((row) => row.handle);
 
-  if (withoutCredentials.length > 0) {
+  if (untagged.length > 0) {
     findings.push({
-      severity: "info",
-      title: "名册中有人尚未设置密码",
-      detail: "在「凭据」页为他们签发一次性设置码。",
-      items: withoutCredentials,
+      severity: "warn",
+      title: "有账号的邮箱不匹配任何分流规则",
+      detail:
+        "他们不属于任何标签，因此进不了任何 tag 制比赛。多半是 content/enrollment/ 里的规则没跟上新的邮箱格式。",
+      items: untagged,
     });
   }
 
-  // The reverse: a credential outliving its roster entry. Harmless but worth
-  // surfacing, because it is the residue of someone having left.
-  const orphanCredentials = [...credentialHandles].filter(
-    (handle) => !hasMember(handle),
-  );
-  if (orphanCredentials.length > 0) {
+  // A grant is a privilege waiting for somebody to claim it. Before they
+  // register there is nobody to give it to, which is normal for a day and a
+  // typo if it lasts.
+  const unclaimedGrants = grants
+    .filter((grant) => !accountHandles.has(grant.handle))
+    .map((grant) => grant.handle);
+
+  if (unclaimedGrants.length > 0) {
     findings.push({
-      severity: "warn",
-      title: "有凭据不在名册中",
+      severity: "info",
+      title: "有授权尚未对应到账号",
       detail:
-        "这些用户已从 content/roster/ 移除，无法登录。确认其提交记录无需保留后，可用 scripts/set-password.cjs --revoke 清理。",
-      items: orphanCredentials,
+        "这些 handle 在 content/enrollment/ 中被授权，但还没有人注册使用。确认拼写无误，或等本人完成注册。",
+      items: unclaimedGrants,
+    });
+  }
+
+  // Held handles that never confirmed an address. Swept automatically once
+  // they age past the policy's TTL; listed here because a spike is worth
+  // noticing.
+  const pending = accountRows
+    .filter((row) => row.status === "pending")
+    .map((row) => row.handle);
+
+  if (pending.length > 0) {
+    findings.push({
+      severity: "info",
+      title: "有注册尚未验证邮箱",
+      detail:
+        "超过 content/enrollment/ 中 unverifiedTtlHours 设定的时限后会自动清理，释放用户名。",
+      items: pending,
     });
   }
 
@@ -134,7 +160,10 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
   }
 
   return {
-    rosterSize: roster.length,
+    accountCount: accountRows.length,
+    pendingCount: pending.length,
+    suspendedCount: accountRows.filter((row) => row.status === "suspended")
+      .length,
     problemCount: registryProblems.length,
     contestCount: registryContests.length,
     submissionCount: submissionStats[0]?.total ?? 0,

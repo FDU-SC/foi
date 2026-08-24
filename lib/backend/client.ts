@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { backends, type ProblemBackend } from "@/backends.config";
 import type { Viewer } from "@/lib/auth/viewer";
+import { readTextBody } from "@/lib/body-limit";
 import { backendsFor } from "./access";
 import { signedHeaders } from "./signature";
 import {
@@ -16,6 +17,22 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 
 /** Longer than a dispatch: an action is answered, not merely acknowledged. */
 const DEFAULT_ACTION_TIMEOUT_MS = 20_000;
+
+/**
+ * How much of a backend's answer this process will hold.
+ *
+ * The timeout bounds how long a backend can keep the kernel waiting; nothing
+ * bounded how much it could make the kernel buffer. `res.text()` and
+ * `res.json()` read to completion, so one backend answering a queue poll with
+ * an endless body took the app down with it — and the reconciler polls every
+ * fifteen seconds whether anybody is watching or not.
+ *
+ * Generous, because an action response is the problem's to define and a
+ * verdict's `detail` can be a whole compile log. A backend that needs more
+ * than this is not returning a message, it is returning a file, and that
+ * wants a URL rather than a relay.
+ */
+const MAX_RESPONSE_BYTES = 256 * 1024;
 
 export interface ResolvedBackend extends ProblemBackend {
   id: string;
@@ -281,10 +298,22 @@ export async function callBackendAction(
     };
   }
 
+  const read = await readTextBody(res, MAX_RESPONSE_BYTES);
+  if (!read.ok) {
+    // 502 rather than the backend's own status: the exchange did not complete,
+    // and a component told "200, here is nothing" would render an empty
+    // container as a working one.
+    return {
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "题目后端响应过大" }),
+    };
+  }
+
   return {
     status: res.status,
     contentType: relayableContentType(res.headers.get("content-type")),
-    body: await res.text(),
+    body: read.text,
   };
 }
 
@@ -392,7 +421,22 @@ export async function fetchJudgeQueue(
       return { ...base, latencyMs, error: `返回 ${res.status}` };
     }
 
-    const parsed = judgeQueueSchema.safeParse(await res.json());
+    const read = await readTextBody(res, MAX_RESPONSE_BYTES);
+    if (!read.ok) {
+      return { ...base, latencyMs, error: "队列响应过大" };
+    }
+
+    // Parsed here rather than via `res.json()` so that malformed JSON reports
+    // the format it is — the outer catch would otherwise call it "无法连接",
+    // which sends an operator to look at the network.
+    let body: unknown;
+    try {
+      body = JSON.parse(read.text);
+    } catch {
+      return { ...base, latencyMs, error: "队列响应格式不合法" };
+    }
+
+    const parsed = judgeQueueSchema.safeParse(body);
     if (!parsed.success) {
       return { ...base, latencyMs, error: "队列响应格式不合法" };
     }
@@ -476,10 +520,32 @@ export async function pollJudge(
 
   if (!res.ok) return null;
 
-  const parsed = judgeStatusSchema.safeParse(await res.json().catch(() => null));
+  const read = await readTextBody(res, MAX_RESPONSE_BYTES);
+  if (!read.ok) return null;
+
+  let body: unknown = null;
+  try {
+    body = JSON.parse(read.text);
+  } catch {
+    return null;
+  }
+
+  const parsed = judgeStatusSchema.safeParse(body);
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * A refusal's body, for putting in an error message.
+ *
+ * Bounded twice over: the read stops at 4 KiB so a backend cannot answer a
+ * dispatch with a gigabyte of prose, and the slice is what actually ends up in
+ * front of somebody. Reading first and truncating after — which is what this
+ * did — meant the whole thing was already in memory by the time 200 characters
+ * were chosen from it.
+ */
 async function safeText(res: Response): Promise<string> {
-  return (await res.text().catch(() => "")).slice(0, 200);
+  const read = await readTextBody(res, 4 * 1024).catch(
+    () => ({ ok: false }) as const,
+  );
+  return read.ok ? read.text.slice(0, 200) : "";
 }

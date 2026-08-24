@@ -1,5 +1,5 @@
 /**
- * Reading a request body without agreeing to hold all of it.
+ * Reading a body without agreeing to hold all of it.
  *
  * `await request.text()` has no upper bound. Every route that called it was
  * therefore promising to buffer whatever arrived before it had looked at a
@@ -19,11 +19,24 @@
  * `content-length` is a claim worth refusing on when it is already over, and
  * the running total is what actually holds, since a chunked body declares no
  * length at all.
+ *
+ * Responses go through here too, which is why the parameter is a shape rather
+ * than a `Request`. A problem backend is not a browser and not the kernel's to
+ * trust: it is reached over the network, it may be somebody else's service,
+ * and `lib/backend/client.ts` used to hand whatever it returned straight to
+ * `res.text()` — an unbounded read on every dispatch, every action, and every
+ * queue poll the reconciler makes.
  */
 
 export type BodyResult =
   | { ok: true; text: string }
   | { ok: false; reason: "too-large" };
+
+/** A `Request` or a `Response`; both carry the two things this needs. */
+interface TextBody {
+  body: ReadableStream<Uint8Array> | null;
+  headers: Headers;
+}
 
 /**
  * Bytes, not `String.length`.
@@ -34,15 +47,15 @@ export type BodyResult =
  * the number being enforced.
  */
 export async function readTextBody(
-  request: Request,
+  message: TextBody,
   maxBytes: number,
 ): Promise<BodyResult> {
-  const declared = Number(request.headers.get("content-length"));
+  const declared = Number(message.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > maxBytes) {
     return { ok: false, reason: "too-large" };
   }
 
-  const body = request.body;
+  const body = message.body;
   if (!body) return { ok: true, text: "" };
 
   const reader = body.getReader();

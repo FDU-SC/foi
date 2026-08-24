@@ -1,10 +1,11 @@
 import { countDistinct } from "drizzle-orm";
 import { listAccounts } from "@/lib/accounts/queries";
-import { listContests } from "@/lib/contests/registry";
+import { allContests } from "@/lib/contests/registry";
 import { db } from "@/lib/db";
 import { contests, problems, submissions } from "@/lib/db/schema";
-import { listGrants, tagsFor } from "@/lib/enrollment/registry";
-import { listProblems } from "@/lib/problems/registry";
+import { groupsFor, listGrants } from "@/lib/enrollment/registry";
+import { orphanedJudges } from "@/lib/judge/access";
+import { allProblems } from "@/lib/problems/registry";
 
 /**
  * What the operations console is for, now that it cannot edit anything.
@@ -44,8 +45,8 @@ export interface AdminOverview {
 }
 
 export async function loadAdminOverview(): Promise<AdminOverview> {
-  const registryProblems = listProblems({ includeHidden: true });
-  const registryContests = listContests({ includeHidden: true });
+  const registryProblems = allProblems();
+  const registryContests = allContests();
   const grants = listGrants();
 
   const [accountRows, problemRows, contestRows, submissionStats] =
@@ -72,7 +73,7 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
   // for lands here, silently in no cohort, entered in no contest.
   const untagged = accountRows
     .filter((row) => row.status === "active" && row.email)
-    .filter((row) => tagsFor(row.handle, row.email).length === 0)
+    .filter((row) => groupsFor(row.handle, row.email).length === 0)
     .map((row) => row.handle);
 
   if (untagged.length > 0) {
@@ -148,6 +149,20 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       .filter((row) => !registryContestSlugs.has(row.slug))
       .map((row) => `比赛 ${row.slug}`),
   ];
+
+  // A judge nothing routes to is invisible to players by design — the gate
+  // shows a judge only to somebody who can see a problem on it — so an
+  // unreferenced one would otherwise sit there unnoticed, healthy and unused.
+  const unusedJudges = orphanedJudges();
+  if (unusedJudges.length > 0) {
+    findings.push({
+      severity: "info",
+      title: "有判题机没有任何题目指向",
+      detail:
+        "它们不会出现在选手的 /judges 页面（那里只列出承载了可见题目的判题机）。确认是备用节点还是 judges.config.ts 里的残留。",
+      items: unusedJudges,
+    });
+  }
 
   if (orphanMirrors.length > 0) {
     findings.push({

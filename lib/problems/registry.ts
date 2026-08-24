@@ -61,15 +61,27 @@ const statementLoaders = new Map<string, () => Promise<unknown>>(
   }),
 );
 
-export function listProblems(options?: {
-  includeHidden?: boolean;
-}): ProblemConfig[] {
-  return [...registry.values()]
-    .filter((problem) => options?.includeHidden || !problem.hidden)
-    .sort((a, b) => a.order - b.order || a.title.localeCompare(b.title, "zh"));
+/**
+ * Every problem as authored, with no view of who is asking.
+ *
+ * Named for what it is so that reaching for it is a decision. Anything that
+ * renders to a person wants `problemsFor()` in `./access`, which answers the
+ * same question for a particular viewer; the callers left here are the ones
+ * that legitimately need the whole set — the mirror sync, the drift report,
+ * load-time validation, and the access layer itself.
+ *
+ * `hidden` is deliberately not filtered here. It is one of two reasons a
+ * problem may be withheld, and splitting one of them into the registry while
+ * the other lives in the gate is how they drift apart.
+ */
+export function allProblems(): ProblemConfig[] {
+  return [...registry.values()].sort(
+    (a, b) => a.order - b.order || a.title.localeCompare(b.title, "zh"),
+  );
 }
 
-export function getProblem(slug: string): ProblemConfig | undefined {
+/** One problem as authored. Same caveat as `allProblems`. */
+export function problemBySlug(slug: string): ProblemConfig | undefined {
   return registry.get(slug);
 }
 

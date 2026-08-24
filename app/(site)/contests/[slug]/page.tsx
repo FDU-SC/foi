@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
+import {
+  contestFor,
+  isContestProblemSetVisible,
+} from "@/lib/contests/access";
 import { resolveContestProblems } from "@/lib/contests/queries";
-import { getContest } from "@/lib/contests/registry";
 import { contestPhase, PHASE_LABEL } from "@/lib/contests/types";
 import { getRuleset } from "@/lib/standings/registry";
 
@@ -13,7 +17,8 @@ export async function generateMetadata({
   params,
 }: PageProps<"/contests/[slug]">): Promise<Metadata> {
   const { slug } = await params;
-  return { title: getContest(slug)?.title ?? "比赛" };
+  const view = contestFor(slug, await getViewer());
+  return { title: view?.config.title ?? "比赛" };
 }
 
 const formatter = new Intl.DateTimeFormat("zh-CN", {
@@ -25,12 +30,22 @@ export default async function ContestPage({
   params,
 }: PageProps<"/contests/[slug]">) {
   const { slug } = await params;
-  const contest = getContest(slug);
-  if (!contest) notFound();
+  const viewer = await getViewer();
+  const preview = viewer.can("problem.viewAll");
 
-  const problems = resolveContestProblems(contest);
+  const view = contestFor(slug, viewer);
+  if (!view) notFound();
+
+  const contest = view.config;
   const ruleset = getRuleset(contest.ruleset.id);
   const phase = contestPhase(contest);
+
+  // Before the start the problem set is itself the secret: how many problems
+  // there are, what they are called and what they are worth all describe the
+  // round without opening a single statement.
+  const problemSetVisible = isContestProblemSetVisible(contest);
+  const problems =
+    problemSetVisible || preview ? resolveContestProblems(contest) : [];
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -59,17 +74,24 @@ export default async function ContestPage({
         ) : null}
       </header>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-fg text-lg font-semibold">题目</h2>
+        {!problemSetVisible && preview ? (
+          <Badge tone="warn">预览 · 尚未对选手公开</Badge>
+        ) : null}
         <Link
           href={`/contests/${contest.slug}/standings`}
-          className="text-primary text-sm hover:underline"
+          className="text-primary ml-auto text-sm hover:underline"
         >
           查看排行榜 →
         </Link>
       </div>
 
-      {problems.length === 0 ? (
+      {!problemSetVisible && !preview ? (
+        <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
+          题目将在 {formatter.format(contest.startsAt)} 开赛时公开。
+        </p>
+      ) : problems.length === 0 ? (
         <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
           这场比赛还没有添加题目。
           <br />

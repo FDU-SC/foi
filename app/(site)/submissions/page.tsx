@@ -6,7 +6,8 @@ import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { locateInQueues } from "@/lib/judge/queue-lookup";
 import { isTerminalState } from "@/lib/judge/types";
-import { listSubmissions } from "@/lib/submissions/queries";
+import { viewerFor } from "@/lib/auth/viewer";
+import { submissionsFor } from "@/lib/submissions/access";
 
 export const metadata: Metadata = { title: "提交记录" };
 export const dynamic = "force-dynamic";
@@ -20,7 +21,8 @@ export default async function SubmissionsPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login?next=/submissions");
 
-  const rows = await listSubmissions({ handle: user.handle, limit: 50 });
+  // Scoped by the viewer, not by an argument this page has to remember.
+  const rows = await submissionsFor(viewerFor(user), { limit: 50 });
 
   // One sweep of the judges covers every unfinished row on the page.
   const positions = await locateInQueues(

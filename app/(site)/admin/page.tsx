@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { getViewer } from "@/auth";
 import { ActionForm } from "@/components/admin/action-form";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { loadAdminOverview } from "@/lib/admin/drift";
-import { listRoles } from "@/lib/auth/policy";
+import { listGroups } from "@/lib/auth/groups";
 import { listRulesets } from "@/lib/standings/registry";
 import { syncRegistriesFormAction } from "./actions";
 
@@ -12,6 +14,13 @@ export const metadata: Metadata = { title: "管理" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
+  // `proxy.ts` already matched this path, but its answer comes from the token
+  // alone — the session callback reads grants, never the accounts table, so a
+  // suspended administrator holding a live JWT still gets past it. `getViewer`
+  // resolves the account row, which is where a suspension lives.
+  const viewer = await getViewer();
+  if (!viewer.can("admin.access")) notFound();
+
   const overview = await loadAdminOverview();
 
   const stats = [
@@ -27,7 +36,7 @@ export default async function AdminPage() {
         <h1 className="text-fg text-2xl font-bold tracking-tight">管理</h1>
         <p className="text-fg-muted mt-2 text-sm leading-6">
           这个页面不改配置。分流规则、权限、比赛与题目的真源都在仓库里，改动走
-          pull request；这里核对仓库与数据库是否一致。唯二的写操作是签发密码设置码和封禁账号——密码不能写进仓库，而封禁一个垃圾注册号不该需要一次 code review。
+          pull request；这里核对仓库与数据库是否一致。唯二的写操作是给某个账号补发一封找回密码邮件和封禁账号——前者的链接直达本人邮箱、不经管理员的手，后者则不该为了封一个垃圾注册号去走一次 code review。
         </p>
       </div>
 
@@ -116,19 +125,21 @@ export default async function AdminPage() {
       </Card>
 
       <Card>
-        <CardHeader title="角色与权限" />
+        <CardHeader title="用户组与权限" />
         <CardBody className="space-y-3">
           <p className="text-fg-muted text-sm leading-6">
-            角色不存在数据库里。下面这张表由{" "}
-            <code className="font-mono">lib/auth/policy.ts</code>{" "}
-            生成，改权限就是改那个文件——变更会出现在 diff 里。
+            用户组不存在数据库里。下面这张表来自{" "}
+            <code className="font-mono">content/enrollment/</code> 的{" "}
+            <code className="font-mono">groups</code>
+            ，改权限就是改那个文件——变更会出现在 diff 里。这里只列出带权限的组；
+            纯分组不需要声明，出现在规则或授权里即可使用。
           </p>
           <div className="border-border overflow-hidden rounded-md border">
             <table className="w-full text-sm">
               <thead className="bg-surface-2">
                 <tr className="text-fg-muted text-xs">
                   <th className="border-border border-b px-3 py-2 text-left font-semibold">
-                    角色
+                    用户组
                   </th>
                   <th className="border-border border-b px-3 py-2 text-left font-semibold">
                     能力
@@ -136,24 +147,24 @@ export default async function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-border divide-y">
-                {listRoles().map(({ id, definition }) => (
-                  <tr key={id}>
+                {listGroups().map((group) => (
+                  <tr key={group.id}>
                     <td className="px-3 py-2 align-top">
                       <div className="text-fg text-sm font-medium">
-                        {definition.name}
+                        {group.name}
                       </div>
                       <code className="text-fg-subtle font-mono text-xs">
-                        {id}
+                        {group.id}
                       </code>
                     </td>
                     <td className="px-3 py-2">
-                      {definition.capabilities.length === 0 ? (
+                      {group.capabilities.length === 0 ? (
                         <span className="text-fg-subtle text-xs">
                           无额外能力
                         </span>
                       ) : (
                         <ul className="flex flex-wrap gap-1.5">
-                          {definition.capabilities.map((capability) => (
+                          {group.capabilities.map((capability) => (
                             <li key={capability}>
                               <Badge mono>{capability}</Badge>
                             </li>
@@ -161,7 +172,7 @@ export default async function AdminPage() {
                         </ul>
                       )}
                       <p className="text-fg-subtle mt-1 text-xs leading-5">
-                        {definition.description}
+                        {group.description}
                       </p>
                     </td>
                   </tr>
@@ -177,11 +188,18 @@ export default async function AdminPage() {
         <CardBody className="space-y-3">
           {listRulesets().map((ruleset) => (
             <div key={ruleset.id}>
-              <div className="text-fg text-sm font-medium">
-                {ruleset.name}
-                <code className="text-fg-subtle ml-2 font-mono text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-fg text-sm font-medium">
+                  {ruleset.name}
+                </span>
+                <code className="text-fg-subtle font-mono text-xs">
                   {ruleset.id}
                 </code>
+                {ruleset.supportsFreeze ? (
+                  <Badge tone="info">支持封榜</Badge>
+                ) : (
+                  <Badge>不支持封榜</Badge>
+                )}
               </div>
               <p className="text-fg-muted text-xs leading-5">
                 {ruleset.description}

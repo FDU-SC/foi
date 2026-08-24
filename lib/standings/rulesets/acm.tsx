@@ -55,6 +55,7 @@ export const acmRuleset: Ruleset<AcmCell> = {
   id: "acm",
   name: "ACM / ICPC",
   description: "按通过题数排名，同数按罚时（解题时间 + 错误提交罚分）排序。",
+  supportsFreeze: true,
 
   computeStandings(input: StandingsInput) {
     const { penaltyMinutes } = configSchema.parse(input.config ?? {});

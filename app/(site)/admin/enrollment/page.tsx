@@ -2,14 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { listAccounts } from "@/lib/accounts/queries";
-import { roleName } from "@/lib/auth/policy";
+import { getViewer } from "@/auth";
+import { accountsFor } from "@/lib/accounts/access";
+import { declaredGroupIds, groupName, isPrivileged } from "@/lib/auth/groups";
 import {
   enrollmentPolicy,
-  knownTags,
+  knownGroups,
   listGrants,
   listRules,
-  tagsFor,
+  groupsFor,
 } from "@/lib/enrollment/registry";
 
 export const metadata: Metadata = { title: "分流规则" };
@@ -28,19 +29,27 @@ export default async function AdminEnrollmentPage() {
   const [rules, grants, accounts] = await Promise.all([
     Promise.resolve(listRules()),
     Promise.resolve(listGrants()),
-    listAccounts(),
+    // Rule hit counts are computed from addresses, so this page reads PII too
+    // and answers to the same capability as the account directory.
+    accountsFor(await getViewer()),
   ]);
 
   const active = accounts.filter((row) => row.status === "active");
-  const { tags, exhaustive } = knownTags();
+  const { groups: allGroups, exhaustive } = knownGroups();
 
-  const tagCounts = new Map<string, number>();
+  // Declared groups start at zero so they are listed even when empty. That is
+  // the whole value of this card right after somebody adds a group: a count of
+  // 0 next to a name you just wrote is how a mistyped grant announces itself,
+  // and absence from the list would not.
+  const groupCounts = new Map<string, number>(
+    declaredGroupIds().map((id) => [id, 0]),
+  );
   let untagged = 0;
   for (const row of active) {
-    const resolved = tagsFor(row.handle, row.email);
+    const resolved = groupsFor(row.handle, row.email);
     if (resolved.length === 0 && row.email) untagged += 1;
-    for (const tag of resolved) {
-      tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+    for (const id of resolved) {
+      groupCounts.set(id, (groupCounts.get(id) ?? 0) + 1);
     }
   }
 
@@ -126,7 +135,7 @@ export default async function AdminEnrollmentPage() {
         <CardBody className="space-y-3">
           {rules.length === 0 ? (
             <p className="text-fg-muted text-sm leading-6">
-              还没有任何规则，注册用户不会获得标签，tag 制比赛将没有参赛者。
+              还没有任何规则，注册用户不会进入任何用户组，按组划定参赛范围的比赛将没有参赛者。
             </p>
           ) : (
             <div className="border-border overflow-hidden rounded-md border">
@@ -140,7 +149,7 @@ export default async function AdminEnrollmentPage() {
                       匹配
                     </th>
                     <th className="border-border border-b px-3 py-2 text-left font-semibold">
-                      标签
+                      用户组
                     </th>
                     <th className="border-border border-b px-3 py-2 text-right font-semibold">
                       命中账号
@@ -157,14 +166,14 @@ export default async function AdminEnrollmentPage() {
                         {String(rule.match)}
                       </td>
                       <td className="px-3 py-2 align-top">
-                        {typeof rule.tags === "function" ? (
+                        {typeof rule.groups === "function" ? (
                           <span className="text-fg-subtle text-xs">
                             由邮箱计算得出
                           </span>
                         ) : (
                           <span className="flex flex-wrap gap-1">
-                            {rule.tags.map((tag) => (
-                              <Badge key={tag}>{tag}</Badge>
+                            {rule.groups.map((id) => (
+                              <Badge key={id}>{groupName(id)}</Badge>
                             ))}
                           </span>
                         )}
@@ -196,29 +205,37 @@ export default async function AdminEnrollmentPage() {
       </Card>
 
       <Card>
-        <CardHeader title="当前标签分布" />
+        <CardHeader title="当前用户组分布" />
         <CardBody>
-          {tagCounts.size === 0 ? (
-            <p className="text-fg-muted text-sm">还没有任何账号带上标签。</p>
+          {groupCounts.size === 0 ? (
+            <p className="text-fg-muted text-sm">还没有任何用户组。</p>
           ) : (
             <ul className="flex flex-wrap gap-1.5">
-              {[...tagCounts.entries()]
-                .sort((a, b) => b[1] - a[1])
-                .map(([tag, count]) => (
-                  <li key={tag}>
-                    <Badge tone="primary">
-                      {tag} · {count}
+              {[...groupCounts.entries()]
+                .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+                .map(([id, count]) => (
+                  <li key={id}>
+                    <Badge
+                      tone={
+                        count === 0
+                          ? "warn"
+                          : isPrivileged(id)
+                            ? "primary"
+                            : "neutral"
+                      }
+                    >
+                      {groupName(id)} · {count}
                     </Badge>
                   </li>
                 ))}
             </ul>
           )}
           <p className="text-fg-subtle mt-3 text-xs leading-5">
-            比赛用 <code className="font-mono">participants.tag</code>{" "}
-            引用这些标签。
+            比赛用 <code className="font-mono">participants.group</code>{" "}
+            引用这些用户组。
             {exhaustive
-              ? `仓库能静态枚举出的标签共 ${tags.length} 个，因此引用了不存在标签的比赛会在启动时告警。`
-              : "有规则的标签是算出来的，无法静态枚举，因此启动时不会校验比赛引用的标签是否存在。"}
+              ? `仓库能静态枚举出的用户组共 ${allGroups.length} 个，因此引用了不存在用户组的比赛会在启动时告警。`
+              : "有规则的用户组是算出来的，无法静态枚举，因此启动时不会校验比赛引用的用户组是否存在。"}
           </p>
         </CardBody>
       </Card>
@@ -227,7 +244,7 @@ export default async function AdminEnrollmentPage() {
         <CardHeader title="授权" />
         <CardBody className="space-y-3">
           <p className="text-fg-muted text-sm leading-6">
-            角色只能来自这里，永远不会由邮箱推导——正则写错就发出去一个助教是不可接受的。给谁提权必须在文件里指名道姓，这既让改动可
+            带权限的用户组只能来自这里，永远不会由邮箱推导——正则写错就发出去一个管理员是不可接受的。给谁提权必须在文件里指名道姓，这既让改动可
             review，也把理由留在了 git 历史里。
           </p>
           {grants.length === 0 ? (
@@ -242,14 +259,13 @@ export default async function AdminEnrollmentPage() {
                   <code className="text-fg font-mono text-xs">
                     {grant.handle}
                   </code>
-                  <Badge tone={grant.role === "user" ? "neutral" : "primary"}>
-                    {roleName(grant.role)}
-                  </Badge>
                   {grant.displayName ? (
                     <Badge tone="info">引导账号</Badge>
                   ) : null}
-                  {grant.tags.map((tag) => (
-                    <Badge key={tag}>{tag}</Badge>
+                  {grant.groups.map((id) => (
+                    <Badge key={id} tone={isPrivileged(id) ? "primary" : "neutral"}>
+                      {groupName(id)}
+                    </Badge>
                   ))}
                 </li>
               ))}

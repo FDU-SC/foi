@@ -1,20 +1,19 @@
 import type { DefaultSession } from "next-auth";
-import type { RoleId } from "@/lib/auth/policy";
 
 declare module "next-auth" {
   interface Session {
     user: {
-      /** Empty when the token no longer matches an active roster entry. */
+      /** Empty when the token no longer matches an active account. */
       handle: string;
       displayName: string;
-      role: RoleId;
+      groups: string[];
     } & DefaultSession["user"];
   }
 
   /**
-   * What `authorize` returns. Display name and role are absent on purpose:
-   * they are derived from the roster in the session callback rather than
-   * frozen into the token.
+   * What `authorize` returns. Display name and group membership are absent on
+   * purpose: they are derived on every request rather than frozen into the
+   * token, so a change to `content/enrollment/` lands on the next page load.
    */
   interface User {
     handle: string;

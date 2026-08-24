@@ -109,7 +109,7 @@ async function main() {
 
   console.log(
     `\n已创建 ${SEED_ACCOUNTS.length} 个账号，密码统一为: ${password}` +
-      `\n角色与标签不在数据库中：角色来自 content/enrollment/ 的 grants，标签由邮箱按规则现算。`,
+      `\n用户组不在数据库中：一部分来自 content/enrollment/ 的 grants，一部分由邮箱按规则现算。`,
   );
   await pool.end();
 }

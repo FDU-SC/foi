@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { getViewer } from "@/auth";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
-import { listContests } from "@/lib/contests/registry";
+import { contestsFor } from "@/lib/contests/access";
 import {
   contestPhase,
   PHASE_LABEL,
@@ -23,8 +24,8 @@ const formatter = new Intl.DateTimeFormat("zh-CN", {
   timeStyle: "short",
 });
 
-export default function ContestsPage() {
-  const all = listContests();
+export default async function ContestsPage() {
+  const all = contestsFor(await getViewer());
 
   return (
     <div className="space-y-5">
@@ -37,7 +38,7 @@ export default function ContestsPage() {
         </p>
       ) : (
         <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
-          {all.map((contest) => {
+          {all.map(({ config: contest, gate }) => {
             const phase = contestPhase(contest);
             return (
               <li key={contest.slug}>
@@ -47,6 +48,7 @@ export default function ContestsPage() {
                 >
                   <Badge tone={PHASE_TONE[phase]}>{PHASE_LABEL[phase]}</Badge>
                   <span className="text-fg font-medium">{contest.title}</span>
+                  {gate.visible ? null : <Badge tone="warn">未公开</Badge>}
                   <Badge>
                     {getRuleset(contest.ruleset.id)?.name ?? contest.ruleset.id}
                   </Badge>

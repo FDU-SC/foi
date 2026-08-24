@@ -1,8 +1,9 @@
 import { getSessionUser } from "@/auth";
-import { userCan } from "@/lib/auth/session";
+import { viewerFor } from "@/lib/auth/viewer";
 import { isTerminalState } from "@/lib/judge/types";
 import { subscribe } from "@/lib/submissions/events";
-import { getSubmissionRow, toView } from "@/lib/submissions/queries";
+import { submissionFor } from "@/lib/submissions/access";
+import { toView } from "@/lib/submissions/queries";
 import type { SubmissionView } from "@/lib/submissions/types";
 
 export const runtime = "nodejs";
@@ -17,11 +18,9 @@ export async function GET(request: Request) {
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return new Response("Missing id", { status: 400 });
 
-  const initial = await getSubmissionRow(id);
+  const viewer = viewerFor(user);
+  const initial = await submissionFor(id, viewer);
   if (!initial) return new Response("Not found", { status: 404 });
-  if (initial.handle !== user.handle && !userCan(user, "submission.readAny")) {
-    return new Response("Forbidden", { status: 403 });
-  }
 
   const encoder = new TextEncoder();
 
@@ -61,7 +60,7 @@ export async function GET(request: Request) {
       // A verdict can land between the snapshot above and the subscription
       // being active. Re-read once now that we are listening so that update
       // is not lost. Duplicate frames are harmless — the client is idempotent.
-      const afterSubscribe = await getSubmissionRow(id);
+      const afterSubscribe = await submissionFor(id, viewer);
       if (afterSubscribe) send(toView(afterSubscribe));
       if (closed) return;
 

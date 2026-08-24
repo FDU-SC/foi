@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
-import { userCan } from "@/lib/auth/session";
+import { viewerFor } from "@/lib/auth/viewer";
 import { JudgeStatusBoard } from "@/components/judges/judge-status-board";
-import { fetchAllJudgeQueues, redactJudgeStatus } from "@/lib/judge/client";
+import { judgeQueuesFor } from "@/lib/judge/client";
 
 export const metadata: Metadata = { title: "判题机" };
 export const dynamic = "force-dynamic";
@@ -12,9 +12,7 @@ export default async function JudgesPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login?next=/judges");
 
-  const statuses = await fetchAllJudgeQueues();
-  const visible =
-    userCan(user, "judge.inspect") ? statuses : statuses.map(redactJudgeStatus);
+  const visible = await judgeQueuesFor(viewerFor(user));
 
   return (
     <div className="space-y-5">
@@ -25,7 +23,13 @@ export default async function JudgesPage() {
         </p>
       </div>
 
-      <JudgeStatusBoard initial={visible} />
+      {visible.length === 0 ? (
+        <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
+          目前没有你可以查看的判题机。
+        </p>
+      ) : (
+        <JudgeStatusBoard initial={visible} />
+      )}
     </div>
   );
 }

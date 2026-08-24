@@ -1,10 +1,12 @@
 import { sql } from "drizzle-orm";
 import { accountSnapshot } from "@/lib/accounts/cache";
+import { normalizeHandle } from "@/lib/accounts/types";
+import type { ResolvedUser } from "@/lib/accounts/types";
 import { db } from "@/lib/db";
 import { contests } from "@/lib/db/schema";
-import { tagsFor } from "@/lib/enrollment/registry";
-import { getProblem } from "@/lib/problems/registry";
-import { listContests as listContestConfigs } from "./registry";
+import { groupsFor } from "@/lib/enrollment/registry";
+import { problemBySlug } from "@/lib/problems/registry";
+import { allContests } from "./registry";
 import type { ContestConfig } from "./types";
 
 /**
@@ -31,7 +33,12 @@ export function resolveContestProblems(
   contest: ContestConfig,
 ): ResolvedContestProblem[] {
   return contest.problems.flatMap((entry) => {
-    const problem = getProblem(entry.slug);
+    // Raw is safe here because of an invariant the contest registry enforces
+    // at load: a contest's audience never reaches past any of its problems'.
+    // Anyone who got this far can therefore see every problem in the set, and
+    // the only remaining question — has the round started — is asked once for
+    // the whole set by the two pages that render it.
+    const problem = problemBySlug(entry.slug);
     if (!problem) return [];
     return [
       {
@@ -58,12 +65,41 @@ export interface ResolvedParticipant {
  * whoever submitted, which is what makes a casual contest work with no setup.
  *
  * The other two now read accounts rather than a compiled roster, because that
- * is where people are. `tag` in particular has to run the cohort rules over
+ * is where people are. `group` in particular has to run the cohort rules over
  * every address, so it goes through the snapshot in `lib/accounts/cache.ts`
  * rather than issuing a query per contest view. A few seconds of staleness
  * only ever means a just-registered competitor appears on the board one
  * refresh late; nothing here grants access.
  */
+/**
+ * Whether this person may enter this contest.
+ *
+ * `participants` used to decide only who appeared on the board, so any account
+ * could attribute submissions to a closed contest and occupy its judges with
+ * them — the entries simply never showed up in the standings. Asking the
+ * question on the submission path is what makes the field mean what it says.
+ *
+ * Cheap on purpose: `groups` is already resolved on the user, and a `list` is a
+ * handful of handles, so this costs nothing and needs no snapshot.
+ */
+export function canEnterContest(
+  contest: ContestConfig,
+  user: Pick<ResolvedUser, "handle" | "groups">,
+): boolean {
+  switch (contest.participants.mode) {
+    case "open":
+      return true;
+    case "list": {
+      const handle = normalizeHandle(user.handle);
+      return contest.participants.handles.some(
+        (entry) => normalizeHandle(entry) === handle,
+      );
+    }
+    case "group":
+      return user.groups.includes(contest.participants.group);
+  }
+}
+
 export async function resolveParticipants(
   contest: ContestConfig,
 ): Promise<ResolvedParticipant[] | null> {
@@ -80,11 +116,11 @@ export async function resolveParticipants(
     });
   }
 
-  const wanted = contest.participants.tag;
+  const wanted = contest.participants.group;
   const matched: ResolvedParticipant[] = [];
   for (const account of accounts.values()) {
     if (account.status !== "active") continue;
-    if (!tagsFor(account.handle, account.email).includes(wanted)) continue;
+    if (!groupsFor(account.handle, account.email).includes(wanted)) continue;
     matched.push({ handle: account.handle, displayName: account.displayName });
   }
 
@@ -99,7 +135,7 @@ export async function resolveParticipants(
  * rather than letting the sync detach history on its own.
  */
 export async function syncContests(): Promise<{ synced: number }> {
-  const all = listContestConfigs({ includeHidden: true });
+  const all = allContests();
   if (all.length === 0) return { synced: 0 };
 
   await db

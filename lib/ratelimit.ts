@@ -25,8 +25,10 @@ declare global {
   var __foiRateLimit: Map<string, Window> | undefined;
 }
 
-const buckets = globalThis.__foiRateLimit ?? new Map<string, Window>();
-if (process.env.NODE_ENV !== "production") globalThis.__foiRateLimit = buckets;
+// Attached unconditionally, not just in development. Next can place a module
+// in more than one server bundle, and a counter that exists once per bundle
+// silently multiplies every limit below by the number of copies.
+const buckets = (globalThis.__foiRateLimit ??= new Map<string, Window>());
 
 export type RateLimitResult =
   | { ok: true }

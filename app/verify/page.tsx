@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "验证邮箱" };
 export const dynamic = "force-dynamic";
 
 type Outcome =
-  | { kind: "ok"; handle: string; tags: string[] }
+  | { kind: "ok"; handle: string; groups: string[] }
   | { kind: "error"; message: string };
 
 /**
@@ -34,7 +34,7 @@ async function verify(token: string): Promise<Outcome> {
       const account = await getAccount(existing.handle);
       if (account?.status === "active") {
         const user = resolveFromRow(account);
-        return { kind: "ok", handle: user.handle, tags: user.tags };
+        return { kind: "ok", handle: user.handle, groups: user.groups };
       }
     }
     return {
@@ -52,7 +52,7 @@ async function verify(token: string): Promise<Outcome> {
   }
 
   const user = resolveFromRow(account);
-  return { kind: "ok", handle: user.handle, tags: user.tags };
+  return { kind: "ok", handle: user.handle, groups: user.groups };
 }
 
 export default async function VerifyPage({
@@ -97,16 +97,16 @@ export default async function VerifyPage({
           <span className="font-mono">{outcome.handle}</span> 已启用。
         </p>
 
-        {/* Showing the cohorts is how a mistyped address gets caught: the tags
+        {/* Showing the groups is how a mistyped address gets caught: they
             come from the address, so an empty list right after signing up is
             the earliest and clearest sign something is off. */}
-        {outcome.tags.length > 0 ? (
+        {outcome.groups.length > 0 ? (
           <div className="border-border rounded-md border px-3 py-2.5">
             <p className="text-fg-muted mb-1.5 text-xs">
               根据邮箱，你被归入以下分组：
             </p>
             <ul className="flex flex-wrap gap-1.5">
-              {outcome.tags.map((tag) => (
+              {outcome.groups.map((tag) => (
                 <li key={tag}>
                   <Badge tone="primary">{tag}</Badge>
                 </li>

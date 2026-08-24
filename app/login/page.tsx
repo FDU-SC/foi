@@ -28,12 +28,6 @@ export default async function LoginPage({
             用邮箱找回
           </Link>
           。
-          <br />
-          拿到了管理员签发的设置码，请到{" "}
-          <Link href="/setup" className="hover:text-fg underline">
-            设置密码
-          </Link>
-          。
         </>
       }
     >

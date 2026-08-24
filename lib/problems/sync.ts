@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { problems } from "@/lib/db/schema";
-import { listProblems } from "./registry";
+import { allProblems } from "./registry";
 import type { ProblemConfig } from "./types";
 
 /**
@@ -36,7 +36,7 @@ export async function ensureProblem(config: ProblemConfig): Promise<void> {
  * Turbopack's `import.meta.glob`, which a standalone script cannot evaluate.
  */
 export async function syncProblems(): Promise<{ synced: number }> {
-  const all = listProblems({ includeHidden: true });
+  const all = allProblems();
   if (all.length === 0) return { synced: 0 };
 
   await db

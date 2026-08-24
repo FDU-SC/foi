@@ -71,6 +71,11 @@ export const ctfDynamicRuleset: Ruleset<CtfCell> = {
   id: "ctf-dynamic",
   name: "CTF 动态分值",
   description: "题目分值随解出人数衰减，前三名解出者获得一/二/三血加成。",
+  // Dynamic scoring makes this awkward rather than merely unimplemented:
+  // withholding one solve changes what every other team is worth, so a frozen
+  // board would have to show scores that are wrong for everyone, not just
+  // incomplete for one.
+  supportsFreeze: false,
 
   computeStandings(input: StandingsInput) {
     const config = configSchema.parse(input.config ?? {});

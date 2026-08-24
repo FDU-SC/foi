@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { describeAudience } from "@/lib/auth/audience";
 import { resolveParticipants } from "@/lib/contests/queries";
-import { listContests } from "@/lib/contests/registry";
+import { allContests } from "@/lib/contests/registry";
 import { contestPhase, PHASE_LABEL } from "@/lib/contests/types";
 import { getRuleset } from "@/lib/standings/registry";
 
@@ -16,21 +19,28 @@ const formatter = new Intl.DateTimeFormat("zh-CN", {
 });
 
 function participantsLabel(
-  mode: "open" | "tag" | "list",
+  mode: "open" | "group" | "list",
   resolved: number | null,
 ): string {
   switch (mode) {
     case "open":
       return "开放（谁提交谁上榜）";
-    case "tag":
-      return `按标签，${resolved} 人`;
+    case "group":
+      return `按用户组，${resolved} 人`;
     case "list":
       return `按名单，${resolved} 人`;
   }
 }
 
 export default async function AdminContestsPage() {
-  const all = listContests({ includeHidden: true });
+  // `proxy.ts` already matched this path, but its answer comes from the token
+  // alone — the session callback reads grants, never the accounts table, so a
+  // suspended administrator holding a live JWT still gets past it. `getViewer`
+  // resolves the account row, which is where a suspension lives.
+  const viewer = await getViewer();
+  if (!viewer.can("admin.access")) notFound();
+
+  const all = allContests();
 
   // Entry lists come from the account table now, so they are resolved up front
   // rather than inside the render loop.
@@ -89,7 +99,11 @@ export default async function AdminContestsPage() {
                       {PHASE_LABEL[phase]}
                     </Badge>
                     <Badge>{ruleset?.name ?? contest.ruleset.id}</Badge>
-                    {contest.visible ? null : <Badge tone="warn">已隐藏</Badge>}
+                    {contest.visibleTo === undefined ? null : (
+                      <Badge tone="warn">
+                        可见 {describeAudience(contest.visibleTo)}
+                      </Badge>
+                    )}
                   </span>
                 }
                 actions={

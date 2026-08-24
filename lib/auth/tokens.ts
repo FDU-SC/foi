@@ -7,12 +7,11 @@ import { authTokens } from "@/lib/db/schema";
 import type { TokenPurpose } from "@/lib/db/schema";
 
 /**
- * Single-use secrets that arrive by email, and the administrator-issued setup
- * code that predates them.
+ * Single-use secrets that arrive by email.
  *
- * All three purposes are the same three steps — mint, mail, redeem — so they
- * are one module rather than three. What differs is only what redemption is
- * allowed to do, which is the caller's business.
+ * Both purposes are the same three steps — mint, mail, redeem — so they are
+ * one module rather than two. What differs is only what redemption is allowed
+ * to do, which is the caller's business.
  *
  * Tokens are 160 bits of randomness, so a fast digest is enough: there is no
  * low-entropy secret here for an attacker to grind against, and a unique index
@@ -21,7 +20,6 @@ import type { TokenPurpose } from "@/lib/db/schema";
  */
 
 const DEFAULT_TTL_MS = {
-  setup_code: 7 * 24 * 60 * 60 * 1000,
   email_verify: 24 * 60 * 60 * 1000,
   password_reset: 60 * 60 * 1000,
 } as const satisfies Record<TokenPurpose, number>;
@@ -98,7 +96,7 @@ export async function redeemToken(
     .returning({ handle: authTokens.handle });
 
   if (row) {
-    // A setup code is typed in alongside a handle, so the two have to agree.
+    // Callers that already know who the token should belong to can say so.
     // Links carry the token alone and pass no expectation.
     if (
       options?.expectHandle &&

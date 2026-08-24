@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { submissions } from "@/lib/db/schema";
@@ -9,7 +9,11 @@ import {
   TIMESTAMP_HEADER,
   verifySignature,
 } from "@/lib/judge/signature";
-import { judgeCallbackSchema, isTerminalState } from "@/lib/judge/types";
+import {
+  judgeCallbackSchema,
+  isTerminalState,
+  NON_TERMINAL_STATES,
+} from "@/lib/judge/types";
 import { publish } from "@/lib/submissions/events";
 import { toView } from "@/lib/submissions/queries";
 import { invalidateStandings } from "@/lib/standings/cache";
@@ -83,6 +87,9 @@ export async function PUT(request: Request) {
   }
 
   const { status, score, maxScore, detail } = parsed.data;
+
+  // The state guard, not the check above, is what makes this safe: the
+  // reconciler may reach a terminal state between that read and this write.
   const [updated] = await db
     .update(submissions)
     .set({
@@ -92,8 +99,17 @@ export async function PUT(request: Request) {
       maxScore,
       judgedAt: new Date(),
     })
-    .where(eq(submissions.id, row.id))
+    .where(
+      and(
+        eq(submissions.id, row.id),
+        inArray(submissions.state, NON_TERMINAL_STATES),
+      ),
+    )
     .returning();
+
+  if (!updated) {
+    return NextResponse.json({ ok: true, duplicate: true });
+  }
 
   publish(toView(updated));
   if (updated.contestSlug) invalidateStandings(updated.contestSlug);

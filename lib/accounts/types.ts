@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { RoleId } from "@/lib/auth/policy";
 import type { AccountStatus } from "@/lib/db/schema";
 
 /**
@@ -66,17 +65,16 @@ export function normalizeEmail(
  * Who somebody is and what they may do, assembled from both sources of truth.
  *
  * `displayName` and `email` come from the database because the person supplied
- * them; `role` and `tags` come from the repository because they are decisions
- * about that person. Nothing here is stored in this shape — see
- * `lib/accounts/resolve.ts`.
+ * them; `groups` comes from the repository because it is a decision about that
+ * person — partly a rule over their address, partly a grant naming them.
+ * Nothing here is stored in this shape — see `lib/accounts/resolve.ts`.
  */
 export interface ResolvedUser {
   handle: string;
   displayName: string;
   email: string | null;
   emailVerified: boolean;
-  role: RoleId;
-  tags: string[];
+  groups: string[];
   status: AccountStatus;
   /** True when the account may not act, for whatever reason. */
   disabled: boolean;

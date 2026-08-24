@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/auth";
-import { userCan } from "@/lib/auth/session";
-import { fetchAllJudgeQueues, redactJudgeStatus } from "@/lib/judge/client";
+import { viewerFor } from "@/lib/auth/viewer";
+import { judgeQueuesFor } from "@/lib/judge/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,13 +12,9 @@ export async function GET() {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
 
-  const statuses = await fetchAllJudgeQueues();
-  const visible =
-    userCan(user, "judge.inspect")
-      ? statuses
-      : statuses.map(redactJudgeStatus);
-
-  return NextResponse.json(visible, {
+  // Which judges, and how much of each, are one question answered in one
+  // place — the route no longer decides either.
+  return NextResponse.json(await judgeQueuesFor(viewerFor(user)), {
     headers: { "cache-control": "no-store" },
   });
 }

@@ -27,5 +27,5 @@ export const contest = {
 
   problems: [{ slug: "maze-runner", label: "A" }],
 
-  participants: { mode: "tag", tag: "demo" },
+  participants: { mode: "group", group: "demo" },
 } satisfies ContestConfigInput;

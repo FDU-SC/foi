@@ -4,6 +4,7 @@ import { z } from "zod";
 import { resolveUser } from "@/lib/accounts/resolve";
 import { setPassword } from "@/lib/auth/credentials";
 import { redeemToken } from "@/lib/auth/tokens";
+import { clientIp, rateLimit } from "@/lib/ratelimit";
 
 export interface ResetState {
   error?: string;
@@ -39,6 +40,14 @@ export async function resetPasswordAction(
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
+  }
+
+  // A 160-bit token is not guessable, so this is not about protecting the
+  // link — it caps how much database and argon2 work one source can demand
+  // from an endpoint that needs no session to reach.
+  const limit = rateLimit(`reset:${await clientIp()}`, 20, 60 * 60 * 1000);
+  if (!limit.ok) {
+    return { error: "尝试过于频繁，请稍后再试。" };
   }
 
   const result = await redeemToken(parsed.data.token, "password_reset");

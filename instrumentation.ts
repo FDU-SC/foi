@@ -10,6 +10,12 @@ export async function register() {
   // The registry is Turbopack-built and Node-only; skip other runtimes.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
+  // First, and for the same reason the migration below aborts startup: a
+  // deployment that cannot work should say so while the health check is still
+  // watching, rather than at whichever request first needs the missing value.
+  const { assertEnv } = await import("@/lib/env");
+  assertEnv();
+
   // Runs before anything touches the schema. Drizzle records applied
   // migrations in its own table, so this is a no-op once up to date. A failure
   // here deliberately aborts startup rather than serving against a stale
@@ -45,7 +51,12 @@ export async function register() {
   // when what they referred to was code rather than data.
   const { enrollmentWarnings } = await import("@/lib/enrollment/registry");
   const { contestWarnings } = await import("@/lib/contests/registry");
-  for (const warning of [...enrollmentWarnings(), ...contestWarnings()]) {
+  const { problemGateWarnings } = await import("@/lib/problems/access");
+  for (const warning of [
+    ...enrollmentWarnings(),
+    ...contestWarnings(),
+    ...problemGateWarnings(),
+  ]) {
     console.warn(`[foi] ${warning}`);
   }
 

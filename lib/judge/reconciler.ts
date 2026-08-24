@@ -5,6 +5,7 @@ import { publish } from "@/lib/submissions/events";
 import { toView } from "@/lib/submissions/queries";
 import { invalidateStandings } from "@/lib/standings/cache";
 import { pollJudge, resolveJudge } from "./client";
+import { NON_TERMINAL_STATES } from "./types";
 
 /** Give up entirely on a submission that has been unresolved this long. */
 const ABANDON_AFTER_MS = 10 * 60 * 1000;
@@ -35,7 +36,7 @@ export async function reconcileStaleSubmissions(): Promise<{
     .from(submissions)
     .where(
       and(
-        inArray(submissions.state, ["pending", "judging"]),
+        inArray(submissions.state, NON_TERMINAL_STATES),
         lt(submissions.createdAt, new Date(now - reconcileAfterMs())),
       ),
     )
@@ -63,12 +64,21 @@ export async function reconcileStaleSubmissions(): Promise<{
             maxScore: status.verdict.maxScore,
             judgedAt: new Date(),
           })
-          .where(eq(submissions.id, row.id))
+          .where(
+            and(
+              eq(submissions.id, row.id),
+              inArray(submissions.state, NON_TERMINAL_STATES),
+            ),
+          )
           .returning();
 
-        publish(toView(updated));
-        if (updated.contestSlug) invalidateStandings(updated.contestSlug);
-        resolved += 1;
+        // No row means the callback arrived while we were polling. It wrote
+        // the same verdict we just fetched, so there is nothing left to do.
+        if (updated) {
+          publish(toView(updated));
+          if (updated.contestSlug) invalidateStandings(updated.contestSlug);
+          resolved += 1;
+        }
         continue;
       }
     } catch {
@@ -76,6 +86,9 @@ export async function reconcileStaleSubmissions(): Promise<{
     }
 
     if (expired) {
+      // `row` was read before the poll above, which can take as long as the
+      // judge's timeout. Guarding on the state is what stops this from
+      // rewriting a verdict that landed by callback in the meantime.
       const [failed] = await db
         .update(submissions)
         .set({
@@ -83,11 +96,18 @@ export async function reconcileStaleSubmissions(): Promise<{
           error: "判题超时，未收到判题机结果",
           judgedAt: new Date(),
         })
-        .where(eq(submissions.id, row.id))
+        .where(
+          and(
+            eq(submissions.id, row.id),
+            inArray(submissions.state, NON_TERMINAL_STATES),
+          ),
+        )
         .returning();
 
-      publish(toView(failed));
-      abandoned += 1;
+      if (failed) {
+        publish(toView(failed));
+        abandoned += 1;
+      }
     }
   }
 

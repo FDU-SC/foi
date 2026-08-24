@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { audienceSchema } from "@/lib/auth/audience";
 
 /**
  * Contests carry absolute instants, so a bare `2026-01-15T13:00` would mean
@@ -32,13 +33,13 @@ const contestProblemSchema = z.object({
  *
  * `open` reproduces the historical behaviour of deriving the roster from
  * whoever submitted, which keeps casual contests usable with no setup.
- * `tag` is the one to reach for otherwise: the cohort is declared once in the
+ * `group` is the one to reach for otherwise: the cohort is described once in
  * roster and referenced here.
  */
 const participantsSchema = z
   .discriminatedUnion("mode", [
     z.object({ mode: z.literal("open") }),
-    z.object({ mode: z.literal("tag"), tag: z.string().min(1) }),
+    z.object({ mode: z.literal("group"), group: z.string().min(1) }),
     z.object({
       mode: z.literal("list"),
       handles: z.array(z.string().min(1)).min(1),
@@ -65,8 +66,15 @@ export const contestConfigSchema = z
     /** Standings stop updating from this point until the contest ends. */
     freezeAt: zonedDateTime.optional(),
 
-    /** Hides the contest from listings without deleting its submissions. */
-    visible: z.boolean().default(true),
+    /**
+     * Which groups may see this contest. Omitted means everyone, `[]` means
+     * nobody — a round staged in the repository before it is announced.
+     *
+     * Distinct from `participants`, which decides who is scored. A public
+     * round with a closed entry list is an ordinary thing to want, and so is
+     * the reverse.
+     */
+    visibleTo: audienceSchema,
 
     problems: z.array(contestProblemSchema).default([]),
     participants: participantsSchema,

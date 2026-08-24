@@ -1,5 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
-import { getGrant } from "@/lib/enrollment/registry";
+import { getGrant, groupsFor } from "@/lib/enrollment/registry";
 
 /**
  * Claims FOI stores on the JWT.
@@ -58,7 +58,7 @@ export const authConfig = {
       if (!handle) {
         session.user.handle = "";
         session.user.displayName = "";
-        session.user.role = "user";
+        session.user.groups = [];
         return session;
       }
 
@@ -72,7 +72,7 @@ export const authConfig = {
       // A placeholder until `getResolvedUser()` reads the real one. Nothing
       // renders this: pages take their display name from the resolved user.
       session.user.displayName = grant?.displayName ?? handle;
-      session.user.role = grant?.role ?? "user";
+      session.user.groups = groupsFor(handle, null);
       return session;
     },
   },

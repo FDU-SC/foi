@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "./auth.config";
-import { can } from "@/lib/auth/policy";
+import { viewerFor } from "@/lib/auth/viewer";
 
 // Instantiated from the database-free config: the proxy only reads the JWT
 // and resolves it against the roster registry.
@@ -27,7 +27,7 @@ export default auth((req) => {
     return NextResponse.redirect(login);
   }
 
-  if (path.startsWith("/admin") && !can(user, "admin.access")) {
+  if (path.startsWith("/admin") && !viewerFor(user).can("admin.access")) {
     return NextResponse.redirect(new URL("/", nextUrl));
   }
 

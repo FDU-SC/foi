@@ -117,22 +117,21 @@ export const credentials = pgTable("credentials", {
 /**
  * Single-use, hashed, expiring secrets sent to an email address.
  *
- * Verifying a new address, recovering a password and the
- * administrator-issued setup code are the same mechanism with different
- * consequences, so they are one table with a `purpose` rather than three pairs
- * of nullable columns on `credentials` — which is where the setup code used to
- * live, and which could only ever hold one outstanding code.
+ * Verifying a new address and recovering a password are the same mechanism
+ * with different consequences, so they are one table with a `purpose` rather
+ * than two pairs of nullable columns on `credentials`.
+ *
+ * There used to be a third purpose, `setup_code`, for a code an administrator
+ * issued and handed over in person. Self-service registration and recovery
+ * replaced both of its jobs, and it was the only secret in the system that
+ * travelled through a third party's hands, so it was retired.
  *
  * Only the digest is stored. A row is consumed rather than deleted so that
  * "this link has already been used" stays distinguishable from "this link
  * never existed", and so that a recently issued token can throttle the next
  * request for one without a separate rate-limit store.
  */
-export const tokenPurposes = [
-  "setup_code",
-  "email_verify",
-  "password_reset",
-] as const;
+export const tokenPurposes = ["email_verify", "password_reset"] as const;
 export type TokenPurpose = (typeof tokenPurposes)[number];
 
 export const authTokens = pgTable(

@@ -44,6 +44,10 @@ export const oiRuleset: Ruleset<OiCell> = {
   id: "oi",
   name: "OI",
   description: "每题取最高分（或最后一次提交），按总分排名。",
+  // Not implemented. A frozen score-based board would need a way to say "this
+  // cell has a newer submission you cannot see", and this format has no such
+  // cell state; adding one is a change to the format, not a flag flip.
+  supportsFreeze: false,
 
   computeStandings(input: StandingsInput) {
     const { take } = configSchema.parse(input.config ?? {});

@@ -1,3 +1,4 @@
+import type { GroupInput } from "@/lib/auth/groups";
 import type {
   EnrollmentPolicyInput,
   EnrollmentRuleInput,
@@ -32,22 +33,57 @@ export const policy: EnrollmentPolicyInput = {
 
   // Names that would be confusing or outright impersonating on a standings
   // page. Handles already granted below are reserved automatically.
-  reservedHandles: ["root", "system", "staff", "foi", "judge", "support"],
+  reservedHandles: ["root", "system", "admin", "foi", "judge", "support"],
 
   unverifiedTtlHours: 24,
   registrationsPerIpPerHour: 10,
 };
 
 /**
- * Address to cohort.
+ * What each group may do.
  *
- * Every matching rule contributes its tags, so somebody can be in an intake
- * year and a programme at once. Tags are recomputed on every read: edit a rule
+ * This is the file half of "哪个组能干什么". A group listed here with
+ * capabilities can do those things; a group that appears only in a rule or a
+ * grant below is an ordinary cohort and can do nothing — which is what makes
+ * adding one free.
+ *
+ * The capability names come from `lib/auth/policy.ts`. That list is the
+ * kernel's, because the code reads those identifiers; which groups exist and
+ * what each may do is yours.
+ */
+export const groups: GroupInput[] = [
+  {
+    id: "管理员",
+    description: "完整权限：预览未公开题目、查看判题机与全部提交、管理凭据与账号。",
+    capabilities: [
+      "admin.access",
+      "problem.viewAll",
+      "contest.viewAll",
+      "standings.viewFrozen",
+      "submission.readAny",
+      "judge.inspect",
+      "account.read",
+      "credential.manage",
+      "account.moderate",
+      "registry.sync",
+    ],
+  },
+];
+
+/**
+ * Which groups an address puts somebody in.
+ *
+ * Every matching rule contributes, so one person can be in an intake year and
+ * a programme at once. Membership is recomputed on every read: edit a rule
  * here, deploy, and everyone it covers is re-sorted on their next request
  * without a migration or a backfill.
  *
- * Contests select their entrants by tag, which is the whole point — a cohort
+ * Contests select their entrants by group, which is the whole point — a cohort
  * is described once here rather than pasted into every contest file.
+ *
+ * A rule may not name a group declared with capabilities above; the registry
+ * refuses to load one that does. A regex is the wrong instrument for handing
+ * out privilege — get a digit wrong and a whole intake becomes administrators.
  */
 export const rules: EnrollmentRuleInput[] = [
   {
@@ -57,27 +93,28 @@ export const rules: EnrollmentRuleInput[] = [
     // 正常，在生产里一个人也匹配不上。`/admin/enrollment` 的「命中账号」列就
     // 是为了让这种错误在开赛前暴露出来。
     match: /^(\d{2})30\d{7}@example\.test$/i,
-    tags: (m) => [`20${m[1]}级`, "本科生"],
+    groups: (m) => [`20${m[1]}级`, "本科生"],
   },
   {
     label: "示例：演示账号",
     match: /@example\.test$/i,
-    tags: ["demo"],
+    groups: ["demo"],
   },
 ];
 
 /**
- * Privileges, by name.
+ * Who is in which group, by name.
  *
- * Roles are never derived from an address: a slip in a regex above would
- * otherwise hand out `staff`. Naming the person is the point — it is what
- * makes the change reviewable, and what leaves the reason in the git history.
+ * The only way into a privileged group. Naming the person is the point — it is
+ * what makes the change reviewable, and what leaves the reason in the git
+ * history. Ordinary cohorts can be granted here too, for the person a rule
+ * does not happen to cover.
  *
- * `admin` here is the bootstrap administrator. It is materialised as an
- * account at startup with no email, and gets its password from
- * `scripts/set-password.cjs`, because the very first deploy has nobody who
- * could issue one through the UI.
+ * `admin` here is the bootstrap administrator. Entries with a `displayName`
+ * are materialised as accounts at startup — this one has no email and gets its
+ * password from `scripts/set-password.cjs`, because the very first deploy has
+ * nobody who could send a reset through the UI.
  */
 export const grants: GrantInput[] = [
-  { handle: "admin", displayName: "管理员", role: "admin" },
+  { handle: "admin", displayName: "管理员", groups: ["管理员"] },
 ];

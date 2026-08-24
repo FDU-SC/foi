@@ -19,15 +19,14 @@
  *   # with nothing piped in, a strong password is generated and printed once
  *   docker compose exec -T app node scripts/set-password.cjs admin
  *
- *   # hand someone a code instead, and let them choose their own password
- *   docker compose exec -T app node scripts/set-password.cjs --issue-code alice
- *
  *   # clear a departed member's credentials (fails if they have submissions,
  *   # which are kept deliberately: the foreign key is ON DELETE RESTRICT)
  *   docker compose exec -T app node scripts/set-password.cjs --revoke alice
  *
  * This is also the recovery path when nobody can reach /admin — for instance
- * the very first deploy, before any administrator has a password.
+ * the very first deploy, before any administrator has a password. It is the
+ * only way in that does not involve email, which is why it requires a shell on
+ * the server: anyone who can run this could already read the database.
  */
 
 const crypto = require("node:crypto");
@@ -38,14 +37,12 @@ const { Client } = require("pg");
 // verify on login.
 const ARGON2_OPTIONS = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
 
-const SETUP_CODE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-
 const USAGE = `用法:
-  node scripts/set-password.cjs <handle>              设置或重置密码
-  node scripts/set-password.cjs --issue-code <handle> 签发一次性设置码
-  node scripts/set-password.cjs --revoke <handle>     清除凭据
+  node scripts/set-password.cjs <handle>          设置或重置密码
+  node scripts/set-password.cjs --revoke <handle> 清除凭据
 
-本脚本不创建账号：账号由注册产生，引导管理员由 content/enrollment/ 声明并在启动时建行。`;
+本脚本不创建账号：账号由注册产生，引导管理员由 content/enrollment/ 声明并在启动时建行。
+需要让本人自己设密码时，在 /admin/accounts 点「发送重置邮件」，链接直达其邮箱。`;
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -78,8 +75,7 @@ function parseArgs(argv) {
   let handle;
 
   for (const arg of argv) {
-    if (arg === "--issue-code") mode = "issue-code";
-    else if (arg === "--revoke") mode = "revoke";
+    if (arg === "--revoke") mode = "revoke";
     else if (arg === "--help" || arg === "-h") mode = "help";
     else if (!handle) handle = arg;
   }
@@ -132,11 +128,11 @@ async function setPassword(client, handle) {
     [handle, passwordHash],
   );
 
-  // Setting a password by hand retires any outstanding code, the same way
-  // redeeming one does.
+  // Setting a password by hand retires any reset link already in flight, so a
+  // stale email cannot undo what was just done here.
   await client.query(
     `update auth_tokens set consumed_at = now()
-     where handle = $1 and purpose = 'setup_code' and consumed_at is null`,
+     where handle = $1 and purpose = 'password_reset' and consumed_at is null`,
     [handle],
   );
 
@@ -152,31 +148,6 @@ async function setPassword(client, handle) {
       `提醒: ${handle} 当前状态为 ${account.status}，密码已设置但尚不能登录。`,
     );
   }
-}
-
-async function issueCode(client, handle) {
-  await requireAccount(client, handle);
-
-  const code = crypto.randomBytes(20).toString("base64url");
-  const codeHash = crypto.createHash("sha256").update(code).digest("hex");
-  const expiresAt = new Date(Date.now() + SETUP_CODE_TTL_MS);
-
-  // One outstanding code per handle, matching lib/auth/tokens.ts.
-  await client.query(
-    `update auth_tokens set consumed_at = now()
-     where handle = $1 and purpose = 'setup_code' and consumed_at is null`,
-    [handle],
-  );
-  await client.query(
-    `insert into auth_tokens (id, handle, purpose, token_hash, expires_at)
-     values ($1, $2, 'setup_code', $3, $4)`,
-    [`tok_${crypto.randomUUID()}`, handle, codeHash, expiresAt],
-  );
-
-  console.log(`已为 ${handle} 签发设置码:`);
-  console.log(`  ${code}`);
-  console.log(`在 /setup 页面使用，${expiresAt.toISOString()} 前有效。`);
-  console.log("这是唯一一次显示，请立即转交本人。");
 }
 
 async function revoke(client, handle) {
@@ -208,8 +179,7 @@ async function main() {
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   await client.connect();
   try {
-    if (mode === "issue-code") await issueCode(client, normalized);
-    else if (mode === "revoke") await revoke(client, normalized);
+    if (mode === "revoke") await revoke(client, normalized);
     else await setPassword(client, normalized);
   } finally {
     await client.end();

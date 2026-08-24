@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { handleSchema } from "@/lib/accounts/types";
-import { ROLE_IDS } from "@/lib/auth/policy";
 
 /**
  * The declarative half of "who may do what", now that people sign themselves
@@ -13,17 +12,21 @@ import { ROLE_IDS } from "@/lib/auth/policy";
  */
 
 /**
- * One cohort rule: an address pattern and the tags it confers.
+ * One cohort rule: an address pattern and the groups it puts people in.
  *
- * Tags may be computed from the capture groups, which is what makes one rule
- * cover every intake year instead of one rule per year. Deliberately no
- * `role` — see the note on `grantSchema`.
+ * Groups may be computed from the capture groups, which is what makes one rule
+ * cover every intake year instead of one rule per year.
+ *
+ * A rule can never confer a group that carries capabilities. The registry
+ * refuses to load one that names a privileged group, and drops any a computed
+ * rule produces at resolution time — a slip in a regex must not be able to
+ * hand out `admin`.
  */
 export const enrollmentRuleSchema = z.object({
   /** Shown in `/admin` and read in review. Say who the rule is for. */
   label: z.string().min(1).max(64),
   match: z.instanceof(RegExp),
-  tags: z.union([
+  groups: z.union([
     z.array(z.string().min(1)),
     z.function({ input: [z.custom<RegExpMatchArray>()], output: z.array(z.string()) }),
   ]),
@@ -33,13 +36,13 @@ export type EnrollmentRule = z.infer<typeof enrollmentRuleSchema>;
 export type EnrollmentRuleInput = z.input<typeof enrollmentRuleSchema>;
 
 /**
- * A privilege granted to one named person.
+ * Group membership handed to one named person.
  *
- * Roles come from here and only from here. Deriving one from an address would
- * mean that a slip in a regex hands out `staff`, and the whole reason
- * authorisation stayed in the repository is that changing it should be a
- * reviewed act naming a specific person. Cohort tags carry no privilege of
- * their own, so those are safe to compute.
+ * The only way into a privileged group. Deriving one from an address would
+ * mean a slip in a regex hands out `admin`, and the whole reason authorisation
+ * stayed in the repository is that changing it should be a reviewed act naming
+ * a specific person. Ordinary cohorts carry no privilege, so a rule may confer
+ * those freely.
  *
  * There is no `disabled`: suspending an account is a moderation decision and
  * lives in the database, so that banning a spam signup does not require a
@@ -50,9 +53,8 @@ export const grantSchema = z.object({
   handle: handleSchema,
   /** Only for accounts the repository declares; registrations choose theirs. */
   displayName: z.string().min(1).max(64).optional(),
-  role: z.enum(ROLE_IDS).default("user"),
   /** Added on top of whatever the address already resolves to. */
-  tags: z.array(z.string()).default([]),
+  groups: z.array(z.string().min(1)).default([]),
 });
 
 export type Grant = z.infer<typeof grantSchema>;

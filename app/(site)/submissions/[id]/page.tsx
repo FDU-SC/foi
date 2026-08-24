@@ -2,15 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
-import { userCan } from "@/lib/auth/session";
+import { viewerFor } from "@/lib/auth/viewer";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { VerdictDetail } from "@/components/problem/verdict-detail";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { locateOne } from "@/lib/judge/queue-lookup";
 import { isTerminalState } from "@/lib/judge/types";
-import { getProblem } from "@/lib/problems/registry";
-import { getSubmissionRow } from "@/lib/submissions/queries";
+import { problemBySlug } from "@/lib/problems/registry";
+import { submissionFor } from "@/lib/submissions/access";
 
 export const metadata: Metadata = { title: "提交详情" };
 export const dynamic = "force-dynamic";
@@ -42,15 +42,16 @@ export default async function SubmissionPage({
   const { id } = await params;
   if (!user) redirect(`/login?next=/submissions/${id}`);
 
-  const row = await getSubmissionRow(id);
-  // 404 rather than 403 for other people's submissions: no reason to confirm
-  // that an id exists to someone who cannot read it.
+  // Undefined covers both "no such submission" and "not yours": no reason to
+  // confirm an id exists to somebody who cannot read it.
+  const row = await submissionFor(id, viewerFor(user));
   if (!row) notFound();
-  if (row.handle !== user.handle && !userCan(user, "submission.readAny")) {
-    notFound();
-  }
 
-  const problem = getProblem(row.problemSlug);
+  // Raw on purpose: this row is proof the viewer already interacted with the
+  // problem, and access to the row is checked above. Withholding the title
+  // here would only blank out a page the reader is entitled to — the gate is
+  // about problems nobody has seen yet, not ones already submitted to.
+  const problem = problemBySlug(row.problemSlug);
   const source = extractSource(row.payload);
   const queue = isTerminalState(row.state) ? null : await locateOne(row.id);
 

@@ -46,19 +46,3 @@ export function resetPassword(input: {
     ],
   });
 }
-
-export function setupCode(input: {
-  displayName: string;
-  url: string;
-  expiresAt: Date;
-}): MailBody {
-  return actionMail({
-    subject: "设置你的 FOI 密码",
-    intro: [
-      `${input.displayName}，你好：`,
-      "管理员为你签发了一次性设置码。点击下面的按钮设置密码。",
-    ],
-    action: { label: "设置密码", url: input.url },
-    expiresAt: input.expiresAt,
-  });
-}

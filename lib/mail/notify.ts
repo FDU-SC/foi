@@ -1,11 +1,11 @@
-import { resetPassword, setupCode, verifyEmail } from "@/content/emails";
+import { resetPassword, verifyEmail } from "@/content/emails";
 import { issueToken, lastIssuedAt } from "@/lib/auth/tokens";
 import type { TokenPurpose } from "@/lib/db/schema";
 import { deliver } from "./transport";
 
 /**
- * The three things FOI mails, each of which is "mint a token, put it in a
- * link, send it".
+ * The two things FOI mails, each of which is "mint a token, put it in a link,
+ * send it".
  *
  * Throttling lives here rather than in a rate-limit store because the token
  * table already records when the last one went out. That answer survives a
@@ -79,22 +79,3 @@ export async function sendPasswordReset(to: Recipient): Promise<NotifyResult> {
   return { ok: true, expiresAt };
 }
 
-/**
- * Mails an administrator-issued setup code, for the case where the account has
- * an address. When it does not — the bootstrap administrator — the console
- * shows the code instead and somebody hands it over out of band.
- */
-export async function sendSetupCode(
-  to: Recipient,
-  token: string,
-  expiresAt: Date,
-): Promise<void> {
-  await deliver({
-    to: to.email,
-    ...setupCode({
-      displayName: to.displayName,
-      url: linkTo("/setup", token),
-      expiresAt,
-    }),
-  });
-}

@@ -26,6 +26,12 @@
  * is a decision about how a round runs, so it is declared in `content/` and
  * resolved by `submitRateLimit`; the entries below say `content` rather than
  * repeating a number that is not theirs.
+ *
+ * Route entries carry a second decision, `guard`, for the same reason the
+ * bounds are here rather than at each handler: a cross-origin defence that
+ * lives in a route is a defence the next route forgets. Keeping it in the table
+ * means the completeness test below makes a new handler state its answer, and
+ * `guardRequest` in `./gate.ts` applies whatever it said.
  */
 
 /** What a counter is keyed on. Recorded because it decides what the bound means. */
@@ -54,6 +60,43 @@ export type RateLimitRule =
   | { kind: "unlimited"; why: string };
 
 /**
+ * Whether a request has to prove it came from this deployment's own pages.
+ *
+ * The question exists because the session cookie is *ambient*: the browser
+ * attaches it to anything addressed at this host, whoever asked for the
+ * request. `SameSite=Lax` — what Auth.js sets, and this deployment does not
+ * override it — is often mistaken for the answer, but Lax is scoped to a
+ * *site*, meaning the registrable domain. A page on any sibling subdomain of
+ * the same university domain is same-site, so its form POST arrives here
+ * carrying the victim's session in full.
+ *
+ * So the exemptions are the interesting part, and they are two different
+ * arguments that a boolean "does it write" could not tell apart.
+ */
+export type OriginGuard =
+  /**
+   * Enforced. The cookie is the entire credential, so the request must also
+   * carry evidence that a page on this origin is what asked for it.
+   */
+  | "same-origin"
+  /**
+   * Exempt because there is nothing to forge. A cross-site request can already
+   * cause a read; what it cannot do is see the answer, since no CORS header
+   * here ever lets a response be read by another origin.
+   */
+  | "read-only"
+  /**
+   * Exempt because the credential is not ambient. A judge callback proves
+   * itself with an HMAC it had to be given, which a browser cannot compute and
+   * would not send — so requiring an `Origin` of it would refuse every
+   * legitimate caller in exchange for nothing.
+   */
+  | "signed";
+
+/** A route's two decisions: what bounds it, and what may originate it. */
+export type RouteRule = RateLimitRule & { guard: OriginGuard };
+
+/**
  * Route handlers, keyed `METHOD /path` exactly as the filesystem spells it.
  *
  * Every one of these also takes a coarse per-source bound before it does
@@ -65,12 +108,14 @@ export const ROUTE_LIMITS = {
     kind: "content",
     subject: "handle+resource",
     declaredIn: "content/problems/*/problem.ts, content/contests/*/contest.ts",
+    guard: "same-origin",
   },
   "GET /api/submissions": {
     kind: "fixed",
     max: 60,
     windowSeconds: 60,
     subject: "handle",
+    guard: "read-only",
   },
   /**
    * Polled, not clicked. `use-submit.ts` backs off from 800ms while a verdict
@@ -82,6 +127,7 @@ export const ROUTE_LIMITS = {
     max: 240,
     windowSeconds: 60,
     subject: "handle",
+    guard: "read-only",
   },
   /**
    * The rate at which streams are opened. How many may be held at once is a
@@ -93,17 +139,24 @@ export const ROUTE_LIMITS = {
     max: 60,
     windowSeconds: 60,
     subject: "handle",
+    guard: "read-only",
   },
   "GET /api/judges/status": {
     kind: "fixed",
     max: 60,
     windowSeconds: 60,
     subject: "handle",
+    guard: "read-only",
   },
+  /**
+   * Guarded for a sharper reason than the submission route: an action reaches
+   * a problem's backend, and `spawn` costs a container.
+   */
   "POST /api/problems/[slug]/action/[action]": {
     kind: "content",
     subject: "handle+resource",
     declaredIn: "content/problems/*/problem.ts",
+    guard: "same-origin",
   },
   /**
    * The one endpoint with no account behind it, so the source gate is the only
@@ -114,6 +167,7 @@ export const ROUTE_LIMITS = {
   "PUT /api/judge/callback": {
     kind: "unlimited",
     why: "无账号可计数；由 SOURCE_GATE 在读 body 与验签之前挡住",
+    guard: "signed",
   },
   /**
    * Unauthenticated by necessity — an orchestrator cannot log in — so the
@@ -126,8 +180,9 @@ export const ROUTE_LIMITS = {
   "GET /api/health": {
     kind: "unlimited",
     why: "存活探针无账号可计数；仍会 select 1，由 SOURCE_GATE 兜底",
+    guard: "read-only",
   },
-} as const satisfies Record<string, RateLimitRule>;
+} as const satisfies Record<string, RouteRule>;
 
 /**
  * Server Actions, keyed by exported function name.
@@ -136,6 +191,11 @@ export const ROUTE_LIMITS = {
  * it is used on. That coverage is real but not something to lean on: Next's own
  * documentation warns that moving an action to another route can silently drop
  * it out of the matcher. So anything that matters is bounded here too.
+ *
+ * No `guard` field, and that is not an omission. Next compares the origin of
+ * every Server Action request against the host itself and refuses a mismatch,
+ * so the check route handlers need here is one actions already have from the
+ * framework. Restating it would invite the two to drift.
  */
 export const ACTION_LIMITS = {
   login: {

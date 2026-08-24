@@ -130,7 +130,7 @@ export default auth((req) => {
  * that matters here: unauthenticated, and the place a 96 MiB body was measured
  * moving RSS by half a gigabyte before this was fixed. API routes take an
  * equivalent per-source bound on their own first line instead — see
- * `sourceGate` in `lib/ratelimit/gate.ts`, and the table that keeps track of
+ * `guardRequest` in `lib/ratelimit/gate.ts`, and the table that keeps track of
  * which ones have it.
  *
  * Two things deliberately *not* done:

@@ -3,14 +3,14 @@ import { getSessionUser } from "@/auth";
 import { viewerFor } from "@/lib/auth/viewer";
 import { judgeQueuesFor } from "@/lib/backend/client";
 import { rateLimit } from "@/lib/ratelimit";
-import { sourceGate, tooManyRequests } from "@/lib/ratelimit/gate";
+import { guardRequest, tooManyRequests } from "@/lib/ratelimit/gate";
 import { fixedRule, ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const gated = sourceGate(request, "GET /api/judges/status");
+  const gated = guardRequest(request, "GET /api/judges/status");
   if (gated) return gated;
 
   const user = await getSessionUser();

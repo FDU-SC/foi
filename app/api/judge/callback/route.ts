@@ -20,7 +20,7 @@ import {
   NON_TERMINAL_STATES,
 } from "@/lib/backend/types";
 import { readTextBody } from "@/lib/body-limit";
-import { sourceGate } from "@/lib/ratelimit/gate";
+import { guardRequest } from "@/lib/ratelimit/gate";
 import { publish } from "@/lib/submissions/events";
 import { toView } from "@/lib/submissions/queries";
 import { verdictColumns } from "@/lib/submissions/verdict";
@@ -57,7 +57,7 @@ export async function PUT(request: Request) {
   // credentials arrive inside the body — so every byte of that work is work an
   // anonymous caller can ask for, and the source gate is the only bound that
   // can come first.
-  const gated = sourceGate(request, "PUT /api/judge/callback");
+  const gated = guardRequest(request, "PUT /api/judge/callback");
   if (gated) return gated;
 
   const read = await readTextBody(request, MAX_BODY_BYTES);

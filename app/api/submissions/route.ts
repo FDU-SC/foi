@@ -26,7 +26,7 @@ import { problemFor } from "@/lib/problems/access";
 import { ensureProblem } from "@/lib/problems/sync";
 import { submitRateLimit } from "@/lib/problems/types";
 import { rateLimit } from "@/lib/ratelimit";
-import { sourceGate, tooManyRequests } from "@/lib/ratelimit/gate";
+import { guardRequest, tooManyRequests } from "@/lib/ratelimit/gate";
 import { fixedRule, ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { publish } from "@/lib/submissions/events";
 import { createSubmissionSchema } from "@/lib/submissions/types";
@@ -66,7 +66,7 @@ function tooFast(retryAfterMs: number): NextResponse {
 }
 
 export async function POST(request: Request) {
-  const gated = sourceGate(request, "POST /api/submissions");
+  const gated = guardRequest(request, "POST /api/submissions");
   if (gated) return gated;
 
   // The resolved user, not the session one: entry rules key on cohort tags,
@@ -290,7 +290,7 @@ export async function POST(request: Request) {
  * rendering results, but this endpoint would still answer for them.
  */
 export async function GET(request: Request) {
-  const gated = sourceGate(request, "GET /api/submissions");
+  const gated = guardRequest(request, "GET /api/submissions");
   if (gated) return gated;
 
   const user = await getSessionUser();

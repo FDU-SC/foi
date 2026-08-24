@@ -141,6 +141,28 @@ describe("限流入口表", () => {
   });
 
   /**
+   * That every route names a `guard` is a compile error to omit, so it needs no
+   * test. What the type cannot say is that the answer is sane for the method:
+   * `read-only` on a POST is one careless copy-paste, and it silently removes
+   * the cross-origin check from a route that writes.
+   *
+   * A state-changing route may still be exempt — `PUT /api/judge/callback` is —
+   * but it has to claim `signed`, which is a different sentence and one nobody
+   * writes by accident.
+   */
+  it("会改状态的方法不能声明成 read-only", () => {
+    const mislabelled = Object.entries(ROUTE_LIMITS)
+      .filter(([key]) => !key.startsWith("GET ") && !key.startsWith("HEAD "))
+      .filter(([, rule]) => rule.guard === "read-only")
+      .map(([key]) => key);
+
+    expect(
+      mislabelled,
+      "这些路由会改状态，guard 必须是 same-origin 或 signed",
+    ).toEqual([]);
+  });
+
+  /**
    * The gate is the only bound `/api/judge/callback` has, so it being loose
    * enough to be useless would be a quiet regression.
    */

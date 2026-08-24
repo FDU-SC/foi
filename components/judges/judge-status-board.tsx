@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { QUEUE_HEALTH_PRESETS, type QueueItem } from "@/lib/judge/types";
-import type { JudgeQueueStatus } from "@/lib/judge/client";
+import { QUEUE_HEALTH_PRESETS, type QueueItem } from "@/lib/backend/types";
+import type { JudgeQueueStatus } from "@/lib/backend/client";
 import { cn } from "@/lib/utils";
 
 const POLL_INTERVAL_MS = 4000;
@@ -258,7 +258,7 @@ export function JudgeStatusBoard({
 
       {statuses.length === 0 ? (
         <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
-          judges.config.ts 中还没有登记判题机。
+          backends.config.ts 中还没有登记题目后端。
         </p>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">

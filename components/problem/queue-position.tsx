@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import type { QueuePosition } from "@/lib/judge/queue-lookup";
+import type { QueuePosition } from "@/lib/backend/queue-lookup";
 
 /**
  * Shows where a submission sits in its judge's queue.
@@ -29,7 +29,7 @@ export function QueueBadge({
       )}
       {showJudge ? (
         <span className="text-fg-subtle font-mono text-[11px]">
-          {queue.judgeId}
+          {queue.backendId}
         </span>
       ) : null}
     </span>

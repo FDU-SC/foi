@@ -4,7 +4,7 @@ export const problem = {
   slug: "interactive-binary-search",
   title: "交互题示例 · 猜数",
   maxScore: 100,
-  judge: {
+  backend: {
     id: "interactive",
     config: {
       // mode 标记告诉判题机这是一道交互题，走拼接 grader 的评测路径。

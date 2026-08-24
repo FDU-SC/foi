@@ -1,11 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
-import { judges, type JudgeEndpoint } from "@/judges.config";
+import { backends, type ProblemBackend } from "@/backends.config";
 import type { Viewer } from "@/lib/auth/viewer";
-import { judgesFor } from "./access";
+import { backendsFor } from "./access";
 import { signedHeaders } from "./signature";
 import {
   judgeQueueSchema,
   judgeStatusSchema,
+  type BackendActionRequest,
   type JudgeQueue,
   type JudgeRequest,
   type Verdict,
@@ -13,21 +14,30 @@ import {
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
-export interface ResolvedJudge extends JudgeEndpoint {
+/** Longer than a dispatch: an action is answered, not merely acknowledged. */
+const DEFAULT_ACTION_TIMEOUT_MS = 20_000;
+
+export interface ResolvedBackend extends ProblemBackend {
   id: string;
   secret: string;
   timeoutMs: number;
+  actionTimeoutMs: number;
 }
 
-export function resolveJudge(id: string): ResolvedJudge {
-  const entry = judges[id];
+export function resolveBackend(id: string): ResolvedBackend {
+  const entry = backends[id];
   if (!entry) {
-    throw new Error(`未知的判题机 "${id}"，请检查 judges.config.ts`);
+    throw new Error(`未知的题目后端 "${id}"，请检查 backends.config.ts`);
   }
 
-  const secret = entry.secret ?? process.env.FOI_JUDGE_SECRET;
+  // Old name accepted as a fallback for the same reason the URLs are; see
+  // `backends.config.ts`.
+  const secret =
+    entry.secret ??
+    process.env.FOI_BACKEND_SECRET ??
+    process.env.FOI_JUDGE_SECRET;
   if (!secret) {
-    throw new Error("缺少环境变量 FOI_JUDGE_SECRET");
+    throw new Error("缺少环境变量 FOI_BACKEND_SECRET");
   }
 
   return {
@@ -35,6 +45,7 @@ export function resolveJudge(id: string): ResolvedJudge {
     id,
     secret,
     timeoutMs: entry.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    actionTimeoutMs: entry.actionTimeoutMs ?? DEFAULT_ACTION_TIMEOUT_MS,
   };
 }
 
@@ -61,10 +72,10 @@ export function hashCallbackToken(token: string): string {
  * Why a dispatch produced no acknowledgement.
  *
  * The distinction decides whether the submission is finished or merely
- * unaccounted for. `rejected` means the judge answered and refused: it will
+ * unaccounted for. `rejected` means the backend answered and refused: it will
  * never evaluate this submission, so the row can go terminal immediately.
  * `unknown` means we never got an answer worth trusting — a timeout, a dropped
- * connection, a 5xx. The judge may have queued the submission regardless, so
+ * connection, a 5xx. The backend may have queued the submission regardless, so
  * the row has to stay non-terminal and let the reconciler settle it. Calling
  * that case `failed` would be worse than saying nothing: the eventual callback
  * would arrive to find a terminal row and discard a real verdict.
@@ -82,39 +93,39 @@ export class DispatchError extends Error {
 }
 
 /**
- * Hands a submission to its judge. Only the acknowledgement is awaited; the
+ * Hands a submission to its backend for judging. Only the acknowledgement is awaited; the
  * result arrives later via callback (or via the reconciler, if it is lost).
  */
 export async function dispatchToJudge(
-  judge: ResolvedJudge,
+  backend: ResolvedBackend,
   request: JudgeRequest,
 ): Promise<{ judgeRef: string | null }> {
   const body = JSON.stringify(request);
 
   let res: Response;
   try {
-    res = await fetch(new URL("/judge", judge.url), {
+    res = await fetch(new URL("/judge", backend.url), {
       method: "POST",
-      headers: signedHeaders(judge.secret, body),
+      headers: signedHeaders(backend.secret, body),
       body,
-      signal: AbortSignal.timeout(judge.timeoutMs),
+      signal: AbortSignal.timeout(backend.timeoutMs),
     });
   } catch (error) {
     // The request may well have arrived and been queued; we just never saw
     // the reply. Nothing here says the submission is dead.
     throw new DispatchError(
       error instanceof Error && error.name === "TimeoutError"
-        ? "投递判题机超时，结果未知"
-        : "无法连接判题机，结果未知",
+        ? "投递题目后端超时，结果未知"
+        : "无法连接题目后端，结果未知",
       "unknown",
     );
   }
 
   if (!res.ok) {
-    // 4xx is the judge saying it will not take this submission. 5xx is the
-    // judge falling over, which says nothing about whether it queued first.
+    // 4xx is the backend saying it will not take this submission. 5xx is it
+    // falling over, which says nothing about whether it queued first.
     throw new DispatchError(
-      `判题机返回 ${res.status}: ${await safeText(res)}`,
+      `题目后端返回 ${res.status}: ${await safeText(res)}`,
       res.status < 500 ? "rejected" : "unknown",
     );
   }
@@ -124,10 +135,10 @@ export async function dispatchToJudge(
     judgeRef?: unknown;
   } | null;
 
-  // The protocol has judges answer `{ accepted: true, judgeRef }`. An explicit
+  // The protocol has a backend answer `{ accepted: true, judgeRef }`. An explicit
   // `false` is the one way a 2xx still means "this will never be judged".
   if (data?.accepted === false) {
-    throw new DispatchError("判题机拒绝接收该提交", "rejected");
+    throw new DispatchError("题目后端拒绝接收该提交", "rejected");
   }
 
   return {
@@ -135,8 +146,60 @@ export async function dispatchToJudge(
   };
 }
 
-export function listJudgeIds(): string[] {
-  return Object.keys(judges);
+/** What came back from an interactive endpoint, for relaying verbatim. */
+export interface BackendActionResponse {
+  status: number;
+  contentType: string;
+  body: string;
+}
+
+/**
+ * Invokes one interactive endpoint and hands the answer back untouched.
+ *
+ * Nothing here inspects the response. The kernel knows that `spawn` is a
+ * string a problem declared and that whoever asked was allowed to; what comes
+ * back belongs to the statement's own component, exactly as a verdict's
+ * `detail` belongs to the problem rather than to the submission list.
+ *
+ * An unreachable backend becomes 503 rather than an exception, because the
+ * caller's job is to relay a status code and a component showing "backend
+ * unavailable" is more use to a player than a 500.
+ */
+export async function callBackendAction(
+  backend: ResolvedBackend,
+  request: BackendActionRequest,
+): Promise<BackendActionResponse> {
+  const body = JSON.stringify(request);
+  const path = `/action/${encodeURIComponent(request.action)}`;
+
+  let res: Response;
+  try {
+    res = await fetch(new URL(path, backend.url), {
+      method: "POST",
+      headers: signedHeaders(backend.secret, body),
+      body,
+      signal: AbortSignal.timeout(backend.actionTimeoutMs),
+    });
+  } catch (error) {
+    const timedOut = error instanceof Error && error.name === "TimeoutError";
+    return {
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: timedOut ? "题目后端响应超时" : "无法连接题目后端",
+      }),
+    };
+  }
+
+  return {
+    status: res.status,
+    contentType: res.headers.get("content-type") ?? "application/json",
+    body: await res.text(),
+  };
+}
+
+export function listBackendIds(): string[] {
+  return Object.keys(backends);
 }
 
 export interface JudgeQueueStatus {
@@ -150,31 +213,31 @@ export interface JudgeQueueStatus {
 }
 
 /**
- * The judges this viewer may see, already redacted for them.
+ * The judging queues this viewer may see, already redacted for them.
  *
  * Two decisions that used to be made separately at two call sites — the page
- * and the API each fetched every judge and then chose how much to blank out,
- * and neither asked whether the viewer should know the judge existed at all.
+ * and the API each fetched every queue and then chose how much to blank out,
+ * and neither asked whether the viewer should know the backend existed at all.
  * Both now ask here.
  */
 export async function judgeQueuesFor(
   viewer: Viewer,
 ): Promise<JudgeQueueStatus[]> {
-  const allowed = new Set(judgesFor(viewer));
+  const allowed = new Set(backendsFor(viewer));
   const statuses = (await fetchAllJudgeQueues()).filter((status) =>
     allowed.has(status.id),
   );
 
-  return viewer.can("judge.inspect")
+  return viewer.can("backend.inspect")
     ? statuses
     : statuses.map(redactJudgeStatus);
 }
 
 /**
- * What a player is allowed to see of a judge they may see at all.
+ * What a player is allowed to see of a queue they may see at all.
  *
  * Submission ids stay, so everyone can find their own entry and read their
- * position off the queue. The judge's address and other players' problem
+ * position off the queue. The backend's address and other players' problem
  * choices are removed: the former is infrastructure detail that only widens
  * the attack surface, the latter leaks who is working on what mid-contest.
  */
@@ -197,38 +260,38 @@ export function redactJudgeStatus(status: JudgeQueueStatus): JudgeQueueStatus {
 const QUEUE_TIMEOUT_MS = 3_000;
 
 /**
- * Reads one judge's internal queue.
+ * Reads one backend's internal judging queue.
  *
- * Signed like every other judge call, which is also why the browser cannot
- * query judges directly — the shared secret must not leave the server.
+ * Signed like every other backend call, which is also why the browser cannot
+ * query backends directly — the shared secret must not leave the server.
  */
 export async function fetchJudgeQueue(
-  judgeId: string,
+  backendId: string,
 ): Promise<JudgeQueueStatus> {
   const base: JudgeQueueStatus = {
-    id: judgeId,
-    url: judges[judgeId]?.url ?? "",
+    id: backendId,
+    url: backends[backendId]?.url ?? "",
     online: false,
     latencyMs: null,
     error: null,
     queue: null,
   };
 
-  let judge: ResolvedJudge;
+  let backend: ResolvedBackend;
   try {
-    judge = resolveJudge(judgeId);
+    backend = resolveBackend(backendId);
   } catch (error) {
     return {
       ...base,
-      error: error instanceof Error ? error.message : "判题机配置错误",
+      error: error instanceof Error ? error.message : "题目后端配置错误",
     };
   }
 
   const startedAt = Date.now();
   try {
-    const res = await fetch(new URL("/queue", judge.url), {
+    const res = await fetch(new URL("/queue", backend.url), {
       method: "GET",
-      headers: signedHeaders(judge.secret, ""),
+      headers: signedHeaders(backend.secret, ""),
       signal: AbortSignal.timeout(QUEUE_TIMEOUT_MS),
       cache: "no-store",
     });
@@ -263,21 +326,21 @@ declare global {
 }
 
 /**
- * How long one sweep of the judges is reused.
+ * How long one sweep of the backends is reused.
  *
  * Short enough that the queue board still reads as live, long enough to
- * collapse a contest's worth of concurrent readers into one request per judge.
+ * collapse a contest's worth of concurrent readers into one request each.
  */
 const QUEUE_SNAPSHOT_TTL_MS = 1_000;
 
 /**
- * Every judge's queue, at most once per second per process.
+ * Every backend's judging queue, at most once per second per process.
  *
  * This is on the hot path twice over. `/judges` polls it every four seconds
  * per viewer, and every poll of an unfinished submission calls it too — with
  * the client backing off from 800ms, a hundred players waiting on a verdict
- * meant hundreds of outbound requests per second, one per judge per poll. The
- * load arrived precisely when the judges were already saturated, which is when
+ * meant hundreds of outbound requests per second, one per backend per poll. The
+ * load arrived precisely when the backends were already saturated, which is when
  * players watch the queue.
  *
  * The promise is cached rather than its result, so callers arriving during a
@@ -290,7 +353,7 @@ export function fetchAllJudgeQueues(): Promise<JudgeQueueStatus[]> {
   const cached = globalThis.__foiQueueSnapshot;
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
-  const value = Promise.all(listJudgeIds().map(fetchJudgeQueue));
+  const value = Promise.all(listBackendIds().map(fetchJudgeQueue));
   const entry = { value, expiresAt: Date.now() + QUEUE_SNAPSHOT_TTL_MS };
   globalThis.__foiQueueSnapshot = entry;
 
@@ -303,16 +366,16 @@ export function fetchAllJudgeQueues(): Promise<JudgeQueueStatus[]> {
   return value;
 }
 
-/** Asks a judge directly whether a submission finished. Used by the reconciler. */
+/** Asks a backend directly whether a submission finished. Used by the reconciler. */
 export async function pollJudge(
-  judge: ResolvedJudge,
+  backend: ResolvedBackend,
   judgeRef: string,
 ): Promise<{ done: boolean; verdict?: Verdict } | null> {
   const path = `/status/${encodeURIComponent(judgeRef)}`;
-  const res = await fetch(new URL(path, judge.url), {
+  const res = await fetch(new URL(path, backend.url), {
     method: "GET",
-    headers: signedHeaders(judge.secret, ""),
-    signal: AbortSignal.timeout(judge.timeoutMs),
+    headers: signedHeaders(backend.secret, ""),
+    signal: AbortSignal.timeout(backend.timeoutMs),
   });
 
   if (!res.ok) return null;

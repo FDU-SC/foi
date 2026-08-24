@@ -17,7 +17,7 @@ services:
       timeout: 5s
       retries: 10
 
-  # A mailbox for development, in the same spirit as scripts/mock-judge.ts:
+  # A mailbox for development, in the same spirit as scripts/mock-backend.ts:
   # registration and password recovery both end in a link that arrives by
   # email, and neither is much use if reading it needs a real relay. Point
   # FOI_SMTP_HOST at localhost:1025 and read what was sent at

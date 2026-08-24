@@ -15,6 +15,27 @@ export const LANGUAGES: Record<string, string> = {
 export const DIFFICULTIES = ["入门", "普及", "提高", "省选", "NOI"] as const;
 
 /**
+ * How often one person may invoke one action.
+ *
+ * Per action rather than per problem or per backend, because the costs are not
+ * comparable: starting a container is expensive and asking whether it is ready
+ * is not, and a shared window means the polling drains the budget the spawn
+ * needed. Left off, `DEFAULT_ACTION_RATE_LIMIT` applies.
+ */
+const actionRateLimitSchema = z.object({
+  max: z.number().int().positive(),
+  windowSeconds: z.number().int().positive(),
+});
+
+export type ActionRateLimit = z.infer<typeof actionRateLimitSchema>;
+
+/** Applied to any action that does not name its own. */
+export const DEFAULT_ACTION_RATE_LIMIT: ActionRateLimit = {
+  max: 10,
+  windowSeconds: 60,
+};
+
+/**
  * Everything FOI needs to know about a problem. Authored as a TypeScript
  * module in `content/problems/<slug>/problem.ts` so mistakes surface as type
  * errors, and validated at load time so they also surface as clear runtime
@@ -29,12 +50,28 @@ export const problemConfigSchema = z.object({
   maxScore: z.number().positive().default(100),
 
   /**
-   * Which judge handles this problem and what to hand it. `config` is passed
-   * through to the judge verbatim; the kernel never looks inside.
+   * Which backend serves this problem and what to hand it. `config` is passed
+   * through verbatim; the kernel never looks inside.
+   *
+   * `actions` opens interactive endpoints on that backend to players who can
+   * already see the problem. Each key is forwarded as `POST /action/<key>` and
+   * is never interpreted here — spawning a container and asking whether it is
+   * ready are the same thing to the kernel, a declared string it may relay.
+   *
+   * Declared per problem rather than per backend because it is the problem
+   * that decides what its statement offers, and an undeclared key is a 404
+   * rather than a forwarded request: without the list, `[...path]` would relay
+   * anything, including `/judge` and `/status`.
    */
-  judge: z.object({
+  backend: z.object({
     id: z.string().min(1),
     config: z.unknown().optional(),
+    actions: z
+      .record(
+        z.string().regex(/^[a-z0-9-]+$/, "action 名只能包含小写字母、数字和连字符"),
+        z.object({ rateLimit: actionRateLimitSchema.optional() }).default({}),
+      )
+      .default({}),
   }),
 
   /** Drives the default `<SubmitPanel />`. Statements may ignore it entirely. */
@@ -64,13 +101,14 @@ export type ProblemConfig = z.infer<typeof problemConfigSchema>;
 export type ProblemConfigInput = z.input<typeof problemConfigSchema>;
 
 /**
- * What is safe to hand to the browser. `judge` is stripped because its config
- * routinely holds testdata locations, checker settings, or literal answers.
+ * What is safe to hand to the browser. `backend` is stripped because its
+ * config routinely holds testdata locations, checker settings, or literal
+ * answers.
  */
-export type PublicProblemConfig = Omit<ProblemConfig, "judge">;
+export type PublicProblemConfig = Omit<ProblemConfig, "backend">;
 
 export function toPublicConfig(config: ProblemConfig): PublicProblemConfig {
-  const { judge: _judge, ...rest } = config;
+  const { backend: _backend, ...rest } = config;
   return rest;
 }
 

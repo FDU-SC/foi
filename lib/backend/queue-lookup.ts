@@ -1,7 +1,7 @@
 import { fetchAllJudgeQueues } from "./client";
 
 export interface QueuePosition {
-  judgeId: string;
+  backendId: string;
   state: "running" | "pending";
   /** Submissions ahead in the queue; 0 once evaluation has started. */
   ahead: number;
@@ -35,7 +35,7 @@ export async function locateInQueues(
       if (!wanted.has(item.submissionId)) continue;
 
       found.set(item.submissionId, {
-        judgeId: status.id,
+        backendId: status.id,
         state: item.state,
         ahead:
           item.state === "running"

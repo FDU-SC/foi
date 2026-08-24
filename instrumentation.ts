@@ -60,7 +60,7 @@ export async function register() {
     console.warn(`[foi] ${warning}`);
   }
 
-  const { reconcileStaleSubmissions } = await import("@/lib/judge/reconciler");
+  const { reconcileStaleSubmissions } = await import("@/lib/backend/reconciler");
 
   // Guarded so HMR reloads do not stack up timers during `next dev`.
   clearInterval(globalThis.__foiReconciler);

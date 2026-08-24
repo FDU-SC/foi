@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { judges } from "@/judges.config";
+import { backends } from "@/backends.config";
 import {
   DispatchError,
   dispatchToJudge,
   fetchAllJudgeQueues,
   redactJudgeStatus,
-  resolveJudge,
+  resolveBackend,
 } from "./client";
+import type { JudgeRequest } from "./types";
 
 const QUEUE_BODY = {
   health: "ok",
@@ -31,7 +32,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 beforeEach(() => {
-  vi.stubEnv("FOI_JUDGE_SECRET", "test-secret");
+  vi.stubEnv("FOI_BACKEND_SECRET", "test-secret");
   // The snapshot is process-wide on purpose; clear it so cases do not inherit
   // each other's sweep.
   globalThis.__foiQueueSnapshot = undefined;
@@ -55,7 +56,7 @@ describe("fetchAllJudgeQueues 快照", () => {
     await fetchAllJudgeQueues();
     await fetchAllJudgeQueues();
 
-    expect(afterFirst).toBe(Object.keys(judges).length);
+    expect(afterFirst).toBe(Object.keys(backends).length);
     expect(fetchMock.mock.calls.length).toBe(afterFirst);
   });
 
@@ -71,7 +72,7 @@ describe("fetchAllJudgeQueues 快照", () => {
       fetchAllJudgeQueues(),
     ]);
 
-    expect(fetchMock.mock.calls.length).toBe(Object.keys(judges).length);
+    expect(fetchMock.mock.calls.length).toBe(Object.keys(backends).length);
   });
 
   it("快照过期后重新拉取", async () => {
@@ -92,10 +93,10 @@ describe("fetchAllJudgeQueues 快照", () => {
   });
 
   it("单台判题机不可达不影响其余，也不抛异常", async () => {
-    const ids = Object.keys(judges);
+    const ids = Object.keys(backends);
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = String(input);
-      if (url.includes(new URL(judges[ids[0]].url).port)) {
+      if (url.includes(new URL(backends[ids[0]].url).port)) {
         return Promise.reject(new Error("connect ECONNREFUSED"));
       }
       return Promise.resolve(jsonResponse(QUEUE_BODY));
@@ -138,10 +139,12 @@ describe("redactJudgeStatus", () => {
 });
 
 describe("dispatchToJudge 失败语义", () => {
-  const judge = () => resolveJudge(Object.keys(judges)[0]);
-  const request = {
+  const judge = () => resolveBackend(Object.keys(backends)[0]);
+  const request: JudgeRequest = {
     submissionId: "sub_1",
+    user: { handle: "alice", groups: [] },
     problem: { slug: "maze-runner", config: {} },
+    contestSlug: null,
     payload: {},
     callbackUrl: "http://localhost:3000/api/judge/callback",
     callbackToken: "token",

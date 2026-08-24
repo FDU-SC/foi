@@ -11,7 +11,7 @@ import { createTransport, type Transporter } from "nodemailer";
  *
  * With no host configured, mail goes to stdout instead. A fresh checkout
  * should be able to run the whole registration flow without a mail server
- * standing by, which is the same bargain `scripts/mock-judge.ts` offers for
+ * standing by, which is the same bargain `scripts/mock-backend.ts` offers for
  * judging — and printing the link is what makes it usable.
  */
 export interface MailMessage {

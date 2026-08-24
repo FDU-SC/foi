@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage } from "node:http";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -9,29 +9,45 @@ import {
   TIMESTAMP_HEADER,
   sign,
   verifySignature,
-} from "../lib/judge/signature";
-import type { JudgeQueue, QueueItem, Verdict } from "../lib/judge/types";
+} from "../lib/backend/signature";
+import type { JudgeQueue, QueueItem, Verdict } from "../lib/backend/types";
 
-const PORT = Number(process.env.MOCK_JUDGE_PORT ?? 4100);
-const JUDGE_DELAY_MS = Number(process.env.MOCK_JUDGE_DELAY ?? 1500);
+const PORT = Number(process.env.MOCK_BACKEND_PORT ?? 4100);
+const JUDGE_DELAY_MS = Number(process.env.MOCK_BACKEND_DELAY ?? 1500);
 /** Concurrent evaluation slots; anything beyond this waits in the queue. */
-const CAPACITY = Number(process.env.MOCK_JUDGE_CAPACITY ?? 2);
+const CAPACITY = Number(process.env.MOCK_BACKEND_CAPACITY ?? 2);
 const VERSION = "1.0.0";
 
 /** `--drop-callbacks` judges normally but never reports, to exercise the reconciler. */
 const DROP_CALLBACKS = process.argv.includes("--drop-callbacks");
 
-const secret = process.env.FOI_JUDGE_SECRET;
-if (!secret) throw new Error("缺少环境变量 FOI_JUDGE_SECRET");
+const secret =
+  process.env.FOI_BACKEND_SECRET ?? process.env.FOI_JUDGE_SECRET;
+if (!secret) throw new Error("缺少环境变量 FOI_BACKEND_SECRET");
 
 const startedAt = Date.now();
 
+interface BackendUser {
+  handle: string;
+  groups: readonly string[];
+}
+
 interface JudgeRequestBody {
   submissionId: string;
+  user: BackendUser;
   problem: { slug: string; config?: unknown };
+  contestSlug: string | null;
   payload: unknown;
   callbackUrl: string;
   callbackToken: string;
+}
+
+interface ActionRequestBody {
+  action: string;
+  user: BackendUser;
+  problem: { slug: string; config?: unknown };
+  contestSlug: string | null;
+  payload: unknown;
 }
 
 interface Job {
@@ -188,6 +204,122 @@ function judgeFlag(config: unknown, payload: unknown): Verdict {
     score: correct ? 300 : 0,
     maxScore: 300,
     detail: { message: correct ? "flag 正确" : "flag 不正确" },
+  };
+}
+
+/**
+ * Containers this backend has handed out, and the flag inside each.
+ *
+ * Here rather than in a separate service, and that is the whole demonstration.
+ * A flag that is the same for everybody is solved once and then posted in a
+ * group chat, so a real container problem mints a fresh one per instance —
+ * which means the only party that can check a flag is the party that created
+ * the container. Splitting orchestration from checking would leave two
+ * services needing to agree on this map.
+ *
+ * In memory because it is a mock; a real one would outlive a restart.
+ */
+interface Instance {
+  handle: string;
+  endpoint: string;
+  flag: string;
+  expiresAt: number;
+}
+
+const instances = new Map<string, Instance>();
+/** Flag back to its instance, so checking a submission is one lookup. */
+const flagOwners = new Map<string, string>();
+
+function instanceKey(slug: string, handle: string): string {
+  return `${slug}:${handle}`;
+}
+
+function dropInstance(key: string): void {
+  const existing = instances.get(key);
+  if (!existing) return;
+  flagOwners.delete(existing.flag);
+  instances.delete(key);
+}
+
+function liveInstance(key: string): Instance | undefined {
+  const existing = instances.get(key);
+  if (!existing) return undefined;
+  if (existing.expiresAt <= Date.now()) {
+    dropInstance(key);
+    return undefined;
+  }
+  return existing;
+}
+
+/**
+ * Hands this person a container, or the one they already have.
+ *
+ * Idempotent because the kernel's rate limit bounds how often somebody may
+ * ask, not how many they end up with: two clicks a minute apart should not
+ * leave a container orphaned. The per-person cap is one, and it is enforced
+ * here because this is the only place that knows what a container costs.
+ */
+function spawnInstance(body: ActionRequestBody): Instance {
+  const key = instanceKey(body.problem.slug, body.user.handle);
+
+  const existing = liveInstance(key);
+  if (existing) return existing;
+
+  const config = (body.problem.config ?? {}) as { lifetimeSeconds?: number };
+  const lifetime = (config.lifetimeSeconds ?? 30 * 60) * 1000;
+  const port = 30000 + Math.floor(Math.random() * 5000);
+  const instance: Instance = {
+    handle: body.user.handle,
+    endpoint: `http://chal.foi.internal:${port}`,
+    flag: `FOI{r4te_l1m1t_bypa55ed_${randomBytes(4).toString("hex")}}`,
+    expiresAt: Date.now() + lifetime,
+  };
+
+  instances.set(key, instance);
+  flagOwners.set(instance.flag, key);
+  // The flag is printed because there is no container to read it out of. A
+  // real backend would put it inside the instance and never log it; here the
+  // console is the only way the demo problem is solvable at all.
+  console.log(
+    `  启动实例 ${body.problem.slug} for ${body.user.handle} -> ${instance.endpoint}`,
+  );
+  console.log(`    flag: ${instance.flag}`);
+  return instance;
+}
+
+/**
+ * Checks a flag against the instance it came from.
+ *
+ * Two failures that look the same to the player but are not: a flag nobody was
+ * ever issued, and somebody else's flag. The second is the one dynamic flags
+ * exist to catch, so it is worth a distinct log line even though the verdict
+ * is the same — telling the submitter which it was would confirm that the flag
+ * is real and merely stolen.
+ */
+function judgeInstanceFlag(request: JudgeRequestBody): Verdict {
+  const submitted = String(
+    (request.payload as { flag?: unknown })?.flag ?? "",
+  ).trim();
+
+  const key = flagOwners.get(submitted);
+  const owner = key ? liveInstance(key) : undefined;
+  const mine = owner?.handle === request.user.handle;
+
+  if (key && !mine) {
+    console.log(
+      `  ${request.user.handle} 提交了属于他人的 flag（${key}），判错`,
+    );
+  }
+
+  return {
+    status: mine ? "accepted" : "wrong_answer",
+    score: mine ? 300 : 0,
+    maxScore: 300,
+    detail: {
+      message: mine
+        ? "flag 正确"
+        : "flag 不正确。每个实例的 flag 都不一样，请提交你自己那台靶机吐出的那一个。",
+    },
   };
 }
 
@@ -609,6 +741,11 @@ async function evaluate(request: JudgeRequestBody): Promise<Verdict> {
   const payload = (request.payload ?? {}) as Record<string, unknown>;
   const config = (request.problem.config ?? {}) as Record<string, unknown>;
 
+  // A problem that hands out containers has no static answer to compare
+  // against — the flag belongs to one instance and one person.
+  if (config.image !== undefined) {
+    return judgeInstanceFlag(request);
+  }
   if (payload.flag !== undefined || config.mode === "static") {
     return judgeFlag(request.problem.config, request.payload);
   }
@@ -684,6 +821,39 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // Interactive endpoints. The kernel has already established that whoever is
+  // asking may see the problem and that the problem declared this action; what
+  // is left is the part only this service can do.
+  if (req.method === "POST" && url.pathname.startsWith("/action/")) {
+    const action = decodeURIComponent(url.pathname.slice("/action/".length));
+    const body = JSON.parse(raw) as ActionRequestBody;
+
+    if (action === "spawn") {
+      const instance = spawnInstance(body);
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          endpoint: instance.endpoint,
+          expiresAt: instance.expiresAt,
+        }),
+      );
+      return;
+    }
+
+    if (action === "destroy") {
+      dropInstance(instanceKey(body.problem.slug, body.user.handle));
+      console.log(`  销毁实例 ${body.problem.slug} for ${body.user.handle}`);
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    console.warn(`  未实现的 action: ${action}`);
+    res.writeHead(404, { "content-type": "application/json" });
+    res.end(JSON.stringify({ error: `未实现的 action: ${action}` }));
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/queue") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify(snapshot()));
@@ -706,7 +876,7 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`mock 判题机监听 :${PORT}`);
+  console.log(`mock 题目后端监听 :${PORT}`);
   console.log(`  并发容量 ${CAPACITY}，单题耗时 ${JUDGE_DELAY_MS}ms`);
   if (DROP_CALLBACKS) console.log("  已开启丢弃回调模式，用于验证对账兜底");
 });

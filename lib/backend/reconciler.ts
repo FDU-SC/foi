@@ -4,7 +4,7 @@ import { submissions } from "@/lib/db/schema";
 import { publish } from "@/lib/submissions/events";
 import { toView } from "@/lib/submissions/queries";
 import { invalidateStandings } from "@/lib/standings/cache";
-import { pollJudge, resolveJudge } from "./client";
+import { pollJudge, resolveBackend } from "./client";
 import { NON_TERMINAL_STATES } from "./types";
 
 /** Give up entirely on a submission that has been unresolved this long. */
@@ -49,9 +49,9 @@ export async function reconcileStaleSubmissions(): Promise<{
     const expired = now - row.createdAt.getTime() > ABANDON_AFTER_MS;
 
     try {
-      const judge = resolveJudge(row.judgeId);
+      const backend = resolveBackend(row.backendId);
       const status = row.judgeRef
-        ? await pollJudge(judge, row.judgeRef)
+        ? await pollJudge(backend, row.judgeRef)
         : null;
 
       if (status?.done && status.verdict) {
@@ -93,7 +93,7 @@ export async function reconcileStaleSubmissions(): Promise<{
         .update(submissions)
         .set({
           state: "failed",
-          error: "判题超时，未收到判题机结果",
+          error: "判题超时，未收到题目后端结果",
           judgedAt: new Date(),
         })
         .where(

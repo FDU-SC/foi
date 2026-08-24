@@ -7,8 +7,8 @@ import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { VerdictDetail } from "@/components/problem/verdict-detail";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { locateOne } from "@/lib/judge/queue-lookup";
-import { isTerminalState } from "@/lib/judge/types";
+import { locateOne } from "@/lib/backend/queue-lookup";
+import { isTerminalState } from "@/lib/backend/types";
 import { problemBySlug } from "@/lib/problems/registry";
 import { submissionFor } from "@/lib/submissions/access";
 

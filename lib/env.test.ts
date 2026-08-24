@@ -5,7 +5,7 @@ const VALID = {
   DATABASE_URL: "postgres://foi:pw@localhost:5432/foi",
   AUTH_SECRET: "0123456789abcdef0123456789abcdef",
   FOI_PUBLIC_URL: "https://foi.example.com",
-  FOI_JUDGE_SECRET: "0123456789abcdef0123456789abcdef",
+  FOI_BACKEND_SECRET: "0123456789abcdef0123456789abcdef",
 };
 
 function check(overrides: Record<string, string | undefined>) {
@@ -35,8 +35,19 @@ describe("assertEnv", () => {
     );
   });
 
-  it("缺少 FOI_JUDGE_SECRET 时拒绝", () => {
-    expect(check({ FOI_JUDGE_SECRET: undefined })).toThrow(/FOI_JUDGE_SECRET/);
+  it("缺少 FOI_BACKEND_SECRET 时拒绝", () => {
+    expect(check({ FOI_BACKEND_SECRET: undefined })).toThrow(
+      /FOI_BACKEND_SECRET/,
+    );
+  });
+
+  it("只设置了改名前的 FOI_JUDGE_SECRET 也算数", () => {
+    expect(
+      check({
+        FOI_BACKEND_SECRET: undefined,
+        FOI_JUDGE_SECRET: VALID.FOI_BACKEND_SECRET,
+      }),
+    ).not.toThrow();
   });
 
   it("一次报出全部问题，而不是只报第一个", () => {
@@ -49,11 +60,11 @@ describe("assertEnv", () => {
 
     expect(message).toContain("DATABASE_URL");
     expect(message).toContain("AUTH_SECRET");
-    expect(message).toContain("FOI_JUDGE_SECRET");
+    expect(message).toContain("FOI_BACKEND_SECRET");
   });
 
   it("不因为可选变量缺失而拒绝启动", () => {
-    // SMTP falls back to logging, judge URLs have defaults, the backup
+    // SMTP falls back to logging, backend URLs have defaults, the backup
     // interval has a default. None of these should stop a boot.
     expect(check({})).not.toThrow();
   });

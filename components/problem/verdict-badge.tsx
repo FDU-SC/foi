@@ -4,7 +4,7 @@ import {
   STATE_PRESETS,
   type SubmissionState,
   type Verdict,
-} from "@/lib/judge/types";
+} from "@/lib/backend/types";
 
 export function VerdictBadge({
   state,

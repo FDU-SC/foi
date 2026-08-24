@@ -10,7 +10,7 @@ import { z } from "zod";
  * work should fail while the health check is still watching, in the same way a
  * failed migration already does.
  *
- * Only the variables whose absence is fatal are listed. Judge URLs have
+ * Only the variables whose absence is fatal are listed. Backend URLs have
  * defaults, SMTP has a documented fallback that logs to the console, and the
  * backup interval has a default — none of those should stop a boot.
  */
@@ -26,11 +26,11 @@ const schema = z.object({
     .string("未设置，无法签名会话。用 openssl rand -base64 32 生成")
     .min(16, "太短，会话签名不安全。用 openssl rand -base64 32 生成"),
 
-  // Judges call back to this, so a wrong value is not a local problem: every
+  // Backends call back to this, so a wrong value is not a local problem: every
   // verdict silently fails to arrive and the reconciler gives up ten minutes
   // later, one submission at a time.
   FOI_PUBLIC_URL: z
-    .string("未设置，判题机将无法回调")
+    .string("未设置，题目后端将无法回调")
     .refine((value) => {
       try {
         new URL(value);
@@ -40,10 +40,26 @@ const schema = z.object({
       }
     }, "必须是完整的 URL，例如 https://foi.example.com"),
 
-  FOI_JUDGE_SECRET: z
-    .string("未设置。用 openssl rand -hex 32 生成，并与判题机保持一致")
-    .min(16, "太短。用 openssl rand -hex 32 生成，并与判题机保持一致"),
+  FOI_BACKEND_SECRET: z
+    .string("未设置。用 openssl rand -hex 32 生成，并与题目后端保持一致")
+    .min(16, "太短。用 openssl rand -hex 32 生成，并与题目后端保持一致"),
 });
+
+/**
+ * Accepts the pre-rename spelling of the shared secret.
+ *
+ * Normalised here rather than in the schema so that everything downstream sees
+ * one name, and so the fallback is a single line to delete once the deployed
+ * environments have been updated. `resolveBackend` reads the same pair.
+ */
+function withLegacyNames(
+  env: Record<string, string | undefined>,
+): Record<string, string | undefined> {
+  return {
+    ...env,
+    FOI_BACKEND_SECRET: env.FOI_BACKEND_SECRET ?? env.FOI_JUDGE_SECRET,
+  };
+}
 
 /**
  * Checks the environment, throwing with every problem at once.
@@ -54,7 +70,7 @@ const schema = z.object({
 export function assertEnv(
   env: Record<string, string | undefined> = process.env,
 ): void {
-  const parsed = schema.safeParse(env);
+  const parsed = schema.safeParse(withLegacyNames(env));
   if (parsed.success) return;
 
   // Prefixed with the variable name. Without it a missing value reports Zod's

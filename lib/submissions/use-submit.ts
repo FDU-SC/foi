@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useProblem } from "@/components/problem/problem-context";
-import { isTerminalState } from "@/lib/judge/types";
+import { isTerminalState } from "@/lib/backend/types";
 import type { SubmissionView } from "@/lib/submissions/types";
 
 const POLL_INTERVALS_MS = [800, 1200, 2000, 3000, 5000];
@@ -16,7 +16,7 @@ const POLL_INTERVALS_MS = [800, 1200, 2000, 3000, 5000];
  * state first wins.
  */
 export function useSubmit() {
-  const { config, contestSlug, canSubmit } = useProblem();
+  const { config, contestSlug, canAct } = useProblem();
   const [submission, setSubmission] = useState<SubmissionView | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,5 +118,5 @@ export function useSubmit() {
     [config.slug, contestSlug, track],
   );
 
-  return { submit, submission, submitting, error, canSubmit };
+  return { submit, submission, submitting, error, canAct };
 }

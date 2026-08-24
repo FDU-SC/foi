@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/auth";
 import { viewerFor } from "@/lib/auth/viewer";
-import { isTerminalState } from "@/lib/judge/types";
-import { locateOne } from "@/lib/judge/queue-lookup";
+import { isTerminalState } from "@/lib/backend/types";
+import { locateOne } from "@/lib/backend/queue-lookup";
 import { submissionFor } from "@/lib/submissions/access";
 import { toView } from "@/lib/submissions/queries";
 

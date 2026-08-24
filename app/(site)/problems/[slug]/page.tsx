@@ -112,7 +112,7 @@ export default async function ProblemPage({
         contestSlug: contest?.slug ?? null,
         // A preview holder reads the statement but still cannot submit; the
         // problem is not open, and who is looking does not change that.
-        canSubmit: Boolean(user) && gate.visible,
+        canAct: Boolean(user) && gate.visible,
       }}
     >
       <article className="mx-auto max-w-3xl">

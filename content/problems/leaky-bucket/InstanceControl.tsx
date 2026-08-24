@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useProblem } from "@/components/problem/problem-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
-
-const LIFETIME_SECONDS = 30 * 60;
 
 interface Instance {
   endpoint: string;
@@ -15,16 +15,22 @@ interface Instance {
 /**
  * Per-problem infrastructure control.
  *
- * Spawning and destroying containers is not the OJ's job — this component
- * talks to whatever service the problem author runs. Point `INSTANCE_API` at
- * that service; the local simulation below only exists so the demo problem
- * works without external infrastructure.
+ * Spawning and destroying containers is not the kernel's business, and this
+ * component does not ask it to be: it posts to `/action/<name>`, which relays
+ * the call to whatever service `backend.id` names without looking inside.
+ *
+ * It goes through the kernel rather than straight at that service for two
+ * reasons. The request has to be signed, and the shared secret cannot leave
+ * the server. And the person making it has to be somebody the problem is
+ * actually open to — this component used to call the backend directly with no
+ * credentials at all, so anyone who could load the page, signed in or not,
+ * could start containers on it.
  */
-const INSTANCE_API = process.env.NEXT_PUBLIC_LEAKY_BUCKET_API ?? null;
-
 export function InstanceControl() {
+  const { config, contestSlug, canAct } = useProblem();
   const [instance, setInstance] = useState<Instance | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [remaining, setRemaining] = useState(0);
 
   useEffect(() => {
@@ -39,21 +45,31 @@ export function InstanceControl() {
     return () => clearInterval(timer);
   }, [instance]);
 
+  const call = async (action: string): Promise<unknown | null> => {
+    const res = await fetch(`/api/problems/${config.slug}/action/${action}`, {
+      method: "POST",
+      headers: contestSlug ? { "x-foi-contest": contestSlug } : undefined,
+    });
+
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      const message =
+        typeof (body as { error?: unknown })?.error === "string"
+          ? (body as { error: string }).error
+          : `请求失败（${res.status}）`;
+      setError(message);
+      return null;
+    }
+
+    setError(null);
+    return body;
+  };
+
   const spawn = async () => {
     setBusy(true);
     try {
-      if (INSTANCE_API) {
-        const res = await fetch(`${INSTANCE_API}/spawn`, { method: "POST" });
-        const data = (await res.json()) as Instance;
-        setInstance(data);
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        const port = 30000 + Math.floor(Math.random() * 5000);
-        setInstance({
-          endpoint: `http://chal.foi.internal:${port}`,
-          expiresAt: Date.now() + LIFETIME_SECONDS * 1000,
-        });
-      }
+      const data = (await call("spawn")) as Instance | null;
+      if (data) setInstance(data);
     } finally {
       setBusy(false);
     }
@@ -62,9 +78,9 @@ export function InstanceControl() {
   const destroy = async () => {
     setBusy(true);
     try {
-      if (INSTANCE_API) {
-        await fetch(`${INSTANCE_API}/destroy`, { method: "POST" });
-      }
+      // Cleared regardless: a backend that says the instance is already gone
+      // has told us the same thing as one that just removed it.
+      await call("destroy");
       setInstance(null);
     } finally {
       setBusy(false);
@@ -86,7 +102,14 @@ export function InstanceControl() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-        {instance ? (
+        {!canAct ? (
+          <span className="text-fg-muted text-xs">
+            <Link href="/login" className="text-primary hover:underline">
+              登录
+            </Link>
+            后即可启动属于你的靶机实例。
+          </span>
+        ) : instance ? (
           <>
             <code className="border-border bg-surface-2 text-fg rounded border px-2 py-1 font-mono text-xs">
               {instance.endpoint}
@@ -107,6 +130,12 @@ export function InstanceControl() {
           </>
         )}
       </div>
+
+      {error ? (
+        <div className="border-border text-err border-t px-4 py-2 text-xs">
+          {error}
+        </div>
+      ) : null}
     </div>
   );
 }

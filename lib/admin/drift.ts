@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { contests, problems, submissions } from "@/lib/db/schema";
 import { enumeratedHandles, groupsFor } from "@/lib/enrollment/registry";
 import { orphanedBackends } from "@/lib/backend/access";
+import { mailIsConfigured } from "@/lib/mail/transport";
 import { allProblems } from "@/lib/problems/registry";
 
 /**
@@ -78,6 +79,32 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
   const accountHandles = new Set(accountRows.map((row) => row.handle));
 
   const findings: DriftFinding[] = [];
+
+  // First, because it is the only one here that means a whole feature is dead
+  // rather than that some rows need attention.
+  //
+  // The failure of an unconfigured relay is not that codes and reset links end
+  // up in the container log. Reading that log takes a shell on the deploy
+  // host, and whoever has one already has the `.env`, the database and
+  // `scripts/set-password.cjs` — the log tells them nothing new. It is that
+  // registration and recovery are dead ends that announce themselves as
+  // working: the page says a code was sent, every individual send succeeds,
+  // and the person waiting on the mail has no way to find out why it will
+  // never arrive. Nothing else in the product is in a position to say so,
+  // which is why this is the one place that can.
+  //
+  // A warning rather than a refusal to boot for the same reason the enrollment
+  // checks in `instrumentation.ts` are: a deployment with registration closed
+  // needs no relay, and an outage would be the worse failure.
+  if (!mailIsConfigured()) {
+    findings.push({
+      severity: "warn",
+      title: "未配置 SMTP，邮件只打印到容器日志",
+      detail:
+        "注册要收验证码、找回密码要收链接，两者现在都只出现在服务端日志里——用户看到「已发送」，然后永远等不到。设置 FOI_SMTP_HOST 等变量即可；若这套部署本就不开放注册，可以忽略。",
+      items: [],
+    });
+  }
 
   // The rules are code and the addresses are data, so this is where the two
   // fall out of step: a new intake whose address format nobody added a rule

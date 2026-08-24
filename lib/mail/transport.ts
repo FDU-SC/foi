@@ -1,4 +1,5 @@
 import { createTransport, type Transporter } from "nodemailer";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
 
 /**
  * Handing a message to the mail server, and nothing more.
@@ -29,23 +30,61 @@ function readFrom(): string {
   return process.env.FOI_MAIL_FROM || "FOI <foi@localhost>";
 }
 
-/** Null when no SMTP host is configured, which selects the console sink. */
-function buildTransporter(): Transporter | null {
+/**
+ * Whether this deployment has excused its relay from encrypting.
+ *
+ * An opt-out rather than an opt-in, so a deployment that never heard of this
+ * variable gets the safe posture. What it is for is the local Mailpit, which
+ * speaks no STARTTLS at all: without an escape hatch, requiring the upgrade
+ * would turn the one mail setup a fresh checkout is told to use into a
+ * connection error.
+ */
+function relayMaySkipTls(): boolean {
+  return process.env.FOI_SMTP_ALLOW_INSECURE === "true";
+}
+
+/**
+ * What nodemailer is handed, or null when no relay is configured — which is
+ * what selects the console sink.
+ *
+ * Split out from `buildTransporter` so the TLS posture can be asserted without
+ * standing a transport up: nodemailer types a `Transporter`'s `.options` as
+ * the *message* defaults, so what was passed in is not readable back off it.
+ */
+export function relayOptions(): SMTPTransport.Options | null {
   const host = process.env.FOI_SMTP_HOST;
   if (!host) return null;
 
   const user = process.env.FOI_SMTP_USER;
   const pass = process.env.FOI_SMTP_PASSWORD;
 
-  return createTransport({
+  // Implicit TLS, which is port 465 and nothing else.
+  const secure = process.env.FOI_SMTP_SECURE === "true";
+
+  return {
     host,
     port: Number(process.env.FOI_SMTP_PORT ?? 587),
-    // Implicit TLS, which is port 465 and nothing else. On any other port this
-    // stays false and the connection is still upgraded via STARTTLS when the
-    // server offers it.
-    secure: process.env.FOI_SMTP_SECURE === "true",
+    secure,
+    // Left to itself, nodemailer upgrades only when the server advertises
+    // STARTTLS — so anything on the path strips the advertisement and watches
+    // a password reset link, a verification code and the relay's own password
+    // go by in the clear, with the send reporting success either way. This
+    // issues STARTTLS regardless of what was advertised and refuses to send if
+    // the upgrade fails, which is the whole difference between opportunistic
+    // and required.
+    //
+    // Left off under implicit TLS for the same reason nodemailer's own
+    // condition is: on 465 the socket is encrypted from the first byte, so
+    // there is no plaintext phase to protect and the flag is read and ignored.
+    // Saying so here keeps the intent legible rather than resting on that.
+    requireTLS: !secure && !relayMaySkipTls(),
     auth: user ? { user, pass } : undefined,
-  });
+  };
+}
+
+function buildTransporter(): Transporter | null {
+  const options = relayOptions();
+  return options ? createTransport(options) : null;
 }
 
 function transporter(): Transporter | null {

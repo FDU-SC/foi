@@ -90,6 +90,22 @@ describe("readTextBody", () => {
     expect(result).toEqual({ ok: false, reason: "too-large" });
   });
 
+  it("同样能读 Response，后端答复走的是同一条路", async () => {
+    // `lib/backend/client.ts` passes a `Response` here. Both shapes carry the
+    // two things this needs, which is why the parameter is not a `Request`.
+    const small = new Response("ok", { status: 200 });
+    expect(await readTextBody(small, 1024)).toEqual({ ok: true, text: "ok" });
+
+    const huge = new Response("x", {
+      status: 200,
+      headers: { "content-length": String(64 * 1024) },
+    });
+    expect(await readTextBody(huge, 1024)).toEqual({
+      ok: false,
+      reason: "too-large",
+    });
+  });
+
   it("跨块的多字节字符不会被截坏", async () => {
     const encoded = new TextEncoder().encode("界");
     const chunks = [encoded.slice(0, 1), encoded.slice(1)];

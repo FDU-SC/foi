@@ -308,6 +308,72 @@ describe("交互端点响应的 content-type 白名单", () => {
 });
 
 /**
+ * A backend is reached over the network and may be somebody else's service, so
+ * how long it can keep the kernel waiting is bounded by a timeout and how much
+ * it can make the kernel hold has to be bounded too. It was not: `res.text()`
+ * and `res.json()` read to completion, and the reconciler polls every fifteen
+ * seconds whether anybody is watching or not.
+ */
+describe("后端响应的字节上限", () => {
+  const backend = () => resolveBackend(Object.keys(backends)[0]);
+
+  /** Declares a length nothing will read, so the cap trips on the header. */
+  function oversized(): Response {
+    return new Response("x".repeat(64), {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "content-length": String(8 * 1024 * 1024),
+      },
+    });
+  }
+
+  it("交互端点响应过大时变成 502，而不是照抄 200", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(oversized());
+
+    await expect(
+      callBackendAction(backend(), {
+        action: "spawn",
+        user: { handle: "alice", groups: [] },
+        problem: { slug: "leaky-bucket", config: {} },
+        contestSlug: null,
+        payload: null,
+      }),
+    ).resolves.toMatchObject({
+      status: 502,
+      contentType: "application/json",
+    });
+  });
+
+  it("队列响应过大时这台机器报错，其余照常", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(oversized());
+
+    await expect(fetchJudgeQueue(Object.keys(backends)[0])).resolves.toMatchObject(
+      { online: false, error: "队列响应过大" },
+    );
+  });
+
+  it("对账轮询响应过大时当作没拿到状态", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(oversized());
+
+    await expect(pollJudge(backend(), "job-42")).resolves.toBeNull();
+  });
+
+  it("队列响应不是合法 JSON 时说的是格式，不是连不上", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("not json at all", {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    await expect(fetchJudgeQueue(Object.keys(backends)[0])).resolves.toMatchObject(
+      { error: "队列响应格式不合法" },
+    );
+  });
+});
+
+/**
  * The signature covers the method and the path, so every outbound call has to
  * sign the request it actually makes. That pairing is the thing that can come
  * apart silently — add a fifth endpoint, or change a path after signing it,

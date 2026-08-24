@@ -32,7 +32,7 @@ export default async function HomePage() {
       <section className="pt-6">
         <h1 className="text-fg text-3xl font-bold tracking-tight">FOI</h1>
         <p className="text-fg-muted mt-3 max-w-2xl leading-7">
-          一个可插拔的竞赛平台。题面、判题机与赛制计分都以代码形式存放在仓库中，
+          一个可插拔的竞赛平台。题面、评测机与赛制计分都以代码形式存放在仓库中，
           可以像写组件一样定制每一道题的页面。
         </p>
       </section>

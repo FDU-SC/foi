@@ -93,7 +93,7 @@ export async function reconcileStaleSubmissions(): Promise<{
         .update(submissions)
         .set({
           state: "failed",
-          error: "判题超时，未收到题目后端结果",
+          error: "评测超时，未收到题目后端结果",
           judgedAt: new Date(),
         })
         .where(

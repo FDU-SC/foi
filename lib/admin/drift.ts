@@ -144,7 +144,7 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
   if (unusedJudges.length > 0) {
     findings.push({
       severity: "info",
-      title: "有判题机没有任何题目指向",
+      title: "有评测机没有任何题目指向",
       detail:
         "它们不会出现在选手的 /judges 页面（那里只列出承载了可见题目的题目后端）。确认是备用节点还是 backends.config.ts 里的残留。",
       items: unusedJudges,

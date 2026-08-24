@@ -7,7 +7,7 @@ export const problem = {
   backend: {
     id: "output-only",
     config: {
-      // 期望答案按场景顺序。真实场景下这些数据由判题机从 testdata 读取，
+      // 期望答案按场景顺序。真实场景下这些数据由评测机从 testdata 读取，
       // 示例题直接内联——反正 backend.config 不会下发到浏览器。
       cases: [
         { name: "场景 1", expected: "8" },

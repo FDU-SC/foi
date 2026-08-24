@@ -3,6 +3,7 @@ import { getResolvedUser } from "@/auth";
 import { viewerFor } from "@/lib/auth/viewer";
 import { actionFor } from "@/lib/backend/actions";
 import { callBackendAction, resolveBackend } from "@/lib/backend/client";
+import { readTextBody } from "@/lib/body-limit";
 import { contestFor } from "@/lib/contests/access";
 import { canEnterContest } from "@/lib/contests/queries";
 import { contestPhase } from "@/lib/contests/types";
@@ -67,10 +68,11 @@ export async function POST(
     );
   }
 
-  const raw = await request.text();
-  if (raw.length > MAX_PAYLOAD_BYTES) {
+  const read = await readTextBody(request, MAX_PAYLOAD_BYTES);
+  if (!read.ok) {
     return NextResponse.json({ error: "请求内容过大" }, { status: 413 });
   }
+  const raw = read.text;
 
   // An empty body is the common case — `spawn` needs no arguments — so it means
   // no payload rather than a malformed request.

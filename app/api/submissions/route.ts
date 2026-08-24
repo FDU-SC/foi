@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { ulid } from "ulid";
 import { getResolvedUser, getSessionUser } from "@/auth";
 import { viewerFor } from "@/lib/auth/viewer";
+import { readTextBody } from "@/lib/body-limit";
 import { contestFor } from "@/lib/contests/access";
 import { canEnterContest, ensureContest } from "@/lib/contests/queries";
 import { contestPhase } from "@/lib/contests/types";
@@ -37,10 +38,11 @@ export async function POST(request: Request) {
   }
   const viewer = viewerFor(user);
 
-  const raw = await request.text();
-  if (raw.length > MAX_PAYLOAD_BYTES) {
+  const read = await readTextBody(request, MAX_PAYLOAD_BYTES);
+  if (!read.ok) {
     return NextResponse.json({ error: "提交内容过大" }, { status: 413 });
   }
+  const raw = read.text;
 
   let body: unknown;
   try {

@@ -4,12 +4,18 @@ import { groupsFor } from "@/lib/enrollment/registry";
 /**
  * Claims FOI stores on the JWT.
  *
- * Only the handle. Role and display name used to ride along, which meant a
- * change did not reach anyone until their token expired — someone demoted or
- * suspended kept their old powers for up to a week. Resolving on every request
- * costs a Map lookup for the role and one indexed read for the rest, and makes
- * both an edit to `content/enrollment/` and a suspension take effect on the
- * next page load.
+ * The handle, and the instant the password behind it was last written. Role
+ * and display name used to ride along too, which meant a change did not reach
+ * anyone until their token expired — someone demoted or suspended kept their
+ * old powers for up to a week. Resolving on every request costs a Map lookup
+ * for the role and one indexed read for the rest, and makes both an edit to
+ * `content/enrollment/` and a suspension take effect on the next page load.
+ *
+ * `credentialsAt` is the exception, and it is here for the opposite reason: it
+ * is a fact about the token rather than about the person. It says which
+ * password this session was issued against, so that `getResolvedUser` can
+ * compare it with the current one and refuse a session older than the last
+ * reset. Re-deriving it would defeat the point — it has to be frozen.
  *
  * Declared locally rather than by augmenting `next-auth/jwt`: that module only
  * re-exports `@auth/core/jwt`, which pnpm does not expose at the project root,
@@ -17,6 +23,8 @@ import { groupsFor } from "@/lib/enrollment/registry";
  */
 interface FoiClaims {
   handle: string;
+  /** `credentials.updatedAt` as of sign-in, in epoch milliseconds. */
+  credentialsAt: number;
 }
 
 /**
@@ -46,23 +54,31 @@ export const authConfig = {
   callbacks: {
     jwt({ token, user }) {
       if (user) {
-        const claims: FoiClaims = { handle: user.handle };
+        const claims: FoiClaims = {
+          handle: user.handle,
+          credentialsAt: user.credentialsAt,
+        };
         Object.assign(token, claims);
       }
       return token;
     },
     session({ session, token }) {
-      const handle = (token as Partial<FoiClaims>).handle;
+      const claims = token as Partial<FoiClaims>;
+      const handle = claims.handle;
 
       // An empty handle is how the rest of the app spells "not signed in".
       if (!handle) {
         session.user.handle = "";
         session.user.displayName = "";
         session.user.groups = [];
+        session.user.credentialsAt = 0;
         return session;
       }
 
       session.user.handle = handle;
+      // Zero for a token minted before this claim existed, which is older than
+      // any credentials row and so fails the comparison in `getResolvedUser`.
+      session.user.credentialsAt = claims.credentialsAt ?? 0;
       // A placeholder until `getResolvedUser()` reads the real one. Nothing
       // renders this: pages take their display name from the resolved user.
       session.user.displayName = handle;

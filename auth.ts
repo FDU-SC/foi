@@ -5,11 +5,15 @@ import { authConfig } from "./auth.config";
 import { resolveUser } from "@/lib/accounts/resolve";
 import { normalizeHandle } from "@/lib/accounts/types";
 import type { ResolvedUser } from "@/lib/accounts/types";
-import { verifyPassword } from "@/lib/auth/credentials";
+import {
+  passwordSetAt,
+  sessionMatchesPassword,
+  verifyPassword,
+} from "@/lib/auth/credentials";
 import type { Capability } from "@/lib/auth/policy";
 import type { SessionUser } from "@/lib/auth/session";
 import { viewerFor, type Viewer } from "@/lib/auth/viewer";
-import { rateLimit } from "@/lib/ratelimit";
+import { rateLimit, sourceFrom } from "@/lib/ratelimit";
 
 const credentialsSchema = z.object({
   handle: z.string().min(1),
@@ -44,13 +48,11 @@ function withinLoginRate(handle: string, request: Request | undefined): boolean 
   }
 
   // Taken off the request rather than `next/headers`, so this works wherever
-  // Auth.js invokes the provider. Spoofable by anything that reaches the app
-  // directly, which is why it raises cost rather than being a boundary.
-  const forwarded = request?.headers.get("x-forwarded-for");
-  const source =
-    forwarded?.split(",")[0]?.trim() ||
-    request?.headers.get("x-real-ip") ||
-    "unknown";
+  // Auth.js invokes the provider. Read through `sourceFrom` rather than off
+  // `x-forwarded-for` directly: this used to take the leftmost entry, which is
+  // the one the sender writes, so the bound below counted attempts per header
+  // value instead of per machine and a sprayer simply varied it.
+  const source = request ? sourceFrom(request.headers) : "unknown";
 
   return rateLimit(`login:ip:${source}`, PER_SOURCE.limit, PER_SOURCE.windowMs)
     .ok;
@@ -95,11 +97,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        if (!(await verifyPassword(user.handle, password))) return null;
+        const check = await verifyPassword(user.handle, password);
+        if (!check.ok) return null;
 
-        // Only the handle travels onwards; everything else is re-resolved on
-        // each request so a suspension or a demotion lands immediately.
-        return { id: user.handle, handle: user.handle };
+        // The handle, plus the state of the credentials row this session is
+        // being minted against; everything else is re-resolved on each request
+        // so a suspension or a demotion lands immediately. That second claim
+        // is what `getResolvedUser` compares to make a password reset end the
+        // sessions that came before it.
+        return {
+          id: user.handle,
+          handle: user.handle,
+          credentialsAt: check.setAt.getTime(),
+        };
       },
     }),
   ],
@@ -120,7 +130,27 @@ export async function getResolvedUser(): Promise<ResolvedUser | null> {
   if (!handle) return null;
 
   const user = await resolveUser(handle);
-  return user && !user.disabled ? user : null;
+  if (!user || user.disabled) return null;
+
+  /**
+   * A session is only good for the password it was issued against.
+   *
+   * Suspending an account already bit immediately, because the check above
+   * reads a column. Changing a password did not: the token carries a handle
+   * and nothing else, the account row still says `active`, and a stolen cookie
+   * therefore kept working for the rest of its week — through the one remedy
+   * the person whose account it is can actually reach. Resetting a password is
+   * what someone does *because* they think a session was taken, so it has to
+   * be the thing that ends it.
+   *
+   * Tokens issued before this claim existed decode to 0 and so fail too,
+   * which is the right way round: sessions taken before the fix are exactly
+   * the ones worth ending.
+   */
+  const setAt = await passwordSetAt(handle);
+  if (!sessionMatchesPassword(setAt, session.user.credentialsAt)) return null;
+
+  return user;
 }
 
 /** The narrowed shape most callers want. */

@@ -18,6 +18,7 @@ import {
   isTerminalState,
   NON_TERMINAL_STATES,
 } from "@/lib/backend/types";
+import { readTextBody } from "@/lib/body-limit";
 import { publish } from "@/lib/submissions/events";
 import { toView } from "@/lib/submissions/queries";
 import { verdictColumns } from "@/lib/submissions/verdict";
@@ -25,6 +26,14 @@ import { invalidateStandings } from "@/lib/standings/cache";
 
 // Signature verification uses node:crypto, so this must not run on Edge.
 export const runtime = "nodejs";
+
+/**
+ * Generous, because a verdict's `detail` carries whatever the backend wants to
+ * show — a compile log, a diff, a per-test breakdown — and bounded anyway,
+ * because this is the one route with no caller to hold responsible. Nothing
+ * below this line runs until the body has fit.
+ */
+const MAX_BODY_BYTES = 1024 * 1024;
 
 function equalTokens(a: string, b: string): boolean {
   const left = Buffer.from(a);
@@ -41,7 +50,11 @@ function equalTokens(a: string, b: string): boolean {
  * judges retry when a callback times out.
  */
 export async function PUT(request: Request) {
-  const raw = await request.text();
+  const read = await readTextBody(request, MAX_BODY_BYTES);
+  if (!read.ok) {
+    return NextResponse.json({ error: "回调内容过大" }, { status: 413 });
+  }
+  const raw = read.text;
 
   let body: unknown;
   try {

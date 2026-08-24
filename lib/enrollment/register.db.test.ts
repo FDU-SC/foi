@@ -1,7 +1,8 @@
 import { eq, inArray, sql } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAccount } from "@/lib/accounts/queries";
 import { issueCode, verifyCode } from "@/lib/auth/email-verification";
+import { issueRegistrationProof } from "@/lib/auth/registration-proof";
 import { db } from "@/lib/db";
 import { accounts, credentials, emailVerifications } from "@/lib/db/schema";
 import { register } from "./register";
@@ -35,10 +36,11 @@ if (!online) {
   console.warn("[test] 数据库不可达，跳过注册集成用例");
 }
 
-async function prove(email: string): Promise<void> {
+async function prove(email: string): Promise<string> {
   const issued = await issueCode(email);
   if (!issued.ok) throw new Error("发码被节流");
   await verifyCode(email, issued.code);
+  return issueRegistrationProof(email);
 }
 
 async function cleanup(): Promise<void> {
@@ -48,16 +50,29 @@ async function cleanup(): Promise<void> {
   await db.delete(emailVerifications).where(eq(emailVerifications.email, EMAIL));
 }
 
+/**
+ * A filled-in form with no proof cookie attached, which is what a request that
+ * skipped the verify step looks like. Cases that did verify spread a proof
+ * over the top. `proof` is spelled out rather than omitted because `register`
+ * requires the field: a caller with nothing to offer says so.
+ */
 const FORM = {
   handle: HANDLE,
   displayName: "注册测试",
   email: EMAIL,
   password: "correct-horse-battery",
+  proof: undefined,
 };
 
 describeDb("register", () => {
-  beforeEach(cleanup);
-  afterAll(cleanup);
+  beforeEach(() => {
+    vi.stubEnv("AUTH_SECRET", "register-suite-signing-key-32b");
+    return cleanup();
+  });
+  afterAll(async () => {
+    await cleanup();
+    vi.unstubAllEnvs();
+  });
 
   it("邮箱没验证过就不建号", async () => {
     await expect(register(FORM)).resolves.toEqual({
@@ -80,9 +95,12 @@ describeDb("register", () => {
   });
 
   it("验证过之后建号，并且一建就是 active", async () => {
-    await prove(EMAIL);
+    const proof = await prove(EMAIL);
 
-    await expect(register(FORM)).resolves.toMatchObject({ ok: true, handle: HANDLE });
+    await expect(register({ ...FORM, proof })).resolves.toMatchObject({
+      ok: true,
+      handle: HANDLE,
+    });
 
     const account = await getAccount(HANDLE);
     expect(account).toMatchObject({ status: "active", email: EMAIL });
@@ -90,8 +108,8 @@ describeDb("register", () => {
   });
 
   it("建号之后验证行被消费掉，不能拿来再注册一个", async () => {
-    await prove(EMAIL);
-    await register(FORM);
+    const proof = await prove(EMAIL);
+    await register({ ...FORM, proof });
 
     const rows = await db
       .select()
@@ -109,23 +127,46 @@ describeDb("register", () => {
       source: "registration",
       status: "active",
     });
-    await prove(EMAIL);
+    const proof = await prove(EMAIL);
 
-    await expect(register({ ...FORM, handle: TAKEN })).resolves.toEqual({
+    await expect(register({ ...FORM, handle: TAKEN, proof })).resolves.toEqual({
       ok: false,
       reason: "handle-taken",
     });
 
-    await expect(register(FORM)).resolves.toMatchObject({ ok: true });
+    await expect(register({ ...FORM, proof })).resolves.toMatchObject({
+      ok: true,
+    });
   });
 
   it("保留用户名即使验证过也拒绝", async () => {
-    await prove(EMAIL);
+    const proof = await prove(EMAIL);
 
-    await expect(register({ ...FORM, handle: "root" })).resolves.toEqual({
+    await expect(register({ ...FORM, handle: "root", proof })).resolves.toEqual({
       ok: false,
       reason: "handle-reserved",
     });
+  });
+
+  it("邮箱已验证但没有本浏览器的证明，不建号", async () => {
+    await prove(EMAIL);
+
+    await expect(register(FORM)).resolves.toEqual({
+      ok: false,
+      reason: "email-unverified",
+    });
+    expect(await getAccount(HANDLE)).toBeUndefined();
+  });
+
+  it("别人邮箱的证明不能拿来注册这个邮箱", async () => {
+    await prove(EMAIL);
+    const other = issueRegistrationProof("someone-else@example.test");
+
+    await expect(register({ ...FORM, proof: other })).resolves.toEqual({
+      ok: false,
+      reason: "email-unverified",
+    });
+    expect(await getAccount(HANDLE)).toBeUndefined();
   });
 
   it("域名不在允许范围内的邮箱直接拒绝", async () => {

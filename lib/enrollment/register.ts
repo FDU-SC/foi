@@ -5,6 +5,7 @@ import {
 } from "@/lib/accounts/queries";
 import { normalizeEmail, normalizeHandle } from "@/lib/accounts/types";
 import { setPassword } from "@/lib/auth/credentials";
+import { checkRegistrationProof } from "@/lib/auth/registration-proof";
 import {
   consumeVerifiedEmail,
   isEmailVerified,
@@ -22,6 +23,9 @@ import { enrollmentPolicy, rulesForHandle } from "./registry";
  * Owning the address is one of those rules, so it is checked here rather than
  * in the action. The form does prove the address first, but a form is not a
  * gate — anything that can post to the action would otherwise be past it.
+ * The verified row is only half of that gate: it is a fact about the
+ * mailbox. The proof cookie is the other half, and names the browser that
+ * typed the code.
  */
 export type RegisterRejection =
   | "disabled"
@@ -78,6 +82,19 @@ export async function register(input: {
   displayName: string;
   email: string;
   password: string;
+  /**
+   * Issued to the browser that typed the code back. Checked whenever
+   * verification is on: the verified row is a fact about the mailbox, and
+   * without this anyone who notices a recently proven address can finish
+   * the form first.
+   *
+   * Required rather than optional even though it may be absent. A caller
+   * with no cookie to offer has to say `undefined` out loud, the same way
+   * nothing in this codebase can ask an access layer a question without
+   * naming a viewer — an optional field is one a new call site can forget,
+   * and forgetting this one silently reopens the race.
+   */
+  proof: string | undefined;
 }): Promise<RegisterResult> {
   if (!enrollmentPolicy.enabled) return { ok: false, reason: "disabled" };
 
@@ -92,9 +109,15 @@ export async function register(input: {
   if (!domainAllowed(email)) return { ok: false, reason: "email-domain" };
   if (await findAccountByEmail(email)) return { ok: false, reason: "email-taken" };
 
-  const verified =
-    !enrollmentPolicy.requireEmailVerification || (await isEmailVerified(email));
-  if (!verified) return { ok: false, reason: "email-unverified" };
+  if (enrollmentPolicy.requireEmailVerification) {
+    // Both halves: the row says the address was proven, the proof says it
+    // was this browser. Either one alone is "email-unverified" — naming
+    // the cookie would tell a probe that the address is currently proven.
+    const verified = await isEmailVerified(email);
+    if (!verified || !checkRegistrationProof(email, input.proof)) {
+      return { ok: false, reason: "email-unverified" };
+    }
+  }
 
   const account = await createAccount({
     handle,

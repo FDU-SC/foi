@@ -1,6 +1,7 @@
 "use server";
 
 import { AuthError } from "next-auth";
+import { cookies } from "next/headers";
 import { z } from "zod";
 import { signIn } from "@/auth";
 import { findAccountByEmail } from "@/lib/accounts/queries";
@@ -10,6 +11,11 @@ import {
   normalizeEmail,
 } from "@/lib/accounts/types";
 import { maxAttempts, verifyCode } from "@/lib/auth/email-verification";
+import {
+  issueRegistrationProof,
+  REGISTRATION_PROOF_COOKIE,
+  registrationProofCookieOptions,
+} from "@/lib/auth/registration-proof";
 import {
   domainAllowed,
   register,
@@ -129,8 +135,20 @@ export async function verifyCodeAction(
   );
   if (!limit.ok) return { error: "请求过于频繁，请稍后再试。" };
 
-  const result = await verifyCode(normalize(email.data), code.data);
-  if (result.ok) return { verified: true };
+  const address = normalize(email.data);
+  const result = await verifyCode(address, code.data);
+  if (result.ok) {
+    // The cookie is the half `isEmailVerified` cannot be: it names *this*
+    // browser as the one that typed the code. HttpOnly so a script on the
+    // page cannot lift it; SameSite=lax so a cross-site POST cannot spend it.
+    const jar = await cookies();
+    jar.set(
+      REGISTRATION_PROOF_COOKIE,
+      issueRegistrationProof(address),
+      registrationProofCookieOptions(),
+    );
+    return { verified: true };
+  }
 
   if (result.reason === "mismatch") {
     return {
@@ -210,8 +228,14 @@ export async function registerAction(
     return { error: "注册过于频繁，请稍后再试。" };
   }
 
-  const result = await register(parsed.data);
+  const jar = await cookies();
+  const proof = jar.get(REGISTRATION_PROOF_COOKIE)?.value;
+  const result = await register({ ...parsed.data, proof });
   if (!result.ok) return { error: REJECTIONS[result.reason] };
+
+  // Spent. Leaving it around would let a later submit on this browser
+  // skip proving a different address that happened to be verified.
+  jar.delete(REGISTRATION_PROOF_COOKIE);
 
   // Straight into the session rather than onto a page announcing success. The
   // person just typed the password; asking for it again to prove something

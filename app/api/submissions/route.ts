@@ -19,6 +19,7 @@ import {
 import { NON_TERMINAL_STATES } from "@/lib/backend/types";
 import { problemFor } from "@/lib/problems/access";
 import { ensureProblem } from "@/lib/problems/sync";
+import { rateLimit } from "@/lib/ratelimit";
 import { publish } from "@/lib/submissions/events";
 import { createSubmissionSchema } from "@/lib/submissions/types";
 import { submissionsFor } from "@/lib/submissions/access";
@@ -27,6 +28,14 @@ import { getSubmissionRow, toView } from "@/lib/submissions/queries";
 export const runtime = "nodejs";
 
 const MAX_PAYLOAD_BYTES = 512 * 1024;
+
+/**
+ * Per-account submission throttle. Every accepted POST is a database row plus
+ * an immediate dispatch to a judge, so an unmetered endpoint lets one account
+ * — stolen or malicious — turn into queue pressure on the backends. Sized so
+ * that ordinary debugging never hits it.
+ */
+const SUBMIT_RATE_LIMIT = { max: 20, windowMs: 5 * 60 * 1000 };
 
 export async function POST(request: Request) {
   // The resolved user, not the session one: entry rules key on cohort tags,
@@ -52,6 +61,25 @@ export async function POST(request: Request) {
   const parsed = createSubmissionSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "请求参数不合法" }, { status: 400 });
+  }
+
+  // Ahead of every check that costs something: the mirror upsert and the
+  // dispatch both write, and both happen before any response.
+  const limit = rateLimit(
+    `submit:${user.handle}`,
+    SUBMIT_RATE_LIMIT.max,
+    SUBMIT_RATE_LIMIT.windowMs,
+  );
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "提交过于频繁，请稍后再试" },
+      {
+        status: 429,
+        headers: {
+          "retry-after": String(Math.ceil(limit.retryAfterMs / 1000)),
+        },
+      },
+    );
   }
 
   // This person's own view, then `open` on top of it. Three conditions folded

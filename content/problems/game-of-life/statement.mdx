@@ -1,4 +1,5 @@
 import { DownloadInputs } from "./DownloadInputs";
+import { GameOfLifeBoard } from "../_shared/GameOfLifeBoard";
 
 <Constraints extra={{ 分类: "提交答案", 场景: "3", 模拟: "100 代" }} />
 
@@ -14,6 +15,11 @@ import { DownloadInputs } from "./DownloadInputs";
 
 给定 3 个初始局面，请**在本地写程序模拟 100 代**，输出每个局面在第 100 代的
 **活细胞数量**。
+
+下面是交互式模拟器——可以自己摆图案看演化，也可以把下载的场景粘贴进
+「导入图案」直接观察；「跳到第 100 代」一步到位，状态栏会显示活细胞数。
+
+<GameOfLifeBoard defaultRows={16} defaultCols={16} showJump={true} />
 
 <DownloadInputs />
 

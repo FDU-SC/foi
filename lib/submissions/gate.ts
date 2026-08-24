@@ -1,7 +1,6 @@
 import type { ResolvedUser } from "@/lib/accounts/types";
 import { viewerFor } from "@/lib/auth/viewer";
-import { contestFor } from "@/lib/contests/access";
-import { canEnterContest } from "@/lib/contests/queries";
+import { canEnterContest, contestFor } from "@/lib/contests/access";
 import { contestPhase, type ContestConfig } from "@/lib/contests/types";
 import { problemFor } from "@/lib/problems/access";
 import {

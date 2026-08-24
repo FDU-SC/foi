@@ -1,14 +1,22 @@
+import { normalizeHandle, type ResolvedUser } from "@/lib/accounts/types";
 import { inAudience, type Audience } from "@/lib/auth/audience";
 import type { Viewer } from "@/lib/auth/viewer";
 import { allContests, contestBySlug } from "./registry";
 import { contestPhase, type ContestConfig } from "./types";
 
 /**
- * How anything that renders to a person obtains a contest.
+ * How anything that renders to a person obtains a contest, and who may enter
+ * one.
  *
  * Same shape and same reasoning as `lib/problems/access.ts`: the gate sits at
  * the point of retrieval, so there is no way to ask for a contest without
  * saying who is asking, and no page has to remember a second filtering step.
+ *
+ * A contest carries two audiences that are not the same set, and both are
+ * answered here so that nobody has to go looking for the second one.
+ * `visibleTo` decides who may *read* about the round; `participants` decides
+ * who may *compete* in it. A round announced to the whole school and entered
+ * by the team it was written for is the ordinary case, not an edge one.
  *
  * Note what is *not* gated here. An unstarted contest is announced — its
  * title, its schedule and its format are how people know to turn up. What it
@@ -68,6 +76,49 @@ export function contestFor(
   if (!gate.visible && !viewer.can("contest.viewAll")) return undefined;
 
   return { config, gate };
+}
+
+/**
+ * Whether this person may enter this contest.
+ *
+ * `participants` used to decide only who appeared on the board, so any account
+ * could attribute submissions to a closed contest and occupy its judges with
+ * them — the entries simply never showed up in the standings. Asking the
+ * question on the submission path is what makes the field mean what it says.
+ *
+ * Here rather than in `./queries`, where it was written. Everything else in
+ * that module reaches the database, so importing it to ask this — a question
+ * about a config object and a group list, with no row behind it — opened a
+ * connection pool as a side effect, and `eligibility.test.ts` needed a
+ * `DATABASE_URL` to test a pure function. Being the second contest gate is the
+ * better reason: `contestFor` says who may read the round, this says who may
+ * compete in it, and a reader looking for one will want the other.
+ *
+ * A `Viewer` is deliberately not what this takes, unlike every gate above it.
+ * Entry is not a capability question — no capability enters you into a closed
+ * round, and `contest.viewAll` explicitly must not, or reading a round would
+ * be competing in it. What it needs is the *account*: a handle that is really
+ * somebody's, which `Viewer.handle` is allowed to be null for.
+ *
+ * Cheap on purpose: `groups` is already resolved on the user, and a `list` is a
+ * handful of handles, so this costs nothing and needs no snapshot.
+ */
+export function canEnterContest(
+  contest: ContestConfig,
+  user: Pick<ResolvedUser, "handle" | "groups">,
+): boolean {
+  switch (contest.participants.mode) {
+    case "open":
+      return true;
+    case "list": {
+      const handle = normalizeHandle(user.handle);
+      return contest.participants.handles.some(
+        (entry) => normalizeHandle(entry) === handle,
+      );
+    }
+    case "group":
+      return user.groups.includes(contest.participants.group);
+  }
 }
 
 /**

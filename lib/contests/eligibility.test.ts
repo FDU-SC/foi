@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ResolvedUser } from "@/lib/accounts/types";
-import { canEnterContest } from "./queries";
+import { canEnterContest } from "./access";
 import { contestConfigSchema, type ContestConfig } from "./types";
 
 function contest(

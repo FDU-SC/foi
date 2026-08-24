@@ -1,7 +1,5 @@
 import { sql } from "drizzle-orm";
 import { accountSnapshot } from "@/lib/accounts/cache";
-import { normalizeHandle } from "@/lib/accounts/types";
-import type { ResolvedUser } from "@/lib/accounts/types";
 import { db } from "@/lib/db";
 import { contests } from "@/lib/db/schema";
 import { groupsFor } from "@/lib/enrollment/registry";
@@ -69,36 +67,10 @@ export interface ResolvedParticipant {
  * rather than issuing a query per contest view. A few seconds of staleness
  * only ever means a just-registered competitor appears on the board one
  * refresh late; nothing here grants access.
- */
-/**
- * Whether this person may enter this contest.
  *
- * `participants` used to decide only who appeared on the board, so any account
- * could attribute submissions to a closed contest and occupy its judges with
- * them — the entries simply never showed up in the standings. Asking the
- * question on the submission path is what makes the field mean what it says.
- *
- * Cheap on purpose: `groups` is already resolved on the user, and a `list` is a
- * handful of handles, so this costs nothing and needs no snapshot.
+ * Whether a given person is *entitled* to enter is not asked here — that is
+ * `canEnterContest` in `./access`, next to the other contest gate.
  */
-export function canEnterContest(
-  contest: ContestConfig,
-  user: Pick<ResolvedUser, "handle" | "groups">,
-): boolean {
-  switch (contest.participants.mode) {
-    case "open":
-      return true;
-    case "list": {
-      const handle = normalizeHandle(user.handle);
-      return contest.participants.handles.some(
-        (entry) => normalizeHandle(entry) === handle,
-      );
-    }
-    case "group":
-      return user.groups.includes(contest.participants.group);
-  }
-}
-
 export async function resolveParticipants(
   contest: ContestConfig,
 ): Promise<ResolvedParticipant[] | null> {

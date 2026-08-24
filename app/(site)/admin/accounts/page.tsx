@@ -3,8 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
-import { accountDirectoryFor } from "@/lib/accounts/access";
 import { resolveFromRow } from "@/lib/accounts/resolve";
+import { adminAccountsFor } from "@/lib/admin/access";
 import { groupName, isPrivileged } from "@/lib/auth/groups";
 import { Field, Input } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
@@ -38,17 +38,18 @@ export default async function AdminAccountsPage({
 }: PageProps<"/admin/accounts">) {
   const viewer = await getViewer();
 
-  // The console shell answers to `admin.access`; the directory inside it
-  // answers to `account.read`, because it is the one page here showing
-  // personal data rather than platform state. Both are checked — a viewer with
-  // neither should not be looking at an empty admin page, and `proxy.ts`
-  // guards the URL prefix, which is not the same thing as guarding the data.
-  if (!viewer.can("admin.access")) notFound();
-
+  // Null when the console itself is closed to them, the same way the other
+  // three pages here learn it. Both capabilities are still asked, just not by
+  // this file: the shell answers to `admin.access` and the directory inside it
+  // to `account.read`, because it is the one page here showing personal data
+  // rather than platform state. `proxy.ts` guards the URL prefix, which is not
+  // the same thing as guarding the data.
   const [directory, params] = await Promise.all([
-    accountDirectoryFor(viewer),
+    adminAccountsFor(viewer),
     searchParams,
   ]);
+  if (!directory) notFound();
+
   const { accounts: rows, credentials, awaitingReset } = directory;
 
   const query = typeof params.q === "string" ? params.q.trim().toLowerCase() : "";

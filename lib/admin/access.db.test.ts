@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { allContests } from "@/lib/contests/registry";
 import { listRules } from "@/lib/enrollment/registry";
 import {
+  adminAccountsFor,
   adminContestsFor,
   adminOverviewFor,
   enrollmentViewFor,
@@ -64,6 +65,41 @@ describeDb("运维台门禁", () => {
 
     it("被封禁的管理员拿到 null，即便 proxy 放他进来了", async () => {
       expect(await adminOverviewFor(suspended)).toBeNull();
+    });
+  });
+
+  describe("adminAccountsFor", () => {
+    it("管理员拿到目录", async () => {
+      const directory = await adminAccountsFor(admin);
+
+      expect(directory).not.toBeNull();
+      expect(directory?.awaitingReset).toBeInstanceOf(Set);
+    });
+
+    it("选手拿到 null，页面据此 404", async () => {
+      expect(await adminAccountsFor(player)).toBeNull();
+    });
+
+    it("被封禁的管理员拿到 null", async () => {
+      expect(await adminAccountsFor(suspended)).toBeNull();
+    });
+
+    /**
+     * The split the wrapper exists to keep: `admin.access` opens the page,
+     * `account.read` fills it. Collapsing the two would either 404 an operator
+     * entitled to the console or hand the addresses to everybody who is.
+     */
+    it("只有 admin.access 时拿到页面，但表是空的", async () => {
+      const consoleOnly: typeof admin = {
+        handle: "adminaccess-setter",
+        groups: [],
+        can: (capability) => capability === "admin.access",
+      };
+
+      const directory = await adminAccountsFor(consoleOnly);
+
+      expect(directory).not.toBeNull();
+      expect(directory?.accounts).toEqual([]);
     });
   });
 

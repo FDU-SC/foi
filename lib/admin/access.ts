@@ -1,5 +1,9 @@
 import type { Viewer } from "@/lib/auth/viewer";
-import { accountsFor } from "@/lib/accounts/access";
+import {
+  accountDirectoryFor,
+  accountsFor,
+  type AccountDirectory,
+} from "@/lib/accounts/access";
 import { normalizeHandle } from "@/lib/accounts/types";
 import { declaredGroupIds } from "@/lib/auth/groups";
 import { allContests } from "@/lib/contests/registry";
@@ -44,6 +48,34 @@ export async function adminOverviewFor(
 ): Promise<AdminOverview | null> {
   if (!viewer.can("admin.access")) return null;
   return loadAdminOverview();
+}
+
+/**
+ * The console's account page, or nothing at all.
+ *
+ * Two capabilities, nested rather than combined, and keeping them apart is the
+ * whole reason this wrapper exists rather than the page calling
+ * `accountDirectoryFor` straight. `admin.access` decides whether there is a
+ * page — null, and it 404s like the other three. `account.read` decides
+ * whether the directory inside it has anybody in it, and that answer stays
+ * `accountDirectoryFor`'s to give: an operator entitled to the console but not
+ * to personal data gets the page with an empty table, which is the same split
+ * `enrollmentViewFor` makes for its hit counts.
+ *
+ * Folding the two into one check would have to pick a side, and both sides are
+ * wrong: gate the addresses on `admin.access` and the one page here that shows
+ * personal data stops answering to the capability that names it; gate the page
+ * on `account.read` and somebody entitled to the console gets a 404.
+ *
+ * The page checked `admin.access` inline before this existed — the last of the
+ * four still doing so, which is exactly the arrangement the note above says
+ * the console lost two pages to.
+ */
+export async function adminAccountsFor(
+  viewer: Viewer,
+): Promise<AccountDirectory | null> {
+  if (!viewer.can("admin.access")) return null;
+  return accountDirectoryFor(viewer);
 }
 
 export interface AdminContestRow {

@@ -1,6 +1,7 @@
 import {
   doublePrecision,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -13,7 +14,8 @@ import type { SubmissionState, Verdict } from "@/lib/judge/types";
  * The database holds three kinds of thing and nothing else:
  *
  *   1. secrets and personal data, which cannot be committed — `accounts`
- *      (the email address), `credentials`, `auth_tokens`
+ *      (the email address), `credentials`, `auth_tokens`,
+ *      `email_verifications`
  *   2. mirrors of the filesystem registries, which exist only so that
  *      submissions can carry foreign keys — `problems`, `contests`
  *   3. things that actually happened — `submissions`, and every row in
@@ -165,6 +167,51 @@ export const authTokens = pgTable(
 );
 
 /**
+ * Proof that whoever is filling in the registration form can read the address
+ * they typed — established before there is an account to attach it to.
+ *
+ * This is why it is not a third `auth_tokens` purpose: that table's `handle`
+ * is NOT NULL and references `accounts`, which presumes the very thing
+ * registration has not done yet. Keyed by the address instead, one row per
+ * mailbox, because one mailbox has at most one signup in flight.
+ *
+ * The code is short enough to be retyped from a phone, which changes what
+ * "store the digest" is worth. Six digits is a space of a million, so the
+ * digest cannot be the lookup key the way a 160-bit token's is — that would be
+ * an invitation to grind it. The row is found by address and the code only
+ * ever compared, `attempts` caps how many times that may fail, and the address
+ * goes into the digest so a code mailed to one mailbox cannot be spent on
+ * another.
+ *
+ * `expiresAt` is one deadline covering two phases: until the code is redeemed
+ * it is the code's, and redemption pushes it out to leave time for the rest of
+ * the form. A row survives redemption because `verifiedAt` is what the
+ * registration itself checks; it is deleted once an account exists.
+ */
+export const emailVerifications = pgTable("email_verifications", {
+  /** Normalised the same way `accounts.email` is, and for the same reason. */
+  email: text("email").primaryKey(),
+
+  /** SHA-256 of `email:code`. See the note above on why it is not a key. */
+  codeHash: text("code_hash").notNull(),
+
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+
+  /** Failed comparisons. Past the cap the row is spent and a new code is the
+   * only way forward — which the resend cooldown paces. */
+  attempts: integer("attempts").notNull().default(0),
+
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+
+  /** When the code went out. The resend cooldown reads this, for the reason
+   * given in `lib/auth/tokens.ts`: the row recording the send is the row
+   * recording when. */
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
  * Mirror of the filesystem registry. `content/problems` remains the source of
  * truth; this table exists so submissions can carry a foreign key and so
  * listings can join without reading the registry.
@@ -253,6 +300,7 @@ export const submissions = pgTable(
 
 export type AccountRow = typeof accounts.$inferSelect;
 export type AuthTokenRow = typeof authTokens.$inferSelect;
+export type EmailVerificationRow = typeof emailVerifications.$inferSelect;
 export type CredentialRow = typeof credentials.$inferSelect;
 export type ProblemRow = typeof problems.$inferSelect;
 export type ContestRow = typeof contests.$inferSelect;

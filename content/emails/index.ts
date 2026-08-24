@@ -1,4 +1,4 @@
-import { actionMail, type MailBody } from "./layout";
+import { actionMail, codeMail, type MailBody } from "./layout";
 
 /**
  * Every message FOI sends, as plain functions.
@@ -11,20 +11,27 @@ import { actionMail, type MailBody } from "./layout";
  */
 export type { MailBody };
 
-export function verifyEmail(input: {
-  displayName: string;
-  url: string;
+/**
+ * Addressed to nobody by name, and that is not an oversight: this goes out
+ * before an account exists, so there is no display name to greet — only an
+ * address somebody has claimed and not yet proved.
+ */
+export function verificationCode(input: {
+  code: string;
   expiresAt: Date;
 }): MailBody {
-  return actionMail({
-    subject: "验证你的 FOI 账号邮箱",
+  return codeMail({
+    subject: "验证你的 FOI 注册邮箱",
     intro: [
-      `${input.displayName}，你好：`,
-      "请点击下面的按钮完成注册。验证之后你就可以登录、提交题目，并按邮箱自动加入对应的比赛名单。",
+      "你好：",
+      "有人正在用这个邮箱注册 FOI 账号。请回到注册页面填入下面的验证码，验证通过后才会创建账号。",
     ],
-    action: { label: "验证邮箱", url: input.url },
+    code: input.code,
     expiresAt: input.expiresAt,
-    footnote: ["如果不是你本人注册，忽略这封邮件即可，账号不会被启用。"],
+    footnote: [
+      "不要把验证码转发给任何人。",
+      "如果不是你本人操作，忽略这封邮件即可，不会有账号被创建。",
+    ],
   });
 }
 

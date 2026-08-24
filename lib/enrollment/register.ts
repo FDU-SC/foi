@@ -5,6 +5,10 @@ import {
 } from "@/lib/accounts/queries";
 import { normalizeEmail, normalizeHandle } from "@/lib/accounts/types";
 import { setPassword } from "@/lib/auth/credentials";
+import {
+  consumeVerifiedEmail,
+  isEmailVerified,
+} from "@/lib/auth/email-verification";
 import { enrollmentPolicy, getGrant } from "./registry";
 
 /**
@@ -14,19 +18,29 @@ import { enrollmentPolicy, getGrant } from "./registry";
  * stated once, in one readable sequence, rather than interleaved with form
  * plumbing — and so the action is left doing only what actions should:
  * validating input, rate limiting, and deciding what to say.
+ *
+ * Owning the address is one of those rules, so it is checked here rather than
+ * in the action. The form does prove the address first, but a form is not a
+ * gate — anything that can post to the action would otherwise be past it.
  */
 export type RegisterRejection =
   | "disabled"
   | "handle-taken"
   | "handle-reserved"
   | "email-domain"
-  | "email-taken";
+  | "email-taken"
+  | "email-unverified";
 
 export type RegisterResult =
   | { ok: true; handle: string; displayName: string; email: string }
   | { ok: false; reason: RegisterRejection };
 
-function domainAllowed(email: string): boolean {
+/**
+ * Exported because the code has to be gated on it too. Mailing a code to an
+ * address that will be turned away at the end is a round trip spent to learn
+ * nothing, and the same rule stated twice would eventually be two rules.
+ */
+export function domainAllowed(email: string): boolean {
   const allowed = enrollmentPolicy.emailDomains;
   if (allowed.length === 0) return true;
 
@@ -74,17 +88,20 @@ export async function register(input: {
   if (!domainAllowed(email)) return { ok: false, reason: "email-domain" };
   if (await findAccountByEmail(email)) return { ok: false, reason: "email-taken" };
 
+  const verified =
+    !enrollmentPolicy.requireEmailVerification || (await isEmailVerified(email));
+  if (!verified) return { ok: false, reason: "email-unverified" };
+
   const account = await createAccount({
     handle,
     displayName: input.displayName,
     email,
     source: "registration",
-    // Verification is what makes the address trustworthy, and the address is
-    // what decides the cohort — so without it the account may not act.
-    status: enrollmentPolicy.requireEmailVerification ? "pending" : "active",
-    emailVerifiedAt: enrollmentPolicy.requireEmailVerification
-      ? null
-      : new Date(),
+    // Active from the first moment, which is the point of proving the address
+    // beforehand: there is no window in which an account exists but may not
+    // act, and so no half-made account to sweep up afterwards.
+    status: "active",
+    emailVerifiedAt: new Date(),
   });
 
   // Lost the race for the handle or the address between the checks above and
@@ -97,5 +114,10 @@ export async function register(input: {
   }
 
   await setPassword(handle, input.password);
+
+  // Spent. `accounts.email_verified_at` carries the fact from here on, and the
+  // proof itself is one more copy of an address with nothing left to do.
+  await consumeVerifiedEmail(email);
+
   return { ok: true, handle, displayName: account.displayName, email };
 }

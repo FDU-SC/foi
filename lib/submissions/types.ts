@@ -8,7 +8,19 @@ export interface SubmissionView {
   problemSlug: string;
   contestSlug: string | null;
   state: SubmissionState;
+
+  /**
+   * The backend's reply, verbatim, for a problem's own components to read
+   * `detail` out of. Generic UI uses the four fields below instead — they are
+   * what the kernel resolved on arrival, and they are defined even for a
+   * backend whose reply says nothing but a status.
+   */
   verdict: Verdict | null;
+  outcome: string | null;
+  score: number | null;
+  maxScore: number | null;
+  accepted: boolean | null;
+
   createdAt: string;
   judgedAt: string | null;
   /**

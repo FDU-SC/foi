@@ -6,9 +6,7 @@ import { requireCapability } from "@/auth";
 import { reinstateAccount, suspendAccount } from "@/lib/accounts/queries";
 import { resolveUser } from "@/lib/accounts/resolve";
 import { capabilitiesOf } from "@/lib/auth/groups";
-import { syncContests } from "@/lib/contests/queries";
 import { sendPasswordReset } from "@/lib/mail/notify";
-import { syncProblems } from "@/lib/problems/sync";
 
 export interface ActionState {
   error?: string;
@@ -20,37 +18,11 @@ export interface ActionState {
 // same way — it just refuses instead of returning false. Server Actions are
 // reachable by POST regardless of what the proxy matched, which is why the
 // route is never trusted here.
-
-/**
- * Pushes both filesystem registries into their mirror tables.
- *
- * Startup does this automatically; the button exists for the case where a
- * registry changed under a running server and the operator would rather not
- * wait for a restart.
- */
-export async function syncRegistriesAction(): Promise<ActionState> {
-  await requireCapability("registry.sync");
-
-  const [problems, contests] = await Promise.all([
-    syncProblems(),
-    syncContests(),
-  ]);
-
-  revalidatePath("/admin");
-  revalidatePath("/problems");
-  revalidatePath("/contests");
-  return {
-    message: `已同步 ${problems.synced} 道题目、${contests.synced} 场比赛`,
-  };
-}
-
-/** Same as above, shaped for `useActionState`. */
-export async function syncRegistriesFormAction(
-  _prev: ActionState,
-  _formData: FormData,
-): Promise<ActionState> {
-  return syncRegistriesAction();
-}
+//
+// There used to be a third action here, pushing the filesystem registries into
+// their mirror tables by hand. It went when the startup sync did: mirror rows
+// are written on the submission path now, at the moment a foreign key first
+// needs one, so there is nothing left for an operator to trigger.
 
 const issueSchema = z.object({
   handle: z.string().min(1, "请选择用户"),
@@ -66,10 +38,11 @@ const issueSchema = z.object({
  * the administrator triggers the mail and the secret goes straight to the
  * address the account already proved it controls.
  *
- * An account with no usable address — the bootstrap administrator, or someone
- * whose mailbox has stopped working — is out of scope on purpose. That case
- * belongs to `scripts/set-password.cjs`, which needs shell access on the
- * server: the right bar for the one path that bypasses email entirely.
+ * An account with no usable address is out of scope on purpose. Every account
+ * created since has one, so what is left here is a mailbox that has stopped
+ * working — and that case belongs to `scripts/set-password.cjs`, which needs
+ * shell access on the server: the right bar for the one path that bypasses
+ * email entirely.
  */
 export async function resendPasswordResetAction(
   _prev: ActionState,
@@ -176,7 +149,7 @@ export async function suspendAccountAction(
   if (capabilitiesOf(target.groups).size > 0) {
     return {
       error:
-        "这个账号属于带权限的用户组，不能在这里封禁。收回权限请改 content/enrollment/ 的 grants，那样改动会留在 git 历史里。",
+        "这个账号属于带权限的用户组，不能在这里封禁。收回权限请改 content/enrollment/ 里点名它的那条规则，那样改动会留在 git 历史里。",
     };
   }
 

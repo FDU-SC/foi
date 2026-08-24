@@ -33,17 +33,17 @@ export function actionFor(
   viewer: Viewer,
   now = new Date(),
 ): ResolvedAction | undefined {
-  // Their own view, then `gate.visible` on top of it — the pair the submission
-  // path uses, refusing the same two groups of people for the same two
-  // reasons. The first stops somebody acting on a problem that is not theirs
-  // to see; the second stops a holder of `problem.viewAll` acting on one that
-  // has not opened, because proofreading a round should no more start its
-  // containers than it should queue work on its judges.
+  // Their own view, then `open` on top of it — the same pair the submission
+  // path uses, refusing the same three groups for the same three reasons. Not
+  // theirs to see; theirs to see but not yet started, which is why a holder of
+  // `problem.viewAll` proofreading a round may not start its containers any
+  // more than they may queue work on its judges; or retired, where the
+  // statement stays readable but nothing new goes to the backend.
   //
   // Not `AS_PLAYER`: a problem given to 校队 has no audience under a viewer
   // with no groups, so the very members it was written for would be refused.
   const open = problemFor(slug, viewer, now);
-  if (!open?.gate.visible) return undefined;
+  if (!open?.open) return undefined;
 
   // Undeclared is indistinguishable from absent, and that is also what stops
   // this being a general proxy: without the whitelist the path segment would

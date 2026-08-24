@@ -20,6 +20,11 @@ export default defineConfig({
   resolve: { tsconfigPaths: true },
   test: {
     environment: "node",
+    // Only the database. A test that needs more of a deployment's environment
+    // stubs it itself, next to the assertions that depend on it — see
+    // `lib/submissions/callback.db.test.ts`. Putting those here would hand 26
+    // files a configuration one of them wanted, and would put something shaped
+    // like a signing key in a checked-in config file.
     env: { DATABASE_URL: process.env.DATABASE_URL ?? "" },
     projects: [
       {

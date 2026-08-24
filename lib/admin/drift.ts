@@ -3,7 +3,7 @@ import { listAccounts } from "@/lib/accounts/queries";
 import { allContests } from "@/lib/contests/registry";
 import { db } from "@/lib/db";
 import { contests, problems, submissions } from "@/lib/db/schema";
-import { groupsFor, listGrants } from "@/lib/enrollment/registry";
+import { enumeratedHandles, groupsFor } from "@/lib/enrollment/registry";
 import { orphanedBackends } from "@/lib/backend/access";
 import { allProblems } from "@/lib/problems/registry";
 
@@ -38,6 +38,15 @@ export interface AdminOverview {
   submissionCount: number;
   /** Distinct handles that have ever submitted. */
   activeHandles: number;
+  /**
+   * Problems and contests that have ever been submitted to.
+   *
+   * Not "how much of the registry is mirrored" — nothing pushes the registry
+   * into these tables any more. A row appears when a submission first
+   * references it, so the count is a floor on how much of the repository has
+   * seen use, and the difference from `problemCount` is problems nobody has
+   * tried yet.
+   */
   mirroredProblems: number;
   mirroredContests: number;
   findings: DriftFinding[];
@@ -51,7 +60,7 @@ export interface AdminOverview {
 export async function loadAdminOverview(): Promise<AdminOverview> {
   const registryProblems = allProblems();
   const registryContests = allContests();
-  const grants = listGrants();
+  const named = enumeratedHandles();
 
   const [accountRows, problemRows, contestRows, submissionStats] =
     await Promise.all([
@@ -67,8 +76,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     ]);
 
   const accountHandles = new Set(accountRows.map((row) => row.handle));
-  const mirroredProblemSlugs = new Set(problemRows.map((row) => row.slug));
-  const mirroredContestSlugs = new Set(contestRows.map((row) => row.slug));
 
   const findings: DriftFinding[] = [];
 
@@ -90,41 +97,27 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     });
   }
 
-  // A grant is a privilege waiting for somebody to claim it. Before they
+  // A rule naming a handle is a membership waiting for somebody to claim it,
+  // and it is also the only shape that can carry privilege. Before they
   // register there is nobody to give it to, which is normal for a day and a
-  // typo if it lasts.
-  const unclaimedGrants = grants
-    .filter((grant) => !accountHandles.has(grant.handle))
-    .map((grant) => grant.handle);
+  // typo if it lasts — the bootstrap administrator is created by
+  // `scripts/create-account.cjs` and named here afterwards, so this is where a
+  // mistyped handle shows up in between.
+  const unclaimed = named.filter((handle) => !accountHandles.has(handle));
 
-  if (unclaimedGrants.length > 0) {
+  if (unclaimed.length > 0) {
     findings.push({
       severity: "info",
-      title: "有授权尚未对应到账号",
+      title: "有规则点名的用户名还没有账号",
       detail:
-        "这些 handle 在 content/enrollment/ 中被授权，但还没有人注册使用。确认拼写无误，或等本人完成注册。",
-      items: unclaimedGrants,
+        "这些用户名在 content/enrollment/ 的规则里被点名，但还没有人注册使用。它们已被注册流程预留，确认拼写无误，或等本人完成注册。",
+      items: unclaimed,
     });
   }
 
-  const unmirroredProblems = registryProblems
-    .filter((problem) => !mirroredProblemSlugs.has(problem.slug))
-    .map((problem) => problem.slug);
-  const unmirroredContests = registryContests
-    .filter((contest) => !mirroredContestSlugs.has(contest.slug))
-    .map((contest) => contest.slug);
-
-  if (unmirroredProblems.length > 0 || unmirroredContests.length > 0) {
-    findings.push({
-      severity: "info",
-      title: "注册表尚未同步到镜像表",
-      detail: "点击上方「立即同步」，或重启服务。",
-      items: [...unmirroredProblems, ...unmirroredContests],
-    });
-  }
-
-  // Sync never deletes, so a mirror row with no registry entry means the
-  // definition was removed from the repository while its submissions remain.
+  // Mirror rows are written when a submission first references a problem or a
+  // contest, so a row with no registry entry means the definition was removed
+  // from the repository while its submissions remain.
   const registryProblemSlugs = new Set(registryProblems.map((p) => p.slug));
   const registryContestSlugs = new Set(registryContests.map((c) => c.slug));
 
@@ -153,10 +146,10 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
 
   if (orphanMirrors.length > 0) {
     findings.push({
-      severity: "warn",
-      title: "镜像表中有已从仓库删除的条目",
+      severity: "info",
+      title: "有已从仓库删除、但仍被历史提交引用的条目",
       detail:
-        "同步不会删除镜像行，以免历史提交失去归属。确认无需保留后再手动清理。",
+        "这些行是历史提交的归属锚点，外键为 RESTRICT，删不掉也不该删——没有它们，那些提交就不知道自己属于哪道题。属正常状态。",
       items: orphanMirrors,
     });
   }

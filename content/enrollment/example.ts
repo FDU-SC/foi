@@ -2,7 +2,6 @@ import type { GroupInput } from "@/lib/auth/groups";
 import type {
   EnrollmentPolicyInput,
   EnrollmentRuleInput,
-  GrantInput,
 } from "@/lib/enrollment/types";
 
 /**
@@ -32,7 +31,7 @@ export const policy: EnrollmentPolicyInput = {
   requireEmailVerification: true,
 
   // Names that would be confusing or outright impersonating on a standings
-  // page. Handles already granted below are reserved automatically.
+  // page. Handles named by a rule below are reserved automatically.
   reservedHandles: ["root", "system", "admin", "foi", "judge", "support"],
 
   registrationsPerIpPerHour: 10,
@@ -42,9 +41,9 @@ export const policy: EnrollmentPolicyInput = {
  * What each group may do.
  *
  * This is the file half of "哪个组能干什么". A group listed here with
- * capabilities can do those things; a group that appears only in a rule or a
- * grant below is an ordinary cohort and can do nothing — which is what makes
- * adding one free.
+ * capabilities can do those things; a group that appears only in a rule below
+ * is an ordinary cohort and can do nothing — which is what makes adding one
+ * free.
  *
  * The capability names come from `lib/auth/policy.ts`. That list is the
  * kernel's, because the code reads those identifiers; which groups exist and
@@ -64,25 +63,36 @@ export const groups: GroupInput[] = [
       "account.read",
       "credential.manage",
       "account.moderate",
-      "registry.sync",
     ],
   },
 ];
 
 /**
- * Which groups an address puts somebody in.
+ * Which groups somebody ends up in.
  *
- * Every matching rule contributes, so one person can be in an intake year and
- * a programme at once. Membership is recomputed on every read: edit a rule
- * here, deploy, and everyone it covers is re-sorted on their next request
- * without a migration or a backfill.
+ * Every matching rule contributes, so one person can be in an intake year, a
+ * programme and the setters' group at once. Membership is recomputed on every
+ * read: edit a rule here, deploy, and everyone it covers is re-sorted on their
+ * next request without a migration or a backfill.
  *
  * Contests select their entrants by group, which is the whole point — a cohort
  * is described once here rather than pasted into every contest file.
  *
- * A rule may not name a group declared with capabilities above; the registry
- * refuses to load one that does. A regex is the wrong instrument for handing
- * out privilege — get a digit wrong and a whole intake becomes administrators.
+ * A rule comes in one of two shapes, and the shape decides what it may confer:
+ *
+ *   email:   a pattern over the address. Covers a whole intake with one line,
+ *            and confers no capabilities at all — the set of addresses a regex
+ *            matches is infinite, so nothing can be reserved against it, and
+ *            getting a digit wrong would turn a whole year group into
+ *            administrators.
+ *
+ *   handles: a finite list of usernames. May confer capabilities, because a
+ *            finite list *can* be reserved: registration refuses every handle
+ *            named here, so a rule matching means the person is the one the
+ *            repository meant rather than whoever registered the name first.
+ *
+ * The registry refuses to load an `email` rule that names a group carrying
+ * capabilities, and drops any such group a computed rule produces at runtime.
  */
 export const rules: EnrollmentRuleInput[] = [
   {
@@ -91,29 +101,20 @@ export const rules: EnrollmentRuleInput[] = [
     // 位数一定要跟真实学号对齐——少数一位，这条规则在 code review 里看着完全
     // 正常，在生产里一个人也匹配不上。`/admin/enrollment` 的「命中账号」列就
     // 是为了让这种错误在开赛前暴露出来。
-    match: /^(\d{2})30\d{7}@example\.test$/i,
+    email: /^(\d{2})30\d{7}@example\.test$/i,
     groups: (m) => [`20${m[1]}级`, "本科生"],
   },
   {
     label: "示例：演示账号",
-    match: /@example\.test$/i,
+    email: /@example\.test$/i,
     groups: ["demo"],
   },
-];
-
-/**
- * Who is in which group, by name.
- *
- * The only way into a privileged group. Naming the person is the point — it is
- * what makes the change reviewable, and what leaves the reason in the git
- * history. Ordinary cohorts can be granted here too, for the person a rule
- * does not happen to cover.
- *
- * `admin` here is the bootstrap administrator. Entries with a `displayName`
- * are materialised as accounts at startup — this one has no email and gets its
- * password from `scripts/set-password.cjs`, because the very first deploy has
- * nobody who could send a reset through the UI.
- */
-export const grants: GrantInput[] = [
-  { handle: "admin", displayName: "管理员", groups: ["管理员"] },
+  {
+    // 生产部署把这里换成真人的用户名。第一个管理员先用
+    // `scripts/create-account.cjs` 建号，再把他的 handle 写进来重新部署——
+    // 名字写在这里是重点，它让这次提权在 diff 里可读，理由留在 git 历史里。
+    label: "管理员",
+    handles: ["admin"],
+    groups: ["管理员"],
+  },
 ];

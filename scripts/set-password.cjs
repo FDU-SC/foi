@@ -3,10 +3,10 @@
  * Manages the one thing that cannot live in the repository: a password.
  *
  * People get accounts by registering, and recover them over email. What is
- * left for this script is the case where neither is possible — the bootstrap
- * administrator on a fresh deploy, who is declared in the repository and has
- * no address to mail. It therefore refuses to invent an account: the handle
- * must already have one.
+ * left for this script is the case where neither is possible — an address that
+ * has stopped working, a reset mail that never arrives. It refuses to invent
+ * an account: creating one is `scripts/create-account.cjs`, and keeping the
+ * two apart means neither has to explain which half it is doing.
  *
  * Runs inside the app container, which already has the database URL and the
  * same argon2 implementation the login path uses:
@@ -23,10 +23,9 @@
  *   # which are kept deliberately: the foreign key is ON DELETE RESTRICT)
  *   docker compose exec -T app node scripts/set-password.cjs --revoke alice
  *
- * This is also the recovery path when nobody can reach /admin — for instance
- * the very first deploy, before any administrator has a password. It is the
- * only way in that does not involve email, which is why it requires a shell on
- * the server: anyone who can run this could already read the database.
+ * This is also the recovery path when nobody can reach /admin. It is the only
+ * way in that does not involve email, which is why it requires a shell on the
+ * server: anyone who can run this could already read the database.
  */
 
 const crypto = require("node:crypto");
@@ -41,7 +40,7 @@ const USAGE = `用法:
   node scripts/set-password.cjs <handle>          设置或重置密码
   node scripts/set-password.cjs --revoke <handle> 清除凭据
 
-本脚本不创建账号：账号由注册产生，引导管理员由 content/enrollment/ 声明并在启动时建行。
+本脚本不创建账号：账号由注册产生，第一个管理员用 scripts/create-account.cjs 建。
 需要让本人自己设密码时，在 /admin/accounts 点「发送重置邮件」，链接直达其邮箱。`;
 
 function readStdin() {
@@ -84,10 +83,9 @@ function parseArgs(argv) {
 }
 
 /**
- * Credentials hang off an account now, so there has to be one. The bootstrap
- * administrator gets theirs from the grant sync at startup, which is why the
- * remedy is a deploy rather than a flag on this script: an account nobody
- * declared and nobody registered should not spring into being from a shell.
+ * Credentials hang off an account, so there has to be one. Creating it is a
+ * different job with different arguments — a display name, an address — and
+ * belongs to `create-account.cjs`.
  */
 async function requireAccount(client, handle) {
   const { rows } = await client.query(
@@ -97,7 +95,7 @@ async function requireAccount(client, handle) {
   if (rows.length === 0) {
     console.error(`没有名为 ${handle} 的账号。`);
     console.error(
-      "账号由注册产生。若要开通引导管理员，先在 content/enrollment/ 的 grants 中声明该 handle（带 displayName），重新部署后启动同步会建行。",
+      "账号由注册产生。开局的第一个管理员用 scripts/create-account.cjs 创建。",
     );
     process.exit(1);
   }

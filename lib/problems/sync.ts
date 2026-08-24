@@ -1,61 +1,30 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { problems } from "@/lib/db/schema";
-import { allProblems } from "./registry";
 import type { ProblemConfig } from "./types";
 
 /**
- * Upserts a single problem before it is referenced by a submission.
+ * Upserts a problem's mirror row, called just before a submission references
+ * it.
  *
- * The startup sync only sees problems that existed when the server booted, so
- * without this a problem added during `next dev` would fail the submissions
- * foreign key until the next restart.
+ * This is the only thing that writes to `problems`. Startup used to push the
+ * whole registry in, which made the table look like a mirror of
+ * `content/problems`; it is not, and never needed to be. The foreign key wants
+ * a row at exactly one moment — the insert below it in
+ * `app/api/submissions/route.ts` — and what the table ends up holding is the
+ * problems somebody has actually submitted to, including ones since deleted
+ * from the repository. That is what keeps their submissions attributable.
+ *
+ * The title tracks the registry rather than freezing at first submission: a
+ * slug is the identity and a title is a display name, so a renamed problem
+ * should read the same everywhere it appears.
  */
 export async function ensureProblem(config: ProblemConfig): Promise<void> {
   await db
     .insert(problems)
-    .values({
-      slug: config.slug,
-      title: config.title,
-      maxScore: config.maxScore,
-    })
+    .values({ slug: config.slug, title: config.title })
     .onConflictDoUpdate({
       target: problems.slug,
-      set: {
-        title: sql`excluded.title`,
-        maxScore: sql`excluded.max_score`,
-        syncedAt: new Date(),
-      },
+      set: { title: sql`excluded.title`, syncedAt: new Date() },
     });
-}
-
-/**
- * Pushes the filesystem registry into the mirror table.
- *
- * Has to run inside the Next.js runtime because the registry is built by
- * Turbopack's `import.meta.glob`, which a standalone script cannot evaluate.
- */
-export async function syncProblems(): Promise<{ synced: number }> {
-  const all = allProblems();
-  if (all.length === 0) return { synced: 0 };
-
-  await db
-    .insert(problems)
-    .values(
-      all.map((problem) => ({
-        slug: problem.slug,
-        title: problem.title,
-        maxScore: problem.maxScore,
-      })),
-    )
-    .onConflictDoUpdate({
-      target: problems.slug,
-      set: {
-        title: sql`excluded.title`,
-        maxScore: sql`excluded.max_score`,
-        syncedAt: new Date(),
-      },
-    });
-
-  return { synced: all.length };
 }

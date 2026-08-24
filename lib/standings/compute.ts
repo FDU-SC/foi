@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 import { accounts, submissions } from "@/lib/db/schema";
 import type { Viewer } from "@/lib/auth/viewer";
 import { cachedStandings, standingsKey } from "./cache";
-import { getRuleset } from "./registry";
+import { rulesetFor } from "./registry";
 import type {
   AnyRuleset,
   ContestProblem,
@@ -45,9 +45,11 @@ async function loadAndCompute(
   const contest = contestBySlug(slug);
   if (!contest) return null;
 
-  const ruleset = getRuleset(contest.ruleset.id);
+  // The registry refused to load a contest without a resolvable format, so
+  // this only fires if the two disagree.
+  const ruleset = rulesetFor(contest.slug, contest.ruleset.id);
   if (!ruleset) {
-    throw new Error(`未知的赛制 "${contest.ruleset.id}"`);
+    throw new Error(`比赛 "${contest.slug}" 没有可用的赛制`);
   }
 
   const problemRows = resolveContestProblems(contest);
@@ -60,6 +62,8 @@ async function loadAndCompute(
       state: submissions.state,
       verdict: submissions.verdict,
       score: submissions.score,
+      maxScore: submissions.maxScore,
+      accepted: submissions.accepted,
       createdAt: submissions.createdAt,
       displayName: accounts.displayName,
     })

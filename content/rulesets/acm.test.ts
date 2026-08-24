@@ -8,9 +8,9 @@ import {
   problem,
   solve,
   START,
-} from "../test-support";
+} from "@/lib/standings/test-support";
 import type { AcmCell } from "./acm";
-import { acmRuleset } from "./acm";
+import { ruleset as acmRuleset } from "./acm";
 
 /**
  * `computeStandings` reads `Date.now()` to decide whether the board is frozen,
@@ -226,6 +226,8 @@ describe("acm 解题时刻", () => {
           state: "completed" as const,
           verdict: { status: "accepted", score: 100, maxScore: 100 },
           score: 100,
+          maxScore: 100,
+          accepted: null,
           createdAt: new Date(START.getTime() + 90_500),
         },
       ],

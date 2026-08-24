@@ -5,7 +5,7 @@ import {
   type Ruleset,
   type StandingsInput,
   type StandingsRow,
-} from "../types";
+} from "@/lib/standings/types";
 
 const configSchema = z.object({
   /** "best" scores the highest submission, "last" scores the final one. */
@@ -40,7 +40,7 @@ function OiCellView({ cell }: { cell: OiCell | undefined }) {
  * OI scoring: sum per-problem scores, taking each problem's best (or last)
  * submission. Ties break on how early the deciding submissions came in.
  */
-export const oiRuleset: Ruleset<OiCell> = {
+export const ruleset: Ruleset<OiCell> = {
   id: "oi",
   name: "OI",
   description: "每题取最高分（或最后一次提交），按总分排名。",
@@ -52,7 +52,13 @@ export const oiRuleset: Ruleset<OiCell> = {
   computeStandings(input: StandingsInput) {
     const { take } = configSchema.parse(input.config ?? {});
     const start = input.contest.startsAt.getTime();
-    const maxScoreOf = new Map(
+
+    // What a problem is worth on *this* board, which is not what the backend
+    // scored it out of. A contest may reweight a problem with `points`, and
+    // the backend knows nothing about that — so the raw score is rescaled
+    // below rather than dropped into a column with a different denominator.
+    // Getting this wrong showed up as full marks reading "100/200".
+    const worth = new Map(
       input.problems.map((problem) => [
         problem.slug,
         problem.points ?? problem.maxScore,
@@ -68,7 +74,7 @@ export const oiRuleset: Ruleset<OiCell> = {
       const cells = byUser.get(submission.handle);
       if (!cells) continue;
 
-      const maxScore = maxScoreOf.get(submission.problemSlug) ?? 0;
+      const maxScore = worth.get(submission.problemSlug) ?? 0;
       const cell = cells.get(submission.problemSlug) ?? {
         score: 0,
         maxScore,
@@ -78,7 +84,16 @@ export const oiRuleset: Ruleset<OiCell> = {
       cells.set(submission.problemSlug, cell);
       cell.attempts += 1;
 
-      const score = submission.score ?? 0;
+      // A backend that reported no score at all counts as zero rather than as
+      // no attempt: the person did submit, and a scored format has nothing
+      // else to say about a submission it cannot score.
+      const raw = submission.score ?? 0;
+      const outOf = submission.maxScore;
+      const score =
+        outOf && outOf > 0 && outOf !== maxScore
+          ? (raw / outOf) * maxScore
+          : raw;
+
       // Submissions arrive oldest first, so "last" simply overwrites and
       // "best" keeps the first submission that reached the highest score.
       if (take === "last" || score > cell.score) {

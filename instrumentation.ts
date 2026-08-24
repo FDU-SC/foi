@@ -27,22 +27,19 @@ export async function register() {
     console.log("[foi] 数据库迁移已应用");
   }
 
-  // Registries are the source of truth; the mirror tables exist only so
-  // submissions can carry foreign keys. Pushing them here means a deploy is
-  // consistent before it serves a single request. Grants come along for the
-  // same reason: the bootstrap administrator needs a row before anything can
-  // reference it, and nobody can create one through the UI.
-  const { syncProblems } = await import("@/lib/problems/sync");
-  const { syncContests } = await import("@/lib/contests/queries");
-  const { syncGrants } = await import("@/lib/accounts/sync");
-  const [problems, contests, grants] = await Promise.all([
-    syncProblems(),
-    syncContests(),
-    syncGrants(),
-  ]);
-  console.log(
-    `[foi] 已同步 ${problems.synced} 道题目、${contests.synced} 场比赛、${grants.synced} 个声明账号`,
-  );
+  // Nothing else writes to the database here, and that is deliberate.
+  //
+  // Startup used to push the whole problem and contest registry into their
+  // mirror tables and materialise the declared accounts. None of it was
+  // needed: `ensureProblem` and `ensureContest` upsert on the submission path,
+  // which is the moment the foreign key actually requires a row, and accounts
+  // now come from registration or from `scripts/create-account.cjs`. What the
+  // sync bought was a mirror row for problems nobody had submitted to, whose
+  // only consumer was a drift finding reporting that the sync had not run yet.
+  //
+  // A deploy therefore changes the schema and nothing else. That is worth
+  // having on its own: rolling back to an older image no longer rewrites the
+  // mirror tables with older titles on the way down.
 
   // Enrollment misconfigurations — nobody able to administer, no cohort rules,
   // a contest whose tag nothing produces — are said loudly rather than

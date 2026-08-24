@@ -44,6 +44,10 @@ let counter = 0;
 /**
  * One submission. `score` is against `maxScore`, so `solve()` and `fail()`
  * below cover the two cases every ruleset keys off.
+ *
+ * `accepted` is left unset unless a case asks for it, which is what an
+ * ordinary backend produces: the derivation in `isAccepted` is the path almost
+ * every submission takes, so it is the one the fixtures should exercise.
  */
 export function submission(options: {
   handle: string;
@@ -51,10 +55,12 @@ export function submission(options: {
   minutes: number;
   score: number;
   maxScore?: number;
+  accepted?: boolean;
   state?: SubmissionRecord["state"];
 }): SubmissionRecord {
   const maxScore = options.maxScore ?? 100;
   const state = options.state ?? "completed";
+  const outcome = options.score >= maxScore ? "accepted" : "wrong_answer";
   return {
     id: `sub_${(counter += 1)}`,
     handle: options.handle,
@@ -62,13 +68,11 @@ export function submission(options: {
     state,
     verdict:
       state === "completed"
-        ? {
-            status: options.score >= maxScore ? "accepted" : "wrong_answer",
-            score: options.score,
-            maxScore,
-          }
+        ? { status: outcome, score: options.score, maxScore }
         : null,
-    score: options.score,
+    score: state === "completed" ? options.score : null,
+    maxScore: state === "completed" ? maxScore : null,
+    accepted: options.accepted ?? null,
     createdAt: at(options.minutes),
   };
 }

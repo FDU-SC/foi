@@ -1,5 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
-import { getGrant, groupsFor } from "@/lib/enrollment/registry";
+import { groupsFor } from "@/lib/enrollment/registry";
 
 /**
  * Claims FOI stores on the JWT.
@@ -62,16 +62,23 @@ export const authConfig = {
         return session;
       }
 
-      // Almost nobody has an entry here: people sign themselves up, and an
-      // ordinary competitor needs no grant. Revoking a role is a commit and
-      // lands on the next request; suspending an account is a database write
-      // and is caught one layer in, by `getResolvedUser()`.
-      const grant = getGrant(handle);
-
       session.user.handle = handle;
       // A placeholder until `getResolvedUser()` reads the real one. Nothing
       // renders this: pages take their display name from the resolved user.
-      session.user.displayName = grant?.displayName ?? handle;
+      session.user.displayName = handle;
+
+      // The address is deliberately not looked up: that would need the
+      // database, and this config exists to be usable without one. What comes
+      // back is therefore only what the handle-keyed rules confer — which is
+      // exactly the set that can carry capabilities, and is why `proxy.ts` can
+      // ask `can("admin.access")` here at all.
+      //
+      // That makes it load-bearing rather than incidental. Were an `email`
+      // rule ever allowed to confer a capability, this call would silently
+      // stop seeing it and the proxy would turn administrators away from
+      // /admin with nothing in any log to say why. Ordinary cohorts are
+      // missing here for the same reason, which is fine: nothing the proxy
+      // decides depends on them.
       session.user.groups = groupsFor(handle, null);
       return session;
     },

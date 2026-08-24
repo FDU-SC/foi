@@ -110,12 +110,27 @@ export default async function ProblemPage({
       value={{
         config: toPublicConfig(config),
         contestSlug: contest?.slug ?? null,
-        // A preview holder reads the statement but still cannot submit; the
-        // problem is not open, and who is looking does not change that.
-        canAct: Boolean(user) && gate.visible,
+        // A preview holder reads the statement but still cannot submit, and
+        // neither can anybody on a retired problem. Who is looking does not
+        // change either answer, which is why both live in `open`.
+        canAct: Boolean(user) && view.open,
       }}
     >
       <article className="mx-auto max-w-3xl">
+        {config.retired ? (
+          <div className="border-border bg-surface-2 mb-4 rounded-lg border px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge>已下架</Badge>
+              <span className="text-fg text-sm font-medium">
+                这道题目不再接受提交
+              </span>
+            </div>
+            <p className="text-fg-muted mt-1.5 text-xs leading-5">
+              题面与历史提交都还在，做过它的人可以照常回看；它只是从题库里退了出去。
+            </p>
+          </div>
+        ) : null}
+
         {!gate.visible ? (
           <div className="border-warn/40 bg-warn/10 mb-4 rounded-lg border px-4 py-3">
             <div className="flex flex-wrap items-center gap-2">

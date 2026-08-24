@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
+import { ProblemRef } from "@/components/problem/problem-ref";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { locateInQueues } from "@/lib/backend/queue-lookup";
@@ -63,16 +64,15 @@ export default async function SubmissionsPage() {
                     {formatter.format(new Date(row.createdAt))}
                   </td>
                   <td className="px-4 py-2.5">
-                    <Link
-                      href={`/problems/${row.problemSlug}`}
-                      className="text-fg hover:text-primary font-medium transition-colors"
-                    >
-                      {row.problemTitle}
-                    </Link>
+                    <ProblemRef
+                      slug={row.problemSlug}
+                      fallbackTitle={row.problemTitle}
+                      className="text-fg font-medium"
+                    />
                   </td>
                   <td className="px-4 py-2.5">
                     <span className="flex flex-wrap items-center gap-2">
-                      <VerdictBadge state={row.state} verdict={row.verdict} />
+                      <VerdictBadge submission={row} />
                       <QueueBadge queue={positions.get(row.id)} showJudge />
                     </span>
                   </td>

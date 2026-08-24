@@ -9,7 +9,7 @@ import {
   type BackendActionRequest,
   type JudgeQueue,
   type JudgeRequest,
-  type Verdict,
+  type JudgeStatus,
 } from "./types";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -47,6 +47,19 @@ export function resolveBackend(id: string): ResolvedBackend {
     timeoutMs: entry.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     actionTimeoutMs: entry.actionTimeoutMs ?? DEFAULT_ACTION_TIMEOUT_MS,
   };
+}
+
+/**
+ * The commit this process was built from, recorded on every submission.
+ *
+ * Baked in by the Dockerfile from a build arg the CI supplies. Null outside
+ * that path — a local `next dev` or a hand-built image did not come from a
+ * commit, and saying so is better than inventing a value. Deliberately absent
+ * from `assertEnv`: a deployment without it works fine, it just cannot answer
+ * "which code judged this" later.
+ */
+export function releaseSha(): string | null {
+  return process.env.FOI_RELEASE_SHA || null;
 }
 
 export function callbackUrl(): string {
@@ -448,7 +461,7 @@ export function fetchAllJudgeQueues(): Promise<JudgeQueueStatus[]> {
 export async function pollJudge(
   backend: ResolvedBackend,
   judgeRef: string,
-): Promise<{ done: boolean; verdict?: Verdict } | null> {
+): Promise<JudgeStatus | null> {
   const { url, headers } = signedRequest(
     backend,
     "GET",

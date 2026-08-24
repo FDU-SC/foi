@@ -13,6 +13,7 @@ import {
   createCallbackToken,
   dispatchToJudge,
   DispatchError,
+  releaseSha,
   resolveBackend,
 } from "@/lib/backend/client";
 import { NON_TERMINAL_STATES } from "@/lib/backend/types";
@@ -53,18 +54,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "请求参数不合法" }, { status: 400 });
   }
 
-  // This person's own view, then `gate.visible` on top of it. Two conditions,
-  // because they rule out different people: the first stops somebody
-  // submitting to a problem that is not theirs to see, the second stops a
-  // holder of `problem.viewAll` submitting to one that is not open yet —
-  // proofreading a round should not put work on its judges.
+  // This person's own view, then `open` on top of it. Three conditions folded
+  // into one field, because they rule out different people: not theirs to see;
+  // theirs to see but not started, which is why a holder of `problem.viewAll`
+  // proofreading a round does not get to put work on its judges; or retired,
+  // where the statement stays readable and nothing new is accepted.
   //
-  // Asking `AS_PLAYER` instead, as this once did, collapses the two and gets
-  // the first one wrong: a problem given to 校队 has no audience under a viewer
-  // with no groups, so the members it was written for could read it and not
-  // submit to it.
+  // Asking `AS_PLAYER` instead, as this once did, collapses the first two and
+  // gets the first one wrong: a problem given to 校队 has no audience under a
+  // viewer with no groups, so the members it was written for could read it and
+  // not submit to it.
   const open = problemFor(parsed.data.problemSlug, viewer);
-  if (!open?.gate.visible) {
+  if (!open?.open) {
     return NextResponse.json({ error: "题目不存在" }, { status: 404 });
   }
   const problem = open.config;
@@ -133,6 +134,11 @@ export async function POST(request: Request) {
       backendId: backend.id,
       callbackTokenHash: hash,
       maxScore: problem.maxScore,
+      // Recorded at creation rather than at judging: this is the code that
+      // decided which backend to dispatch to and what config to hand it, and
+      // that decision is made here. The backend's own version arrives later,
+      // with the verdict.
+      releaseSha: releaseSha(),
       state: "pending",
     })
     .returning();

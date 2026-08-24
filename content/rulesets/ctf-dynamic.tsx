@@ -6,7 +6,7 @@ import {
   type Ruleset,
   type StandingsInput,
   type StandingsRow,
-} from "../types";
+} from "@/lib/standings/types";
 
 const configSchema = z.object({
   initial: z.number().positive().default(500),
@@ -67,7 +67,7 @@ function CtfCellView({ cell }: { cell: CtfCell | undefined }) {
  * The decay curve matches CTFd's, so values are comparable with what players
  * are used to.
  */
-export const ctfDynamicRuleset: Ruleset<CtfCell> = {
+export const ruleset: Ruleset<CtfCell> = {
   id: "ctf-dynamic",
   name: "CTF 动态分值",
   description: "题目分值随解出人数衰减，前三名解出者获得一/二/三血加成。",

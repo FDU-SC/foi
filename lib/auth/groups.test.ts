@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  listGrants,
+  groupsFor,
   listRules,
   looseGroupWarnings,
+  rulesForHandle,
 } from "@/lib/enrollment/registry";
+import { isHandlesRule } from "@/lib/enrollment/types";
 import {
   capabilitiesOf,
   declaredGroupIds,
@@ -113,60 +115,101 @@ describe("能力蕴含", () => {
   });
 });
 
-describe("规则不得授予带权限的用户组", () => {
-  it("仓库里的静态规则都没有命中带权限的组", () => {
+describe("只有列出 handles 的规则能授予带权限的用户组", () => {
+  it("仓库里按邮箱匹配的规则都没有命中带权限的组", () => {
     // The load-time check would already have thrown; this states the property
     // so that a future rule change fails here with an explanation rather than
     // at import time with a stack trace.
     for (const rule of listRules()) {
-      if (typeof rule.groups === "function") continue;
+      if (isHandlesRule(rule) || typeof rule.groups === "function") continue;
       for (const id of rule.groups) {
         expect(isPrivileged(id)).toBe(false);
       }
     }
   });
 
-  it("带权限的组至少有一个人被指名授予，否则没人能进 /admin", () => {
+  it("带权限的组至少有一个人被点名，否则没人能进 /admin", () => {
     const privileged = new Set(privilegedGroupIds());
     if (privileged.size === 0) return;
 
-    const grantedSomewhere = listGrants().some((grant) =>
-      grant.groups.some((id) => privileged.has(id)),
+    const grantedSomewhere = listRules().some(
+      (rule) =>
+        isHandlesRule(rule) && rule.groups.some((id) => privileged.has(id)),
     );
     expect(grantedSomewhere).toBe(true);
   });
 
-  it("授权可以给出带权限的组——这是唯一的入口", () => {
+  it("点名规则可以给出带权限的组——这是唯一的入口", () => {
     const privileged = new Set(privilegedGroupIds());
-    const viaGrant = listGrants().flatMap((grant) =>
-      grant.groups.filter((id) => privileged.has(id)),
+    const viaHandles = listRules().flatMap((rule) =>
+      isHandlesRule(rule) ? rule.groups.filter((id) => privileged.has(id)) : [],
     );
 
-    expect(viaGrant.length).toBeGreaterThan(0);
+    expect(viaHandles.length).toBeGreaterThan(0);
+  });
+
+  it("被点名的 handle 全部无法注册——这正是它们能带权限的原因", () => {
+    for (const rule of listRules()) {
+      if (!isHandlesRule(rule)) continue;
+      for (const handle of rule.handles) {
+        expect(rulesForHandle(handle)).toContain(rule);
+        // Case-insensitively, the way registration normalises before it looks.
+        expect(rulesForHandle(handle.toUpperCase())).toContain(rule);
+      }
+    }
+  });
+
+  /**
+   * Load-bearing beyond the safety argument. `proxy.ts` decides whether to let
+   * a request reach `/admin`, and it runs where there is no database — the
+   * session callback in `auth.config.ts` therefore calls `groupsFor(handle,
+   * null)`, with no address to match patterns against. That works only because
+   * every capability comes from a rule keyed on the handle.
+   *
+   * Were a pattern ever allowed to confer one, this call would quietly stop
+   * seeing it and administrators would be redirected away from a console they
+   * are entitled to, with nothing in any log to explain it.
+   */
+  it("不带邮箱也能算出全部权限——proxy 的前提", () => {
+    const privileged = new Set(privilegedGroupIds());
+
+    for (const rule of listRules()) {
+      if (!isHandlesRule(rule)) continue;
+      const conferred = rule.groups.filter((id) => privileged.has(id));
+      if (conferred.length === 0) continue;
+
+      for (const handle of rule.handles) {
+        const withoutEmail = groupsFor(handle, null);
+        for (const id of conferred) expect(withoutEmail).toContain(id);
+      }
+    }
   });
 });
 
 describe("加组时的防呆", () => {
-  it("只出现在一条授权里、别处无定义的组名会被报出来", () => {
+  it("只点名给过一个人、别处无定义的组名会被报出来", () => {
     // The shape a typo takes: `出题員` for `出题人` parses, validates, and
     // silently leaves its holder with nothing. Nothing else can tell those
     // two apart, so the check is "does anything else refer to this name".
     const declared = new Set(declaredGroupIds());
-    const fromRules = new Set(
+    const fromPatterns = new Set(
       listRules().flatMap((rule) =>
-        typeof rule.groups === "function" ? [] : rule.groups,
+        isHandlesRule(rule) || typeof rule.groups === "function"
+          ? []
+          : rule.groups,
       ),
     );
 
     const uses = new Map<string, number>();
-    for (const grant of listGrants()) {
-      for (const id of grant.groups) {
-        uses.set(id, (uses.get(id) ?? 0) + 1);
+    for (const rule of listRules()) {
+      if (!isHandlesRule(rule)) continue;
+      for (const id of rule.groups) {
+        uses.set(id, (uses.get(id) ?? 0) + rule.handles.length);
       }
     }
 
     const loose = [...uses.entries()]
-      .filter(([id, n]) => n === 1 && !declared.has(id) && !fromRules.has(id))
+      .filter(([id, n]) => n === 1 && !declared.has(id) && !fromPatterns.has(id))
       .map(([id]) => id);
 
     expect(looseGroupWarnings().length).toBe(loose.length);

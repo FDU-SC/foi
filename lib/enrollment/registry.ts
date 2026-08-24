@@ -5,10 +5,10 @@ import { declaredGroupIds, isPrivileged, privilegedGroupIds } from "@/lib/auth/g
 import {
   enrollmentPolicySchema,
   enrollmentRuleSchema,
-  grantSchema,
+  isHandlesRule,
+  privilegeAllowed,
   type EnrollmentPolicy,
   type EnrollmentRule,
-  type Grant,
 } from "./types";
 
 /**
@@ -16,16 +16,19 @@ import {
  * contest registries: a file under `content/enrollment/` is picked up with no
  * registration step, and Turbopack's watcher reloads it during `next dev`.
  *
- * A module may export any of `policy`, `groups`, `rules` and `grants`, so a
- * deployment can keep what each group may do in one file and who belongs to
- * which in another. Rules accumulate in path order; grants are keyed by handle
- * and a duplicate is an error, because two files disagreeing about somebody's
- * membership should not be settled by whichever loaded second.
+ * A module may export `policy` and `rules`, so a deployment can keep what each
+ * group may do in one file and who belongs to which in another. Rules
+ * accumulate in path order, and every matching one contributes — somebody is
+ * both an undergraduate and a member of the 2023 intake, and both facts are
+ * worth having. Two rules naming the same handle is therefore allowed and
+ * means the union: one file can put somebody in the setters' group while
+ * another puts them in a cohort.
  */
 interface Registry {
   policy: EnrollmentPolicy;
   rules: EnrollmentRule[];
-  grants: Map<string, Grant>;
+  /** Every rule that names a given handle, keyed by its canonical spelling. */
+  handleIndex: Map<string, EnrollmentRule[]>;
 }
 
 function fail(path: string, what: string, error: z.ZodError): never {
@@ -37,21 +40,20 @@ function fail(path: string, what: string, error: z.ZodError): never {
 
 function buildRegistry(): Registry {
   const rules: EnrollmentRule[] = [];
-  const grants = new Map<string, Grant>();
-  const grantSources = new Map<string, string>();
+  const handleIndex = new Map<string, EnrollmentRule[]>();
 
   let policy: EnrollmentPolicy | undefined;
   let policySource: string | undefined;
 
-  // Sorted so that rule order — and therefore the order tags come out in — is
-  // the same on every machine, rather than whatever the glob happened to emit.
+  // Sorted so that rule order — and therefore the order groups come out in —
+  // is the same on every machine, rather than whatever the glob happened to
+  // emit.
   const paths = Object.keys(enrollmentModules).sort();
 
   for (const path of paths) {
     const mod = enrollmentModules[path] as {
       policy?: unknown;
       rules?: unknown;
-      grants?: unknown;
     };
 
     if (mod.policy !== undefined) {
@@ -73,42 +75,31 @@ function buildRegistry(): Registry {
       mod.rules.forEach((raw, index) => {
         const parsed = enrollmentRuleSchema.safeParse(raw);
         if (!parsed.success) fail(path, `第 ${index + 1} 条分流规则`, parsed.error);
+        const rule = parsed.data;
 
         // The safety property, checked rather than assumed. A computed rule
-        // cannot be inspected here, so `groupsForEmail` filters those at
+        // cannot be inspected here, so `groupsFor` filters those at
         // resolution; a literal list is caught now, in review, where it is
         // cheapest to fix.
-        if (Array.isArray(parsed.data.groups)) {
-          const privileged = parsed.data.groups.filter(isPrivileged);
+        if (!privilegeAllowed(rule) && Array.isArray(rule.groups)) {
+          const privileged = rule.groups.filter(isPrivileged);
           if (privileged.length > 0) {
             throw new Error(
               `${path} 第 ${index + 1} 条分流规则试图授予带权限的用户组 ${privileged.join("、")}。` +
-                `规则按邮箱匹配，正则写错就会把权限发给一片人；带权限的组只能在 grants 里指名道姓地授予。`,
+                `按邮箱匹配的规则覆盖的地址是无穷的，注册时无法预留，正则写错就会把权限发给一片人；` +
+                `带权限的组只能由列出 handles 的规则授予，那些用户名会被注册流程占住。`,
             );
           }
         }
 
-        rules.push(parsed.data);
-      });
-    }
-
-    if (mod.grants !== undefined) {
-      if (!Array.isArray(mod.grants)) {
-        throw new Error(`${path} 导出的 grants 必须是数组`);
-      }
-      mod.grants.forEach((raw, index) => {
-        const parsed = grantSchema.safeParse(raw);
-        if (!parsed.success) fail(path, `第 ${index + 1} 条授权`, parsed.error);
-
-        const key = normalizeHandle(parsed.data.handle);
-        const existing = grantSources.get(key);
-        if (existing) {
-          throw new Error(
-            `授权中的用户名 "${parsed.data.handle}" 重复: ${existing} 与 ${path}（大小写不敏感）`,
-          );
+        if (isHandlesRule(rule)) {
+          for (const handle of rule.handles) {
+            const key = normalizeHandle(handle);
+            handleIndex.set(key, [...(handleIndex.get(key) ?? []), rule]);
+          }
         }
-        grantSources.set(key, path);
-        grants.set(key, parsed.data);
+
+        rules.push(rule);
       });
     }
   }
@@ -116,7 +107,7 @@ function buildRegistry(): Registry {
   return {
     policy: policy ?? enrollmentPolicySchema.parse({}),
     rules,
-    grants,
+    handleIndex,
   };
 }
 
@@ -128,19 +119,25 @@ export function listRules(): EnrollmentRule[] {
   return registry.rules;
 }
 
-/** Case-insensitive, so a handle typed with the wrong capitalisation matches. */
-export function getGrant(handle: string): Grant | undefined {
-  return registry.grants.get(normalizeHandle(handle));
+/**
+ * Every rule that names this handle. Case-insensitive, so a handle typed with
+ * the wrong capitalisation matches.
+ *
+ * Also what `handleAvailable` consults: a handle a rule names is a privilege
+ * waiting to be claimed, and letting a stranger register it first would hand
+ * them the group the rule was written for.
+ */
+export function rulesForHandle(handle: string): EnrollmentRule[] {
+  return registry.handleIndex.get(normalizeHandle(handle)) ?? [];
 }
 
-export function listGrants(): Grant[] {
-  return [...registry.grants.values()].sort((a, b) =>
-    a.handle.localeCompare(b.handle),
-  );
+/** Every handle any rule names, for the operations console. */
+export function enumeratedHandles(): string[] {
+  return [...registry.handleIndex.keys()].sort();
 }
 
 /**
- * The groups an address puts somebody in.
+ * The groups an account belongs to.
  *
  * Every matching rule contributes, because somebody is both an undergraduate
  * and a member of the 2023 intake and both facts are worth having. Computed on
@@ -148,24 +145,44 @@ export function listGrants(): Grant[] {
  * and deploying re-sorts everybody it applies to on their next request.
  * Storing the answer would turn that into a backfill.
  *
- * Privileged groups are dropped here. A literal list naming one fails at load,
- * but a rule that computes its groups cannot be inspected until it runs — and
- * a regex must never be able to hand out `admin`, however it spells it.
+ * The single definition matters — `resolveUser` uses it to tell somebody which
+ * groups they are in, contest entry uses it to decide who is on the board, and
+ * the viewer uses it to decide what they may do. If those disagreed, a
+ * competitor would be told they are in a contest they do not appear in.
+ *
+ * Privileged groups from an address rule are dropped here. A literal list
+ * naming one fails at load, but a rule that computes its groups cannot be
+ * inspected until it runs — and a regex must never be able to hand out
+ * `admin`, however it spells it.
  */
-export function groupsForEmail(email: string | null): string[] {
-  if (!email) return [];
-
+export function groupsFor(handle: string, email: string | null): string[] {
   const groups = new Set<string>();
-  for (const rule of registry.rules) {
-    const match = email.match(rule.match);
-    if (!match) continue;
 
-    const produced =
-      typeof rule.groups === "function" ? rule.groups(match) : rule.groups;
+  // Which rules name this handle is an index lookup; the loop below still goes
+  // in declaration order, so the groups come out the same on every machine.
+  // This runs on every request and once per account in the console's cohort
+  // counts, so it is worth not rescanning every handle list.
+  const named = new Set(rulesForHandle(handle));
+
+  for (const rule of registry.rules) {
+    let produced: readonly string[];
+
+    if (isHandlesRule(rule)) {
+      if (!named.has(rule)) continue;
+      produced = rule.groups;
+    } else {
+      if (!email) continue;
+      const match = email.match(rule.email);
+      if (!match) continue;
+      produced =
+        typeof rule.groups === "function" ? rule.groups(match) : rule.groups;
+    }
+
+    const mayGrantPrivilege = privilegeAllowed(rule);
     for (const id of produced) {
-      if (isPrivileged(id)) {
+      if (!mayGrantPrivilege && isPrivileged(id)) {
         console.warn(
-          `[foi] 分流规则「${rule.label}」算出了带权限的用户组 "${id}"，已忽略。带权限的组只能在 grants 里授予。`,
+          `[foi] 分流规则「${rule.label}」算出了带权限的用户组 "${id}"，已忽略。带权限的组只能由列出 handles 的规则授予。`,
         );
         continue;
       }
@@ -177,26 +194,12 @@ export function groupsForEmail(email: string | null): string[] {
 }
 
 /**
- * Everything one account belongs to: what the address implies, plus whatever a
- * grant adds on top.
- *
- * The single definition matters — `resolveUser` uses it to tell somebody which
- * groups they are in, contest entry uses it to decide who is on the board, and
- * the viewer uses it to decide what they may do. If those disagreed, a
- * competitor would be told they are in a contest they do not appear in.
- */
-export function groupsFor(handle: string, email: string | null): string[] {
-  const grant = getGrant(handle);
-  return [...new Set([...groupsForEmail(email), ...(grant?.groups ?? [])])];
-}
-
-/**
- * Every tag the repository can be shown to produce, and whether that set is
+ * Every group the repository can be shown to produce, and whether that set is
  * the whole story.
  *
- * A rule whose tags are computed can produce names nothing here can predict,
+ * A rule whose groups are computed can produce names nothing here can predict,
  * so `exhaustive` goes false and callers downgrade "this contest references a
- * tag that does not exist" from an error to a warning.
+ * group that does not exist" from an error to a warning.
  */
 export function knownGroups(): { groups: string[]; exhaustive: boolean } {
   const groups = new Set<string>(declaredGroupIds());
@@ -209,20 +212,17 @@ export function knownGroups(): { groups: string[]; exhaustive: boolean } {
     }
     for (const id of rule.groups) groups.add(id);
   }
-  for (const grant of registry.grants.values()) {
-    for (const id of grant.groups) groups.add(id);
-  }
 
   return { groups: [...groups].sort(), exhaustive };
 }
 
 /**
- * Group names that occur exactly once, in a single grant.
+ * Group names that occur exactly once, in a single rule naming one person.
  *
- * Adding a group is meant to cost nothing — write it in a rule or a grant and
- * it exists — and the price of that is a typo being indistinguishable from a
- * new group. `出题員` for `出题人` parses, validates, and silently leaves its
- * holder with no capabilities at all.
+ * Adding a group is meant to cost nothing — write it in a rule and it exists —
+ * and the price of that is a typo being indistinguishable from a new group.
+ * `出题員` for `出题人` parses, validates, and silently leaves its holder with
+ * no capabilities at all.
  *
  * A name nothing else in the repository refers to is the shape that mistake
  * takes. It is also a legitimate thing to write — a one-off marker on one
@@ -232,34 +232,35 @@ export function knownGroups(): { groups: string[]; exhaustive: boolean } {
 export function looseGroupWarnings(): string[] {
   const declared = new Set(declaredGroupIds());
 
-  const fromRules = new Set<string>();
+  const fromPatterns = new Set<string>();
   for (const rule of registry.rules) {
-    if (typeof rule.groups === "function") continue;
-    for (const id of rule.groups) fromRules.add(id);
+    if (isHandlesRule(rule) || typeof rule.groups === "function") continue;
+    for (const id of rule.groups) fromPatterns.add(id);
   }
 
-  const grantUses = new Map<string, string[]>();
-  for (const grant of registry.grants.values()) {
-    for (const id of grant.groups) {
-      grantUses.set(id, [...(grantUses.get(id) ?? []), grant.handle]);
+  const namedUses = new Map<string, string[]>();
+  for (const rule of registry.rules) {
+    if (!isHandlesRule(rule)) continue;
+    for (const id of rule.groups) {
+      namedUses.set(id, [...(namedUses.get(id) ?? []), ...rule.handles]);
     }
   }
 
-  return [...grantUses.entries()]
+  return [...namedUses.entries()]
     .filter(([id, handles]) => {
-      if (declared.has(id) || fromRules.has(id)) return false;
+      if (declared.has(id) || fromPatterns.has(id)) return false;
       return handles.length === 1;
     })
     .map(
       ([id, handles]) =>
-        `用户组 "${id}" 只在 ${handles[0]} 这一条授权里出现过，既没有在 groups 中声明，也不被任何规则产生。` +
+        `用户组 "${id}" 只在 ${handles[0]} 这一条规则里出现过，既没有在 groups 中声明，也不被任何邮箱规则产生。` +
         `如果这是笔误，被授权的人不会得到任何能力。`,
     );
 }
 
 /**
  * A deployment nobody can administer is almost always a misconfiguration.
- * Worth saying loudly at startup, but not fatal: `scripts/set-password.cjs`
+ * Worth saying loudly at startup, but not fatal: `scripts/create-account.cjs`
  * can still recover it, and refusing to boot would turn a bad config into an
  * outage.
  */
@@ -267,8 +268,8 @@ export function enrollmentWarnings(): string[] {
   const warnings: string[] = [];
 
   const privileged = new Set(privilegedGroupIds());
-  const admins = listGrants().filter((grant) =>
-    grant.groups.some((id) => privileged.has(id)),
+  const admins = registry.rules.filter(
+    (rule) => isHandlesRule(rule) && rule.groups.some((id) => privileged.has(id)),
   );
   if (admins.length === 0) {
     warnings.push(
@@ -278,7 +279,7 @@ export function enrollmentWarnings(): string[] {
 
   if (registry.rules.length === 0) {
     warnings.push(
-      "没有配置任何邮箱分流规则，注册用户不会进入任何用户组，按组划定参赛范围的比赛将没有参赛者。",
+      "没有配置任何分流规则，注册用户不会进入任何用户组，按组划定参赛范围的比赛将没有参赛者。",
     );
   }
 

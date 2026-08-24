@@ -2,7 +2,7 @@ import { contestModules } from "@/content";
 import { knownGroups } from "@/lib/enrollment/registry";
 import { audienceCovers, describeAudience } from "@/lib/auth/audience";
 import { problemBySlug } from "@/lib/problems/registry";
-import { getRuleset } from "@/lib/standings/registry";
+import { getContestRuleset, rulesetFor } from "@/lib/standings/registry";
 import { contestConfigSchema, type ContestConfig } from "./types";
 
 /**
@@ -78,10 +78,22 @@ function buildRegistry(): Map<string, ContestConfig> {
       }
     }
 
-    const ruleset = getRuleset(parsed.data.ruleset.id);
+    const own = getContestRuleset(dirSlug);
+    const named = parsed.data.ruleset.id;
+
+    if (own && named) {
+      throw new Error(
+        `${path} 既指定了赛制 "${named}"，同目录下又有 ruleset.tsx。` +
+          `两者只能选一个：引用共享模板意味着跟着模板一起演进，自带则与这场比赛一起冻结在 git 里。`,
+      );
+    }
+
+    const ruleset = rulesetFor(dirSlug, named);
     if (!ruleset) {
       throw new Error(
-        `${path} 引用了未知的赛制 "${parsed.data.ruleset.id}"，请检查 lib/standings/registry.ts`,
+        named
+          ? `${path} 引用了未知的赛制 "${named}"，请检查 content/rulesets/`
+          : `${path} 没有指定赛制：写 ruleset.id 引用 content/rulesets/ 里的模板，或在同目录下放一个 ruleset.tsx`,
       );
     }
 

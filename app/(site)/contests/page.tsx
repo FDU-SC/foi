@@ -8,7 +8,7 @@ import {
   PHASE_LABEL,
   type ContestPhase,
 } from "@/lib/contests/types";
-import { getRuleset } from "@/lib/standings/registry";
+import { rulesetFor } from "@/lib/standings/registry";
 
 export const metadata: Metadata = { title: "比赛" };
 export const dynamic = "force-dynamic";
@@ -50,7 +50,8 @@ export default async function ContestsPage() {
                   <span className="text-fg font-medium">{contest.title}</span>
                   {gate.visible ? null : <Badge tone="warn">未公开</Badge>}
                   <Badge>
-                    {getRuleset(contest.ruleset.id)?.name ?? contest.ruleset.id}
+                    {rulesetFor(contest.slug, contest.ruleset.id)?.name ??
+                      "自定义赛制"}
                   </Badge>
                   <span className="text-fg-subtle ml-auto font-mono text-xs">
                     {formatter.format(contest.startsAt)}

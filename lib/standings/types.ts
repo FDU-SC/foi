@@ -18,6 +18,15 @@ export interface Participant {
   unofficial: boolean;
 }
 
+/**
+ * A submission as a ruleset sees it.
+ *
+ * `score`, `maxScore` and `accepted` are the kernel's resolved copies, not
+ * fields dug out of `verdict` — see the note on that column in
+ * `lib/db/schema.ts`. The verdict itself rides along for rulesets that
+ * understand a particular problem's `detail`, which is the same bargain the
+ * statement components get.
+ */
 export interface SubmissionRecord {
   id: string;
   handle: string;
@@ -25,6 +34,8 @@ export interface SubmissionRecord {
   state: SubmissionState;
   verdict: Verdict | null;
   score: number | null;
+  maxScore: number | null;
+  accepted: boolean | null;
   createdAt: Date;
 }
 
@@ -67,8 +78,9 @@ export interface Standings<Cell> {
  * A scoring format.
  *
  * ACM, OI and CTF ship as templates, not as special cases — the kernel only
- * knows this interface. A new format is a new file in `lib/standings/rulesets`
- * plus one line in the registry.
+ * knows this interface. A new format is a new file in `content/rulesets/`, or
+ * a `ruleset.tsx` beside one contest's own definition; see `content/index.ts`
+ * for when each is the right choice.
  *
  * `computeStandings` is a pure function over every submission in the contest,
  * which keeps formats like CTF dynamic scoring (where one solve changes
@@ -140,7 +152,19 @@ export function scoredSubmissions(input: StandingsInput): SubmissionRecord[] {
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 }
 
+/**
+ * Whether a submission counts as solving its problem.
+ *
+ * A backend that said so decides it. Only when it stayed silent does the
+ * kernel fall back to full marks, and that derivation lives here rather than
+ * in a column so that improving it reaches every submission ever made — see
+ * the note on `accepted` in `lib/db/schema.ts`. Problems where the two differ
+ * are exactly the ones that declare it: a performance task can pass at two
+ * times baseline and score full marks only at three.
+ */
 export function isAccepted(submission: SubmissionRecord): boolean {
-  if (!submission.verdict) return false;
-  return submission.verdict.score >= submission.verdict.maxScore;
+  if (submission.state !== "completed") return false;
+  if (submission.accepted !== null) return submission.accepted;
+  if (submission.score === null || submission.maxScore === null) return false;
+  return submission.score >= submission.maxScore;
 }

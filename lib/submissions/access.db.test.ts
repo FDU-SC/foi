@@ -48,11 +48,7 @@ async function cleanup() {
 describeDb("提交门禁", () => {
   beforeAll(async () => {
     await cleanup();
-    await db.insert(problems).values({
-      slug: SLUG,
-      title: "Access Fixture",
-      maxScore: 100,
-    });
+    await db.insert(problems).values({ slug: SLUG, title: "Access Fixture" });
     for (const handle of [OWNER, OTHER, "subaccess-admin"]) {
       await db.insert(accounts).values({
         handle,

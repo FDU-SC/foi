@@ -56,8 +56,16 @@ export const contestConfigSchema = z
     title: z.string().min(1),
     description: z.string().optional(),
 
+    /**
+     * How this contest is scored.
+     *
+     * `id` names one of the shared templates in `content/rulesets/`. Omit it
+     * and the contest's own `ruleset.tsx` is used instead — see the note in
+     * `content/index.ts` on when each is the right choice. Naming both, or
+     * neither, is an error `lib/contests/registry.ts` refuses at load.
+     */
     ruleset: z.object({
-      id: z.string().min(1),
+      id: z.string().min(1).optional(),
       config: z.unknown().optional(),
     }),
 

@@ -9,7 +9,7 @@ import {
 } from "@/lib/contests/access";
 import { resolveContestProblems } from "@/lib/contests/queries";
 import { contestPhase, PHASE_LABEL } from "@/lib/contests/types";
-import { getRuleset } from "@/lib/standings/registry";
+import { rulesetFor } from "@/lib/standings/registry";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +37,7 @@ export default async function ContestPage({
   if (!view) notFound();
 
   const contest = view.config;
-  const ruleset = getRuleset(contest.ruleset.id);
+  const ruleset = rulesetFor(contest.slug, contest.ruleset.id);
   const phase = contestPhase(contest);
 
   // Before the start the problem set is itself the secret: how many problems

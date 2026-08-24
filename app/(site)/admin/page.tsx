@@ -2,14 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getViewer } from "@/auth";
-import { ActionForm } from "@/components/admin/action-form";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { adminOverviewFor } from "@/lib/admin/access";
 import { capabilitiesOf, listGroups } from "@/lib/auth/groups";
 import { CAPABILITY_LABELS } from "@/lib/auth/policy";
 import { listRulesets } from "@/lib/standings/registry";
-import { syncRegistriesFormAction } from "./actions";
 
 export const metadata: Metadata = { title: "管理" };
 export const dynamic = "force-dynamic";
@@ -106,22 +104,15 @@ export default async function AdminPage() {
           )}
 
           <div className="border-border border-t pt-3">
-            <p className="text-fg-subtle mb-2 text-xs leading-5">
-              镜像表只是外键锚点：数据库里有{" "}
+            <p className="text-fg-subtle text-xs leading-5">
+              镜像表只是外键锚点，行在第一次有人提交时写入：数据库里有{" "}
               <span className="font-mono">{overview.mirroredProblems}</span>{" "}
               道题、<span className="font-mono">{overview.mirroredContests}</span>{" "}
-              场比赛。启动时会自动同步，这里是手动触发。
+              场比赛被提交过，仓库里共{" "}
+              <span className="font-mono">{overview.problemCount}</span> 道题、
+              <span className="font-mono">{overview.contestCount}</span>{" "}
+              场比赛。差额是还没有人交过的那些。
             </p>
-            {viewer.can("registry.sync") ? (
-              <ActionForm
-                action={syncRegistriesFormAction}
-                submitLabel="立即同步"
-              />
-            ) : (
-              <p className="text-fg-subtle text-xs leading-5">
-                手动同步需要 <code className="font-mono">registry.sync</code>。
-              </p>
-            )}
           </div>
         </CardBody>
       </Card>
@@ -225,9 +216,12 @@ export default async function AdminPage() {
             </div>
           ))}
           <p className="text-fg-subtle border-border border-t pt-3 text-xs leading-5">
-            新增赛制：在 <code className="font-mono">lib/standings/rulesets/</code>{" "}
-            下新建一个模块，并在同目录的{" "}
-            <code className="font-mono">registry.ts</code> 中登记。
+            新增赛制：在 <code className="font-mono">content/rulesets/</code>{" "}
+            下新建一个模块，导出名为{" "}
+            <code className="font-mono">ruleset</code> 的常量即可，不需要登记。
+            只给一场比赛用的赛制放在{" "}
+            <code className="font-mono">content/contests/&lt;slug&gt;/ruleset.tsx</code>
+            ，那样它会和这场比赛一起冻结，不随共享模板演进——排行榜每次打开都重算，改共享模板会改动历史比赛的名次。
           </p>
         </CardBody>
       </Card>

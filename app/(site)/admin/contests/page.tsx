@@ -7,7 +7,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { adminContestsFor } from "@/lib/admin/access";
 import { describeAudience } from "@/lib/auth/audience";
 import { contestPhase, PHASE_LABEL } from "@/lib/contests/types";
-import { getRuleset } from "@/lib/standings/registry";
+import { rulesetFor } from "@/lib/standings/registry";
 
 export const metadata: Metadata = { title: "比赛管理" };
 export const dynamic = "force-dynamic";
@@ -71,7 +71,7 @@ export default async function AdminContestsPage() {
       ) : (
         all.map((contest) => {
           const phase = contestPhase(contest);
-          const ruleset = getRuleset(contest.ruleset.id);
+          const ruleset = rulesetFor(contest.slug, contest.ruleset.id);
 
           return (
             <Card key={contest.slug}>
@@ -87,7 +87,12 @@ export default async function AdminContestsPage() {
                     <Badge tone={phase === "running" ? "ok" : "neutral"}>
                       {PHASE_LABEL[phase]}
                     </Badge>
-                    <Badge>{ruleset?.name ?? contest.ruleset.id}</Badge>
+                    <Badge>{ruleset?.name ?? "自定义赛制"}</Badge>
+                    {contest.ruleset.id ? null : (
+                      <Badge tone="info" title="ruleset.tsx 与这场比赛一起冻结在 git 里，不随共享模板演进">
+                        自带
+                      </Badge>
+                    )}
                     {contest.visibleTo === undefined ? null : (
                       <Badge tone="warn">
                         可见 {describeAudience(contest.visibleTo)}

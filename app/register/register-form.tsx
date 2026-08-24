@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import {
@@ -34,36 +33,17 @@ function SubmitButton({ disabled }: { disabled: boolean }) {
   );
 }
 
-/** Shown once the account exists. Nothing is pending; this is the whole result. */
-function Registered({ handle, groups }: { handle: string; groups: string[] }) {
+/**
+ * The account was created but the session was not. Registration succeeded, so
+ * this must not look like a failure — the only thing left is a login the
+ * person can do themselves.
+ */
+function NeedsLogin() {
   return (
     <div className="space-y-4">
       <p className="text-ok bg-ok-subtle rounded-md px-3 py-2 text-sm leading-6">
-        注册成功，账号 <span className="font-mono">{handle}</span> 已启用。
+        账号已创建。自动登录没有成功，请手动登录一次。
       </p>
-
-      {/* Showing the groups is how a mistyped address gets caught: they come
-          from the address, so an empty list right after signing up is the
-          earliest and clearest sign something is off. */}
-      {groups.length > 0 ? (
-        <div className="border-border rounded-md border px-3 py-2.5">
-          <p className="text-fg-muted mb-1.5 text-xs">
-            根据邮箱，你被归入以下分组：
-          </p>
-          <ul className="flex flex-wrap gap-1.5">
-            {groups.map((group) => (
-              <li key={group}>
-                <Badge tone="primary">{group}</Badge>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : (
-        <p className="text-fg-subtle border-border rounded-md border px-3 py-2.5 text-xs leading-5">
-          你的邮箱没有匹配到任何分组，因此暂时不会出现在按分组划定名单的比赛里。如果这不符合预期，请联系管理员。
-        </p>
-      )}
-
       <Link
         href="/login"
         className="bg-primary text-primary-fg hover:bg-primary-hover block rounded-md px-3 py-2 text-center text-sm font-medium transition-colors"
@@ -103,11 +83,7 @@ export function RegisterForm({
     return () => clearTimeout(timer);
   }, [cooldown]);
 
-  if (state.created) {
-    return (
-      <Registered handle={state.created.handle} groups={state.created.groups} />
-    );
-  }
+  if (state.createdNeedsLogin) return <NeedsLogin />;
 
   function send() {
     startTransition(async () => {

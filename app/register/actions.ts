@@ -1,8 +1,9 @@
 "use server";
 
+import { AuthError } from "next-auth";
 import { z } from "zod";
-import { findAccountByEmail, getAccount } from "@/lib/accounts/queries";
-import { resolveFromRow } from "@/lib/accounts/resolve";
+import { signIn } from "@/auth";
+import { findAccountByEmail } from "@/lib/accounts/queries";
 import {
   emailSchema,
   handleSchema,
@@ -145,8 +146,11 @@ export async function verifyCodeAction(
 
 export interface RegisterState {
   error?: string;
-  /** Set once the account exists. There is nothing left to wait for. */
-  created?: { handle: string; groups: string[] };
+  /**
+   * The account exists but the session does not. Only reachable if signing in
+   * on the new account's behalf is refused — see the note in `registerAction`.
+   */
+  createdNeedsLogin?: boolean;
 }
 
 const schema = z
@@ -209,14 +213,27 @@ export async function registerAction(
   const result = await register(parsed.data);
   if (!result.ok) return { error: REJECTIONS[result.reason] };
 
-  // Showing the groups is how a mistyped address gets caught: they come from
-  // the address, so an empty list right after signing up is the earliest and
-  // clearest sign something is off.
-  const account = await getAccount(result.handle);
-  return {
-    created: {
+  // Straight into the session rather than onto a page announcing success. The
+  // person just typed the password; asking for it again to prove something
+  // that was true a moment ago is a step that exists only because the account
+  // used to be unusable at this point. It no longer is.
+  try {
+    await signIn("credentials", {
       handle: result.handle,
-      groups: account ? resolveFromRow(account).groups : [],
-    },
-  };
+      password: parsed.data.password,
+      redirectTo: "/",
+    });
+  } catch (error) {
+    // `signIn` reports success by throwing NEXT_REDIRECT; let that through.
+    if (!(error instanceof AuthError)) throw error;
+
+    // The account is real and the password is right, so the only way here is
+    // the login throttle in `authorize` — a shared address that has already
+    // spent its attempts. Say what happened rather than reporting a failed
+    // registration for something that succeeded.
+    console.error("[foi] 注册后自动登录失败", error);
+    return { createdNeedsLogin: true };
+  }
+
+  return {};
 }

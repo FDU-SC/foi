@@ -31,6 +31,11 @@ const DEFAULT_ACTION_TIMEOUT_MS = 20_000;
  * verdict's `detail` can be a whole compile log. A backend that needs more
  * than this is not returning a message, it is returning a file, and that
  * wants a URL rather than a relay.
+ *
+ * Applies to every read of a backend's answer in this file. There is no
+ * per-endpoint variation on purpose: the bound is about what this process
+ * will hold, not about what any one endpoint means, and the one time these
+ * were done individually the dispatch acknowledgement got left out.
  */
 const MAX_RESPONSE_BYTES = 256 * 1024;
 
@@ -187,10 +192,30 @@ export async function dispatchToJudge(
     );
   }
 
-  const data = (await res.json().catch(() => null)) as {
-    accepted?: unknown;
-    judgeRef?: unknown;
-  } | null;
+  // Bounded like every other read of a backend's answer. This one was missed
+  // when the others were done, and it is the one on the hot path: every
+  // submission goes through it, so a backend answering a dispatch with an
+  // endless body took the process down one `POST /api/submissions` at a time.
+  const read = await readTextBody(res, MAX_RESPONSE_BYTES);
+  if (!read.ok) {
+    // Not `rejected`. The backend answered 2xx and may well have queued the
+    // submission; what we do not have is a readable acknowledgement, which is
+    // exactly what `unknown` means — leave the row non-terminal so a callback
+    // can still land on it.
+    throw new DispatchError("题目后端的受理响应过大，结果未知", "unknown");
+  }
+
+  // Deliberately lenient about the parse, unlike the size check above. An
+  // empty 200 is a legitimate acknowledgement — `judgeRef` is optional in the
+  // protocol — and `res.json()` threw on that too, so treating unparseable as
+  // "accepted, no reference" is the behaviour backends already rely on. A body
+  // that was cut short is different: we know we did not see all of it.
+  let data: { accepted?: unknown; judgeRef?: unknown } | null = null;
+  try {
+    data = JSON.parse(read.text) as { accepted?: unknown; judgeRef?: unknown };
+  } catch {
+    data = null;
+  }
 
   // The protocol has a backend answer `{ accepted: true, judgeRef }`. An explicit
   // `false` is the one way a 2xx still means "this will never be judged".

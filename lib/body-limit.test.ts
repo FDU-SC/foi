@@ -1,0 +1,102 @@
+import { describe, expect, it } from "vitest";
+import { readTextBody } from "./body-limit";
+
+/** A request whose body arrives in pieces, as a chunked upload does. */
+function streamed(chunks: Uint8Array[], headers?: HeadersInit): Request {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(chunk);
+      controller.close();
+    },
+  });
+
+  return new Request("http://localhost/api/test", {
+    method: "PUT",
+    body,
+    headers,
+    // Required by undici for a streaming body.
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+}
+
+describe("readTextBody", () => {
+  it("放行没超上限的 body", async () => {
+    const request = new Request("http://localhost/api/test", {
+      method: "PUT",
+      body: "hello",
+    });
+
+    expect(await readTextBody(request, 1024)).toEqual({
+      ok: true,
+      text: "hello",
+    });
+  });
+
+  it("没有 body 时给出空串", async () => {
+    const request = new Request("http://localhost/api/test", { method: "GET" });
+
+    expect(await readTextBody(request, 1024)).toEqual({ ok: true, text: "" });
+  });
+
+  it("拒绝超上限的 body", async () => {
+    const request = new Request("http://localhost/api/test", {
+      method: "PUT",
+      body: "x".repeat(2048),
+    });
+
+    expect(await readTextBody(request, 1024)).toEqual({
+      ok: false,
+      reason: "too-large",
+    });
+  });
+
+  it("按字节算，不按 UTF-16 码元算", async () => {
+    // Nine characters, twenty-seven bytes. The old `raw.length` check counted
+    // the nine and let a cap of ten through.
+    const text = "中文九个字符哦哦哦";
+    const body = () =>
+      new Request("http://localhost/api/test", { method: "PUT", body: text });
+
+    expect(await readTextBody(body(), 10)).toEqual({
+      ok: false,
+      reason: "too-large",
+    });
+    expect(await readTextBody(body(), 27)).toEqual({ ok: true, text });
+  });
+
+  it("content-length 已经超了就直接拒，不管真实 body 多小", async () => {
+    // An over-declared length is refused on the header alone. Against a real
+    // socket that is the whole point: nothing is read, so nothing is held.
+    const request = new Request("http://localhost/api/test", {
+      method: "PUT",
+      body: "x",
+      headers: { "content-length": "999999" },
+    });
+
+    expect(await readTextBody(request, 1024)).toEqual({
+      ok: false,
+      reason: "too-large",
+    });
+  });
+
+  it("分块上传在超限的那一块就停下，不等 body 结束", async () => {
+    const chunk = new Uint8Array(64).fill(97);
+    const chunks = Array.from({ length: 100 }, () => chunk);
+
+    // No content-length at all, which is what a chunked upload looks like:
+    // the running total is the only bound left.
+    const result = await readTextBody(streamed(chunks), 128);
+
+    expect(result).toEqual({ ok: false, reason: "too-large" });
+  });
+
+  it("跨块的多字节字符不会被截坏", async () => {
+    const encoded = new TextEncoder().encode("界");
+    const chunks = [encoded.slice(0, 1), encoded.slice(1)];
+
+    expect(await readTextBody(streamed(chunks), 1024)).toEqual({
+      ok: true,
+      text: "界",
+    });
+  });
+});

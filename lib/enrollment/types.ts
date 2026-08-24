@@ -94,13 +94,11 @@ export const enrollmentPolicySchema = z.object({
    */
   emailDomains: z.array(z.string().min(1)).default([]),
 
-  /**
-   * Whether the registration form mails a code and requires it back before it
-   * will create anything. Off is for deployments that pre-verify some other
-   * way; leaving it off with a public form means anybody can claim any
-   * address, and addresses decide group membership.
+  /*
+   * There is no `requireEmailVerification` here, and that is deliberate. See
+   * `retiredPolicyKey` at the bottom of this file for why, and for what a
+   * deployment still carrying it is told.
    */
-  requireEmailVerification: z.boolean().default(true),
 
   /** Names that would be confusing or impersonating in a standings table. */
   reservedHandles: z.array(z.string()).default([]),
@@ -118,3 +116,47 @@ export const enrollmentPolicySchema = z.object({
 
 export type EnrollmentPolicy = z.infer<typeof enrollmentPolicySchema>;
 export type EnrollmentPolicyInput = z.input<typeof enrollmentPolicySchema>;
+
+/**
+ * Options a policy file may still name that no longer exist.
+ *
+ * `requireEmailVerification` was a boolean defaulting to true. Proving the
+ * address turned out not to be a thing a deployment gets to decide, for the
+ * reason `lib/auth/email-verification.ts` gives about its own attempt cap:
+ * some settings are security parameters rather than deployment policy, and
+ * offering the knob is offering the wrong answer. Here the wrong answer was
+ * sharper than a weak cap — an address decides which cohort somebody lands in,
+ * and a cohort decides which contests they may enter, so an unproven address
+ * is an unproven claim to a seat in a round. It also switched off more than
+ * its name said: the browser binding went with it, while `register()` carried
+ * on recording `emailVerifiedAt` for an address nobody had proven.
+ *
+ * The need behind it is already served. A deployment that does not want to
+ * depend on mail sets `enabled: false` and creates accounts with
+ * `scripts/create-account.cjs`. What the flag additionally allowed was open
+ * self-registration without proving anything, which this application has no
+ * coherent use for.
+ *
+ * Reported rather than ignored because `z.object` strips unknown keys in
+ * silence, and the direction that matters is `false`: that deployment believed
+ * addresses went unproven, and the answer has changed underneath it. Who may
+ * register is not something to change without saying so.
+ */
+const RETIRED_POLICY_KEYS: Record<string, string> = {
+  requireEmailVerification:
+    "的注册策略里还有 requireEmailVerification，这个选项已经取消。" +
+    "证明邮箱地址不再是部署可以选择的事——地址决定分组，分组决定参赛资格，" +
+    "所以未经证明的地址就是一份未经证明的参赛资格。删掉这一行即可；" +
+    "如果原本设的是 false，请注意注册流程现在一律要求验证码。" +
+    "不想依赖邮件的部署应当用 enabled: false 配 scripts/create-account.cjs。",
+};
+
+/** The complaint for the first retired key this policy names, or null. */
+export function retiredPolicyKey(policy: unknown): string | null {
+  if (typeof policy !== "object" || policy === null) return null;
+
+  for (const [key, complaint] of Object.entries(RETIRED_POLICY_KEYS)) {
+    if (key in policy) return complaint;
+  }
+  return null;
+}

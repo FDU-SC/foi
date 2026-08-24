@@ -28,8 +28,6 @@ export const policy: EnrollmentPolicyInput = {
   // nothing else.
   emailDomains: ["example.test"],
 
-  requireEmailVerification: true,
-
   // Names that would be confusing or outright impersonating on a standings
   // page. Handles named by a rule below are reserved automatically.
   reservedHandles: ["root", "system", "admin", "foi", "judge", "support"],

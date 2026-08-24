@@ -57,18 +57,6 @@ export default async function AdminEnrollmentPage() {
               </dd>
             </div>
             <div className="flex justify-between gap-2">
-              <dt className="text-fg-muted">要求验证邮箱</dt>
-              <dd>
-                <Badge
-                  tone={
-                    enrollmentPolicy.requireEmailVerification ? "ok" : "warn"
-                  }
-                >
-                  {enrollmentPolicy.requireEmailVerification ? "是" : "否"}
-                </Badge>
-              </dd>
-            </div>
-            <div className="flex justify-between gap-2">
               <dt className="text-fg-muted">验证码有效期</dt>
               <dd className="text-fg font-mono text-xs">
                 {codeTtlMinutes} 分钟

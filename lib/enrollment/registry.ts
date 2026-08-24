@@ -7,6 +7,7 @@ import {
   enrollmentRuleSchema,
   isHandlesRule,
   privilegeAllowed,
+  retiredPolicyKey,
   type EnrollmentPolicy,
   type EnrollmentRule,
 } from "./types";
@@ -62,6 +63,11 @@ function buildRegistry(): Registry {
           `enrollment policy 只能声明一次: ${policySource} 与 ${path} 都导出了 policy`,
         );
       }
+      // Before parsing, because `z.object` strips what it does not know
+      // rather than complaining, and a retired key deserves an answer.
+      const retired = retiredPolicyKey(mod.policy);
+      if (retired) throw new Error(`${path} ${retired}`);
+
       const parsed = enrollmentPolicySchema.safeParse(mod.policy);
       if (!parsed.success) fail(path, "注册策略", parsed.error);
       policy = parsed.data;

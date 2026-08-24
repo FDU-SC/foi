@@ -59,10 +59,7 @@ export default async function RegisterPage() {
         </>
       }
     >
-      <RegisterForm
-        requireVerification={enrollmentPolicy.requireEmailVerification}
-        codeTtlMinutes={codeTtlMinutes}
-      />
+      <RegisterForm codeTtlMinutes={codeTtlMinutes} />
     </AuthShell>
   );
 }

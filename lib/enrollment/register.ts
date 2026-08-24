@@ -109,14 +109,18 @@ export async function register(input: {
   if (!domainAllowed(email)) return { ok: false, reason: "email-domain" };
   if (await findAccountByEmail(email)) return { ok: false, reason: "email-taken" };
 
-  if (enrollmentPolicy.requireEmailVerification) {
-    // Both halves: the row says the address was proven, the proof says it
-    // was this browser. Either one alone is "email-unverified" — naming
-    // the cookie would tell a probe that the address is currently proven.
-    const verified = await isEmailVerified(email);
-    if (!verified || !checkRegistrationProof(email, input.proof)) {
-      return { ok: false, reason: "email-unverified" };
-    }
+  // Both halves, and unconditionally. The row says the address was proven, the
+  // proof says it was this browser. Either one alone is "email-unverified" —
+  // naming the cookie would tell a probe that the address is currently proven.
+  //
+  // This used to sit behind `enrollmentPolicy.requireEmailVerification`. That
+  // switch turned off more than its name suggested: not the code alone but the
+  // browser binding with it, while `emailVerifiedAt` below went on recording
+  // that the address had been proven. See `lib/enrollment/types.ts` for why it
+  // was not a deployment's decision to make.
+  const verified = await isEmailVerified(email);
+  if (!verified || !checkRegistrationProof(email, input.proof)) {
+    return { ok: false, reason: "email-unverified" };
   }
 
   const account = await createAccount({

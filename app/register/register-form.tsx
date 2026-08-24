@@ -56,13 +56,7 @@ function NeedsLogin() {
 
 type Phase = "idle" | "sent" | "verified";
 
-export function RegisterForm({
-  requireVerification,
-  codeTtlMinutes,
-}: {
-  requireVerification: boolean;
-  codeTtlMinutes: number;
-}) {
+export function RegisterForm({ codeTtlMinutes }: { codeTtlMinutes: number }) {
   const [state, formAction] = useActionState<RegisterState, FormData>(
     registerAction,
     {},
@@ -70,9 +64,11 @@ export function RegisterForm({
 
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [phase, setPhase] = useState<Phase>(
-    requireVerification ? "idle" : "verified",
-  );
+  // Always starts at `idle`. There was a `requireVerification` prop that could
+  // start it at `verified`, mirroring a policy flag that let a deployment skip
+  // proving the address; `register()` no longer offers that, so a form that
+  // pretended otherwise would only get people to the last step and refused.
+  const [phase, setPhase] = useState<Phase>("idle");
   const [notice, setNotice] = useState<{ tone: "ok" | "err"; text: string }>();
   const [cooldown, setCooldown] = useState(0);
   const [busy, startTransition] = useTransition();
@@ -164,49 +160,47 @@ export function RegisterForm({
             autoComplete="email"
             required
             spellCheck={false}
-            readOnly={verified && requireVerification}
+            readOnly={verified}
             className="min-w-0 flex-1"
             value={email}
             onChange={(event) => changeEmail(event.target.value)}
           />
-          {requireVerification ? (
-            verified ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-28 shrink-0"
-                onClick={() => changeEmail("")}
-              >
-                换个邮箱
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                className="w-28 shrink-0"
-                disabled={busy || cooldown > 0 || email.trim().length === 0}
-                onClick={send}
-              >
-                {cooldown > 0
-                  ? `${cooldown} 秒后重发`
-                  : phase === "sent"
-                    ? "重新发送"
-                    : "获取验证码"}
-              </Button>
-            )
-          ) : null}
+          {verified ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-28 shrink-0"
+              onClick={() => changeEmail("")}
+            >
+              换个邮箱
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              className="w-28 shrink-0"
+              disabled={busy || cooldown > 0 || email.trim().length === 0}
+              onClick={send}
+            >
+              {cooldown > 0
+                ? `${cooldown} 秒后重发`
+                : phase === "sent"
+                  ? "重新发送"
+                  : "获取验证码"}
+            </Button>
+          )}
         </div>
         <span className="text-fg-subtle block text-xs">
           决定你所属的分组，请使用学校邮箱
         </span>
       </div>
 
-      {requireVerification && verified ? (
+      {verified ? (
         <p className="text-ok bg-ok-subtle rounded-md px-3 py-2 text-sm leading-6">
           邮箱已验证，可以完成注册了。
         </p>
       ) : null}
 
-      {requireVerification && !verified && phase === "sent" ? (
+      {!verified && phase === "sent" ? (
         <div className="space-y-1.5">
           <label
             htmlFor="register-code"
@@ -279,7 +273,7 @@ export function RegisterForm({
         </p>
       ) : null}
 
-      <SubmitButton disabled={requireVerification && !verified} />
+      <SubmitButton disabled={!verified} />
     </form>
   );
 }

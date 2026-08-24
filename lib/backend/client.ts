@@ -181,6 +181,51 @@ export interface BackendActionResponse {
 }
 
 /**
+ * Media types an action response may be relayed as.
+ *
+ * The body stays opaque to the kernel — that is the whole bargain of these
+ * endpoints. The header telling a browser how to interpret it is a different
+ * thing, and passing the backend's own through meant a backend could answer
+ * `text/html` and have the kernel serve it from the platform's origin. The
+ * components that consume these endpoints call `res.json()`, so nothing renders
+ * it today; the URL is reachable directly, so a link to it would.
+ *
+ * That is now a smaller worry than it was, since signing the path means the
+ * response has to come from the action the kernel actually invoked. It is still
+ * worth closing: a compromised backend is exactly the case where the kernel
+ * should not be lending out its origin.
+ *
+ * A whitelist rather than a blacklist, because the set of things a problem's
+ * component needs is small and known, while the set of types a browser will
+ * execute is neither.
+ */
+const RELAYABLE_CONTENT_TYPES = [
+  "application/json",
+  "text/plain",
+  "application/octet-stream",
+] as const;
+
+/**
+ * The declared type when it is one we relay, `application/octet-stream`
+ * otherwise.
+ *
+ * Downgraded rather than refused. An action answering with something
+ * unexpected is the problem author's to fix, and turning it into a 502 here
+ * would break a working feature over a header — whereas serving the same bytes
+ * under a type no browser renders costs the author nothing.
+ */
+function relayableContentType(header: string | null): string {
+  if (!header) return "application/json";
+
+  // Matched on the type alone; the parameters ride along, since `charset` is
+  // the caller's business and only the type decides how a browser treats it.
+  const type = header.split(";")[0].trim().toLowerCase();
+  return (RELAYABLE_CONTENT_TYPES as readonly string[]).includes(type)
+    ? header
+    : "application/octet-stream";
+}
+
+/**
  * Invokes one interactive endpoint and hands the answer back untouched.
  *
  * Nothing here inspects the response. The kernel knows that `spawn` is a
@@ -225,7 +270,7 @@ export async function callBackendAction(
 
   return {
     status: res.status,
-    contentType: res.headers.get("content-type") ?? "application/json",
+    contentType: relayableContentType(res.headers.get("content-type")),
     body: await res.text(),
   };
 }

@@ -114,9 +114,16 @@ export async function POST(
     payload,
   });
 
+  // The body is the problem's to define; the content type is not. It has been
+  // narrowed to something a browser will not render as a document, and
+  // `nosniff` stops one being inferred anyway — without both, a backend
+  // answering `text/html` would have the kernel serve it from this origin.
   return new NextResponse(response.body, {
     status: response.status,
-    headers: { "content-type": response.contentType },
+    headers: {
+      "content-type": response.contentType,
+      "x-content-type-options": "nosniff",
+    },
   });
 }
 

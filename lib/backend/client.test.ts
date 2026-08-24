@@ -230,6 +230,84 @@ describe("dispatchToJudge 失败语义", () => {
 });
 
 /**
+ * The body of an action response is opaque to the kernel; the header saying how
+ * to interpret it is not. Relaying the backend's own `content-type` let a
+ * backend answer `text/html` and have the kernel serve it from the platform's
+ * origin.
+ */
+describe("交互端点响应的 content-type 白名单", () => {
+  const backend = () => resolveBackend(Object.keys(backends)[0]);
+  const request = {
+    action: "spawn",
+    user: { handle: "alice", groups: [] },
+    problem: { slug: "leaky-bucket", config: {} },
+    contestSlug: null,
+    payload: null,
+  };
+
+  function answeredWith(contentType: string | null) {
+    const response = new Response("<script>alert(1)</script>", {
+      status: 200,
+      headers: contentType ? { "content-type": contentType } : {},
+    });
+    // `new Response` with a string body sets `text/plain` on its own, so the
+    // "no content type at all" case has to be made by taking it back off.
+    if (contentType === null) response.headers.delete("content-type");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(response);
+    return callBackendAction(backend(), request);
+  }
+
+  it("放过 JSON，连 charset 一起保留", async () => {
+    await expect(
+      answeredWith("application/json; charset=utf-8"),
+    ).resolves.toMatchObject({
+      contentType: "application/json; charset=utf-8",
+    });
+  });
+
+  it("放过 text/plain 与 octet-stream", async () => {
+    await expect(answeredWith("text/plain")).resolves.toMatchObject({
+      contentType: "text/plain",
+    });
+    await expect(
+      answeredWith("application/octet-stream"),
+    ).resolves.toMatchObject({ contentType: "application/octet-stream" });
+  });
+
+  it("text/html 降级成浏览器不会渲染的类型", async () => {
+    await expect(answeredWith("text/html")).resolves.toMatchObject({
+      contentType: "application/octet-stream",
+    });
+  });
+
+  it("image/svg+xml 同样降级——它也能带脚本", async () => {
+    await expect(answeredWith("image/svg+xml")).resolves.toMatchObject({
+      contentType: "application/octet-stream",
+    });
+  });
+
+  it("大小写与多余空格不能绕过匹配", async () => {
+    await expect(
+      answeredWith("  TEXT/HTML ; charset=utf-8"),
+    ).resolves.toMatchObject({ contentType: "application/octet-stream" });
+  });
+
+  it("没有 content-type 时按 JSON 处理", async () => {
+    await expect(answeredWith(null)).resolves.toMatchObject({
+      contentType: "application/json",
+    });
+  });
+
+  it("降级只动头，body 与状态码原样带回，因为它们归题目", async () => {
+    await expect(answeredWith("text/html")).resolves.toMatchObject({
+      body: "<script>alert(1)</script>",
+      status: 200,
+    });
+  });
+});
+
+/**
  * The signature covers the method and the path, so every outbound call has to
  * sign the request it actually makes. That pairing is the thing that can come
  * apart silently — add a fifth endpoint, or change a path after signing it,

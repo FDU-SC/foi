@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getSessionUser } from "@/auth";
+import { groupName } from "@/lib/auth/groups";
 import { viewerFor } from "@/lib/auth/viewer";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { UserMenu } from "@/components/site/user-menu";
@@ -47,7 +48,10 @@ export async function Header() {
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle />
           {user ? (
-            <UserMenu user={user} />
+            <UserMenu
+              user={user}
+              groupNames={user.groups.map(groupName)}
+            />
           ) : (
             <Link
               href="/login"

@@ -237,7 +237,7 @@ export function JudgeStatusBoard({
     <div className="space-y-4">
       <div className="text-fg-subtle flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
         <span>
-          共 <span className="text-fg font-mono">{statuses.length}</span> 台判题机
+          共 <span className="text-fg font-mono">{statuses.length}</span> 台评测机
         </span>
         <span>
           评测中 <span className="text-fg font-mono">{totalRunning}</span>

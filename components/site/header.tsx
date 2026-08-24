@@ -8,7 +8,7 @@ const NAV = [
   { href: "/problems", label: "题库" },
   { href: "/contests", label: "比赛" },
   { href: "/submissions", label: "提交记录" },
-  { href: "/judges", label: "判题机" },
+  { href: "/judges", label: "评测机" },
 ] as const;
 
 export async function Header() {

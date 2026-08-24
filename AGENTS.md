@@ -18,7 +18,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 | --- | --- | --- | --- |
 | Postgres 16 | 5433 | `sudo pg_ctlcluster 16 main start` | 见下方 caveat；开机不会自动启动 |
 | Next.js dev（Turbopack） | 3000 | `pnpm dev` | 主应用 |
-| mock 题目后端 | 4100 | `pnpm backend:mock` | 提交→判题闭环所需 |
+| mock 题目后端 | 4100 | `pnpm backend:mock` | 提交→评测闭环所需 |
 
 ### 非显然的注意事项
 
@@ -27,5 +27,5 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - **必须用 Turbopack**（`next dev` 在 Next 16 默认即是），不要切回 webpack：题目注册表依赖 `import.meta.glob`。
 - **数据库迁移会在 dev server 启动时由 `instrumentation.ts` 自动应用**，也可手动 `pnpm db:migrate`。
 - **种子账号**：`admin` / `alice` / `bob` / `carol`，统一密码 `foi-dev-2026`（可用 `FOI_SEED_PASSWORD` 覆盖）。
-- **mock 题目后端返回随机判题结果**，用于验证「提交→投递→回调」闭环；`backends.config.ts` 里 `traditional` 与 `flag-checker` 默认都指向 `:4100`。
+- **mock 题目后端返回随机评测结果**，用于验证「提交→投递→回调」闭环；`backends.config.ts` 里 `traditional` 与 `flag-checker` 默认都指向 `:4100`。
 - Postgres 用户密码认证：连接串已用 `foi_dev_password`，通过 TCP `localhost:5433` 连接。

@@ -45,7 +45,7 @@ describe("actionFor 白名单", () => {
     }
   });
 
-  it("判题协议的路径不能借 action 通道转发", () => {
+  it("评测协议的路径不能借 action 通道转发", () => {
     // The whitelist is what keeps this from being a general proxy. If the path
     // segment were relayed as-is, these would reach the backend's own
     // endpoints with a valid signature on them.

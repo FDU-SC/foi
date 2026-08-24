@@ -24,6 +24,16 @@ import { accounts, credentials } from "../lib/db/schema";
 
 const ARGON2_OPTIONS = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
 
+// Every seeded account shares one well-known password, so running this against
+// a deployment anyone else can reach hands out working credentials. Refuse
+// rather than rely on the operator noticing the comment above.
+if (process.env.NODE_ENV === "production") {
+  console.error(
+    "seed 会写入统一弱密码的账号，仅限开发环境；检测到 NODE_ENV=production，拒绝运行。",
+  );
+  process.exit(1);
+}
+
 interface SeedAccount {
   handle: string;
   displayName: string;

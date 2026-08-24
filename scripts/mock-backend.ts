@@ -12,6 +12,18 @@ import {
 } from "../lib/backend/signature";
 import type { JudgeQueue, QueueItem, Verdict } from "../lib/backend/types";
 
+// Before anything else: this judge compiles and runs submitted code on the
+// host with no sandbox (see judgeInteractive/judgePerformance), which is an
+// acceptable shortcut for local development and nothing else. Refuse to boot
+// in a production deployment rather than becoming its remote code execution
+// endpoint.
+if (process.env.NODE_ENV === "production") {
+  throw new Error(
+    "mock 题目后端没有沙箱，会在宿主机上直接编译并运行提交的代码，仅供本地开发；" +
+      "检测到 NODE_ENV=production，拒绝启动。",
+  );
+}
+
 const PORT = Number(process.env.MOCK_BACKEND_PORT ?? 4100);
 const JUDGE_DELAY_MS = Number(process.env.MOCK_BACKEND_DELAY ?? 1500);
 /** Concurrent evaluation slots; anything beyond this waits in the queue. */

@@ -45,7 +45,7 @@ describe("verdictColumns", () => {
     expect(columns.outcome).toBe("checked");
   });
 
-  it("accepted 只记判题机声明过的，沉默是 null 而不是 false", () => {
+  it("accepted 只记评测机声明过的，沉默是 null 而不是 false", () => {
     expect(
       verdictColumns({ status: "wrong_answer", score: 0 }, someProblem.slug)
         .accepted,

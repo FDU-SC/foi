@@ -346,7 +346,7 @@ function judgeOutputOnly(config: unknown, payload: unknown): Verdict {
       status: "system_error",
       score: 0,
       maxScore: 100,
-      detail: { message: "判题机配置缺少 cases" },
+      detail: { message: "评测机配置缺少 cases" },
     };
   }
 

@@ -42,7 +42,7 @@ describe("describeVerdict", () => {
     ).toMatchObject({ label: "slow_but_correct", tone: "partial" });
   });
 
-  it("判题机声明了通过就按通过着色，哪怕分数不满", () => {
+  it("评测机声明了通过就按通过着色，哪怕分数不满", () => {
     expect(
       describeVerdict({
         outcome: "slow_but_correct",

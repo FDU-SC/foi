@@ -111,7 +111,7 @@ export async function POST(request: Request) {
     backend = resolveBackend(problem.backend.id);
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "判题机配置错误" },
+      { error: error instanceof Error ? error.message : "评测机配置错误" },
       { status: 500 },
     );
   }

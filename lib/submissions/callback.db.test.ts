@@ -103,7 +103,7 @@ async function land(
   return row;
 }
 
-describeDb("判题回调落地", () => {
+describeDb("评测回调落地", () => {
   beforeAll(async () => {
     await cleanup();
     await db
@@ -120,7 +120,7 @@ describeDb("判题回调落地", () => {
 
   afterAll(cleanup);
 
-  it("完整回传时四列都是判题机说的", async () => {
+  it("完整回传时四列都是评测机说的", async () => {
     const row = await land("sub_cb_full", {
       status: "accepted",
       score: 100,
@@ -134,7 +134,7 @@ describeDb("判题回调落地", () => {
     expect(row.accepted).toBeNull();
   });
 
-  it("判题机版本落进列，作为溯源的后端那一半", async () => {
+  it("评测机版本落进列，作为溯源的后端那一半", async () => {
     const row = await land("sub_cb_version", { status: "accepted", score: 1 });
 
     expect(row.backendVersion).toBe(VERSION);

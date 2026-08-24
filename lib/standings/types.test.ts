@@ -178,7 +178,7 @@ describe("isAccepted", () => {
    * performance task can pass well below full marks, or withhold a pass at
    * full marks. Only the backend knows, so what it says wins.
    */
-  it("判题机说了算：声明不通过时，满分也不算通过", () => {
+  it("评测机说了算：声明不通过时，满分也不算通过", () => {
     expect(
       isAccepted(
         submission({
@@ -192,7 +192,7 @@ describe("isAccepted", () => {
     ).toBe(false);
   });
 
-  it("判题机说了算：声明通过时，零分也算通过", () => {
+  it("评测机说了算：声明通过时，零分也算通过", () => {
     expect(
       isAccepted(
         submission({
@@ -206,7 +206,7 @@ describe("isAccepted", () => {
     ).toBe(true);
   });
 
-  it("判题机什么分都没报时不算通过", () => {
+  it("评测机什么分都没报时不算通过", () => {
     expect(
       isAccepted({
         id: "s_noscore",

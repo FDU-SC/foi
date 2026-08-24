@@ -52,7 +52,7 @@ export const policy: EnrollmentPolicyInput = {
 export const groups: GroupInput[] = [
   {
     id: "管理员",
-    description: "完整权限：预览未公开题目、查看判题机与全部提交、管理凭据与账号。",
+    description: "完整权限：预览未公开题目、查看评测机与全部提交、管理凭据与账号。",
     capabilities: [
       "admin.access",
       "problem.viewAll",

@@ -53,7 +53,7 @@ afterEach(() => {
 });
 
 describe("fetchAllJudgeQueues 快照", () => {
-  it("一秒内的重复调用只打一轮判题机", async () => {
+  it("一秒内的重复调用只打一轮评测机", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(jsonResponse(QUEUE_BODY));
@@ -100,7 +100,7 @@ describe("fetchAllJudgeQueues 快照", () => {
     expect(fetchMock.mock.calls.length).toBe(afterFirst * 2);
   });
 
-  it("单台判题机不可达不影响其余，也不抛异常", async () => {
+  it("单台评测机不可达不影响其余，也不抛异常", async () => {
     const ids = Object.keys(backends);
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = String(input);
@@ -118,7 +118,7 @@ describe("fetchAllJudgeQueues 快照", () => {
 });
 
 describe("redactJudgeStatus", () => {
-  it("抹掉判题机地址与队列条目的题目", async () => {
+  it("抹掉评测机地址与队列条目的题目", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(QUEUE_BODY));
     const [status] = await fetchAllJudgeQueues();
 
@@ -168,7 +168,7 @@ describe("dispatchToJudge 失败语义", () => {
     });
   });
 
-  it("5xx 判为结果未知，因为判题机可能已经入队", async () => {
+  it("5xx 判为结果未知，因为评测机可能已经入队", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse({ error: "boom" }, 503),
     );

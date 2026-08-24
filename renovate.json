@@ -22,8 +22,9 @@
       "automerge": true
     },
     {
-      "description": "类型定义包只影响编译期，typecheck 是它们的完整验收。",
+      "description": "类型定义包只影响编译期，typecheck 是它们的完整验收——但只限 patch 与 minor。少了 matchUpdateTypes 时 major 也会自动合：@types/react 和 @types/react-dom 被后面的 react 组按「后面的规则覆盖前面的」捞了回来，@types/node、@types/mdx、@types/nodemailer、@types/pg 却是裸着走的。typecheck 确实会挡住破坏性的改动，但那是在拿编译错误当评审用，方向反了。",
       "matchPackageNames": ["@types/**"],
+      "matchUpdateTypes": ["patch", "minor"],
       "automerge": true
     },
     {
@@ -58,7 +59,7 @@
       "labels": ["dependencies", "需要人工核对"]
     },
     {
-      "description": "base image 的 digest 会随每次 Debian 安全刷新变动，单独一组以免和 npm 升级混在一起。",
+      "description": "base image 的 digest 会随每次 Debian 安全刷新变动，单独一组以免和 npm 升级混在一起。不自动合并：PR 上的 verify 并不构建镜像（build job 被 if: github.event_name != 'pull_request' 挡着），所以 Dockerfile 的改动在 PR 阶段没有任何东西验证过。",
       "matchManagers": ["dockerfile"],
       "groupName": "docker base image",
       "automerge": false
@@ -67,6 +68,32 @@
       "description": "argon2 是原生模块，装的是预编译产物；换版本等于换二进制，值得看一眼。",
       "matchPackageNames": ["@node-rs/argon2"],
       "automerge": false
+    },
+    {
+      "description": "Node 的大版本散在三个 manager 里：Dockerfile 的 node:22-bookworm-slim（dockerfile）、两个 workflow 里 actions/setup-node 的 node-version: 22（github-actions 的 uses-with depType）、以及 @types/node（npm）。升大版本时这三处必须一起动，否则运行时、CI 与类型会各走各的。只对 major 分组，好让 @types/node 的 patch/minor 仍然走上面的自动合并，也让 base image 的 digest 刷新仍然独立成 PR。若 uses-with 那条的 depName 与这里对不上，后果只是它单独开一个 PR，不影响正确性。",
+      "groupName": "node",
+      "matchPackageNames": ["node", "@types/node"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "需要人工核对"]
+    },
+    {
+      "description": "postgres:16-alpine 出现在四个地方、分属两个 manager：docker-compose.yml、docker-compose.prod.yml（两处，主库与备份容器）、以及 deploy.yml 的 CI service。不同组的话 CI 用的和生产跑的会漂移，而那种漂移只会在迁移行为不一致时才被发现。",
+      "groupName": "postgres",
+      "matchPackageNames": ["postgres"],
+      "automerge": false
+    },
+    {
+      "description": "Postgres 的大版本升级不是升级，是迁移。PG17 拒绝在 PG16 的数据目录上启动，要跑 pg_upgrade；而一个把 16-alpine 换成 17-alpine 的 PR 长得和其它依赖 PR 一模一样，只靠人记得别点。不是禁掉——那样就再也听不到新版本了——而是要求先在 Dependency Dashboard 上勾选批准，PR 才会被创建。想知道的时候看得见，不想要的时候不会有东西躺在那里等人误合。",
+      "matchPackageNames": ["postgres"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
+      "labels": ["dependencies", "需要人工核对"]
+    },
+    {
+      "description": "开发用的 compose 不钉 digest。docker:pinDigests 对生产与 CI 是对的，但 docker-compose.yml 只服务本机开发，而它里面的 axllent/mailpit:latest 是个浮动 tag——钉上之后 mailpit 每发一版就是一个需要人看的 PR。让依赖 PR 流里出现没人真的会读的条目，代价和每周一个重复的扫描 issue 是同一种。",
+      "matchFileNames": ["docker-compose.yml"],
+      "pinDigests": false
     }
   ],
   "vulnerabilityAlerts": {

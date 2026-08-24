@@ -13,10 +13,15 @@ declare global {
  * LISTEN requires a dedicated, non-pooled connection, since PgBouncer in
  * transaction mode silently drops the subscription.
  */
-const bus = globalThis.__foiSubmissionBus ?? new EventEmitter();
+// Attached unconditionally rather than only in development. Next can place a
+// module in more than one server bundle, and a second copy of this one would
+// be a second bus: the callback handler would publish into one while the open
+// SSE streams listened on the other, and the only symptom would be verdicts
+// that never push — indistinguishable from a slow judge, and covered up by the
+// client's polling fallback.
+const bus = (globalThis.__foiSubmissionBus ??= new EventEmitter());
 // One listener per open stream; the default cap of 10 would warn under load.
 bus.setMaxListeners(0);
-if (process.env.NODE_ENV !== "production") globalThis.__foiSubmissionBus = bus;
 
 const ALL = "submission";
 

@@ -1,12 +1,20 @@
 declare global {
   var __foiReconciler: ReturnType<typeof setInterval> | undefined;
+  var __foiVerificationSweep: ReturnType<typeof setInterval> | undefined;
 }
 
 const RECONCILE_INTERVAL_MS = 15_000;
+const VERIFICATION_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 
 export async function register() {
   // The registry is Turbopack-built and Node-only; skip other runtimes.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+
+  // First, and for the same reason the migration below aborts startup: a
+  // deployment that cannot work should say so while the health check is still
+  // watching, rather than at whichever request first needs the missing value.
+  const { assertEnv } = await import("@/lib/env");
+  assertEnv();
 
   // Runs before anything touches the schema. Drizzle records applied
   // migrations in its own table, so this is a no-op once up to date. A failure
@@ -19,9 +27,38 @@ export async function register() {
     console.log("[foi] 数据库迁移已应用");
   }
 
+  // Registries are the source of truth; the mirror tables exist only so
+  // submissions can carry foreign keys. Pushing them here means a deploy is
+  // consistent before it serves a single request. Grants come along for the
+  // same reason: the bootstrap administrator needs a row before anything can
+  // reference it, and nobody can create one through the UI.
   const { syncProblems } = await import("@/lib/problems/sync");
-  const { synced } = await syncProblems();
-  console.log(`[foi] 已同步 ${synced} 道题目`);
+  const { syncContests } = await import("@/lib/contests/queries");
+  const { syncGrants } = await import("@/lib/accounts/sync");
+  const [problems, contests, grants] = await Promise.all([
+    syncProblems(),
+    syncContests(),
+    syncGrants(),
+  ]);
+  console.log(
+    `[foi] 已同步 ${problems.synced} 道题目、${contests.synced} 场比赛、${grants.synced} 个声明账号`,
+  );
+
+  // Enrollment misconfigurations — nobody able to administer, no cohort rules,
+  // a contest whose tag nothing produces — are said loudly rather than
+  // refusing to boot: the CLI can still recover the deployment, and an outage
+  // would be the worse failure. Some of these used to fail the build, back
+  // when what they referred to was code rather than data.
+  const { enrollmentWarnings } = await import("@/lib/enrollment/registry");
+  const { contestWarnings } = await import("@/lib/contests/registry");
+  const { problemGateWarnings } = await import("@/lib/problems/access");
+  for (const warning of [
+    ...enrollmentWarnings(),
+    ...contestWarnings(),
+    ...problemGateWarnings(),
+  ]) {
+    console.warn(`[foi] ${warning}`);
+  }
 
   const { reconcileStaleSubmissions } = await import("@/lib/judge/reconciler");
 
@@ -36,4 +73,28 @@ export async function register() {
       })
       .catch((error) => console.error("[foi] 对账失败", error));
   }, RECONCILE_INTERVAL_MS);
+
+  // This slot used to release handles held by signups that never confirmed
+  // their address. There are no such signups any more — an account is not
+  // created until the code has been typed back — so what is left to forget is
+  // the addresses of people who started and stopped. Every one is somebody's
+  // mailbox, and an abandoned attempt should not leave it in the database.
+  const { purgeExpiredVerifications } = await import(
+    "@/lib/auth/email-verification"
+  );
+
+  const sweep = () => {
+    void purgeExpiredVerifications()
+      .then((count) => {
+        if (count > 0) console.log(`[foi] 已清理 ${count} 条过期的邮箱验证`);
+      })
+      .catch((error) => console.error("[foi] 清理过期邮箱验证失败", error));
+  };
+
+  clearInterval(globalThis.__foiVerificationSweep);
+  globalThis.__foiVerificationSweep = setInterval(
+    sweep,
+    VERIFICATION_SWEEP_INTERVAL_MS,
+  );
+  sweep();
 }

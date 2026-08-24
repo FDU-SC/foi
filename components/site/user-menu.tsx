@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { logout } from "@/app/actions/auth";
+import { groupName } from "@/lib/auth/groups";
 import type { SessionUser } from "@/lib/auth/session";
 
 export function UserMenu({ user }: { user: SessionUser }) {
@@ -44,7 +45,7 @@ export function UserMenu({ user }: { user: SessionUser }) {
           <div className="border-border border-b px-3 py-2">
             <div className="text-fg font-mono text-xs">{user.handle}</div>
             <div className="text-fg-subtle text-[11px]">
-              {user.role === "admin" ? "管理员" : "选手"}
+              {user.groups.map(groupName).join(" · ") || "选手"}
             </div>
           </div>
           <Link

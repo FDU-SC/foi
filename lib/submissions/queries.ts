@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { problems, submissions, users } from "@/lib/db/schema";
+import { accounts, problems, submissions } from "@/lib/db/schema";
 import type { SubmissionRow } from "@/lib/db/schema";
 import type { SubmissionListItem, SubmissionView } from "./types";
 
@@ -8,7 +8,7 @@ export function toView(row: SubmissionRow): SubmissionView {
   return {
     id: row.id,
     problemSlug: row.problemSlug,
-    contestId: row.contestId,
+    contestSlug: row.contestSlug,
     state: row.state,
     verdict: row.verdict ?? null,
     createdAt: row.createdAt.toISOString(),
@@ -28,37 +28,42 @@ export async function getSubmissionRow(
 }
 
 export async function listSubmissions(options: {
-  userId?: string;
+  handle?: string;
   problemSlug?: string;
-  contestId?: string;
+  contestSlug?: string;
   limit?: number;
 }): Promise<SubmissionListItem[]> {
   const filters = [
-    options.userId ? eq(submissions.userId, options.userId) : undefined,
+    options.handle ? eq(submissions.handle, options.handle) : undefined,
     options.problemSlug
       ? eq(submissions.problemSlug, options.problemSlug)
       : undefined,
-    options.contestId ? eq(submissions.contestId, options.contestId) : undefined,
+    options.contestSlug
+      ? eq(submissions.contestSlug, options.contestSlug)
+      : undefined,
   ].filter((clause) => clause !== undefined);
 
+  // The display name is a join again. It was a roster lookup for as long as
+  // identity lived in the repository; now that people supply their own, the
+  // authoritative copy is one table over and the foreign key guarantees the
+  // row is there.
   const rows = await db
     .select({
       submission: submissions,
-      userHandle: users.handle,
-      userDisplayName: users.displayName,
       problemTitle: problems.title,
+      displayName: accounts.displayName,
     })
     .from(submissions)
-    .innerJoin(users, eq(users.id, submissions.userId))
     .innerJoin(problems, eq(problems.slug, submissions.problemSlug))
+    .innerJoin(accounts, eq(accounts.handle, submissions.handle))
     .where(filters.length > 0 ? and(...filters) : undefined)
     .orderBy(desc(submissions.createdAt))
     .limit(options.limit ?? 50);
 
   return rows.map((row) => ({
     ...toView(row.submission),
-    userHandle: row.userHandle,
-    userDisplayName: row.userDisplayName,
+    handle: row.submission.handle,
+    displayName: row.displayName,
     problemTitle: row.problemTitle,
   }));
 }

@@ -19,6 +19,19 @@ export function isTerminalState(state: SubmissionState): boolean {
 }
 
 /**
+ * The states a submission can still be moved out of.
+ *
+ * Every write that reaches a terminal state is guarded by this list in its
+ * `where` clause rather than by a preceding read. The callback handler and the
+ * reconciler can both be holding a row that was non-terminal a moment ago —
+ * the reconciler in particular holds one across a network call to the judge —
+ * so whichever writes second has to lose rather than overwrite a verdict that
+ * already landed. Without the guard an accepted submission can be rewritten as
+ * a timeout, silently and after the fact.
+ */
+export const NON_TERMINAL_STATES: SubmissionState[] = ["pending", "judging"];
+
+/**
  * The kernel's entire understanding of a judge result.
  *
  * `status` and `score` exist so generic UI (submission lists, standings) can

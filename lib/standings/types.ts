@@ -12,7 +12,7 @@ export interface ContestProblem {
 }
 
 export interface Participant {
-  userId: string;
+  /** Identifies the person everywhere: roster, credentials and submissions. */
   handle: string;
   displayName: string;
   unofficial: boolean;
@@ -20,7 +20,7 @@ export interface Participant {
 
 export interface SubmissionRecord {
   id: string;
-  userId: string;
+  handle: string;
   problemSlug: string;
   state: SubmissionState;
   verdict: Verdict | null;
@@ -29,7 +29,7 @@ export interface SubmissionRecord {
 }
 
 export interface ContestWindow {
-  id: string;
+  slug: string;
   startsAt: Date;
   endsAt: Date;
   freezeAt: Date | null;
@@ -78,6 +78,19 @@ export interface Ruleset<Cell = unknown> {
   id: string;
   name: string;
   description: string;
+  /**
+   * Whether this format implements the freeze window.
+   *
+   * Required rather than optional so that writing a new format forces an
+   * answer. Freezing is not something the kernel can do on a format's behalf —
+   * it has to decide what a submission made after the cutoff looks like, and
+   * ACM's "pending" cell has no counterpart in a score-based board — so a
+   * format that has not implemented it must say so. `lib/contests/registry.ts`
+   * then refuses to load a contest that sets `freezeAt` against a format that
+   * would quietly ignore it, which is how that mistake used to surface: not at
+   * all, until the board failed to freeze during a live round.
+   */
+  supportsFreeze: boolean;
   computeStandings(input: StandingsInput): Standings<Cell>;
   render?: {
     Cell?: ComponentType<{ cell: Cell | undefined; problem: ContestProblem }>;

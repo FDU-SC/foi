@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
+import { AuthShell } from "@/components/auth/auth-shell";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "登录" };
@@ -15,19 +16,22 @@ export default async function LoginPage({
   const target = typeof next === "string" ? next : "/";
 
   return (
-    <div className="flex flex-1 items-center justify-center px-4 py-16">
-      <div className="w-full max-w-xs">
-        <Link
-          href="/"
-          className="text-fg mb-8 block text-center text-2xl font-bold tracking-tight"
-        >
-          FOI
-        </Link>
-        <LoginForm next={target} />
-        <p className="text-fg-subtle mt-6 text-center text-xs leading-relaxed">
-          账号由管理员统一分配。
-        </p>
-      </div>
-    </div>
+    <AuthShell
+      footer={
+        <>
+          还没有账号？{" "}
+          <Link href="/register" className="hover:text-fg underline">
+            注册
+          </Link>
+          。忘记密码？{" "}
+          <Link href="/forgot-password" className="hover:text-fg underline">
+            用邮箱找回
+          </Link>
+          。
+        </>
+      }
+    >
+      <LoginForm next={target} />
+    </AuthShell>
   );
 }

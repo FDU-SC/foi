@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { audienceSchema } from "@/lib/auth/audience";
 
 /** Display names for the languages the built-in code submitter offers. */
 export const LANGUAGES: Record<string, string> = {
@@ -47,7 +48,15 @@ export const problemConfigSchema = z.object({
 
   tags: z.array(z.string()).default([]),
   difficulty: z.enum(DIFFICULTIES).optional(),
-  hidden: z.boolean().default(false),
+  /**
+   * Which groups may see this problem. Omitted means everyone, `[]` means
+   * nobody — that is how a problem is staged before it has an audience.
+   *
+   * Composes with the contest gate rather than replacing it: a problem for the
+   * school team that belongs to next week's round is visible to neither until
+   * both say yes.
+   */
+  visibleTo: audienceSchema,
   order: z.number().default(0),
 });
 

@@ -7,6 +7,12 @@ export interface LoginState {
   error?: string;
 }
 
+/**
+ * Rate limiting is not here but in the `authorize` callback, which is the only
+ * point every attempt passes through: posting straight to
+ * `/api/auth/callback/credentials` skips this action entirely. A refused
+ * attempt therefore comes back as an ordinary credential failure.
+ */
 export async function login(
   _prev: LoginState,
   formData: FormData,

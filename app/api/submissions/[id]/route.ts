@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/auth";
+import { viewerFor } from "@/lib/auth/viewer";
 import { isTerminalState } from "@/lib/judge/types";
 import { locateOne } from "@/lib/judge/queue-lookup";
-import { getSubmissionRow, toView } from "@/lib/submissions/queries";
+import { submissionFor } from "@/lib/submissions/access";
+import { toView } from "@/lib/submissions/queries";
 
 export const runtime = "nodejs";
 
@@ -16,13 +18,9 @@ export async function GET(
   }
 
   const { id } = await params;
-  const row = await getSubmissionRow(id);
+  const row = await submissionFor(id, viewerFor(user));
   if (!row) {
     return NextResponse.json({ error: "提交不存在" }, { status: 404 });
-  }
-
-  if (row.userId !== user.id && user.role !== "admin") {
-    return NextResponse.json({ error: "无权查看该提交" }, { status: 403 });
   }
 
   const view = toView(row);

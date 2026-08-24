@@ -44,6 +44,10 @@ export const oiRuleset: Ruleset<OiCell> = {
   id: "oi",
   name: "OI",
   description: "每题取最高分（或最后一次提交），按总分排名。",
+  // Not implemented. A frozen score-based board would need a way to say "this
+  // cell has a newer submission you cannot see", and this format has no such
+  // cell state; adding one is a change to the format, not a flag flip.
+  supportsFreeze: false,
 
   computeStandings(input: StandingsInput) {
     const { take } = configSchema.parse(input.config ?? {});
@@ -57,11 +61,11 @@ export const oiRuleset: Ruleset<OiCell> = {
 
     const byUser = new Map<string, Map<string, OiCell>>();
     for (const participant of input.participants) {
-      byUser.set(participant.userId, new Map());
+      byUser.set(participant.handle, new Map());
     }
 
     for (const submission of scoredSubmissions(input)) {
-      const cells = byUser.get(submission.userId);
+      const cells = byUser.get(submission.handle);
       if (!cells) continue;
 
       const maxScore = maxScoreOf.get(submission.problemSlug) ?? 0;
@@ -84,7 +88,7 @@ export const oiRuleset: Ruleset<OiCell> = {
     }
 
     const rows = input.participants.map((participant) => {
-      const cells = Object.fromEntries(byUser.get(participant.userId) ?? []);
+      const cells = Object.fromEntries(byUser.get(participant.handle) ?? []);
       let total = 0;
       let lastAt = 0;
 

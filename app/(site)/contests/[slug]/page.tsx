@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import {
-  contestPhase,
-  getContestBySlug,
-  getContestProblems,
-  PHASE_LABEL,
-} from "@/lib/contests/queries";
+  contestFor,
+  isContestProblemSetVisible,
+} from "@/lib/contests/access";
+import { resolveContestProblems } from "@/lib/contests/queries";
+import { contestPhase, PHASE_LABEL } from "@/lib/contests/types";
 import { getRuleset } from "@/lib/standings/registry";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,8 @@ export async function generateMetadata({
   params,
 }: PageProps<"/contests/[slug]">): Promise<Metadata> {
   const { slug } = await params;
-  return { title: (await getContestBySlug(slug))?.title ?? "比赛" };
+  const view = contestFor(slug, await getViewer());
+  return { title: view?.config.title ?? "比赛" };
 }
 
 const formatter = new Intl.DateTimeFormat("zh-CN", {
@@ -28,14 +30,22 @@ export default async function ContestPage({
   params,
 }: PageProps<"/contests/[slug]">) {
   const { slug } = await params;
-  const contest = await getContestBySlug(slug);
-  if (!contest) notFound();
+  const viewer = await getViewer();
+  const preview = viewer.can("problem.viewAll");
 
-  const [problems, ruleset] = [
-    await getContestProblems(contest.id),
-    getRuleset(contest.rulesetId),
-  ];
+  const view = contestFor(slug, viewer);
+  if (!view) notFound();
+
+  const contest = view.config;
+  const ruleset = getRuleset(contest.ruleset.id);
   const phase = contestPhase(contest);
+
+  // Before the start the problem set is itself the secret: how many problems
+  // there are, what they are called and what they are worth all describe the
+  // round without opening a single statement.
+  const problemSetVisible = isContestProblemSetVisible(contest);
+  const problems =
+    problemSetVisible || preview ? resolveContestProblems(contest) : [];
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -44,7 +54,7 @@ export default async function ContestPage({
           <Badge tone={phase === "running" ? "ok" : "neutral"}>
             {PHASE_LABEL[phase]}
           </Badge>
-          <Badge>{ruleset?.name ?? contest.rulesetId}</Badge>
+          <Badge>{ruleset?.name ?? contest.ruleset.id}</Badge>
         </div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">
           {contest.title}
@@ -64,19 +74,32 @@ export default async function ContestPage({
         ) : null}
       </header>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-fg text-lg font-semibold">题目</h2>
+        {!problemSetVisible && preview ? (
+          <Badge tone="warn">预览 · 尚未对选手公开</Badge>
+        ) : null}
         <Link
           href={`/contests/${contest.slug}/standings`}
-          className="text-primary text-sm hover:underline"
+          className="text-primary ml-auto text-sm hover:underline"
         >
           查看排行榜 →
         </Link>
       </div>
 
-      {problems.length === 0 ? (
+      {!problemSetVisible && !preview ? (
+        <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
+          题目将在 {formatter.format(contest.startsAt)} 开赛时公开。
+        </p>
+      ) : problems.length === 0 ? (
         <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
           这场比赛还没有添加题目。
+          <br />
+          在{" "}
+          <code className="font-mono">
+            content/contests/{contest.slug}/contest.ts
+          </code>{" "}
+          的 problems 中登记。
         </p>
       ) : (
         <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">

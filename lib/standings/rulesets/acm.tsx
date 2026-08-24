@@ -55,6 +55,7 @@ export const acmRuleset: Ruleset<AcmCell> = {
   id: "acm",
   name: "ACM / ICPC",
   description: "按通过题数排名，同数按罚时（解题时间 + 错误提交罚分）排序。",
+  supportsFreeze: true,
 
   computeStandings(input: StandingsInput) {
     const { penaltyMinutes } = configSchema.parse(input.config ?? {});
@@ -66,11 +67,11 @@ export const acmRuleset: Ruleset<AcmCell> = {
 
     const byUser = new Map<string, Map<string, AcmCell>>();
     for (const participant of input.participants) {
-      byUser.set(participant.userId, new Map());
+      byUser.set(participant.handle, new Map());
     }
 
     for (const submission of scoredSubmissions(input)) {
-      const cells = byUser.get(submission.userId);
+      const cells = byUser.get(submission.handle);
       if (!cells) continue;
 
       const cell = cells.get(submission.problemSlug) ?? {
@@ -97,7 +98,7 @@ export const acmRuleset: Ruleset<AcmCell> = {
     }
 
     const rows = input.participants.map((participant) => {
-      const cells = Object.fromEntries(byUser.get(participant.userId) ?? []);
+      const cells = Object.fromEntries(byUser.get(participant.handle) ?? []);
       let solved = 0;
       let penalty = 0;
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getSessionUser } from "@/auth";
+import { viewerFor } from "@/lib/auth/viewer";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { UserMenu } from "@/components/site/user-menu";
 
@@ -33,7 +34,7 @@ export async function Header() {
               {item.label}
             </Link>
           ))}
-          {user?.role === "admin" ? (
+          {viewerFor(user).can("admin.access") ? (
             <Link
               href="/admin"
               className="text-fg-muted hover:text-fg hover:bg-surface-2 rounded-md px-2.5 py-1.5 transition-colors"

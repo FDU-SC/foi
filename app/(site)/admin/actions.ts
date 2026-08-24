@@ -1,207 +1,190 @@
 "use server";
 
-import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { ulid } from "ulid";
 import { z } from "zod";
-import { getSessionUser, hashPassword } from "@/auth";
-import { db } from "@/lib/db";
-import {
-  contestProblems,
-  contests,
-  problems,
-  users,
-} from "@/lib/db/schema";
+import { requireCapability } from "@/auth";
+import { reinstateAccount, suspendAccount } from "@/lib/accounts/queries";
+import { resolveUser } from "@/lib/accounts/resolve";
+import { syncContests } from "@/lib/contests/queries";
+import { sendPasswordReset } from "@/lib/mail/notify";
 import { syncProblems } from "@/lib/problems/sync";
-import { invalidateStandings } from "@/lib/standings/cache";
-import { getRuleset } from "@/lib/standings/registry";
 
 export interface ActionState {
   error?: string;
   message?: string;
 }
 
-/**
- * Server Actions are reachable by POST regardless of what the proxy matched,
- * so every one of them re-checks the role rather than trusting the route.
- */
-async function requireAdmin(): Promise<void> {
-  const user = await getSessionUser();
-  if (user?.role !== "admin") throw new Error("FORBIDDEN");
-}
+// Every action starts with `requireCapability`, which lives in `@/auth`
+// alongside `getViewer` because it asks the same question and answers it the
+// same way — it just refuses instead of returning false. Server Actions are
+// reachable by POST regardless of what the proxy matched, which is why the
+// route is never trusted here.
 
-export async function syncProblemsAction(): Promise<ActionState> {
-  await requireAdmin();
-  const { synced } = await syncProblems();
+/**
+ * Pushes both filesystem registries into their mirror tables.
+ *
+ * Startup does this automatically; the button exists for the case where a
+ * registry changed under a running server and the operator would rather not
+ * wait for a restart.
+ */
+export async function syncRegistriesAction(): Promise<ActionState> {
+  await requireCapability("registry.sync");
+
+  const [problems, contests] = await Promise.all([
+    syncProblems(),
+    syncContests(),
+  ]);
+
   revalidatePath("/admin");
   revalidatePath("/problems");
-  return { message: `已同步 ${synced} 道题目` };
+  revalidatePath("/contests");
+  return {
+    message: `已同步 ${problems.synced} 道题目、${contests.synced} 场比赛`,
+  };
 }
 
 /** Same as above, shaped for `useActionState`. */
-export async function syncProblemsFormAction(
+export async function syncRegistriesFormAction(
   _prev: ActionState,
   _formData: FormData,
 ): Promise<ActionState> {
-  return syncProblemsAction();
+  return syncRegistriesAction();
 }
 
-const createUserSchema = z.object({
-  handle: z
-    .string()
-    .min(2)
-    .max(32)
-    .regex(/^[a-zA-Z0-9_-]+$/, "用户名只能包含字母、数字、下划线和连字符"),
-  displayName: z.string().min(1).max(64),
-  password: z.string().min(8, "密码至少 8 位"),
-  role: z.enum(["user", "admin"]),
+const issueSchema = z.object({
+  handle: z.string().min(1, "请选择用户"),
 });
 
-export async function createUserAction(
+/**
+ * Sends somebody a password reset they did not ask for.
+ *
+ * This replaces the administrator-issued setup code, and the difference is the
+ * point: the code had to be read off this screen and carried to its owner over
+ * chat, which left a credential capable of taking over the account sitting in
+ * a message history, with no way to tell it had gone to the wrong person. Here
+ * the administrator triggers the mail and the secret goes straight to the
+ * address the account already proved it controls.
+ *
+ * An account with no usable address — the bootstrap administrator, or someone
+ * whose mailbox has stopped working — is out of scope on purpose. That case
+ * belongs to `scripts/set-password.cjs`, which needs shell access on the
+ * server: the right bar for the one path that bypasses email entirely.
+ */
+export async function resendPasswordResetAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireAdmin();
+  await requireCapability("credential.manage");
 
-  const parsed = createUserSchema.safeParse({
-    handle: formData.get("handle"),
-    displayName: formData.get("displayName"),
-    password: formData.get("password"),
-    role: formData.get("role"),
-  });
+  const parsed = issueSchema.safeParse({ handle: formData.get("handle") });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
   }
 
-  const existing = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.handle, parsed.data.handle))
-    .limit(1);
-  if (existing.length > 0) return { error: "该用户名已存在" };
+  const user = await resolveUser(parsed.data.handle);
+  if (!user) return { error: "没有这个账号" };
+  if (user.disabled) return { error: "该账号已封禁，无法发送重置邮件" };
 
-  await db.insert(users).values({
-    id: ulid(),
-    handle: parsed.data.handle,
-    displayName: parsed.data.displayName,
-    passwordHash: await hashPassword(parsed.data.password),
-    role: parsed.data.role,
-  });
-
-  revalidatePath("/admin/users");
-  return { message: `已创建账号 ${parsed.data.handle}` };
-}
-
-export async function toggleUserAction(userId: string): Promise<void> {
-  await requireAdmin();
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  if (!user) return;
-
-  await db
-    .update(users)
-    .set({ disabled: !user.disabled })
-    .where(eq(users.id, userId));
-  revalidatePath("/admin/users");
-}
-
-const createContestSchema = z.object({
-  slug: z.string().regex(/^[a-z0-9-]+$/, "标识只能包含小写字母、数字和连字符"),
-  title: z.string().min(1),
-  rulesetId: z.string().min(1),
-  startsAt: z.string().min(1),
-  endsAt: z.string().min(1),
-});
-
-export async function createContestAction(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  await requireAdmin();
-
-  const parsed = createContestSchema.safeParse({
-    slug: formData.get("slug"),
-    title: formData.get("title"),
-    rulesetId: formData.get("rulesetId"),
-    startsAt: formData.get("startsAt"),
-    endsAt: formData.get("endsAt"),
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
-  if (!getRuleset(parsed.data.rulesetId)) {
-    return { error: "未知的赛制" };
+  if (!user.email || !user.emailVerified) {
+    return {
+      error:
+        "该账号没有已验证的邮箱，无法发送。请在服务器上用 scripts/set-password.cjs 直接设置密码。",
+    };
   }
 
-  const startsAt = new Date(parsed.data.startsAt);
-  const endsAt = new Date(parsed.data.endsAt);
-  if (!(startsAt < endsAt)) return { error: "结束时间必须晚于开始时间" };
-
-  const existing = await db
-    .select({ id: contests.id })
-    .from(contests)
-    .where(eq(contests.slug, parsed.data.slug))
-    .limit(1);
-  if (existing.length > 0) return { error: "该比赛标识已存在" };
-
-  await db.insert(contests).values({
-    id: ulid(),
-    slug: parsed.data.slug,
-    title: parsed.data.title,
-    rulesetId: parsed.data.rulesetId,
-    startsAt,
-    endsAt,
-  });
-
-  revalidatePath("/admin/contests");
-  revalidatePath("/contests");
-  return { message: `已创建比赛 ${parsed.data.title}` };
-}
-
-export async function addContestProblemAction(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  await requireAdmin();
-
-  const contestId = String(formData.get("contestId") ?? "");
-  const problemSlug = String(formData.get("problemSlug") ?? "");
-  const label = String(formData.get("label") ?? "").trim();
-  if (!contestId || !problemSlug || !label) {
-    return { error: "请填写完整" };
-  }
-
-  const known = await db
-    .select({ slug: problems.slug })
-    .from(problems)
-    .where(eq(problems.slug, problemSlug))
-    .limit(1);
-  if (known.length === 0) {
-    return { error: "题目尚未同步，请先在概览页同步题目" };
-  }
-
-  const existing = await db
-    .select({ order: contestProblems.order })
-    .from(contestProblems)
-    .where(eq(contestProblems.contestId, contestId));
-
-  await db
-    .insert(contestProblems)
-    .values({
-      contestId,
-      problemSlug,
-      label,
-      order: existing.length,
-    })
-    .onConflictDoUpdate({
-      target: [contestProblems.contestId, contestProblems.problemSlug],
-      set: { label },
+  let result;
+  try {
+    result = await sendPasswordReset({
+      handle: user.handle,
+      displayName: user.displayName,
+      email: user.email,
     });
+  } catch (error) {
+    console.error("[foi] 重置密码邮件发送失败", error);
+    return {
+      error: `邮件发送失败：${error instanceof Error ? error.message : "未知错误"}`,
+    };
+  }
 
-  invalidateStandings(contestId);
-  revalidatePath("/admin/contests");
-  return { message: `已添加 ${label}. ${problemSlug}` };
+  if (!result.ok) {
+    return {
+      error: `刚刚已经发过一封，请 ${Math.ceil(result.retryAfterMs / 1000)} 秒后再试。`,
+    };
+  }
+
+  revalidatePath("/admin/accounts");
+  return {
+    message: `已向 ${user.handle} 的邮箱发送重置链接，1 小时内有效。`,
+  };
+}
+
+const moderateSchema = z.object({
+  handle: z.string().min(1, "请选择账号"),
+  reason: z.string().trim().max(200).optional(),
+});
+
+/**
+ * Locks an account out.
+ *
+ * This is the one authorisation decision that is data rather than code, and
+ * deliberately so: banning a spam signup should not require a pull request,
+ * and adding one throwaway handle per incident to a repository file would make
+ * that file useless. It is still an accountable act, so who did it and why is
+ * recorded on the row.
+ *
+ * It bites immediately. `getResolvedUser()` reads the account by primary key
+ * on every request and never through the snapshot, so an open session stops
+ * working on its next page load rather than when a token expires.
+ */
+export async function suspendAccountAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  // The viewer comes back from the check, so the actor's identity does not
+  // need fetching a second time by a second route.
+  const actor = await requireCapability("account.moderate");
+
+  const parsed = moderateSchema.safeParse({
+    handle: formData.get("handle"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
+  }
+
+  const target = await resolveUser(parsed.data.handle);
+  if (!target) return { error: "没有这个账号" };
+
+  // Locking yourself out of the only administrator account would need a
+  // database session to undo.
+  if (actor.handle === target.handle) {
+    return { error: "不能封禁自己" };
+  }
+
+  await suspendAccount(
+    target.handle,
+    actor.handle ?? "unknown",
+    parsed.data.reason || "未填写原因",
+  );
+
+  revalidatePath("/admin/accounts");
+  return { message: `已封禁 ${target.handle}，其已登录的会话在下一个请求即失效。` };
+}
+
+export async function reinstateAccountAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireCapability("account.moderate");
+
+  const parsed = moderateSchema.safeParse({ handle: formData.get("handle") });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
+  }
+
+  const row = await reinstateAccount(parsed.data.handle);
+  if (!row) return { error: "没有这个账号" };
+
+  revalidatePath("/admin/accounts");
+  return { message: `已解封 ${row.handle}。` };
 }

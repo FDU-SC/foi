@@ -6,7 +6,7 @@ import type { QueuePosition } from "@/lib/judge/queue-lookup";
 export interface SubmissionView {
   id: string;
   problemSlug: string;
-  contestId: string | null;
+  contestSlug: string | null;
   state: SubmissionState;
   verdict: Verdict | null;
   createdAt: string;
@@ -21,7 +21,7 @@ export interface SubmissionView {
 
 export const createSubmissionSchema = z.object({
   problemSlug: z.string().min(1),
-  contestId: z.string().nullable().optional(),
+  contestSlug: z.string().nullable().optional(),
   /**
    * Opaque to the kernel. The statement's submitter decides the shape and the
    * judge decides how to read it.
@@ -32,8 +32,9 @@ export const createSubmissionSchema = z.object({
 export type CreateSubmissionInput = z.infer<typeof createSubmissionSchema>;
 
 export interface SubmissionListItem extends SubmissionView {
-  userHandle: string;
-  userDisplayName: string;
+  handle: string;
+  /** Resolved from the roster at read time, not stored on the row. */
+  displayName: string;
   problemTitle: string;
 }
 

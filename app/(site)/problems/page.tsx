@@ -1,12 +1,16 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
-import { listProblems } from "@/lib/problems/registry";
+import { problemsFor } from "@/lib/problems/access";
 
 export const metadata: Metadata = { title: "题库" };
 
-export default function ProblemsPage() {
-  const problems = listProblems();
+// Which problems are listed depends on the clock and on who is asking.
+export const dynamic = "force-dynamic";
+
+export default async function ProblemsPage() {
+  const problems = problemsFor(await getViewer());
 
   return (
     <div className="space-y-5">
@@ -37,7 +41,7 @@ export default function ProblemsPage() {
             </tr>
           </thead>
           <tbody className="divide-border divide-y">
-            {problems.map((problem) => (
+            {problems.map(({ config: problem, gate }) => (
               <tr key={problem.slug} className="hover:bg-surface-2/60">
                 <td className="text-fg-subtle px-4 py-2.5 font-mono text-xs">
                   {problem.slug}
@@ -49,6 +53,11 @@ export default function ProblemsPage() {
                   >
                     {problem.title}
                   </Link>
+                  {gate.visible ? null : (
+                    <Badge tone="warn" className="ml-2">
+                      未公开
+                    </Badge>
+                  )}
                 </td>
                 <td className="px-4 py-2.5">
                   {problem.difficulty ? (

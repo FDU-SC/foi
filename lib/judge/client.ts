@@ -1,5 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { judges, type JudgeEndpoint } from "@/judges.config";
+import type { Viewer } from "@/lib/auth/viewer";
+import { judgesFor } from "./access";
 import { signedHeaders } from "./signature";
 import {
   judgeQueueSchema,
@@ -56,6 +58,30 @@ export function hashCallbackToken(token: string): string {
 }
 
 /**
+ * Why a dispatch produced no acknowledgement.
+ *
+ * The distinction decides whether the submission is finished or merely
+ * unaccounted for. `rejected` means the judge answered and refused: it will
+ * never evaluate this submission, so the row can go terminal immediately.
+ * `unknown` means we never got an answer worth trusting — a timeout, a dropped
+ * connection, a 5xx. The judge may have queued the submission regardless, so
+ * the row has to stay non-terminal and let the reconciler settle it. Calling
+ * that case `failed` would be worse than saying nothing: the eventual callback
+ * would arrive to find a terminal row and discard a real verdict.
+ */
+export type DispatchFailure = "rejected" | "unknown";
+
+export class DispatchError extends Error {
+  readonly kind: DispatchFailure;
+
+  constructor(message: string, kind: DispatchFailure) {
+    super(message);
+    this.name = "DispatchError";
+    this.kind = kind;
+  }
+}
+
+/**
  * Hands a submission to its judge. Only the acknowledgement is awaited; the
  * result arrives later via callback (or via the reconciler, if it is lost).
  */
@@ -64,20 +90,45 @@ export async function dispatchToJudge(
   request: JudgeRequest,
 ): Promise<{ judgeRef: string | null }> {
   const body = JSON.stringify(request);
-  const res = await fetch(new URL("/judge", judge.url), {
-    method: "POST",
-    headers: signedHeaders(judge.secret, body),
-    body,
-    signal: AbortSignal.timeout(judge.timeoutMs),
-  });
+
+  let res: Response;
+  try {
+    res = await fetch(new URL("/judge", judge.url), {
+      method: "POST",
+      headers: signedHeaders(judge.secret, body),
+      body,
+      signal: AbortSignal.timeout(judge.timeoutMs),
+    });
+  } catch (error) {
+    // The request may well have arrived and been queued; we just never saw
+    // the reply. Nothing here says the submission is dead.
+    throw new DispatchError(
+      error instanceof Error && error.name === "TimeoutError"
+        ? "投递判题机超时，结果未知"
+        : "无法连接判题机，结果未知",
+      "unknown",
+    );
+  }
 
   if (!res.ok) {
-    throw new Error(`判题机返回 ${res.status}: ${await safeText(res)}`);
+    // 4xx is the judge saying it will not take this submission. 5xx is the
+    // judge falling over, which says nothing about whether it queued first.
+    throw new DispatchError(
+      `判题机返回 ${res.status}: ${await safeText(res)}`,
+      res.status < 500 ? "rejected" : "unknown",
+    );
   }
 
   const data = (await res.json().catch(() => null)) as {
+    accepted?: unknown;
     judgeRef?: unknown;
   } | null;
+
+  // The protocol has judges answer `{ accepted: true, judgeRef }`. An explicit
+  // `false` is the one way a 2xx still means "this will never be judged".
+  if (data?.accepted === false) {
+    throw new DispatchError("判题机拒绝接收该提交", "rejected");
+  }
 
   return {
     judgeRef: typeof data?.judgeRef === "string" ? data.judgeRef : null,
@@ -99,7 +150,28 @@ export interface JudgeQueueStatus {
 }
 
 /**
- * What a player is allowed to see.
+ * The judges this viewer may see, already redacted for them.
+ *
+ * Two decisions that used to be made separately at two call sites — the page
+ * and the API each fetched every judge and then chose how much to blank out,
+ * and neither asked whether the viewer should know the judge existed at all.
+ * Both now ask here.
+ */
+export async function judgeQueuesFor(
+  viewer: Viewer,
+): Promise<JudgeQueueStatus[]> {
+  const allowed = new Set(judgesFor(viewer));
+  const statuses = (await fetchAllJudgeQueues()).filter((status) =>
+    allowed.has(status.id),
+  );
+
+  return viewer.can("judge.inspect")
+    ? statuses
+    : statuses.map(redactJudgeStatus);
+}
+
+/**
+ * What a player is allowed to see of a judge they may see at all.
  *
  * Submission ids stay, so everyone can find their own entry and read their
  * position off the queue. The judge's address and other players' problem
@@ -184,8 +256,51 @@ export async function fetchJudgeQueue(
   }
 }
 
+declare global {
+  var __foiQueueSnapshot:
+    | { value: Promise<JudgeQueueStatus[]>; expiresAt: number }
+    | undefined;
+}
+
+/**
+ * How long one sweep of the judges is reused.
+ *
+ * Short enough that the queue board still reads as live, long enough to
+ * collapse a contest's worth of concurrent readers into one request per judge.
+ */
+const QUEUE_SNAPSHOT_TTL_MS = 1_000;
+
+/**
+ * Every judge's queue, at most once per second per process.
+ *
+ * This is on the hot path twice over. `/judges` polls it every four seconds
+ * per viewer, and every poll of an unfinished submission calls it too — with
+ * the client backing off from 800ms, a hundred players waiting on a verdict
+ * meant hundreds of outbound requests per second, one per judge per poll. The
+ * load arrived precisely when the judges were already saturated, which is when
+ * players watch the queue.
+ *
+ * The promise is cached rather than its result, so callers arriving during a
+ * sweep join it instead of starting another. A rejected sweep is not possible
+ * here — `fetchJudgeQueue` reports failure as a value — but the entry is
+ * dropped on rejection anyway so a future refactor cannot pin a failure for a
+ * full second.
+ */
 export function fetchAllJudgeQueues(): Promise<JudgeQueueStatus[]> {
-  return Promise.all(listJudgeIds().map(fetchJudgeQueue));
+  const cached = globalThis.__foiQueueSnapshot;
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+  const value = Promise.all(listJudgeIds().map(fetchJudgeQueue));
+  const entry = { value, expiresAt: Date.now() + QUEUE_SNAPSHOT_TTL_MS };
+  globalThis.__foiQueueSnapshot = entry;
+
+  value.catch(() => {
+    if (globalThis.__foiQueueSnapshot === entry) {
+      globalThis.__foiQueueSnapshot = undefined;
+    }
+  });
+
+  return value;
 }
 
 /** Asks a judge directly whether a submission finished. Used by the reconciler. */

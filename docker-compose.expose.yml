@@ -1,11 +1,15 @@
-# Staging overlay. Enabled by setting this in the staging .env:
+# Host-port overlay, used by the dev and staging environments. Enabled by
+# setting this in their .env:
 #
-#   COMPOSE_FILE=docker-compose.prod.yml:docker-compose.staging.yml
+#   COMPOSE_FILE=docker-compose.prod.yml:docker-compose.expose.yml
 #
-# Staging is not exposed through Caddy, so it publishes a host port instead and
-# is reached over the tailnet at http://<tailnet-host>:<FOI_PORT>.
+# Neither is fronted by Caddy, so they publish a host port instead and are
+# reached over the tailnet at http://<tailnet-host>:<FOI_PORT>.
+#
+# FOI_PORT is required rather than defaulted: dev and staging share a host, so
+# a missing value would silently land both on the same port.
 
 services:
   app:
     ports:
-      - "${FOI_PORT:-3001}:3000"
+      - "${FOI_PORT:?FOI_PORT 未设置}:3000"

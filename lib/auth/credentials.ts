@@ -35,11 +35,21 @@ export function hashPassword(password: string): Promise<string> {
   return hash(password, ARGON2_OPTIONS);
 }
 
-/** Constant-time regardless of whether the handle has a password on file. */
+export type PasswordCheck = { ok: true; setAt: Date } | { ok: false };
+
+/**
+ * Constant-time regardless of whether the handle has a password on file.
+ *
+ * Reports `setAt` on success — the `updatedAt` of the row whose hash just
+ * matched — because that is the value the session gets pinned to, and it came
+ * back with the hash for free. Reading it in a second query instead would open
+ * a window where a reset lands between the two and the brand-new session is
+ * born already stale.
+ */
 export async function verifyPassword(
   handle: string,
   password: string,
-): Promise<boolean> {
+): Promise<PasswordCheck> {
   const [row] = await db
     .select()
     .from(credentials)
@@ -48,9 +58,48 @@ export async function verifyPassword(
 
   if (!row?.passwordHash) {
     await verify(await decoyHash, password).catch(() => false);
-    return false;
+    return { ok: false };
   }
-  return verify(row.passwordHash, password).catch(() => false);
+
+  const matched = await verify(row.passwordHash, password).catch(() => false);
+  return matched ? { ok: true, setAt: row.updatedAt } : { ok: false };
+}
+
+/**
+ * When the password behind this handle was last written, or null if there is
+ * none on file.
+ *
+ * Read on every authenticated request by `getResolvedUser`, and the reason a
+ * password reset actually ends the sessions it was meant to end. It costs a
+ * second indexed lookup on top of the account row — the price of a JWT that
+ * carries no server-side state to revoke.
+ */
+export async function passwordSetAt(handle: string): Promise<Date | null> {
+  const [row] = await db
+    .select({ updatedAt: credentials.updatedAt })
+    .from(credentials)
+    .where(eq(credentials.handle, normalizeHandle(handle)))
+    .limit(1);
+
+  return row?.updatedAt ?? null;
+}
+
+/**
+ * Whether a session issued against `credentialsAt` still matches the password
+ * now on file.
+ *
+ * Both failures are closed. A missing row leaves nothing to match against; a
+ * row written after the session was issued means the password has changed
+ * since, and the session belongs to the old one. Equal timestamps pass: that
+ * is a session minted from exactly this row, which is every session at the
+ * moment it is created.
+ */
+export function sessionMatchesPassword(
+  setAt: Date | null,
+  credentialsAt: number,
+): boolean {
+  if (!setAt) return false;
+  return setAt.getTime() <= credentialsAt;
 }
 
 /**

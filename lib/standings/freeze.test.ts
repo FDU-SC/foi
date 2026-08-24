@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AS_PLAYER, viewerFor } from "@/lib/auth/viewer";
 import { capabilitiesOf, listGroups } from "@/lib/auth/groups";
-import { acmRuleset } from "./rulesets/acm";
+import { ruleset as acmRuleset } from "@/content/rulesets/acm";
 import { at, END, input, participants, problem, solve } from "./test-support";
 
 /**

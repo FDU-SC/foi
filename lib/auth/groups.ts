@@ -24,7 +24,7 @@ import { CAPABILITIES, IMPLIES, type Capability } from "./policy";
  * in `content/enrollment/`.
  */
 export const groupSchema = z.object({
-  /** Referenced by grants, by rules, and by a contest's `participants`. */
+  /** Referenced by enrollment rules and by a contest's `participants`. */
   id: z.string().min(1).max(64),
   /** Shown wherever the group is displayed. Defaults to the id. */
   name: z.string().min(1).max(64).optional(),
@@ -32,10 +32,10 @@ export const groupSchema = z.object({
   /**
    * What members may do. Omitted means nothing — an ordinary cohort.
    *
-   * A group with capabilities can only be joined by being named in `grants`;
-   * `lib/enrollment/registry.ts` refuses to let a rule confer one. That is the
-   * safety property the old role/tag split existed to provide, kept as a check
-   * rather than as a structural accident.
+   * A group with capabilities can only be joined by a rule that names handles;
+   * `lib/enrollment/registry.ts` refuses to let a pattern confer one. That is
+   * the safety property the old role/tag split existed to provide, kept as a
+   * check rather than as a structural accident.
    */
   capabilities: z.array(z.enum(CAPABILITIES)).default([]),
 });

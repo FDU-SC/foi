@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { submissions } from "@/lib/db/schema";
 import { publish } from "@/lib/submissions/events";
 import { toView } from "@/lib/submissions/queries";
+import { verdictColumns } from "@/lib/submissions/verdict";
 import { invalidateStandings } from "@/lib/standings/cache";
 import { pollJudge, resolveBackend } from "./client";
 import { NON_TERMINAL_STATES } from "./types";
@@ -60,8 +61,8 @@ export async function reconcileStaleSubmissions(): Promise<{
           .set({
             state: "completed",
             verdict: status.verdict,
-            score: status.verdict.score,
-            maxScore: status.verdict.maxScore,
+            backendVersion: status.backendVersion,
+            ...verdictColumns(status.verdict, row.problemSlug),
             judgedAt: new Date(),
           })
           .where(

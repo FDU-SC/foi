@@ -55,10 +55,7 @@ export function SubmitPanel({
           submission ? (
             <span className="flex items-center gap-2">
               <QueueBadge queue={submission.queue} />
-              <VerdictBadge
-                state={submission.state}
-                verdict={submission.verdict}
-              />
+              <VerdictBadge submission={submission} />
             </span>
           ) : null
         }

@@ -9,56 +9,79 @@ import { handleSchema } from "@/lib/accounts/types";
  * is a better fit for "everyone who matriculated in 2023" than two hundred
  * names would be: it is shorter, it cannot go stale, and it says why somebody
  * is in a cohort rather than merely that they are.
+ *
+ * There used to be two arrays here. `rules` matched an address and could not
+ * confer privilege; `grants` named a handle and was the only thing that could.
+ * They were one mechanism wearing two shapes — a grant is a rule whose
+ * condition happens to be "this exact handle" — so they are one array now, and
+ * the safety property is stated against the *condition* instead of against
+ * which array something was written in. See `privilegeAllowed` below.
  */
 
+/** What the groups of a matched rule are, literal or computed from captures. */
+const groupsSchema = z.union([
+  z.array(z.string().min(1)),
+  z.function({
+    input: [z.custom<RegExpMatchArray>()],
+    output: z.array(z.string()),
+  }),
+]);
+
 /**
- * One cohort rule: an address pattern and the groups it puts people in.
+ * A cohort rule keyed on the address.
  *
  * Groups may be computed from the capture groups, which is what makes one rule
  * cover every intake year instead of one rule per year.
- *
- * A rule can never confer a group that carries capabilities. The registry
- * refuses to load one that names a privileged group, and drops any a computed
- * rule produces at resolution time — a slip in a regex must not be able to
- * hand out `admin`.
  */
-export const enrollmentRuleSchema = z.object({
+const emailRuleSchema = z.object({
   /** Shown in `/admin` and read in review. Say who the rule is for. */
   label: z.string().min(1).max(64),
-  match: z.instanceof(RegExp),
-  groups: z.union([
-    z.array(z.string().min(1)),
-    z.function({ input: [z.custom<RegExpMatchArray>()], output: z.array(z.string()) }),
-  ]),
+  email: z.instanceof(RegExp),
+  groups: groupsSchema,
 });
+
+/**
+ * A rule keyed on a finite list of handles.
+ *
+ * This is the only shape that may confer capabilities, and the reason is not
+ * that naming people is safer in the abstract — it is that a finite list can
+ * be reserved. `handleAvailable` in `./register.ts` refuses to register any
+ * handle named here, so "this rule matched" means "this is the person the
+ * repository meant". The set a pattern covers is infinite and cannot be
+ * reserved, which is why `email` rules confer nothing.
+ */
+const handlesRuleSchema = z.object({
+  label: z.string().min(1).max(64),
+  handles: z.array(handleSchema).min(1),
+  groups: z.array(z.string().min(1)),
+});
+
+export const enrollmentRuleSchema = z.union([
+  emailRuleSchema,
+  handlesRuleSchema,
+]);
 
 export type EnrollmentRule = z.infer<typeof enrollmentRuleSchema>;
 export type EnrollmentRuleInput = z.input<typeof enrollmentRuleSchema>;
 
-/**
- * Group membership handed to one named person.
- *
- * The only way into a privileged group. Deriving one from an address would
- * mean a slip in a regex hands out `admin`, and the whole reason authorisation
- * stayed in the repository is that changing it should be a reviewed act naming
- * a specific person. Ordinary cohorts carry no privilege, so a rule may confer
- * those freely.
- *
- * There is no `disabled`: suspending an account is a moderation decision and
- * lives in the database, so that banning a spam signup does not require a
- * commit. Two ways to lock somebody out would only make it unclear which one
- * is in force.
- */
-export const grantSchema = z.object({
-  handle: handleSchema,
-  /** Only for accounts the repository declares; registrations choose theirs. */
-  displayName: z.string().min(1).max(64).optional(),
-  /** Added on top of whatever the address already resolves to. */
-  groups: z.array(z.string().min(1)).default([]),
-});
+export type EmailRule = z.infer<typeof emailRuleSchema>;
+export type HandlesRule = z.infer<typeof handlesRuleSchema>;
 
-export type Grant = z.infer<typeof grantSchema>;
-export type GrantInput = z.input<typeof grantSchema>;
+export function isHandlesRule(rule: EnrollmentRule): rule is HandlesRule {
+  return "handles" in rule;
+}
+
+/**
+ * Whether this rule's condition is one the repository can vouch for.
+ *
+ * The whole of the old rule/grant split, kept as a checked property rather
+ * than as a structural accident. There is no `disabled` counterpart:
+ * suspending an account is a moderation decision and lives in the database, so
+ * that banning a spam signup does not require a commit.
+ */
+export function privilegeAllowed(rule: EnrollmentRule): boolean {
+  return isHandlesRule(rule);
+}
 
 export const enrollmentPolicySchema = z.object({
   /** Turns the registration form off without removing the route. */

@@ -44,7 +44,21 @@ export type Visibility =
 /** A problem plus why it is, or is not, open to the viewer who asked. */
 export interface ProblemView {
   config: ProblemConfig;
+
+  /** Who may read it. `retired` deliberately does not participate. */
   gate: Visibility;
+
+  /**
+   * Whether anything new may be sent to it: visible to this viewer, and not
+   * retired.
+   *
+   * One field rather than `gate.visible && !config.retired` at each call site.
+   * Three places ask — the submission route, `actionFor`, and the statement
+   * page's submit panel — and this module exists because the fourth place is
+   * the one that forgets. Retiring a problem must not become a rule people
+   * have to remember.
+   */
+  open: boolean;
 }
 
 /**
@@ -130,22 +144,28 @@ export function problemVisibility(
     : { visible: true };
 }
 
+function viewOf(config: ProblemConfig, viewer: Viewer, now: Date): ProblemView {
+  const gate = problemVisibility(config.slug, viewer, now);
+  return { config, gate, open: gate.visible && !config.retired };
+}
+
 /**
  * Every problem this viewer may be shown.
  *
- * A holder of `problem.viewAll` gets the gated ones too, carrying their
- * reason, so a console can mark them rather than pretend they are absent.
- * Everyone else gets only what is open to them — there is no argument that
- * widens that.
+ * A holder of `problem.viewAll` gets the gated and the retired ones too,
+ * carrying their reason, so a console can mark them rather than pretend they
+ * are absent. Everyone else gets only what is open to them — there is no
+ * argument that widens that.
+ *
+ * Retired problems drop out of this list while staying readable through
+ * `problemFor`, which is the whole shape of retirement: gone from the catalogue,
+ * still there for whoever competed on it.
  */
 export function problemsFor(viewer: Viewer, now = new Date()): ProblemView[] {
   const override = viewer.can("problem.viewAll");
   return allProblems()
-    .map((config) => ({
-      config,
-      gate: problemVisibility(config.slug, viewer, now),
-    }))
-    .filter((entry) => override || entry.gate.visible);
+    .map((config) => viewOf(config, viewer, now))
+    .filter((entry) => override || entry.open);
 }
 
 /**
@@ -164,10 +184,40 @@ export function problemFor(
   const config = problemBySlug(slug);
   if (!config) return undefined;
 
-  const gate = problemVisibility(slug, viewer, now);
-  if (!gate.visible && !viewer.can("problem.viewAll")) return undefined;
+  // Gated on visibility alone: a retired problem is still readable by whoever
+  // it was written for. What retirement withholds is `open`, not the statement.
+  const view = viewOf(config, viewer, now);
+  if (!view.gate.visible && !viewer.can("problem.viewAll")) return undefined;
 
-  return { config, gate };
+  return view;
+}
+
+/**
+ * How a submission record should name the problem it points at.
+ *
+ * Three states, and the two pages that show submissions used to disagree about
+ * them: the list joined the mirror table and printed a stale title, the detail
+ * page read the registry and fell back to the raw slug. Same problem, two
+ * answers, both linking to a page that 404s.
+ *
+ * `fallbackTitle` is the snapshot in `problems`, which is all that is left once
+ * a directory is deleted for real.
+ */
+export type ProblemStatus =
+  | { kind: "live"; title: string }
+  | { kind: "retired"; title: string }
+  | { kind: "gone"; title: string };
+
+export function problemStatus(
+  slug: string,
+  fallbackTitle: string,
+): ProblemStatus {
+  const config = problemBySlug(slug);
+  if (!config) return { kind: "gone", title: fallbackTitle };
+  return {
+    kind: config.retired ? "retired" : "live",
+    title: config.title,
+  };
 }
 
 /**
@@ -178,15 +228,37 @@ export function problemFor(
  * round — almost never what the author meant. Reported at startup rather than
  * enforced, because refusing to boot over it would turn a wording preference
  * into an outage.
+ *
+ * Retirement gets the same treatment, and for a sharper version of the same
+ * reason: refusing to boot would block the deploy that retires a problem
+ * mid-round, which is exactly when somebody has found a fault in it and wants
+ * submissions to stop. A contest that has already ended is not reported at
+ * all — carrying retired problems is the normal end state for one.
  */
-export function problemGateWarnings(): string[] {
-  return allProblems()
+export function problemGateWarnings(now = new Date()): string[] {
+  const warnings = allProblems()
     .filter((problem) => problem.visibleTo?.length === 0)
     .filter((problem) => contestsUsing(problem.slug).length > 0)
     .map((problem) => {
       const slugs = contestsUsing(problem.slug).map((contest) => contest.slug);
       return `题目 "${problem.slug}" 的 visibleTo 是空数组（对任何人都不可见），却被比赛 ${slugs.join("、")} 引用；比赛开始后它仍然不会公开。`;
     });
+
+  for (const problem of allProblems()) {
+    if (!problem.retired) continue;
+
+    const unfinished = contestsUsing(problem.slug).filter(
+      (contest) => contestPhase(contest, now) !== "ended",
+    );
+    if (unfinished.length === 0) continue;
+
+    warnings.push(
+      `题目 "${problem.slug}" 已下架，但比赛 ${unfinished.map((c) => c.slug).join("、")} 还没结束；` +
+        `题面仍然可读，但这些比赛期间没有人能提交它。`,
+    );
+  }
+
+  return warnings;
 }
 
 /**

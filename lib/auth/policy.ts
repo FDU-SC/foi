@@ -70,9 +70,6 @@ export const CAPABILITIES = [
    * out". Handing over the first should not imply the second.
    */
   "account.moderate",
-
-  /** Push the filesystem registries into their mirror tables by hand. */
-  "registry.sync",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -112,7 +109,6 @@ export const CAPABILITY_LABELS: Record<Capability, string> = {
   "account.read": "查看账号目录与邮箱",
   "credential.manage": "代发找回密码邮件",
   "account.moderate": "封禁与解封账号",
-  "registry.sync": "手动同步注册表",
 };
 
 export function isCapability(value: unknown): value is Capability {

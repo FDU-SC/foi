@@ -85,13 +85,12 @@ export default async function AdminAccountsPage({
         <p className="text-fg-muted mt-2 text-sm leading-6">
           账号由注册产生，这里列出的是数据库里的真实记录。
           <strong className="text-fg font-medium">用户组不在这张表里</strong>
-          ：用户组一部分来自{" "}
-          <code className="font-mono">content/enrollment/</code> 的 grants，
-          一部分由邮箱按{" "}
+          ：它们由{" "}
+          <code className="font-mono">content/enrollment/</code> 的{" "}
           <Link href="/admin/enrollment" className="hover:text-fg underline">
           分流规则
         </Link>{" "}
-        现算。要给谁提权或改分组，提 PR 改那个文件，部署后下一个请求就生效。
+        现算，一部分按邮箱匹配，一部分按用户名点名。要给谁提权或改分组，提 PR 改那个文件，部署后下一个请求就生效。
         </p>
       </div>
 
@@ -158,10 +157,10 @@ export default async function AdminAccountsPage({
                   </td>
                   <td className="text-fg px-4 py-2.5">{account.displayName}</td>
                   {/*
-                    No "unverified" badge: registration proves the address
-                    before it writes the row, so an account with an address has
-                    a verified one and the branch was unreachable. A bootstrap
-                    account has no address at all, which is the other column.
+                    No "unverified" badge: both ways in prove the address
+                    before writing the row — the form with a code, the CLI by
+                    an operator typing it — so an account with an address has a
+                    verified one. The dash is for rows predating that.
                   */}
                   <td className="px-4 py-2.5">
                     {account.email ? (

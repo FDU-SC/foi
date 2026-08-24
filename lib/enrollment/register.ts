@@ -9,7 +9,7 @@ import {
   consumeVerifiedEmail,
   isEmailVerified,
 } from "@/lib/auth/email-verification";
-import { enrollmentPolicy, getGrant } from "./registry";
+import { enrollmentPolicy, rulesForHandle } from "./registry";
 
 /**
  * Turning a filled-in form into an account.
@@ -55,16 +55,20 @@ export function domainAllowed(email: string): boolean {
 }
 
 /**
- * A handle that is reserved, already taken, or already promised to somebody by
- * a grant. The last is the one that matters most: a grant is a privilege
- * waiting to be claimed, and letting a stranger register `admin` before the
- * administrator does would hand them the role the grant was written for.
+ * A handle that is reserved, already taken, or already named by a rule.
+ *
+ * The last is the one that matters most, and it is what lets a `handles` rule
+ * confer capabilities at all: a rule naming somebody is a membership waiting
+ * to be claimed, so letting a stranger register `admin` before the
+ * administrator does would hand them the group the rule was written for. An
+ * `email` rule gets no such protection because the set of addresses a pattern
+ * covers cannot be reserved — hence it may confer nothing.
  */
 async function handleAvailable(handle: string): Promise<RegisterRejection | null> {
   if (enrollmentPolicy.reservedHandles.some((r) => normalizeHandle(r) === handle)) {
     return "handle-reserved";
   }
-  if (getGrant(handle)) return "handle-reserved";
+  if (rulesForHandle(handle).length > 0) return "handle-reserved";
   if (await getAccount(handle)) return "handle-taken";
   return null;
 }

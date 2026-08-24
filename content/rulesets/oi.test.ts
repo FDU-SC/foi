@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { input, participants, problem, submission } from "../test-support";
+import { input, participants, problem, submission } from "@/lib/standings/test-support";
 import type { OiCell } from "./oi";
-import { oiRuleset } from "./oi";
+import { ruleset as oiRuleset } from "./oi";
 
 function compute(options: Parameters<typeof input>[0]) {
   return oiRuleset.computeStandings(input(options));

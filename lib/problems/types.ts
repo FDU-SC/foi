@@ -94,6 +94,35 @@ export const problemConfigSchema = z.object({
    * both say yes.
    */
   visibleTo: audienceSchema,
+
+  /**
+   * Whether this problem has been taken out of service.
+   *
+   * Deliberately *not* a second way to spell `visibleTo: []`. It answers a
+   * different question — not "who may read this" but "may anything new be sent
+   * to it" — and the two axes cross:
+   *
+   *   live, with an audience      an ordinary problem
+   *   live, `visibleTo: []`       next week's round, not released yet
+   *   retired, with an audience   an old problem: read it, but do not submit
+   *   retired, `visibleTo: []`    withdrawn along with its statement
+   *
+   * The third row is the point. Someone who competed on a problem should still
+   * be able to open it afterwards, and the contest it belonged to should still
+   * render its standings — hiding the problem takes both of those away.
+   * DOMjudge's `allow_submit` conflates the two ("disabling this also makes the
+   * problem invisible to teams and public") and HydroOJ has a changelog entry
+   * for the bug that follows: after a contest ends, a hidden problem made its
+   * submissions unreadable.
+   *
+   * The directory stays in the repository. That is what stops the slug from
+   * being reused — the filesystem refuses a second directory by the same name,
+   * so no check has to be written and none can be forgotten. Deleting it for
+   * real is still possible and still meaningful, and the `restrict` foreign key
+   * on `submissions.problem_slug` will make you deal with the history first.
+   */
+  retired: z.boolean().default(false),
+
   order: z.number().default(0),
 });
 

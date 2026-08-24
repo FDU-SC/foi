@@ -7,6 +7,7 @@ import { getViewer } from "@/auth";
 import { enrollmentViewFor } from "@/lib/admin/access";
 import { codeTtlMinutes } from "@/lib/auth/email-verification";
 import { groupName, isPrivileged } from "@/lib/auth/groups";
+import { isHandlesRule } from "@/lib/enrollment/types";
 
 export const metadata: Metadata = { title: "分流规则" };
 export const dynamic = "force-dynamic";
@@ -18,7 +19,6 @@ export default async function AdminEnrollmentPage() {
   const {
     policy: enrollmentPolicy,
     rules,
-    grants,
     known: { groups: allGroups, exhaustive },
     ruleMatches,
     groupCounts,
@@ -39,7 +39,7 @@ export default async function AdminEnrollmentPage() {
         <h1 className="text-fg text-2xl font-bold tracking-tight">分流规则</h1>
         <p className="text-fg-muted mt-2 text-sm leading-6">
           这是 <code className="font-mono">content/enrollment/</code>{" "}
-          的只读视图。仓库里写的不是人名清单而是分类规则：一条正则比两百个名字更短，不会过时，而且说清了某人为什么属于某个分组。改规则提
+          的只读视图。仓库里存的不是人名清单而是分类规则：一条正则比两百个名字更短，不会过时，而且说清了某人为什么属于某个分组。改规则提
           PR，部署后所有受影响的人在下一个请求就重新分流，不需要回填。
         </p>
       </div>
@@ -99,8 +99,12 @@ export default async function AdminEnrollmentPage() {
       </Card>
 
       <Card>
-        <CardHeader title="邮箱分流规则" />
+        <CardHeader title="分流规则" />
         <CardBody className="space-y-3">
+          <p className="text-fg-muted text-sm leading-6">
+            规则有两种形态，形态决定了它能不能发权限。按邮箱匹配的规则一条覆盖一整届，但发不出带权限的组——正则覆盖的地址是无穷的，注册时无法预留，写错一位数就会把权限发给一片人。列出
+            handles 的规则可以发权限，因为有限的名单能被预留：注册流程会拒绝这些用户名，所以规则命中就意味着这个人正是仓库指的那个人。
+          </p>
           {rules.length === 0 ? (
             <p className="text-fg-muted text-sm leading-6">
               还没有任何规则，注册用户不会进入任何用户组，按组划定参赛范围的比赛将没有参赛者。
@@ -133,7 +137,9 @@ export default async function AdminEnrollmentPage() {
                         {rule.label}
                       </td>
                       <td className="text-fg-muted px-3 py-2 align-top font-mono text-xs break-all">
-                        {String(rule.match)}
+                        {isHandlesRule(rule)
+                          ? rule.handles.join("、")
+                          : String(rule.email)}
                       </td>
                       <td className="px-3 py-2 align-top">
                         {typeof rule.groups === "function" ? (
@@ -143,7 +149,12 @@ export default async function AdminEnrollmentPage() {
                         ) : (
                           <span className="flex flex-wrap gap-1">
                             {rule.groups.map((id) => (
-                              <Badge key={id}>{groupName(id)}</Badge>
+                              <Badge
+                                key={id}
+                                tone={isPrivileged(id) ? "primary" : "neutral"}
+                              >
+                                {groupName(id)}
+                              </Badge>
                             ))}
                           </span>
                         )}
@@ -169,14 +180,19 @@ export default async function AdminEnrollmentPage() {
           )}
           {ruleMatches === null ? (
             <p className="text-fg-subtle text-xs leading-5">
-              命中账号数要读邮箱，需要{" "}
+              命中账号数要读账号目录，需要{" "}
               <code className="font-mono">account.read</code> 才会显示。
             </p>
-          ) : null}
+          ) : (
+            <p className="text-fg-subtle text-xs leading-5">
+              命中数标黄说明这条规则一个人也没匹配上。邮箱规则多半是位数没跟真实学号对齐；handles
+              规则则是用户名拼错了，或者那个人还没注册。
+            </p>
+          )}
           {untagged !== null && untagged > 0 ? (
             <p className="text-warn text-xs leading-5">
               有 <span className="font-mono">{untagged}</span>{" "}
-              个账号的邮箱不匹配任何规则，他们进不了任何 tag 制比赛。
+              个账号的邮箱不匹配任何规则，他们进不了任何按用户组划定参赛范围的比赛。
             </p>
           ) : null}
         </CardBody>
@@ -224,39 +240,6 @@ export default async function AdminEnrollmentPage() {
         </CardBody>
       </Card>
 
-      <Card>
-        <CardHeader title="授权" />
-        <CardBody className="space-y-3">
-          <p className="text-fg-muted text-sm leading-6">
-            带权限的用户组只能来自这里，永远不会由邮箱推导——正则写错就发出去一个管理员是不可接受的。给谁提权必须在文件里指名道姓，这既让改动可
-            review，也把理由留在了 git 历史里。
-          </p>
-          {grants.length === 0 ? (
-            <p className="text-fg-muted text-sm">还没有任何授权。</p>
-          ) : (
-            <ul className="divide-border divide-y">
-              {grants.map((grant) => (
-                <li
-                  key={grant.handle}
-                  className="flex flex-wrap items-center gap-2 py-2"
-                >
-                  <code className="text-fg font-mono text-xs">
-                    {grant.handle}
-                  </code>
-                  {grant.displayName ? (
-                    <Badge tone="info">引导账号</Badge>
-                  ) : null}
-                  {grant.groups.map((id) => (
-                    <Badge key={id} tone={isPrivileged(id) ? "primary" : "neutral"}>
-                      {groupName(id)}
-                    </Badge>
-                  ))}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardBody>
-      </Card>
     </div>
   );
 }

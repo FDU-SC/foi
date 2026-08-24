@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { AS_PLAYER, viewerFor } from "@/lib/auth/viewer";
 import { db } from "@/lib/db";
 import { allContests } from "@/lib/contests/registry";
-import { listGrants, listRules } from "@/lib/enrollment/registry";
+import { listRules } from "@/lib/enrollment/registry";
 import {
   adminContestsFor,
   adminOverviewFor,
@@ -15,7 +15,7 @@ import {
  *
  * Two of the four admin pages checked `admin.access` and two did not, and the
  * one that mattered was `/admin/enrollment`: its data came straight from the
- * registries, so nothing else stood between a viewer and the grants list naming
+ * registries, so nothing else stood between a viewer and the rules naming
  * everybody who holds privilege. These cases exist so that regression cannot
  * come back silently — every entry point here has to refuse.
  *
@@ -86,25 +86,24 @@ describeDb("运维台门禁", () => {
   });
 
   describe("enrollmentViewFor", () => {
-    it("选手拿到 null，看不到分流规则也看不到授权名单", async () => {
+    it("选手拿到 null，看不到分流规则也看不到被点名的人", async () => {
       expect(await enrollmentViewFor(player)).toBeNull();
     });
 
     /**
      * The case that was actually reachable before this layer existed: a live
-     * JWT gets past `proxy.ts`, the page had no second check, and the grants
-     * list is the most sensitive configuration on the platform — it is the
-     * list of who to go after.
+     * JWT gets past `proxy.ts`, the page had no second check, and the rules
+     * are the most sensitive configuration on the platform — the ones naming
+     * handles are the list of who to go after.
      */
-    it("被封禁的管理员拿到 null，而不是一页完整的授权名单", async () => {
+    it("被封禁的管理员拿到 null，而不是一整页规则", async () => {
       expect(await enrollmentViewFor(suspended)).toBeNull();
     });
 
-    it("管理员看到规则、授权与命中数", async () => {
+    it("管理员看到规则与命中数", async () => {
       const view = await enrollmentViewFor(admin);
 
       expect(view?.rules).toHaveLength(listRules().length);
-      expect(view?.grants).toHaveLength(listGrants().length);
       expect(view?.ruleMatches).toHaveLength(listRules().length);
       expect(view?.groupCounts).not.toBeNull();
       expect(view?.untagged).not.toBeNull();

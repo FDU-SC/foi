@@ -19,7 +19,7 @@ import { accounts, credentials } from "../lib/db/schema";
  * populated standings page on a fresh checkout.
  *
  * Development only. In production nobody is seeded: people register, and the
- * bootstrap administrator gets a password from `scripts/set-password.cjs`.
+ * first administrator comes from `scripts/create-account.cjs`.
  */
 
 const ARGON2_OPTIONS = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
@@ -32,13 +32,19 @@ interface SeedAccount {
 }
 
 /**
- * Written out rather than derived from the enrollment grants, because these
- * are meant to stand in for people who registered. Only `admin` is declared in
- * the repository, and it has no address for the same reason the real one will
- * not: nobody mailed it an invitation.
+ * Written out rather than derived from the enrollment rules, because these are
+ * meant to stand in for people who registered. `admin` is the exception: it is
+ * what `scripts/create-account.cjs` produces in production, which is why it is
+ * marked `bootstrap` and why the rule in `content/enrollment/example.ts` names
+ * it.
  */
 const SEED_ACCOUNTS: SeedAccount[] = [
-  { handle: "admin", displayName: "管理员", email: null, source: "bootstrap" },
+  {
+    handle: "admin",
+    displayName: "管理员",
+    email: "admin@example.test",
+    source: "bootstrap",
+  },
   {
     handle: "alice",
     displayName: "Alice",
@@ -109,7 +115,7 @@ async function main() {
 
   console.log(
     `\n已创建 ${SEED_ACCOUNTS.length} 个账号，密码统一为: ${password}` +
-      `\n用户组不在数据库中：一部分来自 content/enrollment/ 的 grants，一部分由邮箱按规则现算。`,
+      `\n用户组不在数据库中，全部由 content/enrollment/ 的规则现算：admin 被一条 handles 规则点名，其余三个按邮箱分流。`,
   );
   await pool.end();
 }

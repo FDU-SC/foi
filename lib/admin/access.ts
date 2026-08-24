@@ -1,5 +1,6 @@
 import type { Viewer } from "@/lib/auth/viewer";
 import { accountsFor } from "@/lib/accounts/access";
+import { normalizeHandle } from "@/lib/accounts/types";
 import { declaredGroupIds } from "@/lib/auth/groups";
 import { allContests } from "@/lib/contests/registry";
 import type { ContestConfig } from "@/lib/contests/types";
@@ -8,10 +9,13 @@ import {
   enrollmentPolicy,
   groupsFor,
   knownGroups,
-  listGrants,
   listRules,
 } from "@/lib/enrollment/registry";
-import type { EnrollmentPolicy, EnrollmentRule, Grant } from "@/lib/enrollment/types";
+import {
+  isHandlesRule,
+  type EnrollmentPolicy,
+  type EnrollmentRule,
+} from "@/lib/enrollment/types";
 import { loadAdminOverview, type AdminOverview } from "./drift";
 
 /**
@@ -28,7 +32,7 @@ import { loadAdminOverview, type AdminOverview } from "./drift";
  * gated by anything else — a suspended administrator holding a live JWT gets
  * past `proxy.ts`, which reads the token and never the accounts table, and
  * would have been handed the registration policy, every cohort regex, and the
- * grants list naming everybody who holds privilege.
+ * rules naming everybody who holds privilege.
  *
  * So there is no way to ask this module for console data without saying who is
  * asking, and the answer for somebody who may not have it is nothing at all.
@@ -71,7 +75,6 @@ export async function adminContestsFor(
 export interface EnrollmentView {
   policy: EnrollmentPolicy;
   rules: EnrollmentRule[];
-  grants: Grant[];
   /** Every group the repository can be shown to produce. */
   known: ReturnType<typeof knownGroups>;
   /**
@@ -82,6 +85,11 @@ export interface EnrollmentView {
    * the current intake's address format looks fine in a diff and matches
    * nobody — but it is computed from personal data, so it answers to
    * `account.read` while the rules themselves answer to `admin.access`.
+   *
+   * A `handles` rule counts the named accounts that actually exist, which is
+   * the same question in the other shape: a rule naming a handle nobody has
+   * registered reads as 0, and that is how a typo in a privilege grant
+   * announces itself.
    */
   ruleMatches: number[] | null;
   groupCounts: Map<string, number> | null;
@@ -98,7 +106,6 @@ export async function enrollmentViewFor(
   const base = {
     policy: enrollmentPolicy,
     rules,
-    grants: listGrants(),
     known: knownGroups(),
   };
 
@@ -113,7 +120,7 @@ export async function enrollmentViewFor(
 
   // Declared groups start at zero so they are listed even when empty. That is
   // the value of the card right after somebody adds a group: a count of 0 next
-  // to a name you just wrote is how a mistyped grant announces itself, and
+  // to a name you just wrote is how a mistyped group announces itself, and
   // absence from the list would not.
   const groupCounts = new Map<string, number>(
     declaredGroupIds().map((id) => [id, 0]),
@@ -127,11 +134,16 @@ export async function enrollmentViewFor(
     }
   }
 
+  const activeHandles = new Set(active.map((row) => row.handle));
+
   return {
     ...base,
-    ruleMatches: rules.map(
-      (rule) =>
-        active.filter((row) => row.email && rule.match.test(row.email)).length,
+    ruleMatches: rules.map((rule) =>
+      isHandlesRule(rule)
+        ? rule.handles.filter((handle) =>
+            activeHandles.has(normalizeHandle(handle)),
+          ).length
+        : active.filter((row) => row.email && rule.email.test(row.email)).length,
     ),
     groupCounts,
     untagged,

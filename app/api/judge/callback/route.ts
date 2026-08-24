@@ -20,6 +20,7 @@ import {
 } from "@/lib/backend/types";
 import { publish } from "@/lib/submissions/events";
 import { toView } from "@/lib/submissions/queries";
+import { verdictColumns } from "@/lib/submissions/verdict";
 import { invalidateStandings } from "@/lib/standings/cache";
 
 // Signature verification uses node:crypto, so this must not run on Edge.
@@ -51,7 +52,22 @@ export async function PUT(request: Request) {
 
   const parsed = judgeCallbackSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "回调格式不合法" }, { status: 400 });
+    // Naming this one field rather than answering "格式不合法" in general. It
+    // is the field every existing backend is missing the first time it meets a
+    // kernel that requires it, and the generic message would send an operator
+    // to inspect a body that is otherwise perfectly correct — the same reason
+    // the signature check distinguishes "old format" from "does not match".
+    const missingVersion = parsed.error.issues.some(
+      (issue) => issue.path[0] === "backendVersion",
+    );
+    return NextResponse.json(
+      {
+        error: missingVersion
+          ? "回调缺少 backendVersion：题目后端必须回报自身版本，请升级后端"
+          : "回调格式不合法",
+      },
+      { status: 400 },
+    );
   }
 
   const [row] = await db
@@ -99,7 +115,14 @@ export async function PUT(request: Request) {
     return NextResponse.json({ ok: true, duplicate: true });
   }
 
-  const { status, score, maxScore, detail } = parsed.data;
+  // The envelope fields peel off here: what stays in `verdict` is the archived
+  // copy of what the backend decided, with nothing of the kernel's own in it.
+  const {
+    submissionId: _id,
+    callbackToken: _token,
+    backendVersion,
+    ...verdict
+  } = parsed.data;
 
   // The state guard, not the check above, is what makes this safe: the
   // reconciler may reach a terminal state between that read and this write.
@@ -107,9 +130,9 @@ export async function PUT(request: Request) {
     .update(submissions)
     .set({
       state: "completed",
-      verdict: { status, score, maxScore, detail },
-      score,
-      maxScore,
+      verdict,
+      backendVersion,
+      ...verdictColumns(verdict, row.problemSlug),
       judgedAt: new Date(),
     })
     .where(

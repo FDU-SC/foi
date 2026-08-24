@@ -6,7 +6,6 @@ import { db } from "@/lib/db";
 import { contests } from "@/lib/db/schema";
 import { groupsFor } from "@/lib/enrollment/registry";
 import { problemBySlug } from "@/lib/problems/registry";
-import { allContests } from "./registry";
 import type { ContestConfig } from "./types";
 
 /**
@@ -128,31 +127,12 @@ export async function resolveParticipants(
 }
 
 /**
- * Pushes the contest registry into its mirror table.
+ * Upserts a contest's mirror row just before a submission references it,
+ * mirroring `ensureProblem` and for the same reasons — see the note there.
  *
- * Upsert only. A contest deleted from the repository keeps its row so that
- * submissions made during it stay attributable; `/admin` reports the orphan
- * rather than letting the sync detach history on its own.
- */
-export async function syncContests(): Promise<{ synced: number }> {
-  const all = allContests();
-  if (all.length === 0) return { synced: 0 };
-
-  await db
-    .insert(contests)
-    .values(all.map((contest) => ({ slug: contest.slug, title: contest.title })))
-    .onConflictDoUpdate({
-      target: contests.slug,
-      set: { title: sql`excluded.title`, syncedAt: new Date() },
-    });
-
-  return { synced: all.length };
-}
-
-/**
- * Upserts a single contest before a submission references it, mirroring
- * `ensureProblem`: a contest added during `next dev` would otherwise fail the
- * submissions foreign key until the next restart.
+ * A contest deleted from the repository keeps its row so that submissions made
+ * during it stay attributable; `/admin` reports it rather than anything
+ * detaching that history on its own.
  */
 export async function ensureContest(contest: ContestConfig): Promise<void> {
   await db

@@ -9,6 +9,7 @@ import {
   contestsUsing,
   problemFor,
   problemGateWarnings,
+  problemStatus,
   problemVisibility,
   problemsFor,
 } from "./access";
@@ -256,7 +257,7 @@ describe("problemGateWarnings", () => {
 });
 
 describe("题库列表与门禁一致", () => {
-  it("对选手可见的题目，恰好是没有未开始比赛引用且未标 hidden 的那些", () => {
+  it("列出的题目，恰好是对本人开放、未被未开始的比赛封禁、且未下架的那些", () => {
     const visible = new Set(
       problemsFor(AS_PLAYER).map((entry) => entry.config.slug),
     );
@@ -269,10 +270,88 @@ describe("题库列表与门禁一致", () => {
         (contest) => contestPhase(contest) !== "upcoming",
       );
       const openToAll = problem.visibleTo === undefined;
-      const expected = openToAll && (released || !embargoed);
+      const expected =
+        openToAll && (released || !embargoed) && !problem.retired;
 
       expect(visible.has(problem.slug)).toBe(expected);
     }
+  });
+});
+
+/**
+ * The axis that does not touch visibility. A retired problem stays readable by
+ * whoever it was written for — that is what lets somebody review a round they
+ * competed in — while nothing new may be sent to it.
+ */
+describe("下架与可见性正交", () => {
+  const retired = allProblems().filter((problem) => problem.retired);
+
+  it("仓库里有下架的示例题，否则下面几条什么也没验证", () => {
+    expect(retired.length).toBeGreaterThan(0);
+  });
+
+  it("下架的题仍然可见，但不可提交", () => {
+    for (const problem of retired) {
+      const view = problemFor(problem.slug, AS_PLAYER);
+
+      expect(view).toBeDefined();
+      expect(view?.gate.visible).toBe(problem.visibleTo === undefined);
+      expect(view?.open).toBe(false);
+    }
+  });
+
+  it("下架的题不出现在题库列表里", () => {
+    const listed = new Set(
+      problemsFor(AS_PLAYER).map((entry) => entry.config.slug),
+    );
+    for (const problem of retired) {
+      expect(listed.has(problem.slug)).toBe(false);
+    }
+  });
+
+  it("problem.viewAll 能在列表里看到它们，并且照样标着不可提交", () => {
+    const listed = new Map(
+      problemsFor(PREVIEW).map((entry) => [entry.config.slug, entry]),
+    );
+    for (const problem of retired) {
+      expect(listed.get(problem.slug)?.open).toBe(false);
+    }
+  });
+
+  it("没下架的题目里，open 与 gate.visible 一致", () => {
+    // The invariant that keeps `open` from quietly becoming a second gate:
+    // retirement is the only thing that may separate the two.
+    for (const problem of allProblems()) {
+      if (problem.retired) continue;
+      const view = problemFor(problem.slug, PREVIEW);
+      expect(view?.open).toBe(view?.gate.visible);
+    }
+  });
+});
+
+describe("problemStatus", () => {
+  it("在册且未下架的题目是 live，标题来自注册表而不是快照", () => {
+    const live = allProblems().find((problem) => !problem.retired)!;
+    expect(problemStatus(live.slug, "陈旧的快照")).toEqual({
+      kind: "live",
+      title: live.title,
+    });
+  });
+
+  it("下架的题目是 retired，标题照样来自注册表", () => {
+    const retired = allProblems().find((problem) => problem.retired);
+    if (!retired) return;
+    expect(problemStatus(retired.slug, "陈旧的快照")).toEqual({
+      kind: "retired",
+      title: retired.title,
+    });
+  });
+
+  it("注册表里没有的题目是 gone，只剩镜像行里的快照可用", () => {
+    expect(problemStatus("__deleted-long-ago", "当年的标题")).toEqual({
+      kind: "gone",
+      title: "当年的标题",
+    });
   });
 });
 

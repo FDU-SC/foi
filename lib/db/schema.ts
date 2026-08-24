@@ -1,4 +1,5 @@
 import {
+  boolean,
   doublePrecision,
   index,
   integer,
@@ -11,21 +12,26 @@ import {
 import type { SubmissionState, Verdict } from "@/lib/backend/types";
 
 /**
- * The database holds three kinds of thing and nothing else:
+ * The database holds two kinds of thing and nothing else:
  *
  *   1. secrets and personal data, which cannot be committed — `accounts`
  *      (the email address), `credentials`, `auth_tokens`,
  *      `email_verifications`
- *   2. mirrors of the filesystem registries, which exist only so that
- *      submissions can carry foreign keys — `problems`, `contests`
- *   3. things that actually happened — `submissions`, and every row in
- *      `accounts` that came from someone filling in the registration form
+ *   2. things that actually happened — `submissions`, every row in `accounts`
+ *      that came from someone filling in the registration form, and the
+ *      `problems` and `contests` rows written when a submission first
+ *      referenced them
+ *
+ * There used to be a third kind, mirrors of the filesystem registries pushed
+ * in at startup. They turned out to be the second kind all along: nothing read
+ * a row for a problem nobody had submitted to.
  *
  * What is deliberately absent is any column an administrator would want to
- * edit in order to change what somebody may do. Roles and cohort tags are not
- * stored: `content/enrollment/` declares the rules that produce them and
- * `lib/auth/policy.ts` declares what each role means, so a privilege change is
- * a reviewed commit rather than an UPDATE nobody can find afterwards.
+ * edit in order to change what somebody may do. Groups are not stored:
+ * `content/enrollment/` declares the rules that produce them and
+ * `lib/auth/policy.ts` declares what each capability means, so a privilege
+ * change is a reviewed commit rather than an UPDATE nobody can find
+ * afterwards.
  */
 
 /**
@@ -35,12 +41,14 @@ import type { SubmissionState, Verdict } from "@/lib/backend/types";
  * table holds no authority of its own: `handle`, `displayName` and `email` say
  * who someone claims to be, and `status` says whether they may act at all. The
  * answer to "what may they do" is computed in `lib/accounts/resolve.ts` from
- * the email address and the grants in `content/enrollment/`, and is never
+ * the email address and the rules in `content/enrollment/`, and is never
  * written back — see the note on tags there.
  *
- * `email` is null only for bootstrap accounts, which are declared in the
- * repository and given a password over the CLI. The unique index tolerates
- * that because Postgres does not consider two nulls equal.
+ * `email` is nullable only because accounts predating the current
+ * registration flow may have none. Both ways in supply one now: the form
+ * proves it with a code, and `scripts/create-account.cjs` requires it and
+ * records it verified. The unique index tolerates the nulls that remain
+ * because Postgres does not consider two of them equal.
  *
  * There is no `pending` status. There used to be, covering the gap between
  * filling in the registration form and clicking the link that arrived
@@ -215,27 +223,37 @@ export const emailVerifications = pgTable("email_verifications", {
 });
 
 /**
- * Mirror of the filesystem registry. `content/problems` remains the source of
- * truth; this table exists so submissions can carry a foreign key and so
- * listings can join without reading the registry.
+ * The problems somebody has submitted to.
+ *
+ * Not a mirror of `content/problems`, though it was one for a while: startup
+ * pushed the whole registry in, and the only thing that consumed the result
+ * was a console finding reporting that the push had not happened yet. Rows are
+ * written by `ensureProblem` at the moment a submission first needs the
+ * foreign key, so what accumulates here is a normalised index of every problem
+ * this deployment has ever judged — including ones since deleted from the
+ * repository, which is what keeps their submissions attributable.
+ *
+ * `title` is a snapshot that tracks the registry, kept so a submission list can
+ * name a problem that no longer exists. Everything else about a problem —
+ * scoring, audience, backend — is read from `content/problems`, which is why
+ * there is nothing else here.
  */
 export const problems = pgTable("problems", {
   slug: text("slug").primaryKey(),
   title: text("title").notNull(),
-  maxScore: doublePrecision("max_score").notNull(),
   syncedAt: timestamp("synced_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });
 
 /**
- * Mirror of `content/contests`, for the same reason as above and no other.
- * Schedule, problem set and entry rules are all in the registry — this table
- * is a foreign key anchor, which is why it has no `starts_at`.
+ * The contests somebody has submitted during, for the same reason as above and
+ * no other. Schedule, problem set and entry rules are all in the registry —
+ * this is a foreign key anchor, which is why it has no `starts_at`.
  *
- * Sync never deletes: a contest removed from the repository keeps its row so
- * that submissions made during it stay attributable. `/admin` reports the
- * orphan instead of the sync silently detaching history.
+ * Nothing deletes from here: a contest removed from the repository keeps its
+ * row so that submissions made during it stay attributable. `/admin` reports
+ * it rather than anything detaching that history on its own.
  */
 export const contests = pgTable("contests", {
   slug: text("slug").primaryKey(),
@@ -259,9 +277,16 @@ export const submissions = pgTable(
       .notNull()
       .references(() => accounts.handle, { onDelete: "restrict" }),
 
+    /**
+     * Restrict for the same reason `handle` is: the row it points at is what
+     * makes this submission attributable, and `/admin` lists problems deleted
+     * from the repository precisely because their submissions are still here.
+     * It was `cascade`, which meant tidying up one such row would have taken
+     * every submission to that problem with it.
+     */
     problemSlug: text("problem_slug")
       .notNull()
-      .references(() => problems.slug, { onDelete: "cascade" }),
+      .references(() => problems.slug, { onDelete: "restrict" }),
     contestSlug: text("contest_slug").references(() => contests.slug, {
       onDelete: "set null",
     }),
@@ -271,10 +296,74 @@ export const submissions = pgTable(
 
     state: text("state").$type<SubmissionState>().notNull().default("pending"),
 
-    /** Full judge result. `score`/`maxScore` below are denormalised from it. */
+    /**
+     * Whatever the backend returned, verbatim.
+     *
+     * The mirror image of `payload`, and it took a while to become one. It
+     * carried a schema the kernel read fields out of at every call site, which
+     * made a message from an extension point into a domain object: the same
+     * number was reachable as `verdict.score` and as the column below, with
+     * nothing saying which was authoritative. Now the callback parses it once
+     * and the columns below are what the kernel kept; this is the audit copy,
+     * and only a problem's own components look inside it — see `detail` in
+     * `lib/backend/types.ts`.
+     */
     verdict: jsonb("verdict").$type<Verdict>(),
+
+    /** What the backend reported, or null if it reported no score at all. */
     score: doublePrecision("score"),
+
+    /**
+     * The denominator this judging actually used: what the backend declared,
+     * falling back to the problem's configured `maxScore`. Resolved on the way
+     * in so a later edit to the configuration cannot change what an old
+     * submission was scored out of.
+     */
     maxScore: doublePrecision("max_score"),
+
+    /**
+     * Whether the backend declared this a pass.
+     *
+     * Null means it did not say, not that it failed — `score >= maxScore` is
+     * the fallback, and it lives in `isAccepted` rather than here on purpose.
+     * A backend saying "this counts as solved" is a fact and belongs in a
+     * column; the kernel guessing on its silence is a guess, and burning a
+     * guess into history would mean an improved rule could never reach the
+     * submissions it was written for. Problems that need it are the ones where
+     * full marks and passing differ — a performance task where two times
+     * baseline passes and three scores full.
+     */
+    accepted: boolean("accepted"),
+
+    /**
+     * The backend's own status string, for the badge. An opaque label:
+     * `VERDICT_PRESETS` translates the ones FOI ships with and anything else
+     * renders as itself.
+     */
+    outcome: text("outcome"),
+
+    /**
+     * What judged this, and against what.
+     *
+     * A verdict is only reproducible if both ends are pinned. `releaseSha` is
+     * the commit this kernel was built from, which fixes the problem's entire
+     * definition because `content/` lives in the same repository — Polygon had
+     * to build per-problem revisions to get the same guarantee. `backendVersion`
+     * is what the backend said about itself, and it covers the half that is not
+     * in this repository at all: the testdata, the checker, the judging code.
+     *
+     * Both are snapshots rather than references. A row here says what was true
+     * at the moment of judging, so pointing them at a lookup table would let a
+     * later UPDATE rewrite history — the same reason `payload` and `verdict`
+     * are stored inline.
+     *
+     * Nullable despite `backendVersion` being required by the protocol: rows
+     * written before this existed genuinely have no answer, and inventing one
+     * would defeat the purpose. `releaseSha` is additionally null for images
+     * built outside CI, which did not come from a commit.
+     */
+    releaseSha: text("release_sha"),
+    backendVersion: text("backend_version"),
 
     /** Judge-side handle, used by the reconciler to poll for a lost callback. */
     judgeRef: text("judge_ref"),

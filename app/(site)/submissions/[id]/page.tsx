@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
 import { viewerFor } from "@/lib/auth/viewer";
+import { ProblemRef } from "@/components/problem/problem-ref";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { VerdictDetail } from "@/components/problem/verdict-detail";
@@ -67,14 +68,12 @@ export default async function SubmissionPage({
 
       <header className="border-border flex flex-wrap items-center gap-3 border-b pb-4">
         <h1 className="text-fg text-xl font-bold">
-          <Link
-            href={`/problems/${row.problemSlug}`}
-            className="hover:text-primary transition-colors"
-          >
-            {problem?.title ?? row.problemSlug}
-          </Link>
+          <ProblemRef
+            slug={row.problemSlug}
+            fallbackTitle={problem?.title ?? row.problemSlug}
+          />
         </h1>
-        <VerdictBadge state={row.state} verdict={row.verdict} />
+        <VerdictBadge submission={row} />
         <QueueBadge queue={queue} showJudge />
         <span className="text-fg-subtle ml-auto font-mono text-xs">
           {formatter.format(row.createdAt)}

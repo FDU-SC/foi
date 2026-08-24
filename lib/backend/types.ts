@@ -32,16 +32,32 @@ export function isTerminalState(state: SubmissionState): boolean {
 export const NON_TERMINAL_STATES: SubmissionState[] = ["pending", "judging"];
 
 /**
- * The kernel's entire understanding of a judge result.
+ * What a backend may say when it has finished.
  *
- * `status` and `score` exist so generic UI (submission lists, standings) can
- * work without knowing anything about the problem. `detail` is deliberately
- * opaque: only problem-specific components and rulesets ever interpret it.
+ * Only `status` is required, and only because a submission list has to put
+ * *something* in the badge column. Everything else is optional because problem
+ * types vary more than any fixed shape can anticipate, and a backend should
+ * not have to invent a number to satisfy a schema:
+ *
+ *   score      omit for a task that is pass/fail rather than scored.
+ *   maxScore   omit and the problem's configured `maxScore` is the
+ *              denominator. Declare one for a task whose total is computed —
+ *              a performance problem scoring against a measured baseline.
+ *   accepted   omit and `score >= maxScore` decides. Declare one where full
+ *              marks and passing are different questions, which is the case
+ *              the derivation gets wrong.
+ *   detail     deliberately opaque; only a problem's own components and
+ *              rulesets ever interpret it.
+ *
+ * The kernel reads these four exactly once, in the callback handler, and keeps
+ * what it needs in columns on the submission. Nothing downstream reaches into
+ * a verdict — see the note on `verdict` in `lib/db/schema.ts`.
  */
 export const verdictSchema = z.object({
   status: z.string().min(1).max(64),
-  score: z.number().finite(),
-  maxScore: z.number().finite().positive(),
+  score: z.number().finite().optional(),
+  maxScore: z.number().finite().positive().optional(),
+  accepted: z.boolean().optional(),
   detail: z.unknown().optional(),
 });
 
@@ -100,10 +116,34 @@ export interface BackendActionRequest {
   payload: unknown;
 }
 
+/**
+ * What a backend says about itself when it reports.
+ *
+ * Required, unlike everything optional in a verdict, and the difference is not
+ * strictness for its own sake. `score`, `maxScore` and `accepted` may be
+ * omitted because they can genuinely not exist — a pass/fail task has no score,
+ * a computed total has no fixed maximum. A running process always has a
+ * version, even if it is `dev` or a commit hash, so making this optional would
+ * only blur "this backend never reports one" into "this judging did not record
+ * one", and a provenance trail with holes in it is not a provenance trail.
+ *
+ * It rides on the envelope rather than inside the verdict because it answers
+ * "who judged this", not "what did it decide" — the same layer as
+ * `submissionId` and `callbackToken`. That also keeps it out of the archived
+ * verdict blob, and lets `/status/<ref>` report a version while `done` is still
+ * false and there is no verdict to attach it to.
+ *
+ * Self-reported and unverifiable, but it travels inside the HMAC-signed body,
+ * so it is at least the backend's own claim rather than a third party's — the
+ * same standing `status` has.
+ */
+const backendVersionSchema = z.string().min(1).max(64);
+
 /** Body a judge PUTs back once it has finished. */
 export const judgeCallbackSchema = verdictSchema.extend({
   submissionId: z.string().min(1),
   callbackToken: z.string().min(1),
+  backendVersion: backendVersionSchema,
 });
 
 export type JudgeCallback = z.infer<typeof judgeCallbackSchema>;
@@ -112,7 +152,10 @@ export type JudgeCallback = z.infer<typeof judgeCallbackSchema>;
 export const judgeStatusSchema = z.object({
   done: z.boolean(),
   verdict: verdictSchema.optional(),
+  backendVersion: backendVersionSchema,
 });
+
+export type JudgeStatus = z.infer<typeof judgeStatusSchema>;
 
 /**
  * Queueing is the judge's responsibility, not the kernel's.
@@ -190,20 +233,41 @@ export const VERDICT_PRESETS: Record<string, VerdictPreset> = {
   system_error: { label: "系统错误", short: "SE", tone: "err" },
 };
 
-export function describeVerdict(verdict: Verdict): VerdictPreset {
-  const preset = VERDICT_PRESETS[verdict.status];
+/**
+ * How to render a finished submission's badge.
+ *
+ * Takes the resolved columns rather than the verdict, because that is where
+ * the kernel's copy of these lives now and because a backend may have declared
+ * a pass without reporting any score at all.
+ */
+export function describeVerdict(result: {
+  outcome: string | null;
+  score: number | null;
+  maxScore: number | null;
+  accepted: boolean | null;
+}): VerdictPreset {
+  const label = result.outcome ?? "已评测";
+  const preset = result.outcome ? VERDICT_PRESETS[result.outcome] : undefined;
   if (preset) return preset;
 
-  // Unknown status from a custom judge: derive a tone from the score so the
-  // generic UI still reads correctly.
+  // An unrecognised status, so the tone has to come from the numbers. A
+  // declared pass settles it; otherwise full marks reads as a pass, anything
+  // above zero as partial. With no score reported there is nothing to grade
+  // the colour on, which is what neutral is for.
   const tone: BadgeTone =
-    verdict.score >= verdict.maxScore
-      ? "ok"
-      : verdict.score > 0
-        ? "partial"
-        : "err";
+    result.accepted !== null
+      ? result.accepted
+        ? "ok"
+        : "err"
+      : result.score === null
+        ? "neutral"
+        : result.maxScore !== null && result.score >= result.maxScore
+          ? "ok"
+          : result.score > 0
+            ? "partial"
+            : "err";
 
-  return { label: verdict.status, short: verdict.status, tone };
+  return { label, short: label, tone };
 }
 
 export const STATE_PRESETS: Record<

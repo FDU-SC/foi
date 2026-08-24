@@ -11,6 +11,10 @@ export function toView(row: SubmissionRow): SubmissionView {
     contestSlug: row.contestSlug,
     state: row.state,
     verdict: row.verdict ?? null,
+    outcome: row.outcome,
+    score: row.score,
+    maxScore: row.maxScore,
+    accepted: row.accepted,
     createdAt: row.createdAt.toISOString(),
     judgedAt: row.judgedAt?.toISOString() ?? null,
   };

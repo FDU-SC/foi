@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { Participant } from "../types";
-import { fail, input, participants, problem, solve } from "../test-support";
+import type { Participant } from "@/lib/standings/types";
+import { fail, input, participants, problem, solve } from "@/lib/standings/test-support";
 import type { CtfCell } from "./ctf-dynamic";
-import { ctfDynamicRuleset } from "./ctf-dynamic";
+import { ruleset as ctfDynamicRuleset } from "./ctf-dynamic";
 
 function compute(options: Parameters<typeof input>[0]) {
   return ctfDynamicRuleset.computeStandings(input(options));

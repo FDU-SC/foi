@@ -771,6 +771,11 @@ async function sendCallback(body: JudgeRequestBody, verdict: Verdict) {
   const payload = JSON.stringify({
     submissionId: body.submissionId,
     callbackToken: body.callbackToken,
+    // Required by the protocol. The kernel records it against the submission
+    // so a verdict stays reproducible: its own release sha pins the problem
+    // definition, and this pins the testdata and checker that produced the
+    // result — the half that does not live in the FOI repository.
+    backendVersion: VERSION,
     ...verdict,
   });
   const timestamp = Math.floor(Date.now() / 1000);
@@ -882,7 +887,15 @@ const server = createServer(async (req, res) => {
     console.log(`  状态查询 ${ref} -> ${done ? "done" : (job?.state ?? "未知")}`);
 
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify(done ? { done, verdict: job.verdict } : { done: false }));
+    // The version rides along even while `done` is false: there is no verdict
+    // to attach it to yet, which is exactly why it belongs on the envelope.
+    res.end(
+      JSON.stringify(
+        done
+          ? { done, verdict: job.verdict, backendVersion: VERSION }
+          : { done: false, backendVersion: VERSION },
+      ),
+    );
     return;
   }
 

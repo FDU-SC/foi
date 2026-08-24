@@ -24,6 +24,16 @@ const declared = allProblems().flatMap((problem) =>
   })),
 );
 
+/** The subset still in service. A retired problem's actions are closed too. */
+const live = allProblems()
+  .filter((problem) => !problem.retired)
+  .flatMap((problem) =>
+    Object.keys(problem.backend.actions).map((action) => ({
+      slug: problem.slug,
+      action,
+    })),
+  );
+
 function before(date: Date): Date {
   return new Date(date.getTime() - 60_000);
 }
@@ -33,8 +43,9 @@ describe("actionFor 白名单", () => {
     expect(declared.length).toBeGreaterThan(0);
   });
 
-  it("声明过的 action 解析得出", () => {
-    for (const { slug, action } of declared) {
+  it("在役题目声明过的 action 解析得出", () => {
+    expect(live.length).toBeGreaterThan(0);
+    for (const { slug, action } of live) {
       expect(actionFor(slug, action, PLAYER)?.action).toBe(action);
     }
   });
@@ -85,11 +96,13 @@ describe("actionFor 配额", () => {
   });
 
   it("没声明就用内核默认值", () => {
-    const bare = allProblems().flatMap((problem) =>
-      Object.entries(problem.backend.actions)
-        .filter(([, spec]) => !spec.rateLimit)
-        .map(([action]) => ({ slug: problem.slug, action })),
-    );
+    const bare = allProblems()
+      .filter((problem) => !problem.retired)
+      .flatMap((problem) =>
+        Object.entries(problem.backend.actions)
+          .filter(([, spec]) => !spec.rateLimit)
+          .map(([action]) => ({ slug: problem.slug, action })),
+      );
 
     for (const { slug, action } of bare) {
       expect(actionFor(slug, action, PLAYER)?.rateLimit).toEqual(
@@ -152,7 +165,7 @@ describe("actionFor 门禁", () => {
    * than a case — add such a problem and a regression to `AS_PLAYER` breaks
    * this immediately.
    */
-  it("答案逐项等于「这个 viewer 看得见这道题」且「声明过这个 action」", () => {
+  it("答案逐项等于「这道题现在开着」且「声明过这个 action」", () => {
     const viewers: Viewer[] = [AS_PLAYER, PLAYER, PREVIEW];
     const moments = demo
       ? [new Date(), before(demo.startsAt)]
@@ -164,11 +177,36 @@ describe("actionFor 门禁", () => {
           for (const action of Object.keys(problem.backend.actions)) {
             const open = problemFor(problem.slug, viewer, now);
             expect(Boolean(actionFor(problem.slug, action, viewer, now))).toBe(
-              Boolean(open?.gate.visible),
+              Boolean(open?.open),
             );
           }
         }
       }
+    }
+  });
+
+  /**
+   * Retirement closes the interactive channel along with submission, and for
+   * the same reason: reading an old statement is not a licence to spend the
+   * backend's resources on it. Stated separately from the invariant above
+   * because it is the case where `gate.visible` and `open` disagree — if
+   * `actionFor` ever drifts back to reading the former, only this fails.
+   */
+  it("下架题目声明过的 action 也调不动，尽管题面还读得到", () => {
+    const retired = allProblems()
+      .filter((problem) => problem.retired)
+      .flatMap((problem) =>
+        Object.keys(problem.backend.actions).map((action) => ({
+          slug: problem.slug,
+          action,
+        })),
+      );
+
+    expect(retired.length).toBeGreaterThan(0);
+    for (const { slug, action } of retired) {
+      expect(problemFor(slug, PLAYER)?.gate.visible).toBe(true);
+      expect(actionFor(slug, action, PLAYER)).toBeUndefined();
+      expect(actionFor(slug, action, PREVIEW)).toBeUndefined();
     }
   });
 });

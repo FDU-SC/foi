@@ -47,6 +47,18 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
+# Which commit this image was built from, recorded on every submission it
+# judges. The CI already tags the image `sha-<commit>`, but a tag is outside
+# the container: without this the process cannot say what it is running, and
+# `submissions.release_sha` would have nothing to write. Empty on a local
+# `docker build`, which is honest — that image did not come from a commit.
+#
+# Unlike the build-stage placeholders above, this one is deliberately baked
+# into the image metadata: it is not a secret, and `docker inspect` being able
+# to answer "what is this" is the point.
+ARG FOI_RELEASE_SHA=""
+ENV FOI_RELEASE_SHA=$FOI_RELEASE_SHA
+
 RUN groupadd --gid 1001 nodejs \
   && useradd --uid 1001 --gid nodejs --no-create-home --shell /usr/sbin/nologin foi
 
@@ -57,9 +69,11 @@ COPY --from=builder --chown=foi:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=foi:nodejs /app/public ./public
 # Applied on boot by instrumentation.ts.
 COPY --from=builder --chown=foi:nodejs /app/drizzle ./drizzle
-# Operational entry point. The bootstrap administrator is declared in
-# content/enrollment/ and materialised at startup, but passwords never ship in
-# an image, so their credential has to be issued from inside the container.
+# Operational entry points. A fresh deployment has no accounts at all and no
+# way to make one through the UI that does not require an administrator, so the
+# first one is created from inside the container; passwords never ship in an
+# image either way.
+COPY --from=builder --chown=foi:nodejs /app/scripts/create-account.cjs ./scripts/
 COPY --from=builder --chown=foi:nodejs /app/scripts/set-password.cjs ./scripts/
 
 USER foi

@@ -7,7 +7,7 @@ import {
   type Ruleset,
   type StandingsInput,
   type StandingsRow,
-} from "../types";
+} from "@/lib/standings/types";
 
 const configSchema = z.object({
   penaltyMinutes: z.number().nonnegative().default(20),
@@ -51,7 +51,7 @@ function AcmCellView({ cell }: { cell: AcmCell | undefined }) {
  * ICPC scoring: rank by problems solved, break ties on accumulated penalty
  * (solve time plus a fixed charge per prior rejected attempt).
  */
-export const acmRuleset: Ruleset<AcmCell> = {
+export const ruleset: Ruleset<AcmCell> = {
   id: "acm",
   name: "ACM / ICPC",
   description: "按通过题数排名，同数按罚时（解题时间 + 错误提交罚分）排序。",

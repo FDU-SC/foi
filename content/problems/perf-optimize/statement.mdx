@@ -1,0 +1,82 @@
+<Constraints time="8 s" memory="256 MB" />
+
+## 题目描述
+
+给定两个 $n \times n$ 的整数矩阵（$n = 512$，元素为 `0..99` 的非负整数），
+计算它们的乘积矩阵。
+
+这题不考算法——$O(n^3)$ 的三重循环就是正解。**考的是性能**：判题机先运行
+一份内置的朴素实现测出基线耗时，再运行你的代码。你的程序越快，得分越高。
+
+## 输入输出格式
+
+**输入**（stdin）：第一行一个整数 $n$；接下来 $n$ 行每行 $n$ 个整数，是矩阵
+$A$；再接下来 $n$ 行每行 $n$ 个整数，是矩阵 $B$。
+
+**输出**（stdout）：$n$ 行，每行 $n$ 个整数，空格分隔，是乘积矩阵 $C = AB$。
+
+## 计分
+
+$$
+\text{score} = \min\left(100,\ \left\lfloor \frac{50 \times \text{baseline}}{\text{time}} \right\rfloor\right)
+$$
+
+- `baseline`：朴素实现的耗时（评测时实测）
+- `time`：你的程序的最优耗时（预热 1 次后，计时 3 次取最小）
+- 输出错误 / 超时：0 分
+- 跑出 2 倍加速即满分；朴素实现原样提交约得 50 分
+
+## 参考实现（朴素版，可在此基础上优化）
+
+```cpp title="naive.cpp" showLineNumbers
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    int n;
+    cin >> n;
+    vector<vector<long long>> a(n, vector<long long>(n));
+    vector<vector<long long>> b(n, vector<long long>(n));
+    vector<vector<long long>> c(n, vector<long long>(n));
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < n; j++) cin >> a[i][j];
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < n; j++) cin >> b[i][j];
+
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < n; j++)
+            for (int k = 0; k < n; k++)
+                c[i][j] += a[i][k] * b[k][j];
+
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            if (j) cout << ' ';
+            cout << c[i][j];
+        }
+        cout << '\n';
+    }
+    return 0;
+}
+```
+
+<Callout kind="tip" title="优化思路">
+
+- 交换循环顺序让 `b[k][j]` 的访问变成顺序的（`i-k-j` 序）
+- 用 `long long` 累加避免溢出；元素很小，`int` 累加在 $n=512$ 时不会溢出
+- 尝试循环展开、`__restrict`、块化（blocking）提升缓存命中
+- 判题机用 `-O2` 编译，`-O3` 需要自己内联展开来争取
+
+</Callout>
+
+<Callout kind="warning" title="注意">
+
+- 必须输出**与朴素实现完全一致**的乘积矩阵，判题机会逐字节比对
+- 不要 `sleep` 或空转——计时测的是真实运行时间，输出错就是 0 分
+- 请提交完整程序（含 `main`），判题机独立编译运行
+
+</Callout>
+
+<SubmitPanel />

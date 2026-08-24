@@ -1,6 +1,17 @@
 import "server-only";
 
-/** Contest schedules and entry rules are server-only content. */
+/**
+ * Not content. This declares where the server/client boundary runs — see
+ * `./problem-modules.ts` for why these four files exist and why they live
+ * under `content/`.
+ *
+ * Schedules, problem sets and entry rules. See `lib/contests/registry.ts`.
+ *
+ * A contest staged in the repository before it is announced is the case that
+ * makes this matter: `visibleTo: []` withholds the round from every viewer,
+ * and a browser chunk carrying its title, its start time and its problem list
+ * would announce it anyway.
+ */
 export const contestModules = import.meta.glob("./contests/*/contest.ts", {
   eager: true,
 });

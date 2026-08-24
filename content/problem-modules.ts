@@ -1,12 +1,28 @@
 import "server-only";
 
 /**
- * Problem source modules are a server-only content boundary.
+ * Not content. This declares where the server/client boundary runs.
  *
- * Keeping this glob separate from enrollment, contest, and ruleset registries
- * prevents one dynamic content graph from pulling unrelated private modules
- * into a browser chunk. The `server-only` marker keeps lazy statement chunks
- * in the server graph while preserving per-problem loading.
+ * Everything else under `content/` is a deployment's to edit; these four
+ * `*-modules.ts` files are the kernel's, and editing one moves a boundary
+ * rather than changing a round. They live here because `import.meta.glob`
+ * only scans downward from the calling file — `../`, the `@/` alias and a
+ * leading `/` all resolve to nothing — so the globs have to sit next to what
+ * they scan, and the registries under `lib/` consume the results.
+ *
+ * `server-only` is what makes the boundary hold. A problem's `backend.config`
+ * routinely holds testdata locations, checker settings, or literal answers,
+ * and `toPublicConfig` strips it from the *data* handed to a client component
+ * — but that says nothing about the *module*. One glob file exporting all of
+ * this at once meant any client component that reached `@/content` for any
+ * reason pulled every problem, every statement, every enrolment rule into a
+ * browser chunk. One did: `components/site/user-menu.tsx` wanted `groupName`.
+ * Splitting the globs limits the blast radius; the marker below is what turns
+ * a repeat into a failed build instead of a shipped answer key.
+ *
+ * Configs load eagerly since listing pages need all of them at once;
+ * statements load lazily so a problem page pulls in only the MDX it is about
+ * to render. Both graphs stay on the server.
  */
 export const problemConfigModules = import.meta.glob(
   "./problems/*/problem.ts",

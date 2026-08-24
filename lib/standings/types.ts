@@ -79,8 +79,8 @@ export interface Standings<Cell> {
  *
  * ACM, OI and CTF ship as templates, not as special cases — the kernel only
  * knows this interface. A new format is a new file in `content/rulesets/`, or
- * a `ruleset.tsx` beside one contest's own definition; see `content/index.ts`
- * for when each is the right choice.
+ * a `ruleset.tsx` beside one contest's own definition; see
+ * `content/ruleset-modules.ts` for when each is the right choice.
  *
  * `computeStandings` is a pure function over every submission in the contest,
  * which keeps formats like CTF dynamic scoring (where one solve changes

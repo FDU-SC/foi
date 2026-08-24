@@ -1,3 +1,19 @@
+/**
+ * The belt. The braces are `import "server-only"` in `content/*-modules.ts`.
+ *
+ * That marker is what actually holds the boundary: reaching a content glob
+ * from a client component fails the build, at the import, naming the file.
+ * This script cannot do that — it reads minified output after the fact, and
+ * every marker below is a guess about what Turbopack emits. `s.s(["problem"`
+ * is its codegen shape and will stop matching at some upgrade, silently and
+ * with a green build.
+ *
+ * So it is worth running and not worth trusting. It catches a leak that
+ * arrives by a route the marker does not cover — a `NEXT_PUBLIC_` variable, a
+ * value inlined into a Server Component's flight payload, a future glob added
+ * without the marker — and a green result means only that these four strings
+ * were absent.
+ */
 const { readdirSync, readFileSync } = require("node:fs");
 const { join } = require("node:path");
 
@@ -14,11 +30,15 @@ function collect(directory) {
 
 collect(root);
 
+// Strings that only exist inside a problem's `backend.config` or an enrolment
+// rule, so a match means the module itself was bundled rather than the public
+// projection `toPublicConfig` produces.
 const forbidden = [
   { label: "题目后端配置", value: "backend:{id:" },
   { label: "题目配置模块", value: 's.s(["problem",0,{slug:' },
   { label: "测试数据路径", value: "maze-runner/v1" },
   { label: "靶机镜像名", value: "foi/chal-leaky-bucket:latest" },
+  { label: "报名规则", value: "reservedHandles" },
 ];
 
 const findings = [];

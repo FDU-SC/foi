@@ -4,13 +4,7 @@ import { ulid } from "ulid";
 import { getResolvedUser, getSessionUser } from "@/auth";
 import { viewerFor } from "@/lib/auth/viewer";
 import { readTextBody } from "@/lib/body-limit";
-import { contestFor } from "@/lib/contests/access";
-import { canEnterContest, ensureContest } from "@/lib/contests/queries";
-import {
-  contestPhase,
-  type ContestConfig,
-  type ContestProblemConfig,
-} from "@/lib/contests/types";
+import { ensureContest } from "@/lib/contests/queries";
 import { db } from "@/lib/db";
 import { submissions } from "@/lib/db/schema";
 import {
@@ -22,13 +16,12 @@ import {
   resolveBackend,
 } from "@/lib/backend/client";
 import { NON_TERMINAL_STATES } from "@/lib/backend/types";
-import { problemFor } from "@/lib/problems/access";
 import { ensureProblem } from "@/lib/problems/sync";
-import { submitRateLimit } from "@/lib/problems/types";
 import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest, tooManyRequests } from "@/lib/ratelimit/gate";
 import { fixedRule, ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { publish } from "@/lib/submissions/events";
+import { submitFor, type SubmitGate } from "@/lib/submissions/gate";
 import { createSubmissionSchema } from "@/lib/submissions/types";
 import { submissionsFor } from "@/lib/submissions/access";
 import { getSubmissionRow, toView } from "@/lib/submissions/queries";
@@ -65,6 +58,31 @@ function tooFast(retryAfterMs: number): NextResponse {
   );
 }
 
+/**
+ * The gate's refusals in HTTP.
+ *
+ * Nothing but a mapping, and deliberately nothing but a mapping: which of these
+ * a request earns is `submitFor`'s decision, and why they are three answers
+ * rather than one is argued where that decision lives. Exhaustive over the
+ * union, so widening the gate cannot leave a reason without a status.
+ */
+function refuse(reason: (SubmitGate & { ok: false })["reason"]): NextResponse {
+  switch (reason) {
+    case "no-problem":
+      return NextResponse.json({ error: "题目不存在" }, { status: 404 });
+    case "contest-mismatch":
+      return NextResponse.json(
+        { error: "该比赛未在进行中，或不包含这道题目" },
+        { status: 400 },
+      );
+    case "not-entered":
+      return NextResponse.json(
+        { error: "你不在这场比赛的参赛名单中" },
+        { status: 403 },
+      );
+  }
+}
+
 export async function POST(request: Request) {
   const gated = guardRequest(request, "POST /api/submissions");
   if (gated) return gated;
@@ -75,7 +93,6 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
-  const viewer = viewerFor(user);
 
   const read = await readTextBody(request, MAX_PAYLOAD_BYTES);
   if (!read.ok) {
@@ -107,81 +124,34 @@ export async function POST(request: Request) {
   );
   if (!flood.ok) return tooFast(flood.retryAfterMs);
 
-  // This person's own view, then `open` on top of it. Three conditions folded
-  // into one field, because they rule out different people: not theirs to see;
-  // theirs to see but not started, which is why a holder of `problem.viewAll`
-  // proofreading a round does not get to put work on its judges; or retired,
-  // where the statement stays readable and nothing new is accepted.
-  //
-  // Asking `AS_PLAYER` instead, as this once did, collapses the first two and
-  // gets the first one wrong: a problem given to 校队 has no audience under a
-  // viewer with no groups, so the members it was written for could read it and
-  // not submit to it.
-  const open = problemFor(parsed.data.problemSlug, viewer);
-  if (!open?.open) {
-    return NextResponse.json({ error: "题目不存在" }, { status: 404 });
-  }
-  const problem = open.config;
+  // Every rule about whether this submission may exist, in one call. The three
+  // refusals are deliberately distinguishable and the reasons they get
+  // different answers are documented on `SubmitGate`; all this handler does
+  // with them is choose a status code.
+  const gate = submitFor(
+    parsed.data.problemSlug,
+    parsed.data.contestSlug,
+    user,
+  );
+  if (!gate.ok) return refuse(gate.reason);
 
-  // The client supplies contestSlug, so re-derive whether it is legitimate:
-  // the contest must be running and must actually contain this problem. Both
-  // facts come from the registry, so this no longer costs a query.
-  //
-  // `find` rather than `some`, because the entry is also where the round states
-  // what it wants this problem's throttle to be. Having already had to locate
-  // it to answer "does this contest contain the problem", asking a second time
-  // further down would be a second place for the two to disagree.
-  let contestSlug: string | null = null;
-  let running: ContestConfig | undefined;
-  let entry: ContestProblemConfig | undefined;
-  if (parsed.data.contestSlug) {
-    // Same shape as the problem above: their own view, plus `gate.visible` so
-    // that seeing a contest by way of `contest.viewAll` is reading it rather
-    // than competing in it.
-    const view = contestFor(parsed.data.contestSlug, viewer);
-    const contest = view?.gate.visible ? view.config : undefined;
-    entry = contest?.problems.find((candidate) => candidate.slug === problem.slug);
-    const eligible =
-      contest !== undefined &&
-      contestPhase(contest) === "running" &&
-      entry !== undefined;
-    if (!eligible) {
-      return NextResponse.json(
-        { error: "该比赛未在进行中，或不包含这道题目" },
-        { status: 400 },
-      );
-    }
+  const { problem, contest: running } = gate;
 
-    // Separate from the check above because the answer is different: the
-    // contest is real and running, this person just is not in it. Without
-    // this, a closed contest's entry rule only decided who appeared on the
-    // board while anyone could still queue work on its judges.
-    if (!canEnterContest(contest, user)) {
-      return NextResponse.json(
-        { error: "你不在这场比赛的参赛名单中" },
-        { status: 403 },
-      );
-    }
-
-    running = contest;
-  }
-
-  // What the round asked for, or the problem's own answer, or the kernel
-  // default. Keyed by the same three things that chose the number, because a
-  // counter shared across problems could not enforce a limit declared on one
-  // of them — and a problem submitted to inside a round and outside it is two
-  // budgets, since the round may have set a different one.
+  // Keyed by the same three things that chose the number, because a counter
+  // shared across problems could not enforce a limit declared on one of them —
+  // and a problem submitted to inside a round and outside it is two budgets,
+  // since the round may have set a different one.
   //
   // Last gate before the first write: `ensureContest` below is the first
   // statement in this handler that touches the database.
-  const throttle = submitRateLimit(problem, entry?.rateLimit);
   const limited = rateLimit(
     `submit:${user.handle}:${running?.slug ?? "-"}:${problem.slug}`,
-    throttle.max,
-    throttle.windowSeconds * 1000,
+    gate.rateLimit.max,
+    gate.rateLimit.windowSeconds * 1000,
   );
   if (!limited.ok) return tooFast(limited.retryAfterMs);
 
+  let contestSlug: string | null = null;
   if (running) {
     await ensureContest(running);
     contestSlug = running.slug;

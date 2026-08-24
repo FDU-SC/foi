@@ -6,6 +6,7 @@ import { signedHeaders } from "./signature";
 import {
   judgeQueueSchema,
   judgeStatusSchema,
+  type BackendActionRequest,
   type JudgeQueue,
   type JudgeRequest,
   type Verdict,
@@ -13,10 +14,14 @@ import {
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
+/** Longer than a dispatch: an action is answered, not merely acknowledged. */
+const DEFAULT_ACTION_TIMEOUT_MS = 20_000;
+
 export interface ResolvedBackend extends ProblemBackend {
   id: string;
   secret: string;
   timeoutMs: number;
+  actionTimeoutMs: number;
 }
 
 export function resolveBackend(id: string): ResolvedBackend {
@@ -40,6 +45,7 @@ export function resolveBackend(id: string): ResolvedBackend {
     id,
     secret,
     timeoutMs: entry.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    actionTimeoutMs: entry.actionTimeoutMs ?? DEFAULT_ACTION_TIMEOUT_MS,
   };
 }
 
@@ -137,6 +143,58 @@ export async function dispatchToJudge(
 
   return {
     judgeRef: typeof data?.judgeRef === "string" ? data.judgeRef : null,
+  };
+}
+
+/** What came back from an interactive endpoint, for relaying verbatim. */
+export interface BackendActionResponse {
+  status: number;
+  contentType: string;
+  body: string;
+}
+
+/**
+ * Invokes one interactive endpoint and hands the answer back untouched.
+ *
+ * Nothing here inspects the response. The kernel knows that `spawn` is a
+ * string a problem declared and that whoever asked was allowed to; what comes
+ * back belongs to the statement's own component, exactly as a verdict's
+ * `detail` belongs to the problem rather than to the submission list.
+ *
+ * An unreachable backend becomes 503 rather than an exception, because the
+ * caller's job is to relay a status code and a component showing "backend
+ * unavailable" is more use to a player than a 500.
+ */
+export async function callBackendAction(
+  backend: ResolvedBackend,
+  request: BackendActionRequest,
+): Promise<BackendActionResponse> {
+  const body = JSON.stringify(request);
+  const path = `/action/${encodeURIComponent(request.action)}`;
+
+  let res: Response;
+  try {
+    res = await fetch(new URL(path, backend.url), {
+      method: "POST",
+      headers: signedHeaders(backend.secret, body),
+      body,
+      signal: AbortSignal.timeout(backend.actionTimeoutMs),
+    });
+  } catch (error) {
+    const timedOut = error instanceof Error && error.name === "TimeoutError";
+    return {
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: timedOut ? "题目后端响应超时" : "无法连接题目后端",
+      }),
+    };
+  }
+
+  return {
+    status: res.status,
+    contentType: res.headers.get("content-type") ?? "application/json",
+    body: await res.text(),
   };
 }
 

@@ -7,6 +7,7 @@ import {
   redactJudgeStatus,
   resolveBackend,
 } from "./client";
+import type { JudgeRequest } from "./types";
 
 const QUEUE_BODY = {
   health: "ok",
@@ -139,9 +140,11 @@ describe("redactJudgeStatus", () => {
 
 describe("dispatchToJudge 失败语义", () => {
   const judge = () => resolveBackend(Object.keys(backends)[0]);
-  const request = {
+  const request: JudgeRequest = {
     submissionId: "sub_1",
+    user: { handle: "alice", groups: [] },
     problem: { slug: "maze-runner", config: {} },
+    contestSlug: null,
     payload: {},
     callbackUrl: "http://localhost:3000/api/judge/callback",
     callbackToken: "token",

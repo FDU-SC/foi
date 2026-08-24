@@ -18,6 +18,15 @@ export interface ProblemBackend {
   secret?: string;
   /** Milliseconds to wait for the backend to acknowledge a dispatch. */
   timeoutMs?: number;
+  /**
+   * Milliseconds to wait on an interactive endpoint.
+   *
+   * Separate from `timeoutMs` because a dispatch is acknowledged and queued
+   * while an action is answered: starting a container takes as long as it
+   * takes. A backend that cannot answer quickly should return early with
+   * something a poll action can follow up on, the same bargain judging makes.
+   */
+  actionTimeoutMs?: number;
 }
 
 /**
@@ -50,5 +59,13 @@ export const backends: Record<string, ProblemBackend> = {
   },
   performance: {
     url: backendUrl("PERFORMANCE") ?? "http://localhost:4100",
+  },
+  // Its own entry rather than a shared checker, because it also orchestrates
+  // the containers whose flags it verifies. See its `problem.ts`.
+  "leaky-bucket": {
+    url: backendUrl("LEAKY_BUCKET") ?? "http://localhost:4100",
+    // Pulling an image the first time takes longer than acknowledging a
+    // dispatch ever does.
+    actionTimeoutMs: 30_000,
   },
 };

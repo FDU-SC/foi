@@ -47,13 +47,57 @@ export const verdictSchema = z.object({
 
 export type Verdict = z.infer<typeof verdictSchema>;
 
-/** Request body the kernel POSTs to a judge endpoint. */
+/**
+ * Who a backend is being asked to act for.
+ *
+ * In the body rather than in a header because `sign()` covers
+ * `<timestamp>.<body>` and nothing else — an identity in a header is an
+ * identity the signature does not protect, which is worse than none at all
+ * since the backend would have every reason to trust it.
+ *
+ * `handle` is the identity: there is no opaque id anywhere in this codebase,
+ * and submissions are keyed by handle too, so a backend comparing the two
+ * needs no lookup table. `groups` rides along because a backend may want to
+ * give setters a longer lease or a larger quota without the kernel having to
+ * learn what a lease is.
+ */
+export interface BackendUser {
+  handle: string;
+  groups: readonly string[];
+}
+
+/**
+ * Request body the kernel POSTs to a judge endpoint.
+ *
+ * `user` is here for problems whose answer differs per person. A container
+ * handed out by `spawn` carries a flag only its creator should be able to
+ * redeem, and the backend can only enforce that if it knows who submitted —
+ * otherwise the first person to solve it can post the flag in a group chat.
+ */
 export interface JudgeRequest {
   submissionId: string;
+  user: BackendUser;
   problem: { slug: string; config: unknown };
+  contestSlug: string | null;
   payload: unknown;
   callbackUrl: string;
   callbackToken: string;
+}
+
+/**
+ * Request body the kernel POSTs to an interactive endpoint.
+ *
+ * Deliberately the same shape as `JudgeRequest` minus the parts that only
+ * judging needs. The kernel reads `action` to pick the path and nothing else:
+ * `payload` and the response are as opaque here as a verdict's `detail` is
+ * everywhere else.
+ */
+export interface BackendActionRequest {
+  action: string;
+  user: BackendUser;
+  problem: { slug: string; config: unknown };
+  contestSlug: string | null;
+  payload: unknown;
 }
 
 /** Body a judge PUTs back once it has finished. */

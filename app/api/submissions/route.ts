@@ -164,7 +164,9 @@ export async function POST(request: Request) {
   try {
     const { judgeRef } = await dispatchToJudge(backend, {
       submissionId: id,
+      user: { handle: user.handle, groups: user.groups },
       problem: { slug: problem.slug, config: problem.backend.config },
+      contestSlug,
       payload: parsed.data.payload,
       callbackUrl: callbackUrl(),
       callbackToken: token,
@@ -172,7 +174,7 @@ export async function POST(request: Request) {
 
     await settle({ state: "judging", judgeRef, dispatchedAt: new Date() });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "投递判题机失败";
+    const message = error instanceof Error ? error.message : "投递题目后端失败";
 
     // Only an outright refusal is terminal. When the outcome is unknown the
     // row stays `pending`: the judge may have queued it anyway, and the

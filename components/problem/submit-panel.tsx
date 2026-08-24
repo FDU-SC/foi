@@ -24,7 +24,7 @@ export function SubmitPanel({
 }: {
   kind?: "code" | "flag" | "text";
 }) {
-  const { config, canSubmit } = useProblem();
+  const { config, canAct } = useProblem();
   const { submit, submission, submitting, error } = useSubmit();
 
   const kind = kindOverride ?? config.submit.kind;
@@ -64,7 +64,7 @@ export function SubmitPanel({
         }
       />
       <CardBody>
-        {!canSubmit ? (
+        {!canAct ? (
           <p className="text-fg-muted text-sm">
             请先<a className="text-primary underline underline-offset-2" href="/login">登录</a>后提交。
           </p>

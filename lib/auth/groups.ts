@@ -120,6 +120,13 @@ export function privilegedGroupIds(): string[] {
  * nothing in that table implies something that implies a third thing — asserted
  * rather than assumed, because the day somebody adds such an entry is the day
  * this would quietly stop closing.
+ *
+ * That assertion runs everywhere, having previously excused itself under
+ * `NODE_ENV === "production"` — which is every deployed environment there is,
+ * dev and staging included, so the check only ever fired on a laptop. It is one
+ * Map lookup against a table compiled into the build, so there was nothing to
+ * buy by skipping it, and a capability table that has silently stopped closing
+ * is worth hearing about from staging rather than from a contest.
  */
 export function capabilitiesOf(groupIds: readonly string[]): Set<Capability> {
   const granted = new Set<Capability>();
@@ -131,7 +138,7 @@ export function capabilitiesOf(groupIds: readonly string[]): Set<Capability> {
 
   for (const capability of [...granted]) {
     for (const implied of IMPLIES[capability] ?? []) {
-      if (process.env.NODE_ENV !== "production" && IMPLIES[implied]) {
+      if (IMPLIES[implied]) {
         throw new Error(
           `IMPLIES 里 "${capability}" 蕴含的 "${implied}" 自己也有蕴含项，` +
             `capabilitiesOf 只走一跳，需要改成求闭包。`,

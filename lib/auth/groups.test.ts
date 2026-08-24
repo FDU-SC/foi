@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   groupsFor,
   listRules,
@@ -85,14 +85,41 @@ describe("能力蕴含", () => {
   /**
    * `capabilitiesOf` walks one hop. Asserted rather than assumed, because the
    * day somebody writes a two-hop entry is the day the closure would quietly
-   * stop closing — the runtime guard in `capabilitiesOf` throws outside
-   * production, and this says the same thing where it is cheap to read.
+   * stop closing — the runtime guard in `capabilitiesOf` throws on one, and
+   * this says the same thing where it is cheap to read.
    */
   it("蕴含关系是平的：没有哪一项的蕴含项自己还有蕴含项", () => {
     for (const implied of Object.values(IMPLIES)) {
       for (const id of implied ?? []) {
         expect(IMPLIES[id]).toBeUndefined();
       }
+    }
+  });
+
+  /**
+   * The guard used to stand down under `NODE_ENV === "production"`, which is
+   * every deployed environment there is — so the check that was supposed to
+   * catch a two-hop entry ran only where somebody was already looking.
+   *
+   * Reaching into `IMPLIES` because the repository's own table is flat and
+   * there is no other way to see the guard fire. Restored in a `finally`: it is
+   * module state shared with every case after this one.
+   */
+  it("多跳的蕴含项当场抛错，且不看 NODE_ENV", () => {
+    const holder = listGroups().find((group) =>
+      (group.capabilities as readonly string[]).includes("submission.readAny"),
+    );
+    if (!holder) return;
+
+    const saved = IMPLIES["standings.viewFrozen"];
+    IMPLIES["standings.viewFrozen"] = ["admin.access"];
+    vi.stubEnv("NODE_ENV", "production");
+
+    try {
+      expect(() => capabilitiesOf([holder.id])).toThrow(/一跳/);
+    } finally {
+      IMPLIES["standings.viewFrozen"] = saved;
+      vi.unstubAllEnvs();
     }
   });
 

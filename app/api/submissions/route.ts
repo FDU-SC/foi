@@ -6,7 +6,11 @@ import { viewerFor } from "@/lib/auth/viewer";
 import { readTextBody } from "@/lib/body-limit";
 import { contestFor } from "@/lib/contests/access";
 import { canEnterContest, ensureContest } from "@/lib/contests/queries";
-import { contestPhase } from "@/lib/contests/types";
+import {
+  contestPhase,
+  type ContestConfig,
+  type ContestProblemConfig,
+} from "@/lib/contests/types";
 import { db } from "@/lib/db";
 import { submissions } from "@/lib/db/schema";
 import {
@@ -20,6 +24,7 @@ import {
 import { NON_TERMINAL_STATES } from "@/lib/backend/types";
 import { problemFor } from "@/lib/problems/access";
 import { ensureProblem } from "@/lib/problems/sync";
+import { submitRateLimit } from "@/lib/problems/types";
 import { rateLimit } from "@/lib/ratelimit";
 import { publish } from "@/lib/submissions/events";
 import { createSubmissionSchema } from "@/lib/submissions/types";
@@ -31,12 +36,32 @@ export const runtime = "nodejs";
 const MAX_PAYLOAD_BYTES = 512 * 1024;
 
 /**
- * Per-account submission throttle. Every accepted POST is a database row plus
- * an immediate dispatch to a judge, so an unmetered endpoint lets one account
- * — stolen or malicious — turn into queue pressure on the backends. Sized so
- * that ordinary debugging never hits it.
+ * The floor under every account, whatever the round says.
+ *
+ * Not the same control as the per-problem throttle below, and the two are
+ * separated on purpose. That one is a decision about how a competition runs,
+ * so a contest states it; this one is a security parameter, so the kernel
+ * keeps it — the same split `lib/auth/email-verification.ts` draws over its
+ * attempt cap. Without it, declaring the throttle per problem would let one
+ * account spend a full budget on every open problem at once, which is the
+ * abuse the single global counter used to catch.
+ *
+ * Set well above anything a person does: it exists to stop one stolen account
+ * saturating the judges, not to shape play. A round that wants a tighter
+ * answer says so in `content/`.
  */
-const SUBMIT_RATE_LIMIT = { max: 20, windowMs: 5 * 60 * 1000 };
+const FLOOD_CAP = { max: 60, windowMs: 60 * 1000 };
+
+/** One shape for both refusals, so a client cannot tell which bound it hit. */
+function tooFast(retryAfterMs: number): NextResponse {
+  return NextResponse.json(
+    { error: "提交过于频繁，请稍后再试" },
+    {
+      status: 429,
+      headers: { "retry-after": String(Math.ceil(retryAfterMs / 1000)) },
+    },
+  );
+}
 
 export async function POST(request: Request) {
   // The resolved user, not the session one: entry rules key on cohort tags,
@@ -66,23 +91,16 @@ export async function POST(request: Request) {
   }
 
   // Ahead of every check that costs something: the mirror upsert and the
-  // dispatch both write, and both happen before any response.
-  const limit = rateLimit(
+  // dispatch both write, and both happen before any response. The throttle the
+  // round declared is applied further down, once there is a problem and a
+  // contest to read it from — everything between here and there is a registry
+  // lookup, so nothing has been spent by the time it runs.
+  const flood = rateLimit(
     `submit:${user.handle}`,
-    SUBMIT_RATE_LIMIT.max,
-    SUBMIT_RATE_LIMIT.windowMs,
+    FLOOD_CAP.max,
+    FLOOD_CAP.windowMs,
   );
-  if (!limit.ok) {
-    return NextResponse.json(
-      { error: "提交过于频繁，请稍后再试" },
-      {
-        status: 429,
-        headers: {
-          "retry-after": String(Math.ceil(limit.retryAfterMs / 1000)),
-        },
-      },
-    );
-  }
+  if (!flood.ok) return tooFast(flood.retryAfterMs);
 
   // This person's own view, then `open` on top of it. Three conditions folded
   // into one field, because they rule out different people: not theirs to see;
@@ -103,17 +121,25 @@ export async function POST(request: Request) {
   // The client supplies contestSlug, so re-derive whether it is legitimate:
   // the contest must be running and must actually contain this problem. Both
   // facts come from the registry, so this no longer costs a query.
+  //
+  // `find` rather than `some`, because the entry is also where the round states
+  // what it wants this problem's throttle to be. Having already had to locate
+  // it to answer "does this contest contain the problem", asking a second time
+  // further down would be a second place for the two to disagree.
   let contestSlug: string | null = null;
+  let running: ContestConfig | undefined;
+  let entry: ContestProblemConfig | undefined;
   if (parsed.data.contestSlug) {
     // Same shape as the problem above: their own view, plus `gate.visible` so
     // that seeing a contest by way of `contest.viewAll` is reading it rather
     // than competing in it.
     const view = contestFor(parsed.data.contestSlug, viewer);
     const contest = view?.gate.visible ? view.config : undefined;
+    entry = contest?.problems.find((candidate) => candidate.slug === problem.slug);
     const eligible =
       contest !== undefined &&
       contestPhase(contest) === "running" &&
-      contest.problems.some((entry) => entry.slug === problem.slug);
+      entry !== undefined;
     if (!eligible) {
       return NextResponse.json(
         { error: "该比赛未在进行中，或不包含这道题目" },
@@ -132,8 +158,28 @@ export async function POST(request: Request) {
       );
     }
 
-    await ensureContest(contest);
-    contestSlug = contest.slug;
+    running = contest;
+  }
+
+  // What the round asked for, or the problem's own answer, or the kernel
+  // default. Keyed by the same three things that chose the number, because a
+  // counter shared across problems could not enforce a limit declared on one
+  // of them — and a problem submitted to inside a round and outside it is two
+  // budgets, since the round may have set a different one.
+  //
+  // Last gate before the first write: `ensureContest` below is the first
+  // statement in this handler that touches the database.
+  const throttle = submitRateLimit(problem, entry?.rateLimit);
+  const limited = rateLimit(
+    `submit:${user.handle}:${running?.slug ?? "-"}:${problem.slug}`,
+    throttle.max,
+    throttle.windowSeconds * 1000,
+  );
+  if (!limited.ok) return tooFast(limited.retryAfterMs);
+
+  if (running) {
+    await ensureContest(running);
+    contestSlug = running.slug;
   }
 
   let backend;

@@ -1,9 +1,11 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/submissions/route";
+import { AS_PLAYER } from "@/lib/auth/viewer";
 import { db } from "@/lib/db";
 import { accounts, submissions } from "@/lib/db/schema";
-import { allProblems } from "@/lib/problems/registry";
+import { problemsFor } from "@/lib/problems/access";
+import { DEFAULT_SUBMIT_RATE_LIMIT } from "@/lib/problems/types";
 
 /**
  * The submission endpoint's throttle, exercised through the route handler
@@ -11,12 +13,22 @@ import { allProblems } from "@/lib/problems/registry";
  * row plus an immediate dispatch, so the limit is what stands between one
  * account — stolen or malicious — and pressure on the judges. A regression
  * that drops the call would otherwise read as a one-line deletion.
+ *
+ * Which number applies is decided by `submitRateLimit`, covered on its own in
+ * `lib/problems/submit-rate-limit.test.ts`. What matters here is that the
+ * route reaches for it, and that the counter is keyed narrowly enough for a
+ * per-problem limit to mean anything.
  */
 
 const HANDLE = "rl-alice";
 
-/** A real problem from the registry, so the gate and the mirror upsert run. */
-const LIVE = allProblems()[0]!;
+/**
+ * Two real problems that are open to somebody in no group, so the gate and
+ * the mirror upsert both run. Chosen through the access layer rather than by
+ * index, so a problem that later gains an audience cannot silently turn this
+ * into a test of the 404 path.
+ */
+const [FIRST, SECOND] = problemsFor(AS_PLAYER).map((view) => view.config);
 
 const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
 
@@ -56,13 +68,13 @@ const fetchMock = vi.fn(async () => ({
   text: async () => "",
 }));
 
-function postSubmission(): Promise<Response> {
+function postSubmission(slug: string): Promise<Response> {
   return POST(
     new Request("http://localhost:3000/api/submissions", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        problemSlug: LIVE.slug,
+        problemSlug: slug,
         payload: { language: "cpp", source: "int main() { return 0; }" },
       }),
     }),
@@ -91,22 +103,37 @@ describeDb("提交端点限流", () => {
   });
 
   it("窗口内的提交照常落地，超出上限的得到 429 且不再投递", async () => {
-    for (let i = 0; i < 20; i += 1) {
-      const response = await postSubmission();
+    const allowed = DEFAULT_SUBMIT_RATE_LIMIT.max;
+
+    for (let i = 0; i < allowed; i += 1) {
+      const response = await postSubmission(FIRST.slug);
       expect(response.status).toBe(201);
     }
 
-    const rejected = await postSubmission();
+    const rejected = await postSubmission(FIRST.slug);
     expect(rejected.status).toBe(429);
     expect(rejected.headers.get("retry-after")).not.toBeNull();
 
     // The over-limit request must not have reached the judge.
-    expect(fetchMock.mock.calls.length).toBe(20);
+    expect(fetchMock.mock.calls.length).toBe(allowed);
 
     const rows = await db
       .select()
       .from(submissions)
       .where(eq(submissions.handle, HANDLE));
-    expect(rows.length).toBe(20);
+    expect(rows.length).toBe(allowed);
+  });
+
+  /**
+   * The counter is keyed by problem, which it has to be: a limit a problem
+   * declares about itself cannot be enforced by a budget shared with every
+   * other problem. Spending one problem's window must therefore leave the
+   * next one untouched — the floor in `FLOOD_CAP` is what bounds the total.
+   */
+  it("一道题用光配额不影响另一道题", async () => {
+    expect(SECOND.slug).not.toBe(FIRST.slug);
+
+    const response = await postSubmission(SECOND.slug);
+    expect(response.status).toBe(201);
   });
 });

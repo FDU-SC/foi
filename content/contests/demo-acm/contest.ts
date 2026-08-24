@@ -25,7 +25,18 @@ export const contest = {
   startsAt: "2026-08-01T13:00:00+08:00",
   endsAt: "2026-08-01T18:00:00+08:00",
 
-  problems: [{ slug: "maze-runner", label: "A" }],
+  // `rateLimit` overrides what the problem says about itself, for this round
+  // only — the same relationship `points` has with the problem's `maxScore`.
+  // ACM already discourages guessing with penalty minutes, so this is loose;
+  // a round scored OI, where only the last submission counts and resubmitting
+  // is free, is where a tighter number earns its keep.
+  problems: [
+    {
+      slug: "maze-runner",
+      label: "A",
+      rateLimit: { max: 30, windowSeconds: 60 },
+    },
+  ],
 
   participants: { mode: "group", group: "demo" },
 } satisfies ContestConfigInput;

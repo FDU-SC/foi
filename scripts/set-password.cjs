@@ -19,8 +19,10 @@
  *   # with nothing piped in, a strong password is generated and printed once
  *   docker compose exec -T app node scripts/set-password.cjs admin
  *
- *   # clear a departed member's credentials (fails if they have submissions,
- *   # which are kept deliberately: the foreign key is ON DELETE RESTRICT)
+ *   # clear a departed member's credentials, and retire any reset link still
+ *   # in flight. The account and its submissions stay — nothing here deletes
+ *   # an account, and `submissions.handle` is ON DELETE RESTRICT precisely so
+ *   # that whoever eventually tries has to deal with the history first
  *   docker compose exec -T app node scripts/set-password.cjs --revoke alice
  *
  * This is also the recovery path when nobody can reach /admin. It is the only
@@ -32,9 +34,17 @@ const crypto = require("node:crypto");
 const { hash } = require("@node-rs/argon2");
 const { Client } = require("pg");
 
-// Must match lib/auth/credentials.ts, or the hashes it produces would not
-// verify on login.
-const ARGON2_OPTIONS = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
+// Two paths because a file fed through `node -` has no directory of its own,
+// so `./` resolves against the working directory instead of against this
+// script. The alternative is a fourth copy of the parameters, which is the
+// thing the shared file exists to prevent — see the comment in it.
+const ARGON2_OPTIONS = (() => {
+  try {
+    return require("./argon2-options.cjs");
+  } catch {
+    return require("./scripts/argon2-options.cjs");
+  }
+})();
 
 const USAGE = `用法:
   node scripts/set-password.cjs <handle>          设置或重置密码
@@ -102,6 +112,33 @@ async function requireAccount(client, handle) {
   return rows[0];
 }
 
+/**
+ * Runs a mode's writes as a single act.
+ *
+ * Both modes write twice — the credentials row, and then the reset links that
+ * could rewrite it — and neither half means what it says without the other. A
+ * revoke that cleared the password and then failed would leave a departed
+ * member holding a live link and nothing standing between them and a fresh
+ * credentials row, which is the one outcome revoking exists to rule out. A set
+ * that failed the same way would leave a stale link able to undo the password
+ * just chosen. Rolled back, the operator sees an error and the account is
+ * exactly as it was, which is the state a retry expects.
+ *
+ * `create-account.cjs` already does this around its two inserts; the two
+ * scripts having one answer here is worth as much as the answer.
+ */
+async function atomically(client, run) {
+  await client.query("begin");
+  try {
+    const result = await run();
+    await client.query("commit");
+    return result;
+  } catch (error) {
+    await client.query("rollback").catch(() => {});
+    throw error;
+  }
+}
+
 async function setPassword(client, handle) {
   const account = await requireAccount(client, handle);
 
@@ -115,28 +152,33 @@ async function setPassword(client, handle) {
     process.exit(1);
   }
 
+  // Hashed before the transaction opens: argon2 is deliberately slow, and a
+  // transaction held across it is one holding row locks for no reason.
   const passwordHash = await hash(password, ARGON2_OPTIONS);
-  const { rows } = await client.query(
-    `insert into credentials (handle, password_hash)
-     values ($1, $2)
-     on conflict (handle) do update
-       set password_hash = excluded.password_hash,
-           updated_at    = now()
-     returning (xmax = 0) as created`,
-    [handle, passwordHash],
-  );
 
-  // Setting a password by hand retires any reset link already in flight, so a
-  // stale email cannot undo what was just done here.
-  await client.query(
-    `update auth_tokens set consumed_at = now()
-     where handle = $1 and purpose = 'password_reset' and consumed_at is null`,
-    [handle],
-  );
+  const created = await atomically(client, async () => {
+    const { rows } = await client.query(
+      `insert into credentials (handle, password_hash)
+       values ($1, $2)
+       on conflict (handle) do update
+         set password_hash = excluded.password_hash,
+             updated_at    = now()
+       returning (xmax = 0) as created`,
+      [handle, passwordHash],
+    );
 
-  console.log(
-    rows[0]?.created ? `已为 ${handle} 设置密码` : `已重置 ${handle} 的密码`,
-  );
+    // Setting a password by hand retires any reset link already in flight, so
+    // a stale email cannot undo what was just done here.
+    await client.query(
+      `update auth_tokens set consumed_at = now()
+       where handle = $1 and purpose = 'password_reset' and consumed_at is null`,
+      [handle],
+    );
+
+    return rows[0]?.created;
+  });
+
+  console.log(created ? `已为 ${handle} 设置密码` : `已重置 ${handle} 的密码`);
   if (generated) {
     console.log(`密码: ${password}`);
     console.log("这是唯一一次显示，请立即保存。");
@@ -149,13 +191,32 @@ async function setPassword(client, handle) {
 }
 
 async function revoke(client, handle) {
-  const { rowCount } = await client.query(
-    "delete from credentials where handle = $1",
-    [handle],
-  );
+  const { cleared, retired } = await atomically(client, async () => {
+    const { rowCount: cleared } = await client.query(
+      "delete from credentials where handle = $1",
+      [handle],
+    );
+
+    // The same sweep the set path does, and it matters more here: a departed
+    // member with a reset link still in their inbox could spend it and write
+    // themselves a fresh credentials row, which is the one outcome revoking is
+    // meant to rule out. That is also why the two are one transaction —
+    // stopping in between produces precisely that state.
+    const { rowCount: retired } = await client.query(
+      `update auth_tokens set consumed_at = now()
+       where handle = $1 and purpose = 'password_reset' and consumed_at is null`,
+      [handle],
+    );
+
+    return { cleared, retired };
+  });
+
   console.log(
-    rowCount > 0 ? `已清除 ${handle} 的凭据` : `${handle} 没有凭据记录`,
+    cleared > 0 ? `已清除 ${handle} 的凭据` : `${handle} 没有凭据记录`,
   );
+  if (retired > 0) {
+    console.log(`同时作废了 ${retired} 个未使用的重置链接。`);
+  }
 }
 
 async function main() {

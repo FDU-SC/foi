@@ -27,5 +27,5 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - **必须用 Turbopack**（`next dev` 在 Next 16 默认即是），不要切回 webpack：题目注册表依赖 `import.meta.glob`。
 - **数据库迁移会在 dev server 启动时由 `instrumentation.ts` 自动应用**，也可手动 `pnpm db:migrate`。
 - **种子账号**：`admin` / `alice` / `bob` / `carol`，统一密码 `foi-dev-2026`（可用 `FOI_SEED_PASSWORD` 覆盖）。
-- **mock 题目后端返回随机评测结果**，用于验证「提交→投递→回调」闭环；`backends.config.ts` 里 `traditional` 与 `flag-checker` 默认都指向 `:4100`。
+- **mock 题目后端返回随机评测结果**，用于验证「提交→投递→回调」闭环。`backends.config.ts` 里六个后端在**没有配** `FOI_BACKEND_<NAME>_URL` 时都回落到 `:4100`，所以本环境不配也能跑通闭环。注意这条回落**只在非生产环境成立**：生产缺任何一个后端 URL 会 `assertEnv` 拒绝启动。`.env.local` 目前只给了 `traditional` 与 `flag-checker`（用的还是改名前的 `FOI_JUDGE_*`，仍然认），其余四个走的就是这条回落。
 - Postgres 用户密码认证：连接串已用 `foi_dev_password`，通过 TCP `localhost:5433` 连接。

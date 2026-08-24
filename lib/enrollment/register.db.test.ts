@@ -20,6 +20,30 @@ const EMAIL = "regtest@example.test";
 const HANDLE = "regtest";
 const TAKEN = "regtest-taken";
 
+/**
+ * A switch for making the middle of the three writes fail.
+ *
+ * `setPassword` is the only one that can be made to fail without inventing a
+ * database error: the other two are an upsert and a delete against rows these
+ * tests own, and both succeed by construction. Wrapped rather than replaced so
+ * every other case in this file goes on exercising the real one — a stub that
+ * never writes a hash would make the successful paths prove less than they
+ * look like they prove.
+ */
+const credentialsHook = vi.hoisted(() => ({ failSetPassword: false }));
+
+vi.mock("@/lib/auth/credentials", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/auth/credentials")>();
+  return {
+    ...actual,
+    setPassword: async (...args: Parameters<typeof actual.setPassword>) => {
+      if (credentialsHook.failSetPassword) throw new Error("写密码故意失败");
+      return actual.setPassword(...args);
+    },
+  };
+});
+
 async function reachable(): Promise<boolean> {
   try {
     await db.execute(sql`select 1`);
@@ -67,6 +91,7 @@ const FORM = {
 describeDb("register", () => {
   beforeEach(() => {
     vi.stubEnv("AUTH_SECRET", "register-suite-signing-key-32b");
+    credentialsHook.failSetPassword = false;
     return cleanup();
   });
   afterAll(async () => {
@@ -173,5 +198,29 @@ describeDb("register", () => {
     await expect(
       register({ ...FORM, email: "someone@elsewhere.invalid" }),
     ).resolves.toEqual({ ok: false, reason: "email-domain" });
+  });
+
+  it("写密码失败时整笔回滚，不留下一个登不进去的账号", async () => {
+    const proof = await prove(EMAIL);
+    credentialsHook.failSetPassword = true;
+
+    await expect(register({ ...FORM, proof })).rejects.toThrow(
+      "写密码故意失败",
+    );
+
+    // 账号行是在抛错之前就插进去的，所以它现在不在，只可能是回滚的结果。
+    // 没有事务的时候留下的正是这一行：账号存在、没有凭据、登不进去，而且
+    // 注册页会告诉这个人用户名已被占用——占用者是他自己。
+    expect(await getAccount(HANDLE)).toBeUndefined();
+    await expect(
+      db.select().from(credentials).where(eq(credentials.handle, HANDLE)),
+    ).resolves.toHaveLength(0);
+
+    // 邮箱证明也没被花掉，所以重试一次就能过，不必再跑一趟收件箱。
+    credentialsHook.failSetPassword = false;
+    await expect(register({ ...FORM, proof })).resolves.toMatchObject({
+      ok: true,
+      handle: HANDLE,
+    });
   });
 });

@@ -1,4 +1,3 @@
-import { Badge } from "@/components/ui/badge";
 import type { ContestStandings } from "@/lib/standings/compute";
 
 function DefaultCell({ cell }: { cell: unknown }) {
@@ -79,9 +78,6 @@ export function StandingsTable({ data }: { data: ContestStandings }) {
                 <span className="text-fg-subtle ml-2 font-mono text-xs">
                   {row.participant.handle}
                 </span>
-                {row.participant.unofficial ? (
-                  <Badge className="ml-2">非正式</Badge>
-                ) : null}
               </td>
               <td className="px-3 py-2 text-center">
                 <Total row={row} />

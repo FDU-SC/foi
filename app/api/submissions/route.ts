@@ -19,12 +19,16 @@ import { NON_TERMINAL_STATES } from "@/lib/backend/types";
 import { ensureProblem } from "@/lib/problems/sync";
 import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest, tooManyRequests } from "@/lib/ratelimit/gate";
-import { fixedRule, ROUTE_LIMITS } from "@/lib/ratelimit/policy";
+import { alsoRule, fixedRule, ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { publish } from "@/lib/submissions/events";
 import { submitFor, type SubmitGate } from "@/lib/submissions/gate";
 import { createSubmissionSchema } from "@/lib/submissions/types";
 import { submissionsFor } from "@/lib/submissions/access";
-import { getSubmissionRow, toView } from "@/lib/submissions/queries";
+import {
+  findSubmissionByNonce,
+  getSubmissionRow,
+  toView,
+} from "@/lib/submissions/queries";
 
 export const runtime = "nodejs";
 
@@ -33,19 +37,19 @@ const MAX_PAYLOAD_BYTES = 512 * 1024;
 /**
  * The floor under every account, whatever the round says.
  *
- * Not the same control as the per-problem throttle below, and the two are
- * separated on purpose. That one is a decision about how a competition runs,
- * so a contest states it; this one is a security parameter, so the kernel
- * keeps it — the same split `lib/auth/email-verification.ts` draws over its
- * attempt cap. Without it, declaring the throttle per problem would let one
- * account spend a full budget on every open problem at once, which is the
- * abuse the single global counter used to catch.
+ * Read out of the table rather than written here, and that is the whole point
+ * of the change: `lib/auth/enforcement.ts` cites `ratelimit/policy.ts` as a
+ * load-bearing declaration rather than a document precisely because handlers
+ * take their numbers from it, and a bound recorded there and separately spelled
+ * out here is a bound that can drift while both copies still look maintained.
+ * Why this floor exists at all, and why it sits where a real person never
+ * reaches it, is argued with the entry.
  *
- * Set well above anything a person does: it exists to stop one stolen account
- * saturating the judges, not to shape play. A round that wants a tighter
- * answer says so in `content/`.
+ * `alsoRule` throws when an entry has no second bound, and it is called at
+ * import so that losing one is a startup failure rather than an endpoint
+ * quietly running unmetered.
  */
-const FLOOD_CAP = { max: 60, windowMs: 60 * 1000 };
+const FLOOD_CAP = alsoRule(ROUTE_LIMITS["POST /api/submissions"]);
 
 /** One shape for both refusals, so a client cannot tell which bound it hit. */
 function tooFast(retryAfterMs: number): NextResponse {
@@ -116,13 +120,28 @@ export async function POST(request: Request) {
   // dispatch both write, and both happen before any response. The throttle the
   // round declared is applied further down, once there is a problem and a
   // contest to read it from — everything between here and there is a registry
-  // lookup, so nothing has been spent by the time it runs.
+  // lookup or one indexed read, so nothing has been spent by the time it runs.
   const flood = rateLimit(
     `submit:${user.handle}`,
     FLOOD_CAP.max,
-    FLOOD_CAP.windowMs,
+    FLOOD_CAP.windowSeconds * 1000,
   );
   if (!flood.ok) return tooFast(flood.retryAfterMs);
+
+  // Asked before the gate and before the round's throttle, because a replay is
+  // not a new submission and none of those questions are being asked for the
+  // first time. Running them again is how a reply lost on the way back turns
+  // into a 429 — or a 404 for a round that has since closed — for a submission
+  // that in fact succeeded. See `submissions.clientNonce`.
+  const { clientNonce } = parsed.data;
+  if (clientNonce) {
+    const existing = await findSubmissionByNonce(user.handle, clientNonce);
+    // 200 rather than the 201 below: this call created nothing. The body is
+    // the same shape either way, so a client reading only `res.ok` cannot tell
+    // — which is the point, since to the person clicking it is the same
+    // submission.
+    if (existing) return NextResponse.json(toView(existing));
+  }
 
   // Every rule about whether this submission may exist, in one call. The three
   // refusals are deliberately distinguishable and the reasons they get
@@ -143,7 +162,7 @@ export async function POST(request: Request) {
   // since the round may have set a different one.
   //
   // Last gate before the first write: `ensureContest` below is the first
-  // statement in this handler that touches the database.
+  // statement in this handler that changes anything.
   const limited = rateLimit(
     `submit:${user.handle}:${running?.slug ?? "-"}:${problem.slug}`,
     gate.rateLimit.max,
@@ -182,6 +201,7 @@ export async function POST(request: Request) {
       problemSlug: problem.slug,
       contestSlug,
       payload: parsed.data.payload,
+      clientNonce: clientNonce ?? null,
       backendId: backend.id,
       callbackTokenHash: hash,
       maxScore: problem.maxScore,
@@ -192,7 +212,29 @@ export async function POST(request: Request) {
       releaseSha: releaseSha(),
       state: "pending",
     })
+    // The read above is not enough on its own: two clicks arriving together
+    // both pass it, and only the index can decide between them. Targets the
+    // nonce index alone, so a row carrying no nonce cannot conflict with
+    // anything — Postgres holds no two nulls to be equal.
+    .onConflictDoNothing({
+      target: [submissions.handle, submissions.clientNonce],
+    })
     .returning();
+
+  if (!created) {
+    // Lost that race, so the winner's row is the answer — the same answer the
+    // read above would have given had it run a moment later.
+    const existing = clientNonce
+      ? await findSubmissionByNonce(user.handle, clientNonce)
+      : undefined;
+    if (existing) return NextResponse.json(toView(existing));
+
+    // Unreachable while the nonce index is the only conflict target: without a
+    // nonce there is nothing to conflict on, and with one the row that won is
+    // there to be read. Answered rather than left to throw, because the
+    // alternative is dispatching against `created` being undefined.
+    return NextResponse.json({ error: "提交失败，请重试" }, { status: 500 });
+  }
 
   /**
    * Applies a post-dispatch state change without clobbering a verdict.

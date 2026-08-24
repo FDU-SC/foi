@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { ulid } from "ulid";
+import type { DbOrTx } from "@/lib/accounts/queries";
 import { normalizeHandle } from "@/lib/accounts/types";
 import { db } from "@/lib/db";
 import { authTokens } from "@/lib/db/schema";
@@ -20,6 +21,16 @@ import type { TokenPurpose } from "@/lib/db/schema";
  * low-entropy secret here for an attacker to grind against, and a unique index
  * on the digest means redemption is a primary-key lookup rather than a scan
  * plus a constant-time compare.
+ *
+ * Nothing here reads a token without spending it. There was an `inspectToken`
+ * for one case that no longer exists — refreshing the page an address
+ * verification link had landed on, where "invalid link" would have been both
+ * wrong and alarming to somebody whose address had just been proven. Addresses
+ * are proven by a typed code now, and `password_reset` is the only purpose
+ * left: its page is handed the token in a query string and never asks the
+ * database anything until the POST that consumes it. So a lookup that turns a
+ * digest into a handle has no caller, and is not a question worth leaving
+ * answerable.
  */
 
 const DEFAULT_TTL_MS = {
@@ -76,15 +87,22 @@ export type RedeemResult =
  * The single statement is what makes it single-use: two requests arriving with
  * the same link race on the same row and exactly one of them sees a result.
  * Doing it as select-then-update would let both through.
+ *
+ * Takes an optional `DbOrTx` so a caller can spend the token in the same
+ * transaction as whatever the token was for. That does not weaken the line
+ * above: a second request contends on the row lock and waits for the first to
+ * commit, and if the first rolls back it was never spent at all — which is the
+ * point, since a link burnt on a write that failed cannot be got back.
  */
 export async function redeemToken(
   token: string,
   purpose: TokenPurpose,
   options?: { expectHandle?: string },
+  on: DbOrTx = db,
 ): Promise<RedeemResult> {
   const hash = digest(token);
 
-  const [row] = await db
+  const [row] = await on
     .update(authTokens)
     .set({ consumedAt: new Date() })
     .where(
@@ -111,7 +129,7 @@ export async function redeemToken(
 
   // Nothing was consumed. Separate "you waited too long" from "this was never
   // a link", because only the first is worth telling someone how to fix.
-  const [existing] = await db
+  const [existing] = await on
     .select({ expiresAt: authTokens.expiresAt })
     .from(authTokens)
     .where(
@@ -129,32 +147,6 @@ export async function redeemToken(
       ? "expired"
       : "invalid",
   };
-}
-
-/**
- * Looks a token up without spending it.
- *
- * This exists for one case: somebody refreshing the page a verification link
- * landed on. The token is gone by then, and reporting "invalid link" to a
- * person whose account was just verified would be both wrong and alarming.
- * The caller checks the account instead and reports what is actually true.
- */
-export async function inspectToken(
-  token: string,
-  purpose: TokenPurpose,
-): Promise<{ handle: string; consumedAt: Date | null } | null> {
-  const [row] = await db
-    .select({ handle: authTokens.handle, consumedAt: authTokens.consumedAt })
-    .from(authTokens)
-    .where(
-      and(
-        eq(authTokens.tokenHash, digest(token)),
-        eq(authTokens.purpose, purpose),
-      ),
-    )
-    .limit(1);
-
-  return row ?? null;
 }
 
 export async function revokeTokens(

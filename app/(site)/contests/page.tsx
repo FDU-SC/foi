@@ -1,23 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getViewer } from "@/auth";
-import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { contestsFor } from "@/lib/contests/access";
-import {
-  contestPhase,
-  PHASE_LABEL,
-  type ContestPhase,
-} from "@/lib/contests/types";
+import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
 import { rulesetFor } from "@/lib/standings/registry";
 
 export const metadata: Metadata = { title: "比赛" };
 export const dynamic = "force-dynamic";
-
-const PHASE_TONE: Record<ContestPhase, BadgeTone> = {
-  upcoming: "info",
-  running: "ok",
-  ended: "neutral",
-};
 
 const formatter = new Intl.DateTimeFormat("zh-CN", {
   dateStyle: "medium",

@@ -12,13 +12,6 @@ import {
   type RegisterState,
 } from "./actions";
 
-/**
- * Seconds the resend button stays disabled. Mirrors the cooldown the server
- * enforces on the row; this is only so the button reads as unavailable rather
- * than as broken. The server is still the one that decides.
- */
-const RESEND_SECONDS = 60;
-
 function SubmitButton({ disabled }: { disabled: boolean }) {
   const { pending } = useFormStatus();
   return (
@@ -56,7 +49,18 @@ function NeedsLogin() {
 
 type Phase = "idle" | "sent" | "verified";
 
-export function RegisterForm({ codeTtlMinutes }: { codeTtlMinutes: number }) {
+/**
+ * Both numbers arrive as props rather than being imported here: they live
+ * beside the code they describe in `lib/auth/email-verification.ts`, which
+ * reaches the database, and this is a client component.
+ */
+export function RegisterForm({
+  codeTtlMinutes,
+  resendCooldownMs,
+}: {
+  codeTtlMinutes: number;
+  resendCooldownMs: number;
+}) {
   const [state, formAction] = useActionState<RegisterState, FormData>(
     registerAction,
     {},
@@ -79,6 +83,13 @@ export function RegisterForm({ codeTtlMinutes }: { codeTtlMinutes: number }) {
     return () => clearTimeout(timer);
   }, [cooldown]);
 
+  // How long the resend button stays disabled, taken from the cooldown the
+  // server enforces on the row rather than from a number that merely happened
+  // to match it. Only so the button reads as unavailable rather than as broken
+  // — the server still decides — and rounded up, because re-enabling a moment
+  // early would produce nothing but a refusal.
+  const resendSeconds = Math.ceil(resendCooldownMs / 1000);
+
   if (state.createdNeedsLogin) return <NeedsLogin />;
 
   function send() {
@@ -90,7 +101,7 @@ export function RegisterForm({ codeTtlMinutes }: { codeTtlMinutes: number }) {
       }
       setPhase("sent");
       setCode("");
-      setCooldown(RESEND_SECONDS);
+      setCooldown(resendSeconds);
       setNotice({
         tone: "ok",
         text: `验证码已发送，${codeTtlMinutes} 分钟内有效。没收到请先看看垃圾邮件。`,

@@ -6,11 +6,7 @@ describe("assignRanks", () => {
   function ranked(rows: { total: number; tiebreak: number }[]) {
     return assignRanks(
       rows.map((row, index) => ({
-        participant: {
-          handle: `u${index}`,
-          displayName: `u${index}`,
-          unofficial: false,
-        },
+        participant: { handle: `u${index}`, displayName: `u${index}` },
         total: row.total,
         tiebreak: row.tiebreak,
         cells: {},

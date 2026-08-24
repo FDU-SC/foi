@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { join, relative } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { guardRequest } from "./gate";
 
@@ -290,5 +292,79 @@ describe("guardRequest 的豁免", () => {
     );
 
     expect(gated).toBeNull();
+  });
+
+  /**
+   * The refusal that made wrapping Auth.js's handlers look impossible, and the
+   * reason it was not.
+   *
+   * Every Auth.js POST is `application/x-www-form-urlencoded`, so a
+   * `same-origin` declaration really would answer 415 to every sign-in. But
+   * the guard is read off `ROUTE_LIMITS`, and that entry says `framework` —
+   * the check exists and is Auth.js's double-submit cookie. So the wrapper
+   * this asserts about adds the flood cap and leaves the origin question where
+   * it already had an answer.
+   *
+   * Asserted here rather than left to the route's comment because the whole
+   * argument turns on `originGate` standing aside, and a future entry changing
+   * its guard would break sign-in with nothing else to say so.
+   */
+  it("Auth.js 的表单 POST 不会被 Content-Type 规则拒掉", () => {
+    const gated = guardRequest(
+      new Request("http://foi.example.edu/api/auth/callback/credentials", {
+        method: "POST",
+        headers: {
+          origin: "http://foi.example.edu",
+          "content-type": "application/x-www-form-urlencoded",
+        },
+      }),
+      "POST /api/auth/[...nextauth]",
+    );
+
+    expect(gated).toBeNull();
+  });
+});
+
+/**
+ * The assumption that turned out to be false.
+ *
+ * `/api/*` sits outside the `proxy.ts` matcher on purpose, so the per-source
+ * bound every other path gets from proxy has to be taken by each handler on
+ * its own first line. That is a rule nothing enforced: `/api/auth` went
+ * unmetered for as long as it did because re-exporting `handlers` whole left
+ * no first line, and the omission read as ordinary syntax rather than as a
+ * missing defence.
+ *
+ * A source scan rather than an import, for the reason `policy.test.ts` gives:
+ * importing a route handler drags in the database, the content registries and
+ * Auth.js, and a test that expensive is a test that gets skipped.
+ */
+describe("每个 api 路由都取来源闸", () => {
+  const ROOT = join(import.meta.dirname, "..", "..");
+
+  function walk(directory: string): string[] {
+    return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) return walk(path);
+      return entry.isFile() ? [path] : [];
+    });
+  }
+
+  const routes = walk(join(ROOT, "app", "api")).filter((file) =>
+    file.endsWith("route.ts"),
+  );
+
+  it("扫描确实找到了东西，而不是路径写错后空过", () => {
+    expect(routes.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("没有一个 route.ts 少了 guardRequest", () => {
+    const missing = routes
+      .filter((file) => !readFileSync(file, "utf8").includes("guardRequest("))
+      .map((file) => relative(ROOT, file));
+
+    expect(missing, "这些路由不在 proxy 的 matcher 里，也没有自己取来源闸").toEqual(
+      [],
+    );
   });
 });

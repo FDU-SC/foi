@@ -1,8 +1,10 @@
 import { hash, verify } from "@node-rs/argon2";
 import { eq, sql } from "drizzle-orm";
+import type { DbOrTx } from "@/lib/accounts/queries";
 import { normalizeHandle } from "@/lib/accounts/types";
 import { db } from "@/lib/db";
 import { credentials } from "@/lib/db/schema";
+import ARGON2_OPTIONS from "@/scripts/argon2-options.cjs";
 
 /**
  * Everything that touches the one secret the repository cannot hold.
@@ -16,14 +18,13 @@ import { credentials } from "@/lib/db/schema";
  * now: once a person can be sent an email, verifying an address and resetting
  * a password are the same mechanism as the setup code, and there can be more
  * than one of them outstanding at a time.
+ *
+ * The argon2 parameters are imported from `scripts/argon2-options.cjs` rather
+ * than declared here, even though this is the module that owns the decision.
+ * The operational scripts write hashes `verifyPassword` has to accept and
+ * cannot read a `.ts`, so the only file all four callers can share is a `.cjs`
+ * one — see the comment there.
  */
-
-// Argon2id with parameters in line with the OWASP baseline.
-const ARGON2_OPTIONS = {
-  memoryCost: 19456,
-  timeCost: 2,
-  parallelism: 1,
-} as const;
 
 /**
  * A real hash, verified against when no password is on file, so a handle with
@@ -108,15 +109,23 @@ export function sessionMatchesPassword(
  * The foreign key enforces that: a password with nobody behind it could never
  * be used, and letting one exist is how the old schema ended up with orphan
  * rows nobody could account for.
+ *
+ * Takes an optional `DbOrTx` so registration and password reset can commit the
+ * account row and its password together. The hash is computed before the
+ * statement either way, which means a caller in a transaction holds its
+ * connection through the argon2 work. Splitting this into a hash half and a
+ * write half would avoid that, at the price of a second exported way to put a
+ * hash in the table — and the connection is the cheaper of the two.
  */
 export async function setPassword(
   handle: string,
   password: string,
+  on: DbOrTx = db,
 ): Promise<void> {
   const normalized = normalizeHandle(handle);
   const passwordHash = await hashPassword(password);
 
-  await db
+  await on
     .insert(credentials)
     .values({ handle: normalized, passwordHash })
     .onConflictDoUpdate({

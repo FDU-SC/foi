@@ -1,6 +1,7 @@
 import { getSessionUser } from "@/auth";
+import { resolveUser } from "@/lib/accounts/resolve";
 import { viewerFor } from "@/lib/auth/viewer";
-import { isTerminalState } from "@/lib/backend/types";
+import { isSettled } from "@/lib/backend/types";
 import { rateLimit } from "@/lib/ratelimit";
 import {
   MAX_STREAMS_PER_HANDLE,
@@ -97,7 +98,7 @@ export async function GET(request: Request) {
           close();
           return;
         }
-        if (isTerminalState(view.state)) close();
+        if (isSettled(view.state)) close();
       };
 
       controller.enqueue(encoder.encode("retry: 5000\n\n"));
@@ -113,13 +114,48 @@ export async function GET(request: Request) {
       if (afterSubscribe) send(toView(afterSubscribe));
       if (closed) return;
 
+      /**
+       * The one place a suspension can reach a connection that is already up.
+       *
+       * Everywhere else in the application re-resolves the account per request,
+       * so "the session dies on the next request" is true — but a stream makes
+       * no further requests. It was authorised once and then held open for as
+       * long as the submission takes, which is exactly the window somebody
+       * being suspended mid-contest is still inside. The heartbeat was already
+       * running, and the check costs one lookup by primary key.
+       *
+       * `resolveUser` rather than `getResolvedUser`, because this runs on a
+       * timer long after the request that created it: there is no request scope
+       * left to read a cookie from, and the handle was fixed when the stream
+       * opened anyway. What that gives up is the password-epoch half of
+       * `getResolvedUser` — a reset ends the session on the next request, not
+       * on this stream — and only suspension is in scope here.
+       *
+       * A failed lookup leaves the stream alone rather than closing it. Every
+       * client reconnects on close, so failing closed during a database blip
+       * would turn one outage into a reconnect storm, and one more heartbeat of
+       * a suspended account reading its own submission is the smaller harm.
+       *
+       * Judging is deliberately untouched: work already handed to a backend
+       * runs to completion, since cancelling it would leave an orphan task
+       * there and the verdict has nowhere to be shown anyway.
+       */
       const heartbeat = setInterval(() => {
         if (closed) return;
-        try {
-          controller.enqueue(encoder.encode(": ping\n\n"));
-        } catch {
-          close();
-        }
+        void (async () => {
+          const account = await resolveUser(user.handle).catch(() => undefined);
+          if (closed) return;
+          if (account === null || account?.disabled) {
+            close();
+            return;
+          }
+
+          try {
+            controller.enqueue(encoder.encode(": ping\n\n"));
+          } catch {
+            close();
+          }
+        })();
       }, HEARTBEAT_MS);
       cleanups.push(() => clearInterval(heartbeat));
 

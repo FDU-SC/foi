@@ -96,6 +96,26 @@ export function isPrivileged(id: string): boolean {
   return (registry.get(id)?.capabilities.length ?? 0) > 0;
 }
 
+/**
+ * The same question about a whole membership, and the only way to ask it.
+ *
+ * There were two spellings of this and they were the same invariant written
+ * twice: `lib/enrollment/registry.ts` asked `groups.filter(isPrivileged)` at
+ * load, while the suspension guard asked `capabilitiesOf(groups).size > 0`.
+ * They agree — the closure over `IMPLIES` only ever adds to a set that already
+ * had something in it, so it cannot turn an unprivileged membership into a
+ * privileged one — but that agreement is a small proof rather than something
+ * you can see, and it is the kind that stops holding the moment somebody makes
+ * a capability implied by nothing.
+ *
+ * Defined over `isPrivileged` rather than beside it, so there is one place
+ * that knows what "privileged" means and this only decides how many groups to
+ * ask it about.
+ */
+export function hasPrivilege(groupIds: readonly string[]): boolean {
+  return groupIds.some(isPrivileged);
+}
+
 /** Every group the repository declares, privileged or not. */
 export function declaredGroupIds(): string[] {
   return [...registry.keys()];
@@ -108,6 +128,42 @@ export function privilegedGroupIds(): string[] {
 }
 
 /**
+ * `capabilitiesOf` walks `IMPLIES` one hop, so `IMPLIES` has to be flat.
+ *
+ * Checked over the whole table, once, at load. It used to be checked inside
+ * the loop below, which had two things wrong with it that a reader would not
+ * notice: the branch could only be reached by somebody who *held* the
+ * offending capability, so a two-hop entry could ship and sit silent until the
+ * first administrator signed in; and it excused itself under
+ * `NODE_ENV === "production"`, which is every deployed environment there is,
+ * so the check that was meant to catch it ran only on a laptop.
+ *
+ * Both are the same mistake — asking a question about a constant at the moment
+ * somebody happens to touch it — and the answer is the one `content/` gets
+ * everywhere else in this codebase: refuse at load. A build whose capability
+ * table has stopped closing now fails to boot, which is the loudest and
+ * earliest this can be said.
+ *
+ * Exported for `./groups.test.ts`, which has to reach into `IMPLIES` to see it
+ * fire at all: the repository's own table is flat, and a guard nothing can
+ * demonstrate is a guard nobody can trust.
+ */
+export function assertFlatImplications(): void {
+  for (const [capability, implied] of Object.entries(IMPLIES)) {
+    for (const id of implied ?? []) {
+      if (IMPLIES[id]) {
+        throw new Error(
+          `IMPLIES 里 "${capability}" 蕴含的 "${id}" 自己也有蕴含项，` +
+            `capabilitiesOf 只走一跳，需要改成求闭包。`,
+        );
+      }
+    }
+  }
+}
+
+assertFlatImplications();
+
+/**
  * Everything a set of memberships adds up to.
  *
  * A union, because belonging to two groups means being able to do what either
@@ -116,17 +172,9 @@ export function privilegedGroupIds(): string[] {
  *
  * Then the closure over `IMPLIES`, because some of these capabilities are the
  * same decision under two names and a deployment that grants one without the
- * other gets a rule it believes in and a bypass it does not. One hop, since
- * nothing in that table implies something that implies a third thing — asserted
- * rather than assumed, because the day somebody adds such an entry is the day
- * this would quietly stop closing.
- *
- * That assertion runs everywhere, having previously excused itself under
- * `NODE_ENV === "production"` — which is every deployed environment there is,
- * dev and staging included, so the check only ever fired on a laptop. It is one
- * Map lookup against a table compiled into the build, so there was nothing to
- * buy by skipping it, and a capability table that has silently stopped closing
- * is worth hearing about from staging rather than from a contest.
+ * other gets a rule it believes in and a bypass it does not. One hop, which is
+ * enough only because `assertFlatImplications` above has already refused to
+ * let this module load against a table where it would not be.
  */
 export function capabilitiesOf(groupIds: readonly string[]): Set<Capability> {
   const granted = new Set<Capability>();
@@ -137,15 +185,7 @@ export function capabilitiesOf(groupIds: readonly string[]): Set<Capability> {
   }
 
   for (const capability of [...granted]) {
-    for (const implied of IMPLIES[capability] ?? []) {
-      if (IMPLIES[implied]) {
-        throw new Error(
-          `IMPLIES 里 "${capability}" 蕴含的 "${implied}" 自己也有蕴含项，` +
-            `capabilitiesOf 只走一跳，需要改成求闭包。`,
-        );
-      }
-      granted.add(implied);
-    }
+    for (const implied of IMPLIES[capability] ?? []) granted.add(implied);
   }
 
   return granted;

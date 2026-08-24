@@ -3,7 +3,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
 import { AuthShell } from "@/components/auth/auth-shell";
-import { codeTtlMinutes } from "@/lib/auth/email-verification";
+import {
+  codeTtlMinutes,
+  resendCooldownMs,
+} from "@/lib/auth/email-verification";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import { RegisterForm } from "./register-form";
 
@@ -59,7 +62,10 @@ export default async function RegisterPage() {
         </>
       }
     >
-      <RegisterForm codeTtlMinutes={codeTtlMinutes} />
+      <RegisterForm
+        codeTtlMinutes={codeTtlMinutes}
+        resendCooldownMs={resendCooldownMs}
+      />
     </AuthShell>
   );
 }

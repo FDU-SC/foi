@@ -34,5 +34,9 @@ export async function login(
     throw error;
   }
 
-  return {};
+  // Only reached if `signIn` ever stops leaving by throwing. There was a
+  // `return {}` here, which would have re-rendered the form with nothing said —
+  // silence on the one page whose entire job is to report whether the
+  // credentials worked. An error at least names the broken assumption.
+  throw new Error("signIn 没有重定向，登录结果未知");
 }

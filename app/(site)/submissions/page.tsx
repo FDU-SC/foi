@@ -6,7 +6,7 @@ import { ProblemRef } from "@/components/problem/problem-ref";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { locateInQueues } from "@/lib/backend/queue-lookup";
-import { isTerminalState } from "@/lib/backend/types";
+import { isSettled } from "@/lib/backend/types";
 import { viewerFor } from "@/lib/auth/viewer";
 import { submissionsFor } from "@/lib/submissions/access";
 
@@ -27,7 +27,7 @@ export default async function SubmissionsPage() {
 
   // One sweep of the judges covers every unfinished row on the page.
   const positions = await locateInQueues(
-    rows.filter((row) => !isTerminalState(row.state)).map((row) => row.id),
+    rows.filter((row) => !isSettled(row.state)).map((row) => row.id),
   );
 
   return (

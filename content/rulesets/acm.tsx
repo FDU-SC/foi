@@ -114,7 +114,6 @@ export const ruleset: Ruleset<AcmCell> = {
     return {
       rows: assignRanks<AcmCell>(rows),
       totalLabel: "解题",
-      tiebreakLabel: "罚时",
       frozen,
     };
   },

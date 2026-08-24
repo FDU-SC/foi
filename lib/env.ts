@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { backendsMissingUrl } from "@/backends.config";
 
 /**
  * What the process needs before it is allowed to serve anything.
@@ -10,9 +11,11 @@ import { z } from "zod";
  * work should fail while the health check is still watching, in the same way a
  * failed migration already does.
  *
- * Only the variables whose absence is fatal are listed. Backend URLs have
- * defaults, SMTP has a documented fallback that logs to the console, and the
- * backup interval has a default — none of those should stop a boot.
+ * Only the variables whose absence is fatal are listed. SMTP has a documented
+ * fallback that logs to the console and the backup interval has a default;
+ * neither should stop a boot. Backend addresses used to be excused on the same
+ * grounds and are not any more — see `backendUrlProblems` below for why that
+ * was the wrong list to be on.
  */
 const schema = z.object({
   DATABASE_URL: z
@@ -77,6 +80,38 @@ function withLegacyNames(
 }
 
 /**
+ * Backend addresses, which are fatal in production and nowhere else.
+ *
+ * Outside the schema because the variables are named after whatever
+ * `backends.config.ts` declares rather than fixed here, and conditional
+ * because the answer depends on where this is running. Outside production a
+ * missing address falls back to the mock in `scripts/mock-backend.ts`, which
+ * is what lets a fresh checkout submit before anything has been configured. In
+ * production there is no such fallback and no such excuse: a backend nothing
+ * can reach fails exactly the way a wrong `FOI_PUBLIC_URL` does, silently and
+ * one submission at a time, which is why that variable is on the list above
+ * and why these belong beside it.
+ *
+ * Every declared entry, not only the ones a problem routes to. Telling those
+ * apart means reading the problem registry, and this file deliberately knows
+ * nothing about content — the same split `backendSecretWarnings` sits on the
+ * other side of. What the wider rule costs is an address for a backend nothing
+ * currently uses, so the message offers the other way out: delete the entry.
+ */
+function backendUrlProblems(
+  env: Record<string, string | undefined>,
+): string[] {
+  if (env.NODE_ENV !== "production") return [];
+
+  return backendsMissingUrl(env).map(
+    (variable) =>
+      `${variable}: 未设置。生产环境不再回落到本地 mock，` +
+      `这台题目后端收不到任何投递，交上来的题会一直等到十分钟后被判为超时。` +
+      `填上它的地址；这套部署不运行它，就从 backends.config.ts 里删掉该条目`,
+  );
+}
+
+/**
  * Checks the environment, throwing with every problem at once.
  *
  * All of them rather than the first: fixing one variable, redeploying, and
@@ -86,17 +121,24 @@ export function assertEnv(
   env: Record<string, string | undefined> = process.env,
 ): void {
   const parsed = schema.safeParse(withLegacyNames(env));
-  if (parsed.success) return;
 
-  // Prefixed with the variable name. Without it a missing value reports Zod's
-  // own "expected string, received undefined", which tells an operator staring
-  // at a failed deploy neither which variable nor what to put in it.
-  const problems = parsed.error.issues
-    .map((issue) => {
-      const name = issue.path.join(".");
-      return name ? `  - ${name}: ${issue.message}` : `  - ${issue.message}`;
-    })
-    .join("\n");
+  // Each prefixed with the variable name. Without it a missing value reports
+  // Zod's own "expected string, received undefined", which tells an operator
+  // staring at a failed deploy neither which variable nor what to put in it.
+  const problems = [
+    ...(parsed.success
+      ? []
+      : parsed.error.issues.map((issue) => {
+          const name = issue.path.join(".");
+          return name ? `${name}: ${issue.message}` : issue.message;
+        })),
+    ...backendUrlProblems(env),
+  ];
 
-  throw new Error(`环境变量配置不完整，拒绝启动:\n${problems}`);
+  if (problems.length === 0) return;
+
+  throw new Error(
+    `环境变量配置不完整，拒绝启动:\n` +
+      problems.map((problem) => `  - ${problem}`).join("\n"),
+  );
 }

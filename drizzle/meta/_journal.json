@@ -57,6 +57,20 @@
       "when": 1787563634675,
       "tag": "0007_provenance",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787585378209,
+      "tag": "0008_submission_idempotency",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787589864899,
+      "tag": "0009_reinstatement_audit",
+      "breakpoints": true
     }
   ]
 }

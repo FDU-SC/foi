@@ -120,7 +120,6 @@ export const ruleset: Ruleset<OiCell> = {
     return {
       rows: assignRanks<OiCell>(rows),
       totalLabel: "总分",
-      tiebreakLabel: "用时",
       frozen: false,
     };
   },

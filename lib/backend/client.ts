@@ -19,6 +19,23 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_ACTION_TIMEOUT_MS = 20_000;
 
 /**
+ * How long a submission may go unresolved before the reconciler stops waiting.
+ *
+ * Not a timeout in the sense the two above are: nothing is being held open, and
+ * the deadline is measured from when the row was created rather than from a
+ * request. It is how long the kernel is willing to be wrong about a backend
+ * that has gone quiet, which is why it belongs to the backend — a performance
+ * problem running a baseline is slower than a flag check by more than any
+ * single number can straddle, and raising it for everyone would mean every
+ * player watching a spinner for the slowest case.
+ *
+ * Exported because the reconciler needs an answer even for a row whose backend
+ * no longer resolves. Ten minutes is long enough that reaching it means
+ * something is actually wrong.
+ */
+export const DEFAULT_ABANDON_MS = 10 * 60 * 1000;
+
+/**
  * How much of a backend's answer this process will hold.
  *
  * The timeout bounds how long a backend can keep the kernel waiting; nothing
@@ -44,6 +61,7 @@ export interface ResolvedBackend extends ProblemBackend {
   secret: string;
   timeoutMs: number;
   actionTimeoutMs: number;
+  abandonAfterMs: number;
 }
 
 export function resolveBackend(id: string): ResolvedBackend {
@@ -54,9 +72,16 @@ export function resolveBackend(id: string): ResolvedBackend {
 
   // Old name accepted as a fallback for the same reason the URLs are; see
   // `backends.config.ts`.
+  //
+  // `||` and not `??`, because the test below is `!secret` and the two have to
+  // agree on what counts as a key. An `.env` carrying an unfilled
+  // `FOI_BACKEND_SECRET=` hands this `""`: a value, so `??` kept it, and then
+  // falsy, so the throw fired — naming the very variable that was set. Every
+  // reader of these now treats blank as absent, `backendSecret` in
+  // `backends.config.ts` included.
   const secret =
-    entry.secret ??
-    process.env.FOI_BACKEND_SECRET ??
+    entry.secret ||
+    process.env.FOI_BACKEND_SECRET ||
     process.env.FOI_JUDGE_SECRET;
   if (!secret) {
     throw new Error("缺少环境变量 FOI_BACKEND_SECRET");
@@ -68,6 +93,7 @@ export function resolveBackend(id: string): ResolvedBackend {
     secret,
     timeoutMs: entry.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     actionTimeoutMs: entry.actionTimeoutMs ?? DEFAULT_ACTION_TIMEOUT_MS,
+    abandonAfterMs: entry.abandonAfterMs ?? DEFAULT_ABANDON_MS,
   };
 }
 

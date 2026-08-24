@@ -3,7 +3,6 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { accounts, authTokens } from "@/lib/db/schema";
 import {
-  inspectToken,
   issueToken,
   lastIssuedAt,
   listPendingTokens,
@@ -136,18 +135,35 @@ describeDb("auth tokens", () => {
     ).resolves.toMatchObject({ ok: false });
   });
 
-  it("inspectToken 不消费 token，并能看出是否已被消费", async () => {
+  /**
+   * The property `resetPasswordAction` rests on, checked here rather than
+   * there: the action lives under `app/`, which neither vitest project
+   * includes, and what it needs from this module is exactly this — a
+   * redemption that unwinds with the write it was paired with.
+   *
+   * Without it the one unrecoverable outcome is reachable: the link is spent,
+   * the password is unchanged, and the only way forward is a mail the person
+   * has to ask for again.
+   */
+  it("同一事务里回滚时 token 没有被花掉，链接还能再用一次", async () => {
     const { token } = await issueToken(HANDLE, "password_reset");
 
-    expect(await inspectToken(token, "password_reset")).toMatchObject({
+    let redeemed;
+    await expect(
+      db.transaction(async (tx) => {
+        redeemed = await redeemToken(token, "password_reset", undefined, tx);
+        // 站在 setPassword 的位置上失败。
+        throw new Error("写密码故意失败");
+      }),
+    ).rejects.toThrow("写密码故意失败");
+
+    // 回滚之前它确实被消费了，所以下面那条断言不是「压根没跑到」。
+    expect(redeemed).toEqual({ ok: true, handle: HANDLE });
+
+    await expect(redeemToken(token, "password_reset")).resolves.toEqual({
+      ok: true,
       handle: HANDLE,
-      consumedAt: null,
     });
-
-    await redeemToken(token, "password_reset");
-
-    const after = await inspectToken(token, "password_reset");
-    expect(after?.consumedAt).toBeInstanceOf(Date);
   });
 
   it("lastIssuedAt 反映最近一次签发，用于重发节流", async () => {
@@ -161,7 +177,7 @@ describeDb("auth tokens", () => {
   });
 
   it("listPendingTokens 只列出未消费且未过期的", async () => {
-    const stale = await issueToken(HANDLE, "password_reset", { ttlMs: -1_000 });
+    await issueToken(HANDLE, "password_reset", { ttlMs: -1_000 });
 
     const mine = () =>
       listPendingTokens().then((rows) =>
@@ -170,7 +186,11 @@ describeDb("auth tokens", () => {
 
     expect(await mine()).toHaveLength(0);
     // 行本身还在，只是不再算作「待用」。
-    expect(await inspectToken(stale.token, "password_reset")).not.toBeNull();
+    const stored = await db
+      .select()
+      .from(authTokens)
+      .where(eq(authTokens.handle, HANDLE));
+    expect(stored).toHaveLength(1);
 
     await issueToken(HANDLE, "password_reset");
     expect(await mine()).toHaveLength(1);

@@ -35,9 +35,15 @@ const crypto = require("node:crypto");
 const { hash } = require("@node-rs/argon2");
 const { Client } = require("pg");
 
-// Must match lib/auth/credentials.ts, or the hashes it produces would not
-// verify on login.
-const ARGON2_OPTIONS = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
+// See the note in set-password.cjs: fed through `node -`, a relative require
+// resolves against the working directory rather than against this file.
+const ARGON2_OPTIONS = (() => {
+  try {
+    return require("./argon2-options.cjs");
+  } catch {
+    return require("./scripts/argon2-options.cjs");
+  }
+})();
 
 const USAGE = `用法:
   node scripts/create-account.cjs <handle> --name <显示名> --email <邮箱>

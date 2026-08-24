@@ -4,8 +4,7 @@ import { viewerFor } from "@/lib/auth/viewer";
 import { actionFor } from "@/lib/backend/actions";
 import { callBackendAction, resolveBackend } from "@/lib/backend/client";
 import { readTextBody } from "@/lib/body-limit";
-import { canEnterContest, contestFor } from "@/lib/contests/access";
-import { contestPhase } from "@/lib/contests/types";
+import { contestEntryFor } from "@/lib/contests/access";
 import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest } from "@/lib/ratelimit/gate";
 
@@ -91,15 +90,19 @@ export async function POST(
     }
   }
 
-  // Re-derived rather than trusted, exactly as the submission path does it: a
-  // client naming a contest is asking for something the page never offered
-  // unless all three facts hold.
-  const contestSlug = resolveContest(
-    request.headers.get("x-foi-contest"),
-    problem.slug,
-    user,
-    viewer,
-  );
+  // Re-derived rather than trusted, by the same function the submission gate
+  // and the statement page use: a client naming a contest is asking for
+  // something the page never offered unless every fact behind it holds.
+  //
+  // Sent as a header rather than in the body so the body stays entirely the
+  // problem's to define. Null when the round cannot be honoured for any
+  // reason — a backend keying quotas or container lifetimes on a round must not
+  // be told a round the player is not in, so both refusals collapse here.
+  const requested = request.headers.get("x-foi-contest");
+  const round = requested
+    ? contestEntryFor(requested, problem.slug, user)
+    : null;
+  const contestSlug = round?.ok ? round.contest.slug : null;
 
   let backend;
   try {
@@ -130,31 +133,4 @@ export async function POST(
       "x-content-type-options": "nosniff",
     },
   });
-}
-
-/**
- * The contest this action belongs to, or null.
- *
- * Sent as a header rather than in the body so the body stays entirely the
- * problem's to define. Null when the contest is not running, does not contain
- * the problem, or is not one this person may enter — a backend keying quotas
- * or lifetimes on a round should not be told a round the player is not in.
- */
-function resolveContest(
-  raw: string | null,
-  problemSlug: string,
-  user: { groups: string[]; handle: string },
-  viewer: ReturnType<typeof viewerFor>,
-): string | null {
-  if (!raw) return null;
-
-  const view = contestFor(raw, viewer);
-  if (!view?.gate.visible) return null;
-
-  const contest = view.config;
-  if (contestPhase(contest) !== "running") return null;
-  if (!contest.problems.some((entry) => entry.slug === problemSlug)) return null;
-  if (!canEnterContest(contest, user)) return null;
-
-  return contest.slug;
 }

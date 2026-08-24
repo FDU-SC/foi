@@ -5,16 +5,45 @@ import type { TokenPurpose } from "@/lib/db/schema";
 import { deliver } from "./transport";
 
 /**
- * The two things FOI mails.
+ * How soon one *account* may be sent another recovery link.
  *
- * They are no longer the same shape. Recovery is still "mint a token, put it
- * in a link, send it" against an account that exists. Verification happens
- * before the account does, so it carries a code the person types back into the
- * page they are already on, and its throttle lives in the row the code is
- * stored in rather than here.
+ * The two things FOI mails are no longer the same shape. Recovery is still
+ * "mint a token, put it in a link, send it" against an account that exists.
+ * Verification happens before the account does, so it carries a code the
+ * person types back into the page they are already on, and its throttle lives
+ * in the row the code is stored in rather than here.
+ *
+ * `lib/auth/email-verification.ts` holds a constant of the same name and the
+ * same value, and they are deliberately two policies rather than one that got
+ * copied. This one is keyed by handle and purpose and derived from the last
+ * row in `auth_tokens`, because a reset link is minted against an account that
+ * already exists. That one is keyed by address and enforced as a condition on
+ * an upsert, because before an account exists an address is the only thing
+ * there is to count against. Different subject, different table, different
+ * mechanism — folding them into one export would be a claim that this
+ * deployment has a single resend policy, which is an assertion somebody would
+ * have to own, not a duplicate somebody forgot to remove.
  */
 const RESEND_COOLDOWN_MS = 60_000;
 
+/**
+ * What came of a send, in the one vocabulary both callers read.
+ *
+ * `ok: false` means *nothing left this process*: no token was minted, no code
+ * was written, and the relay was never called. The two callers present that in
+ * opposite ways — `/admin` tells the operator to wait a minute, while
+ * `requestPasswordReset` answers with the same sentence it gives every other
+ * outcome, so the public form cannot be used to test whether an account
+ * exists. That uniform sentence is a decision about what to *disclose*, and it
+ * used to be taken as licence to drop the result on the floor: throttled and
+ * delivered then became one event in the server log too, which is the one
+ * place they were still allowed to differ. An operator reading that log could
+ * not tell a broken relay from somebody asking twice.
+ *
+ * A relay that refuses the message is the third outcome and deliberately not a
+ * variant here. It is not a state a caller can reason about, only report, and
+ * making it one would invite the same silence: see `deliver`, which throws.
+ */
 export type NotifyResult =
   | { ok: true; expiresAt: Date }
   | { ok: false; reason: "throttled"; retryAfterMs: number };

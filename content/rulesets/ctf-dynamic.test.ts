@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { Participant } from "@/lib/standings/types";
 import { fail, input, participants, problem, solve } from "@/lib/standings/test-support";
 import type { CtfCell } from "./ctf-dynamic";
 import { ruleset as ctfDynamicRuleset } from "./ctf-dynamic";
@@ -121,30 +120,6 @@ describe("ctf 血奖", () => {
 
     expect(cell(standings, "alice", "a")?.blood).toBe(1);
     expect(cell(standings, "bob", "a")?.blood).toBeNull();
-  });
-});
-
-describe("ctf 正式与非正式参赛者", () => {
-  it("只有正式参赛者计入衰减", () => {
-    const official: Participant[] = participants("alice");
-    const guests: Participant[] = Array.from({ length: 5 }, (_, i) => ({
-      handle: `guest${i}`,
-      displayName: `guest${i}`,
-      unofficial: true,
-    }));
-
-    const standings = compute({
-      participants: [...official, ...guests],
-      problems,
-      config: plain,
-      submissions: [
-        solve("alice", "a", 10),
-        ...guests.map((guest, i) => solve(guest.handle, "a", 20 + i)),
-      ],
-    });
-
-    // 五位非正式选手也解出了，但题目仍按「一人解出」计值
-    expect(cell(standings, "alice", "a")?.score).toBe(500);
   });
 });
 

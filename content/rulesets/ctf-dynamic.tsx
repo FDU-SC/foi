@@ -80,11 +80,6 @@ export const ruleset: Ruleset<CtfCell> = {
   computeStandings(input: StandingsInput) {
     const config = configSchema.parse(input.config ?? {});
     const start = input.contest.startsAt.getTime();
-    const official = new Set(
-      input.participants
-        .filter((participant) => !participant.unofficial)
-        .map((participant) => participant.handle),
-    );
 
     const submissions = scoredSubmissions(input);
 
@@ -109,7 +104,7 @@ export const ruleset: Ruleset<CtfCell> = {
       solves.set(submission.problemSlug, list);
     }
 
-    // Pass 2: value each problem from its official solve count, then award.
+    // Pass 2: value each problem from its solve count, then award.
     const cellsByUser = new Map<string, Record<string, CtfCell>>();
     for (const participant of input.participants) {
       cellsByUser.set(participant.handle, {});
@@ -117,10 +112,7 @@ export const ruleset: Ruleset<CtfCell> = {
 
     for (const problem of input.problems) {
       const list = (solves.get(problem.slug) ?? []).sort((a, b) => a.at - b.at);
-      const officialSolves = list.filter((solve) =>
-        official.has(solve.handle),
-      ).length;
-      const value = decayedValue(config, officialSolves);
+      const value = decayedValue(config, list.length);
 
       list.forEach((solve, index) => {
         const cells = cellsByUser.get(solve.handle);
@@ -157,7 +149,6 @@ export const ruleset: Ruleset<CtfCell> = {
     return {
       rows: assignRanks<CtfCell>(rows),
       totalLabel: "总分",
-      tiebreakLabel: "末次解题",
       frozen: false,
     };
   },

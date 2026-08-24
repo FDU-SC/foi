@@ -88,6 +88,34 @@ export const enrollmentPolicySchema = z.object({
   enabled: z.boolean().default(true),
 
   /**
+   * Where mail goes: a real relay, or the server log.
+   *
+   * The neighbour of `enabled` above, and it was missing. Whether a
+   * deployment lets people sign up is said out loud in a file; whether it can
+   * send them anything used to be *inferred*, from `FOI_SMTP_HOST` being
+   * absent. The inference cannot tell a laptop apart from a production box
+   * deployed without its mail configuration — both took the console branch in
+   * `lib/mail/transport.ts`, which prints the message and reports success, so
+   * registration and recovery announced themselves as working while every
+   * code and every reset link went to the container log.
+   *
+   * `console` is a real answer rather than a degraded one. A fresh checkout
+   * runs the whole registration flow with no mail server standing by, and it
+   * is the documented escape hatch for a deployment whose relay is not ready:
+   * the codes land in the log until it is. What it must not be is what a
+   * deployment gets by forgetting something, which is why the default is
+   * `smtp` and `assertMailDelivery` refuses to boot with no relay behind it.
+   *
+   * That refusal only bites in production, and the reason is the default
+   * itself. `content/enrollment/example.ts` names no `mailDelivery`, so it
+   * takes `smtp`, and enforcing everywhere would stop a fresh checkout with
+   * no SMTP from starting at all — breaking the one setup the README points a
+   * newcomer at. Outside production a missing relay therefore falls back to
+   * `console` with a warning: the old behaviour, made audible.
+   */
+  mailDelivery: z.enum(["smtp", "console"]).default("smtp"),
+
+  /**
    * Addresses that may register. Empty means any, which is almost never what
    * a school deployment wants: the domain allowlist is the first gate, and the
    * cohort rules are the second.

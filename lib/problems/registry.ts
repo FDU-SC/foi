@@ -87,10 +87,6 @@ export function problemBySlug(slug: string): ProblemConfig | undefined {
   return registry.get(slug);
 }
 
-export function hasProblem(slug: string): boolean {
-  return registry.has(slug);
-}
-
 /** Loads a problem's compiled MDX statement component. */
 export async function loadStatement(
   slug: string,

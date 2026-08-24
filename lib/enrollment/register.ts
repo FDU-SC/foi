@@ -10,6 +10,7 @@ import {
   consumeVerifiedEmail,
   isEmailVerified,
 } from "@/lib/auth/email-verification";
+import { db } from "@/lib/db";
 import { enrollmentPolicy, rulesForHandle } from "./registry";
 
 /**
@@ -123,32 +124,54 @@ export async function register(input: {
     return { ok: false, reason: "email-unverified" };
   }
 
-  const account = await createAccount({
-    handle,
-    displayName: input.displayName,
-    email,
-    source: "registration",
-    // Active from the first moment, which is the point of proving the address
-    // beforehand: there is no window in which an account exists but may not
-    // act, and so no half-made account to sweep up afterwards.
-    status: "active",
-    emailVerifiedAt: new Date(),
+  // The three writes are one act, so they commit or they do not.
+  //
+  // Run separately they had two ways to come apart, and both left the person
+  // worse off than a plain failure would have: a crash after the insert gives
+  // an account with no credentials row — it exists, it cannot log in, and the
+  // form now says the handle is taken by somebody who turns out to be them —
+  // and a crash before the last statement leaves a proof standing for an
+  // address that has already been spent. Neither is swept up by anything.
+  //
+  // The read inside goes through `tx` too. A statement issued on the pool
+  // while a transaction is open takes a second connection out of a pool of
+  // ten, so enough concurrent registrations would each be holding one and
+  // queueing for another.
+  return db.transaction<RegisterResult>(async (tx) => {
+    const account = await createAccount(
+      {
+        handle,
+        displayName: input.displayName,
+        email,
+        source: "registration",
+        // Active from the first moment, which is the point of proving the
+        // address beforehand: there is no window in which an account exists
+        // but may not act, and so no half-made account to sweep up afterwards.
+        status: "active",
+        emailVerifiedAt: new Date(),
+      },
+      tx,
+    );
+
+    // Lost the race for the handle or the address between the checks above and
+    // the insert. The unique constraints are what actually decide it. Nothing
+    // was written — `onConflictDoNothing` leaves the transaction usable — so
+    // returning here and letting it commit is the same as rolling back.
+    if (!account) {
+      return {
+        ok: false,
+        reason: (await findAccountByEmail(email, tx))
+          ? "email-taken"
+          : "handle-taken",
+      };
+    }
+
+    await setPassword(handle, input.password, tx);
+
+    // Spent. `accounts.email_verified_at` carries the fact from here on, and
+    // the proof itself is one more copy of an address with nothing left to do.
+    await consumeVerifiedEmail(email, tx);
+
+    return { ok: true, handle, displayName: account.displayName, email };
   });
-
-  // Lost the race for the handle or the address between the checks above and
-  // the insert. The unique constraints are what actually decide it.
-  if (!account) {
-    return {
-      ok: false,
-      reason: (await findAccountByEmail(email)) ? "email-taken" : "handle-taken",
-    };
-  }
-
-  await setPassword(handle, input.password);
-
-  // Spent. `accounts.email_verified_at` carries the fact from here on, and the
-  // proof itself is one more copy of an address with nothing left to do.
-  await consumeVerifiedEmail(email);
-
-  return { ok: true, handle, displayName: account.displayName, email };
 }

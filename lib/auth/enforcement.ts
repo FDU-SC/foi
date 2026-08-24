@@ -46,6 +46,41 @@ import type { Capability } from "./policy";
  * is the shared primitive the audience column below is written in, not a gate.
  * `lib/auth/` is the kernel — vocabulary, identity, primitives — and owns no
  * resource, so it can hold no gate. That is why the scan skips it.
+ *
+ * **The load-time checks over `content/` cannot see the capability axis, and
+ * that is a boundary of the approach rather than a gap somebody left.**
+ *
+ * A resource declares who it is for, and the registries prove things about
+ * those declarations while the repository loads. `lib/contests/registry.ts`
+ * refuses a contest whose `visibleTo` reaches past any of its problems', so a
+ * round cannot print a title and a score column for a statement the reader
+ * gets a 404 from. That proof is real, and its scope is exactly one axis: the
+ * audiences the resources named about themselves. A file being loaded has no
+ * viewer, so nothing at load time can quantify over the people whose reach
+ * comes from a capability instead — those are granted per group in
+ * `content/enrollment/` and applied at retrieval, by the gates below.
+ *
+ * So every guarantee those checks give carries an unwritten qualifier: *for a
+ * viewer whose only key is the audience they are in*. `audienceCovers` says
+ * nothing whatsoever about a `contest.viewAll` holder, because that person
+ * reaches the round by a route the round's own file never mentions.
+ *
+ * Teaching the loader about capabilities is not the repair, and not because it
+ * would be laborious. The statement it would have to prove ranges over group
+ * memberships, which are data — the answer could change without any file
+ * changing, so it is not a property of the repository and a load-time check is
+ * the wrong instrument for it.
+ *
+ * The repair is at the gate, which is the one place both axes are in scope at
+ * once, and `problemFor` below is the worked example: the single state this
+ * boundary could produce — somebody holding `contest.viewAll` but not
+ * `problem.viewAll`, reaching a started round they are not the audience for —
+ * is closed by a second override path on the accessor, not by a stricter
+ * loader.
+ *
+ * Which leaves this table as the place the capability axis is legible and the
+ * registries as the place the audience axis is. Read either one alone and you
+ * will believe something about the other that is not true.
  */
 
 /**
@@ -95,6 +130,14 @@ export type Denied =
   | "tagged-reason"
   /** The value comes back with fields blanked rather than withheld whole. */
   | "redacted"
+  /**
+   * Not a withholding at all. The same type comes back, computed the way it is
+   * for everybody, because the capability picks between two complete answers
+   * rather than adding to one — so there is no version of the call that fails
+   * on account of who is asking, and a caller who wrote a refusal branch for
+   * this would have written one that never runs.
+   */
+  | "public-variant"
   /** Throws. Server Actions want a refusal, not a branch. */
   | "throws";
 
@@ -141,10 +184,30 @@ export const READ_GATES = {
     what: "一道题对某人是否可见，以及不可见的原因",
     capabilities: [],
     noOverride:
-      "只答受众与禁运两问；`problem.viewAll` 由下面两个取函数在它之上应用",
+      "只答受众与禁运两问；`problem.viewAll` 由下面两个取函数在它之上应用，" +
+      "经由比赛的那条越权只由 `problemFor` 应用",
     grants: ["problem.visibleTo", "contest-phase"],
     denied: "tagged-reason",
   },
+  /**
+   * One capability, where the accessor below has two, and the asymmetry is the
+   * point rather than an oversight.
+   *
+   * Both share `viewOf`, so both compute the contest override and both carry
+   * it on `reachedVia`. It changes nothing here: a problem reached only
+   * because its round can be seen still has `gate.visible: false`, so it is
+   * not `open`, and the filter is `override || entry.open` where `override` is
+   * `problem.viewAll` alone. The list a `contest.viewAll` holder gets is the
+   * one they got before.
+   *
+   * Which is deliberate, and not a rounding error worth papering over with a
+   * matching row: such a problem is readable at its own URL and stays out of
+   * the catalogue, because listing it would put a problem in somebody's 题库
+   * that they cannot submit to and were never given. Recording the capability
+   * here would say this gate's answer moves when it does not — `capabilities`
+   * means exactly that and nothing looser — and a reader looking for the
+   * design decision would find two identical rows instead of it.
+   */
   "lib/problems/access.ts#problemsFor": {
     what: "列出这个人能看到的题目",
     capabilities: ["problem.viewAll"],
@@ -155,11 +218,38 @@ export const READ_GATES = {
    * Retirement is not part of this gate. A retired problem stays readable by
    * whoever it was written for — what retirement withholds is `open`, which is
    * the field `submitFor` and `actionFor` read, not the statement.
+   *
+   * Two capabilities, and the second is not a weaker copy of the first.
+   * `problem.viewAll` is the blanket override: every problem, gated or
+   * retired, carrying its reason. `contest.viewAll` reaches a far smaller set
+   * and only by transitivity — it takes somebody to a round they are not the
+   * audience for, and once that round has *started*, "you can see the contest"
+   * has to mean "you can see its problems" or the contest page prints a title
+   * and a score column linking to a 404. The load-time check in
+   * `lib/contests/registry.ts` makes that implication hold on the audience
+   * axis and structurally cannot make it hold on this one; see the note at the
+   * top of this file for why, and why the repair belongs at a gate instead.
+   *
+   * That is also why `contest.visibleTo` appears as a grant on a problem gate,
+   * which looks out of place until you read the second path: it asks whether
+   * there is a started contest this viewer can reach, so a contest's own
+   * audience decides half the answer about a problem.
+   *
+   * Neither override moves `gate.visible`, so a statement reached through
+   * either comes back readable and unsubmittable — the same treatment
+   * `problem.viewAll` always had, now shared. Which one carried the viewer
+   * past the gate is `reachedVia`, answered here so that the statement page
+   * can print the right notice without asking a capability of its own.
+   *
+   * Deliberately not written as `IMPLIES: contest.viewAll → problem.viewAll`
+   * in `./policy`, which would be far too wide — it would hand over unstarted
+   * rounds too, and that file is explicit that proofreading a round before it
+   * opens is the entire reason `problem.viewAll` exists on its own.
    */
   "lib/problems/access.ts#problemFor": {
     what: "取一道题的题面",
-    capabilities: ["problem.viewAll"],
-    grants: ["problem.visibleTo", "contest-phase"],
+    capabilities: ["problem.viewAll", "contest.viewAll"],
+    grants: ["problem.visibleTo", "contest-phase", "contest.visibleTo"],
     denied: "undefined",
   },
 
@@ -215,6 +305,39 @@ export const READ_GATES = {
     capabilities: ["problem.viewAll"],
     grants: ["contest-phase"],
     denied: "false",
+  },
+  /**
+   * The only gate here assembled out of two others above it: `contestFor`
+   * answers the first of its four questions and `canEnterContest` the last,
+   * with "does this round contain the problem" and `isContestOpen` in between.
+   *
+   * Registered in its own right all the same, because the ordering is the
+   * gate. This was written three times before — inside `submitFor`, and as a
+   * local `resolveContest` on the statement page and again in the action route
+   * — and the copy that had dropped the first question handed a staged round's
+   * slug to the submit panel, for an attribution the API then refused. Four
+   * facts held together is not three facts and a remark.
+   *
+   * `capabilities` is empty and means it. `contest.viewAll` does get somebody
+   * a view out of `contestFor`, but the first question reads `gate.visible`
+   * off that view rather than taking the view itself, so the reach stops
+   * there — before the round has even been asked whether it contains the
+   * problem.
+   *
+   * Refusals are tagged because `submitFor` owes its caller the difference
+   * between a round that is over and a round they are not in. The other two
+   * callers collapse both to null, which is a decision about what an
+   * unhonourable contest slug means to them rather than about who may have
+   * what, so it stays at the call site and out of this column.
+   */
+  "lib/contests/access.ts#contestEntryFor": {
+    what: "客户端指名的这场比赛，能不能作为这次提交／交互的归属",
+    capabilities: [],
+    noOverride:
+      "没有任何能力能把人塞进闭门赛；`contest.viewAll` 在第一问就被 `gate.visible` 挡下，" +
+      "「能读」与「能参赛」正是在那一步分开的",
+    grants: ["contest.visibleTo", "contest-phase", "contest.participants"],
+    denied: "tagged-reason",
   },
 
   // ── 提交 ────────────────────────────────────────────────────────────────
@@ -303,12 +426,20 @@ export const READ_GATES = {
    * under different keys so that serving one where the other was asked for
    * cannot happen. Who may reach the page at all is `contestFor`'s answer,
    * asked upstream.
+   *
+   * The `null` in the signature is therefore not this gate refusing anybody.
+   * It means no contest goes by that slug, and the capability holder gets it
+   * just the same. This column used to say `null` all the same, which is the
+   * one way a reader could be actively misled by it: somebody without
+   * `standings.viewFrozen` gets a whole board, so the refusal branch that
+   * entry invited would never have run, while the case that does occur has
+   * nothing to do with permission.
    */
   "lib/standings/compute.ts#standingsFor": {
     what: "取排行榜，封榜期间是真实的还是冻结的",
     capabilities: ["standings.viewFrozen"],
     grants: ["capability-only"],
-    denied: "null",
+    denied: "public-variant",
   },
 
   // ── 账号目录 ────────────────────────────────────────────────────────────

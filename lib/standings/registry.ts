@@ -83,10 +83,6 @@ function buildContestRulesets(): Map<string, AnyRuleset> {
 const registry = buildRegistry();
 const contestOwned = buildContestRulesets();
 
-export function getRuleset(id: string): AnyRuleset | undefined {
-  return registry.get(id);
-}
-
 /** The format a contest carries itself, if it has one. */
 export function getContestRuleset(slug: string): AnyRuleset | undefined {
   return contestOwned.get(slug);
@@ -106,7 +102,8 @@ export function rulesetFor(
   namedId: string | undefined,
 ): AnyRuleset | undefined {
   return (
-    getContestRuleset(contestSlug) ?? (namedId ? getRuleset(namedId) : undefined)
+    getContestRuleset(contestSlug) ??
+    (namedId ? registry.get(namedId) : undefined)
   );
 }
 

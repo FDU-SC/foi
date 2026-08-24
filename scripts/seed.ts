@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import { Pool } from "pg";
 import { accounts, credentials } from "../lib/db/schema";
+import ARGON2_OPTIONS from "./argon2-options.cjs";
 
 /**
  * Creates the development accounts and gives them all one password.
@@ -21,8 +22,6 @@ import { accounts, credentials } from "../lib/db/schema";
  * Development only. In production nobody is seeded: people register, and the
  * first administrator comes from `scripts/create-account.cjs`.
  */
-
-const ARGON2_OPTIONS = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
 
 // Every seeded account shares one well-known password, so running this against
 // anything but a local checkout hands out working credentials. Refuse rather

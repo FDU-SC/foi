@@ -1,7 +1,7 @@
 import type { ResolvedUser } from "@/lib/accounts/types";
 import { viewerFor } from "@/lib/auth/viewer";
-import { canEnterContest, contestFor } from "@/lib/contests/access";
-import { contestPhase, type ContestConfig } from "@/lib/contests/types";
+import { contestEntryFor } from "@/lib/contests/access";
+import type { ContestConfig } from "@/lib/contests/types";
 import { problemFor } from "@/lib/problems/access";
 import {
   submitRateLimit,
@@ -14,18 +14,19 @@ import {
  *
  * The same shape as the problem, contest, action and backend gates, and here
  * for the reason all of them exist. This sequence — the problem gate, then the
- * contest's phase, then whether it contains the problem, then whether this
- * person is in it — is spelled out twice already: once inside
+ * round the client named — was spelled out twice more: once inside
  * `POST /api/submissions`, and once as `resolveContest` in the action route.
  * `lib/backend/actions.ts` had meanwhile collected the problem half of it into
  * a gate, so the submission path was the one place still carrying the rule as
  * loose statements in a handler.
  *
- * The two are not merged, and that is not an oversight. An action wants a
- * contest it cannot honour to become no contest at all, because a backend
- * keying quotas on a round must not be told a round the player is not in; a
- * submission wants to be refused and told why. Same questions, different last
- * line — so what moves here is the submission's, under a name.
+ * The round half is now `contestEntryFor` in `lib/contests/access.ts`, shared
+ * with the statement page and the action route. What stays here is the problem
+ * gate in front of it and the last line behind it. An action wants a contest it
+ * cannot honour to become no contest at all, because a backend keying quotas on
+ * a round must not be told a round the player is not in; a submission wants to
+ * be refused and told why. Same four facts, different last line — so the facts
+ * moved and the last line did not.
  *
  * Unlike `actionFor`, refusals are not collapsed into `undefined`. That gate
  * answers 404 to everything because the distinctions themselves are the leak —
@@ -37,10 +38,10 @@ import {
  *   Everything below it has already passed the problem gate, so the caller can
  *   read the statement and there is nothing left to conceal.
  * - `contest-mismatch` is 400, because the request is malformed rather than
- *   refused: the client named a contest that is not running, cannot be seen, or
+ *   refused: the client named a contest that is not open, cannot be seen, or
  *   does not contain this problem, and no retry with the same arguments works.
  * - `not-entered` is 403, and separating it from the above is what makes it
- *   useful. The contest is real, visible and running; this person simply is not
+ *   useful. The contest is real, visible and open; this person simply is not
  *   in it, and telling them so is the only way they find out. Folding it into
  *   the 400 once meant a closed round's entry rule decided who appeared on the
  *   scoreboard while anybody could still put work on its judges.
@@ -101,33 +102,28 @@ export function submitFor(
 
   const problem = open.config;
 
-  if (!contestSlug) {
+  // Absent rather than empty. `null`/`undefined` is a submission made outside
+  // any round, which is a legitimate thing to want; `""` is a client naming a
+  // contest and naming it wrong, and it falls through to the same
+  // `contest-mismatch` any other slug that resolves to nothing gets. Accepting
+  // it as "no contest" made the empty string the one malformed value that
+  // silently succeeded, as practice.
+  if (contestSlug === null || contestSlug === undefined) {
     return { ok: true, problem, contest: null, rateLimit: submitRateLimit(problem) };
   }
 
-  // The client supplies the contest, so every fact about it is re-derived.
-  // `gate.visible` rather than the bare view, so that reaching a contest by way
-  // of `contest.viewAll` is reading it rather than competing in it.
-  const view = contestFor(contestSlug, viewer);
-  const contest = view?.gate.visible ? view.config : undefined;
-
-  // `find` rather than `some`: the entry is also where the round states what it
-  // wants this problem's throttle to be, and having located it to answer
-  // "does this contest contain the problem" there is no reason to look twice.
-  const entry = contest?.problems.find((candidate) => candidate.slug === slug);
-
-  if (!contest || contestPhase(contest, now) !== "running" || !entry) {
-    return { ok: false, reason: "contest-mismatch" };
-  }
-
-  if (!canEnterContest(contest, user)) {
-    return { ok: false, reason: "not-entered" };
-  }
+  // The client supplies the contest, so every fact about it is re-derived —
+  // by the same function the statement page and the action route use, since
+  // all three want the same four facts and differ only in what they do with a
+  // refusal. Here they are handed on, because each is a different answer worth
+  // giving.
+  const round = contestEntryFor(contestSlug, slug, user, now);
+  if (!round.ok) return { ok: false, reason: round.reason };
 
   return {
     ok: true,
     problem,
-    contest,
-    rateLimit: submitRateLimit(problem, entry.rateLimit),
+    contest: round.contest,
+    rateLimit: submitRateLimit(problem, round.problemEntry.rateLimit),
   };
 }

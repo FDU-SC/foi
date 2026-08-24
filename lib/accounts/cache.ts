@@ -24,6 +24,12 @@ import type { AccountStatus } from "@/lib/db/schema";
  *
  * Writes go through `lib/accounts/queries.ts`, which invalidates. The TTL is
  * the backstop for a second process having done the writing.
+ *
+ * There was a `displayNameFor(handle)` here that fell back to the bare handle,
+ * left over from when the roster was a compile-time Map and a name could be
+ * looked up one at a time. Nothing called it: the callers that survived the
+ * move ask for the whole map once and index it, because a page that resolves
+ * names one await at a time is the shape this cache exists to avoid.
  */
 export interface AccountSummary {
   handle: string;
@@ -86,17 +92,6 @@ export async function accountSnapshot(): Promise<Map<string, AccountSummary>> {
   }
 
   return (await inflight).byHandle;
-}
-
-/**
- * The display name to show for a handle that may no longer exist.
- *
- * Falling back to the bare handle rather than hiding the row keeps a departed
- * member's submissions on the board under something, which is what the roster
- * registry did before.
- */
-export async function displayNameFor(handle: string): Promise<string> {
-  return (await accountSnapshot()).get(handle)?.displayName ?? handle;
 }
 
 export function invalidateAccounts(): void {

@@ -118,6 +118,18 @@ export const contestConfigSchema = z
           path: ["freezeAt"],
           message: "封榜时间必须落在比赛区间内",
         });
+      } else if (contest.freezeAt.getTime() === contest.endsAt.getTime()) {
+        // Refused for the same reason a `freezeAt` against a format that
+        // ignores it is refused in `lib/contests/registry.ts`: the schedule
+        // says the board stops updating, and it never does. Freezing at the
+        // final instant is an empty window — the contest goes from running
+        // straight to ended and the `frozen` phase is unreachable.
+        ctx.addIssue({
+          code: "custom",
+          path: ["freezeAt"],
+          message:
+            "封榜时间不能等于结束时间：那是一个空的封榜窗口，比赛永远不会进入封榜相位。请提前 freezeAt，或去掉它。",
+        });
       }
     }
 
@@ -147,19 +159,139 @@ export type ContestConfig = z.infer<typeof contestConfigSchema>;
 export type ContestConfigInput = z.input<typeof contestConfigSchema>;
 export type ContestProblemConfig = z.infer<typeof contestProblemSchema>;
 
-export type ContestPhase = "upcoming" | "running" | "ended";
+/**
+ * Everything the clock needs to place a contest. Named rather than spelled as
+ * a `Pick` at each site because two modules take it, and a signature that
+ * silently forgets `freezeAt` is one that silently forgets the freeze.
+ */
+export type ContestClock = Pick<
+  ContestConfig,
+  "startsAt" | "endsAt" | "freezeAt"
+>;
+
+/**
+ * Where a contest is on its own clock, and nothing else.
+ *
+ * `frozen` is a fact about the time of day: the round has reached its
+ * `freezeAt` and has not ended. It is *not* the question the standings page
+ * asks. Whether the board somebody is looking at is frozen depends on who they
+ * are — `standings.viewFrozen` reads through it — and that answer lives on
+ * `Standings.frozen` and `ContestStandings.freezeBypassed`. A UI that reaches
+ * for `phase === "frozen"` to answer the second question will tell a holder of
+ * the capability that the real ranking they are reading is withheld.
+ *
+ * The window is `[freezeAt, endsAt]`: `endsAt` is inclusive here for the same
+ * reason it is inclusive of `running`, so the sequence a contest walks is
+ * always upcoming → running → frozen → ended and never goes backwards.
+ */
+export type ContestPhase = "upcoming" | "running" | "frozen" | "ended";
 
 export function contestPhase(
-  contest: Pick<ContestConfig, "startsAt" | "endsAt">,
+  contest: ContestClock,
   now = new Date(),
 ): ContestPhase {
   if (now < contest.startsAt) return "upcoming";
   if (now > contest.endsAt) return "ended";
+  if (contest.freezeAt && now >= contest.freezeAt) return "frozen";
   return "running";
+}
+
+/**
+ * The mechanical safeguard the predicates below are built on.
+ *
+ * Adding `frozen` to the union broke nothing that the compiler could see,
+ * because every caller compared the phase to a string literal — `!== "running"`
+ * kept typechecking and quietly closed submissions for the last hour of every
+ * frozen round. Routing each question through an exhaustive switch is what
+ * turns the next added phase into a build failure instead of an outage.
+ */
+function assertNever(phase: never): never {
+  throw new Error(`未处理的比赛相位: ${String(phase)}`);
+}
+
+/**
+ * Whether anything may still be sent to this round.
+ *
+ * A freeze stops the board from updating; it does not stop the contest. The
+ * last hour of an ICPC round is its most active one.
+ */
+export function isContestOpen(
+  contest: ContestClock,
+  now = new Date(),
+): boolean {
+  const phase = contestPhase(contest, now);
+  switch (phase) {
+    case "running":
+    case "frozen":
+      return true;
+    case "upcoming":
+    case "ended":
+      return false;
+    default:
+      return assertNever(phase);
+  }
+}
+
+/**
+ * Whether the round has opened, which is what releases its problems.
+ *
+ * The embargo asks exactly this and nothing about the freeze: a round that has
+ * started has published its statements, and freezing the scoreboard four hours
+ * later does not take them back.
+ */
+export function hasContestStarted(
+  contest: ContestClock,
+  now = new Date(),
+): boolean {
+  const phase = contestPhase(contest, now);
+  switch (phase) {
+    case "running":
+    case "frozen":
+    case "ended":
+      return true;
+    case "upcoming":
+      return false;
+    default:
+      return assertNever(phase);
+  }
+}
+
+/** Whether the round is over. */
+export function hasContestEnded(
+  contest: ContestClock,
+  now = new Date(),
+): boolean {
+  const phase = contestPhase(contest, now);
+  switch (phase) {
+    case "ended":
+      return true;
+    case "upcoming":
+    case "running":
+    case "frozen":
+      return false;
+    default:
+      return assertNever(phase);
+  }
 }
 
 export const PHASE_LABEL: Record<ContestPhase, string> = {
   upcoming: "未开始",
   running: "进行中",
+  frozen: "封榜中",
   ended: "已结束",
 };
+
+/**
+ * One tone per phase, so the three pages that draw a phase badge cannot
+ * disagree about what 封榜中 looks like.
+ *
+ * Spelled as literals that happen to be `BadgeTone` rather than typed as one:
+ * `lib/` does not import from `components/`, and a wrong tone still fails to
+ * compile at the `<Badge>` that uses it.
+ */
+export const PHASE_TONE = {
+  upcoming: "info",
+  running: "ok",
+  frozen: "warn",
+  ended: "neutral",
+} as const satisfies Record<ContestPhase, string>;

@@ -1,5 +1,6 @@
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
+import type { DbOrTx } from "@/lib/accounts/queries";
 import { db } from "@/lib/db";
 import { emailVerifications } from "@/lib/db/schema";
 
@@ -27,6 +28,24 @@ const CODE_TTL_MS = 10 * 60 * 1000;
  */
 const VERIFIED_TTL_MS = 30 * 60 * 1000;
 
+/**
+ * How soon one *mailbox* may be sent another verification code.
+ *
+ * `lib/mail/notify.ts` holds a constant of the same name and the same value,
+ * and they are deliberately two policies rather than one that got copied.
+ * This one is keyed by address and enforced as a condition on the upsert
+ * below, because before an account exists an address is the only thing there
+ * is to count against. That one is keyed by handle and purpose and derived
+ * from the last row in `auth_tokens`, because a reset link is minted against
+ * an account. Different subject, different table, different mechanism —
+ * folding them into one export would be a claim that this deployment has a
+ * single resend policy, which is an assertion somebody would have to own, not
+ * a duplicate somebody forgot to remove.
+ *
+ * Exported as `resendCooldownMs` all the same, for the one place that really
+ * was a copy: the register form used to count down from a hardcoded 60 with
+ * nothing tying it to the interval it was counting.
+ */
 const RESEND_COOLDOWN_MS = 60_000;
 
 /**
@@ -238,9 +257,17 @@ export async function isEmailVerified(email: string): Promise<boolean> {
  * Deleted rather than kept: `accounts.email_verified_at` is the durable record
  * that the address was proven, and a second copy of a mailbox nobody needs any
  * more is one more place an address has to be deleted from.
+ *
+ * Takes an optional `DbOrTx` so registration can spend the proof in the same
+ * transaction that writes the account. Spending it outside would mean a
+ * rollback leaves an address that is no longer provable and no account to show
+ * for it — a mail round trip charged for nothing.
  */
-export async function consumeVerifiedEmail(email: string): Promise<void> {
-  await db
+export async function consumeVerifiedEmail(
+  email: string,
+  on: DbOrTx = db,
+): Promise<void> {
+  await on
     .delete(emailVerifications)
     .where(eq(emailVerifications.email, email));
 }
@@ -262,7 +289,15 @@ export async function purgeExpiredVerifications(): Promise<number> {
   return deleted.length;
 }
 
-/** Exposed so the form can say how long a code lasts without guessing. */
+/**
+ * Exposed so callers can state these numbers rather than guess at them.
+ *
+ * `resendCooldownMs` is milliseconds and not seconds on purpose: it is the
+ * same value the upsert above compares against, and converting it here would
+ * put a second unit in the codebase for a "resend" button to pick the wrong
+ * one of. It governs the code this module mints and nothing else — the reset
+ * mail is paced separately, see the note on the constant.
+ */
 export const codeTtlMinutes = CODE_TTL_MS / 60_000;
 export const maxAttempts = MAX_ATTEMPTS;
 export const resendCooldownMs = RESEND_COOLDOWN_MS;

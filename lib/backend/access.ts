@@ -106,6 +106,48 @@ export function backendSecretWarnings(): string[] {
   ];
 }
 
+/** `localhost`, any `127.x`, and the v6 spelling `new URL` hands back. */
+function isLoopback(hostname: string): boolean {
+  return (
+    hostname === "localhost" ||
+    hostname === "[::1]" ||
+    hostname.startsWith("127.")
+  );
+}
+
+/**
+ * Backends carrying real traffic whose address points back at this process.
+ *
+ * `assertEnv` can prove `FOI_BACKEND_<NAME>_URL` was set; it cannot prove the
+ * address means anything, and the way a deployment goes wrong now that the
+ * variable is mandatory is by being filled in from `.env.example`. Inside the
+ * app container `localhost:4100` is the app container, so that lands back on
+ * the failure the boot check was added to stop — no verdict arrives, and every
+ * submission is marked timed out ten minutes later with nothing anywhere
+ * saying why.
+ *
+ * Reported rather than refused, and only for entries something routes to. A
+ * backend really can share a host with the app, so loopback is a smell and not
+ * a fault, and taking a deployment down over a smell is the worse failure —
+ * the same trade `backendSecretWarnings` above makes. Whether it is worth
+ * saying at all depends on where this is running, and that is the caller's to
+ * decide: during `pnpm dev` every entry is the local mock and this is simply
+ * what a checkout looks like.
+ */
+export function backendsOnLoopback(): string[] {
+  return Object.keys(backends).filter((id) => {
+    if (problemsServedBy(id).length === 0) return false;
+
+    try {
+      return isLoopback(new URL(backends[id].url).hostname);
+    } catch {
+      // An address that will not parse is a different finding, and one the
+      // queue board already shows as a backend that cannot be reached.
+      return false;
+    }
+  });
+}
+
 /**
  * Whether this viewer may know the backend exists.
  *

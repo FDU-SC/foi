@@ -7,6 +7,7 @@ import {
   resolveBackend,
 } from "@/lib/backend/client";
 import { signedHeaders } from "@/lib/backend/signature";
+import type { SubmissionState } from "@/lib/backend/types";
 import { db } from "@/lib/db";
 import { accounts, problems, submissions } from "@/lib/db/schema";
 import { allProblems } from "@/lib/problems/registry";
@@ -69,7 +70,14 @@ async function callback(
   id: string,
   body: Record<string, unknown>,
   slug: string = LIVE.slug,
-  options?: { tokenOverride?: string; skipInsert?: boolean },
+  options?: {
+    tokenOverride?: string;
+    skipInsert?: boolean;
+    /** The row's state before the callback arrives. `judging` is the usual one. */
+    state?: SubmissionState;
+    error?: string;
+    outcome?: string;
+  },
 ): Promise<{ response: Response; token: string }> {
   const { token, hash } = createCallbackToken();
 
@@ -81,7 +89,9 @@ async function callback(
       payload: {},
       backendId: "traditional",
       callbackTokenHash: hash,
-      state: "judging",
+      state: options?.state ?? "judging",
+      error: options?.error ?? null,
+      outcome: options?.outcome ?? null,
     });
   }
 
@@ -318,6 +328,55 @@ describeDb("评测回调落地", () => {
       .from(submissions)
       .where(eq(submissions.id, "sub_cb_unsigned"));
     expect(row.state).toBe("judging");
+  });
+
+  /**
+   * The pair that fixes what `abandoned` is for. Abandonment is the reconciler
+   * concluding from silence that no verdict is coming, and this is the backend
+   * proving it wrong — so the write must land, and the timeout text it lands
+   * over must go with it. A single "terminal" predicate cannot express this:
+   * the row is settled for every client and still writable for this caller.
+   */
+  it("对账放弃后到达的真结果仍然落地，并清掉超时文案", async () => {
+    const { response } = await callback(
+      "sub_cb_late",
+      { backendVersion: VERSION, status: "accepted", score: 100 },
+      LIVE.slug,
+      { state: "abandoned", error: "评测超时，未收到题目后端结果" },
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+
+    const [row] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.id, "sub_cb_late"));
+    expect(row.state).toBe("completed");
+    expect(row.outcome).toBe("accepted");
+    expect(row.error).toBeNull();
+  });
+
+  /**
+   * The other half, and the reason the widening above is not simply "accept
+   * everything": a verdict that already landed is the one that counts, and a
+   * judge retrying a delivery it never saw acknowledged must not overwrite it.
+   */
+  it("已完成的提交再收到回调算重复投递，结果不被改写", async () => {
+    const { response } = await callback(
+      "sub_cb_dup",
+      { backendVersion: VERSION, status: "wrong_answer", score: 0 },
+      LIVE.slug,
+      { state: "completed", outcome: "accepted" },
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ duplicate: true });
+
+    const [row] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.id, "sub_cb_dup"));
+    expect(row.state).toBe("completed");
+    expect(row.outcome).toBe("accepted");
   });
 
   it("签名有效但回调令牌错误时被拒绝，提交不被改写", async () => {

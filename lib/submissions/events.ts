@@ -23,11 +23,8 @@ const bus = (globalThis.__foiSubmissionBus ??= new EventEmitter());
 // One listener per open stream; the default cap of 10 would warn under load.
 bus.setMaxListeners(0);
 
-const ALL = "submission";
-
 export function publish(view: SubmissionView): void {
   bus.emit(`submission:${view.id}`, view);
-  bus.emit(ALL, view);
 }
 
 export function subscribe(
@@ -38,14 +35,5 @@ export function subscribe(
   bus.on(channel, handler);
   return () => {
     bus.off(channel, handler);
-  };
-}
-
-export function subscribeAll(
-  handler: (view: SubmissionView) => void,
-): () => void {
-  bus.on(ALL, handler);
-  return () => {
-    bus.off(ALL, handler);
   };
 }

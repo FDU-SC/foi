@@ -1,11 +1,25 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
-import { PAGE_CHECKS, READ_GATES, WRITE_GATES, type Gate } from "./enforcement";
+import {
+  PAGE_CHECKS,
+  READ_GATES,
+  WRITE_GATES,
+  type Denied,
+  type Gate,
+} from "./enforcement";
 import { CAPABILITIES } from "./policy";
 
-/** Both tables under one key space, widened so optional fields are readable. */
-const ALL_GATES: Record<string, Gate> = { ...READ_GATES, ...WRITE_GATES };
+/**
+ * The two tables widened off their literal types, so that optional fields are
+ * readable and a comparison against a `Denied` value neither table happens to
+ * use is a question rather than a type error.
+ */
+const READS: Record<string, Gate> = READ_GATES;
+const WRITES: Record<string, Gate> = WRITE_GATES;
+
+/** Both under one key space. */
+const ALL_GATES: Record<string, Gate> = { ...READS, ...WRITES };
 
 /**
  * What stops the map becoming a snapshot of one afternoon.
@@ -74,22 +88,86 @@ function sources(...directories: string[]): string[] {
 }
 
 /**
- * The text between a function's parentheses, counted rather than matched.
+ * Where the `(` at `openAt` closes, counted rather than matched.
  *
  * `[^)]*` would stop at the first `)`, and several of these signatures end
  * `now = new Date()`.
  */
-function parameters(source: string, openAt: number): string {
+function closingParen(source: string, openAt: number): number {
   let depth = 0;
   for (let i = openAt; i < source.length; i += 1) {
     if (source[i] === "(") depth += 1;
     else if (source[i] === ")") {
       depth -= 1;
-      if (depth === 0) return source.slice(openAt + 1, i);
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+/** The text between a function's parentheses. */
+function parameters(source: string, openAt: number): string {
+  const close = closingParen(source, openAt);
+  return close === -1 ? "" : source.slice(openAt + 1, close);
+}
+
+/**
+ * The declared return type, from the closing `)` up to the body.
+ *
+ * Leans on formatting rather than parsing TypeScript, and on one fact in
+ * particular: Prettier breaks the line straight after the brace that opens a
+ * block, so the body's `{` is the first one followed by a newline. The angle
+ * depth is what keeps `Promise<{` from being mistaken for it, since that is
+ * the other brace in a signature a line break can follow.
+ */
+function returnType(source: string, openAt: number): string {
+  const close = closingParen(source, openAt);
+  if (close === -1) return "";
+
+  const opensBody = (at: number): boolean =>
+    source[at] === "{" && /^[^\S\n]*\n/.test(source.slice(at + 1));
+
+  let angle = 0;
+  for (let i = close + 1; i < source.length; i += 1) {
+    if (source[i] === "<") angle += 1;
+    else if (source[i] === ">" && source[i - 1] !== "=") angle -= 1;
+    else if (angle === 0 && opensBody(i)) {
+      return source.slice(close + 1, i).trim();
     }
   }
   return "";
 }
+
+/**
+ * What each refusal shape promises the declaration will admit.
+ *
+ * `denied` is the one column a reader cannot check for themselves — its own
+ * note says why, since `T | null` and `T | undefined` are the same thing from
+ * the far side of an `await` — so it is checked against the signature here
+ * instead.
+ *
+ * Only the values naming a literal appear. `tagged-reason`, `redacted`,
+ * `empty-object` and `public-variant` are claims about the *contents* of a
+ * value the signature does not distinguish, and a pattern pretending to check
+ * one of those would read like coverage while asserting nothing.
+ *
+ * Which means the entry that prompted this column being audited at all —
+ * `standingsFor`, which claimed `null` while in fact answering everybody with
+ * a board — is not the one this assertion catches. Its corrected value is
+ * `public-variant`, on the unlistable side of that split, and its old `null`
+ * would have passed too: the signature really is `ContestStandings | null`,
+ * for a slug that names no contest. That entry rests on the prose above it
+ * instead. What is mechanised here is the narrower promise that a declaration
+ * naming a literal names one the function can actually return, which is
+ * enough to catch the same mistake wherever the shape is legible.
+ */
+const DENIED_ADMITS: Partial<Record<Denied, RegExp>> = {
+  undefined: /\bundefined\b/,
+  null: /\bnull\b/,
+  false: /\bboolean\b/,
+  "empty-array": /\[\]/,
+  "filtered-out": /\[\]/,
+};
 
 /**
  * Exported functions under `lib/` that take somebody's identity.
@@ -100,15 +178,19 @@ function parameters(source: string, openAt: number): string {
  * counts alongside `Viewer` because entry to a contest needs an account rather
  * than a capability holder.
  */
-function declaredGates(): { key: string; file: string }[] {
+function declaredGates(): { key: string; file: string; returns: string }[] {
   return sources("lib").flatMap((file) => {
     const source = code(readFileSync(file, "utf8"));
     return [...source.matchAll(/export\s+(?:async\s+)?function\s+(\w+)\s*\(/g)]
-      .filter((match) => {
-        const open = match.index + match[0].length - 1;
-        return /\b(?:Viewer|ResolvedUser)\b/.test(parameters(source, open));
-      })
-      .map((match) => ({ key: `${key(file)}#${match[1]}`, file }));
+      .map((match) => ({ match, open: match.index + match[0].length - 1 }))
+      .filter(({ open }) =>
+        /\b(?:Viewer|ResolvedUser)\b/.test(parameters(source, open)),
+      )
+      .map(({ match, open }) => ({
+        key: `${key(file)}#${match[1]}`,
+        file,
+        returns: returnType(source, open),
+      }));
   });
 }
 
@@ -284,6 +366,51 @@ describe("授权地图", () => {
     }
   });
 
+  /**
+   * The column against the declaration it describes. See `DENIED_ADMITS` for
+   * which values can be checked this way and why the rest cannot.
+   */
+  it("denied 声称的形状，函数签名得容得下", () => {
+    const signatures = new Map(
+      declaredGates().map((gate) => [gate.key, gate.returns]),
+    );
+
+    const wrong = Object.entries(READS).flatMap(([name, gate]) => {
+      const admits = DENIED_ADMITS[gate.denied];
+      const signature = signatures.get(name);
+      // A gate the scan no longer finds is the staleness case above, and
+      // saying it twice adds nothing.
+      if (!admits || signature === undefined) return [];
+
+      return admits.test(signature)
+        ? []
+        : [`${name}：denied 写的是 ${gate.denied}，但签名是「${signature}」`];
+    });
+
+    expect(wrong, "denied 这一列与函数签名对不上").toEqual([]);
+  });
+
+  /**
+   * The asymmetry `./enforcement` argues for, which until now lived only in
+   * its prose: a page that cannot show you something renders without it, so a
+   * read gate always has a value to hand back, while an action you may not
+   * take has no partial version to fall back to. A read gate that threw would
+   * push a branch onto every page that calls it; a write gate that returned
+   * something would let a caller ignore the refusal.
+   */
+  it("动作的拒绝一律是抛出，取函数一律不是", () => {
+    const wrong = [
+      ...Object.entries(WRITES)
+        .filter(([, gate]) => gate.denied !== "throws")
+        .map(([name]) => `${name}：动作的 denied 应该是 throws`),
+      ...Object.entries(READS)
+        .filter(([, gate]) => gate.denied === "throws")
+        .map(([name]) => `${name}：取函数不该用抛出表示拒绝`),
+    ];
+
+    expect(wrong, "两张表的 denied 应当是对称的两种形状").toEqual([]);
+  });
+
   it("扫描确实找到了东西，而不是路径写错后空过", () => {
     // Without this, a wrong ROOT would make every assertion above pass by
     // finding nothing at all — the failure mode of a filesystem test. Set well
@@ -296,5 +423,12 @@ describe("授权地图", () => {
       declaredActions().filter((action) => action.capability).length,
     ).toBeGreaterThanOrEqual(2);
     expect(checksOutsideGates().length).toBeGreaterThanOrEqual(4);
+
+    // And the signatures specifically, because `returnType` answering "" for
+    // everything would make the `denied` check above pass by asserting
+    // nothing — the same failure in a smaller place.
+    expect(
+      declaredGates().filter((gate) => gate.returns.length > 0).length,
+    ).toBeGreaterThanOrEqual(15);
   });
 });

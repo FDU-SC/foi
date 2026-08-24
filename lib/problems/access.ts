@@ -1,7 +1,12 @@
 import { inAudience, type Audience } from "@/lib/auth/audience";
 import type { Viewer } from "@/lib/auth/viewer";
+import { contestFor } from "@/lib/contests/access";
 import { allContests } from "@/lib/contests/registry";
-import { contestPhase, type ContestConfig } from "@/lib/contests/types";
+import {
+  hasContestEnded,
+  hasContestStarted,
+  type ContestConfig,
+} from "@/lib/contests/types";
 import { allProblems, problemBySlug } from "./registry";
 import type { ProblemConfig } from "./types";
 
@@ -25,10 +30,12 @@ import type { ProblemConfig } from "./types";
  * drift report, load-time validation — and they are named to make reaching for
  * them a visible choice in a diff.
  *
- * This module may import both registries; neither may import it.
- * `lib/contests/registry.ts` already depends on `lib/problems/registry.ts` for
- * its load-time checks, and both build eagerly at module load, so a back edge
- * from either would be a cycle evaluated during startup.
+ * This module may import both registries and the contest gate; none of them
+ * may import it. `lib/contests/registry.ts` already depends on
+ * `lib/problems/registry.ts` for its load-time checks, and both build eagerly
+ * at module load, so a back edge from either would be a cycle evaluated during
+ * startup. `lib/contests/access.ts` reaches only those two, which is what lets
+ * `reachableViaContest` below ask it a question in the other direction.
  */
 
 export type Visibility =
@@ -41,12 +48,34 @@ export type Visibility =
       opensAt: Date;
     };
 
+/**
+ * What let a viewer have a problem whose gate says no.
+ *
+ * Two paths reach past `problemVisibility`, and a reader has to be told which
+ * one they came in on: a proofreader is looking at something not released
+ * yet, while somebody here through a round is looking at something released to
+ * other people and not to them. The statement page prints a different notice
+ * for each, and asking the capability there instead would put a permission
+ * question back in a page — the thing this module exists to stop.
+ */
+export type ProblemOverride = "problem.viewAll" | "contest";
+
 /** A problem plus why it is, or is not, open to the viewer who asked. */
 export interface ProblemView {
   config: ProblemConfig;
 
   /** Who may read it. `retired` deliberately does not participate. */
   gate: Visibility;
+
+  /**
+   * Which override carried this viewer past `gate`, or null.
+   *
+   * Always null when `gate.visible` — nothing had to be overridden. Non-null
+   * is the case `problemFor` returns a view for a gate that refused, and it
+   * never widens `open`: both overrides read the statement and neither may
+   * submit.
+   */
+  reachedVia: ProblemOverride | null;
 
   /**
    * Whether anything new may be sent to it: visible to this viewer, and not
@@ -129,7 +158,7 @@ export function problemVisibility(
   let embargo: { contestSlug: string; opensAt: Date } | null = null;
 
   for (const contest of contestsUsing(slug)) {
-    if (contestPhase(contest, now) !== "upcoming") {
+    if (hasContestStarted(contest, now)) {
       return { visible: true };
     }
 
@@ -144,9 +173,66 @@ export function problemVisibility(
     : { visible: true };
 }
 
+/**
+ * The second override path, and deliberately the exact shape of the first.
+ *
+ * "Whoever can see a contest can see every one of its problems" holds on the
+ * other two axes already — `audienceCovers` enforces it at load, and a started
+ * round releases its problems — and the one hole left is the capability axis,
+ * which the load-time check cannot see: `contest.viewAll` reaches past a
+ * round's `visibleTo`, and nothing then puts its holder in the audience of the
+ * problems inside. Closing it at retrieval rather than filtering at render is
+ * the same choice `lib/auth/audience.ts` argues for.
+ *
+ * `hasContestStarted` is load-bearing and must not be dropped. Without it a
+ * competitor who *is* in an unstarted round's audience matches — `contestFor`
+ * answers for them, because they are in the audience — and the embargo comes
+ * off for exactly the people it exists to hold it on. With it there is also no
+ * need to look at whether the gate said `audience` or `embargo`: an embargo
+ * means every round using the problem is still upcoming, which this has
+ * already excluded.
+ *
+ * `contestFor(...) !== undefined` rather than `viewer.can("contest.viewAll")`,
+ * because the former is what "may have this contest" is spelled as here.
+ * Naming the capability would restate `contestFor`'s condition, and the next
+ * way of reaching a contest would not be picked up.
+ */
+function reachableViaContest(slug: string, viewer: Viewer, now: Date): boolean {
+  return contestsUsing(slug).some(
+    (contest) =>
+      hasContestStarted(contest, now) &&
+      contestFor(contest.slug, viewer) !== undefined,
+  );
+}
+
+/**
+ * Which override applies, asked only once the gate has refused.
+ *
+ * `problem.viewAll` first, so somebody holding both is told the more specific
+ * thing: they are looking at material that has not been released to anyone,
+ * which is a different situation from looking at material released to other
+ * people.
+ */
+function overrideFor(
+  slug: string,
+  gate: Visibility,
+  viewer: Viewer,
+  now: Date,
+): ProblemOverride | null {
+  if (gate.visible) return null;
+  if (viewer.can("problem.viewAll")) return "problem.viewAll";
+  if (reachableViaContest(slug, viewer, now)) return "contest";
+  return null;
+}
+
 function viewOf(config: ProblemConfig, viewer: Viewer, now: Date): ProblemView {
   const gate = problemVisibility(config.slug, viewer, now);
-  return { config, gate, open: gate.visible && !config.retired };
+  return {
+    config,
+    gate,
+    open: gate.visible && !config.retired,
+    reachedVia: overrideFor(config.slug, gate, viewer, now),
+  };
 }
 
 /**
@@ -160,6 +246,12 @@ function viewOf(config: ProblemConfig, viewer: Viewer, now: Date): ProblemView {
  * Retired problems drop out of this list while staying readable through
  * `problemFor`, which is the whole shape of retirement: gone from the catalogue,
  * still there for whoever competed on it.
+ *
+ * The contest override is deliberately not the same: a problem reached only
+ * because its round can be seen is readable at its own URL and stays out of
+ * the catalogue, because the filter below is `open`, which such a problem is
+ * not. Listing it would put a problem in somebody's 题库 that they cannot
+ * submit to and were never given.
  */
 export function problemsFor(viewer: Viewer, now = new Date()): ProblemView[] {
   const override = viewer.can("problem.viewAll");
@@ -175,6 +267,11 @@ export function problemsFor(viewer: Viewer, now = new Date()): ProblemView[] {
  * move is almost always `notFound()`, and 404 is the right answer anyway —
  * confirming that a slug exists but is embargoed tells a player how many
  * problems the round has and what they are called.
+ *
+ * Two overrides get past a gate that said no, and `reachedVia` says which.
+ * Neither touches `gate` or `open`, so both read the statement and neither may
+ * submit or start a container — the treatment `problem.viewAll` has always
+ * had, now shared.
  */
 export function problemFor(
   slug: string,
@@ -187,7 +284,7 @@ export function problemFor(
   // Gated on visibility alone: a retired problem is still readable by whoever
   // it was written for. What retirement withholds is `open`, not the statement.
   const view = viewOf(config, viewer, now);
-  if (!view.gate.visible && !viewer.can("problem.viewAll")) return undefined;
+  if (!view.gate.visible && view.reachedVia === null) return undefined;
 
   return view;
 }
@@ -248,7 +345,7 @@ export function problemGateWarnings(now = new Date()): string[] {
     if (!problem.retired) continue;
 
     const unfinished = contestsUsing(problem.slug).filter(
-      (contest) => contestPhase(contest, now) !== "ended",
+      (contest) => !hasContestEnded(contest, now),
     );
     if (unfinished.length === 0) continue;
 

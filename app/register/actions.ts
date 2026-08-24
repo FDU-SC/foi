@@ -116,6 +116,12 @@ export async function verifyCodeAction(
   rawEmail: string,
   rawCode: string,
 ): Promise<VerifyState> {
+  // Closed means closed at every step, not only at the two ends. A code issued
+  // just before the flag flipped is still verifiable, so without this somebody
+  // types it in, is told the address is proven, is handed a proof cookie, and
+  // only discovers at submit that there was never going to be an account.
+  if (!enrollmentPolicy.enabled) return { error: "当前未开放注册。" };
+
   const email = emailSchema.safeParse(rawEmail);
   const code = codeSchema.safeParse(rawCode);
 
@@ -259,5 +265,9 @@ export async function registerAction(
     return { createdNeedsLogin: true };
   }
 
-  return {};
+  // As on the login form, `signIn` leaves by throwing, so there is no path
+  // through here. The `return {}` that used to sit here would have shown a
+  // blank form to somebody whose account had just been created, sending them
+  // to retry and collide with their own handle.
+  throw new Error("signIn 没有重定向，注册后的登录结果未知");
 }

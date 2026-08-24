@@ -6,6 +6,7 @@ import { problemFor } from "@/lib/problems/access";
 import { allProblems } from "@/lib/problems/registry";
 import {
   backendSecretWarnings,
+  backendsOnLoopback,
   backendsSharingSecret,
   canSeeBackend,
   backendsFor,
@@ -189,6 +190,97 @@ describe("共用签名密钥的题目后端", () => {
     for (const id of orphanedBackends()) {
       expect(reported).not.toContain(id);
     }
+  });
+});
+
+/**
+ * The half `assertEnv` cannot reach.
+ *
+ * It can insist `FOI_BACKEND_<NAME>_URL` was set; nothing there can tell an
+ * address apart from a leftover, and the leftover a deployment produces is the
+ * development one — which inside the app container names the app container.
+ *
+ * Its own harness rather than the one above, because these cases edit the
+ * addresses while those edit the keys, and a block that restores only what it
+ * touched cannot leave the other one a surprise.
+ */
+describe("指向本机的题目后端", () => {
+  const inUse = Object.keys(backends).filter(
+    (id) => problemsServedBy(id).length > 0,
+  );
+
+  const saved = new Map<string, ProblemBackend>();
+
+  function patch(id: string, changes: Partial<ProblemBackend>): void {
+    if (!saved.has(id)) saved.set(id, backends[id]);
+    backends[id] = { ...backends[id], ...changes };
+  }
+
+  /** Somewhere that is not this process, for every entry. */
+  function elsewhere(): void {
+    for (const id of Object.keys(backends)) {
+      patch(id, { url: "http://host.docker.internal:4100" });
+    }
+  }
+
+  afterEach(() => {
+    for (const [id, entry] of saved) backends[id] = entry;
+    saved.clear();
+  });
+
+  it("指向别处时什么都不报", () => {
+    elsewhere();
+
+    expect(backendsOnLoopback()).toEqual([]);
+  });
+
+  /**
+   * What a checkout looks like, and the shape somebody copies into a
+   * deployment by reaching for `.env.example`.
+   */
+  it("全部指向本机的 mock 时，列出每一台有题目指向的后端", () => {
+    for (const id of Object.keys(backends)) {
+      patch(id, { url: "http://localhost:4100" });
+    }
+
+    expect(backendsOnLoopback().sort()).toEqual([...inUse].sort());
+  });
+
+  it("127.0.0.1 与 [::1] 和 localhost 一样算", () => {
+    if (inUse.length === 0) return;
+
+    for (const address of ["http://127.0.0.1:4100", "http://[::1]:4100"]) {
+      elsewhere();
+      patch(inUse[0], { url: address });
+
+      expect(backendsOnLoopback()).toEqual([inUse[0]]);
+    }
+  });
+
+  /**
+   * Same exclusion the shared-key check makes, for the same reason: nothing
+   * dispatches to a backend no problem names, so where it points cannot cost
+   * anybody a verdict.
+   */
+  it("没有题目指向的后端从不参与，哪怕它指向本机", () => {
+    elsewhere();
+    for (const id of orphanedBackends()) {
+      patch(id, { url: "http://localhost:4100" });
+    }
+
+    expect(backendsOnLoopback()).toEqual([]);
+  });
+
+  /**
+   * An address that will not parse is a different fault and one `/judges`
+   * already shows as a backend it cannot reach. What matters here is that
+   * asking the question does not take the whole operations console down.
+   */
+  it("地址不合法时既不报也不抛", () => {
+    for (const id of inUse) patch(id, { url: "not an address" });
+
+    expect(() => backendsOnLoopback()).not.toThrow();
+    expect(backendsOnLoopback()).toEqual([]);
   });
 });
 

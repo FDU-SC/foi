@@ -8,7 +8,7 @@ import {
   isContestProblemSetVisibleTo,
 } from "@/lib/contests/access";
 import { resolveContestProblems } from "@/lib/contests/queries";
-import { contestPhase, PHASE_LABEL } from "@/lib/contests/types";
+import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
 import { rulesetFor } from "@/lib/standings/registry";
 
 export const dynamic = "force-dynamic";
@@ -51,9 +51,7 @@ export default async function ContestPage({
     <div className="mx-auto max-w-4xl space-y-6">
       <header className="border-border border-b pb-5">
         <div className="mb-2 flex items-center gap-2">
-          <Badge tone={phase === "running" ? "ok" : "neutral"}>
-            {PHASE_LABEL[phase]}
-          </Badge>
+          <Badge tone={PHASE_TONE[phase]}>{PHASE_LABEL[phase]}</Badge>
           <Badge>{ruleset?.name ?? contest.ruleset.id}</Badge>
         </div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">

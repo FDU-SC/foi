@@ -97,7 +97,8 @@ export type Capability = (typeof CAPABILITIES)[number];
  *
  * Deliberately not transitive. One hop is enough for every entry there is, and
  * a fixpoint over a table this small would be machinery guarding against a
- * problem nobody has — `capabilitiesOf` asserts the flatness instead.
+ * problem nobody has — `./groups` asserts the flatness of this table at load
+ * instead, so a two-hop entry refuses to boot rather than closing halfway.
  */
 export const IMPLIES: Partial<Record<Capability, readonly Capability[]>> = {
   "submission.readAny": ["standings.viewFrozen"],
@@ -115,10 +116,3 @@ export const CAPABILITY_LABELS: Record<Capability, string> = {
   "credential.manage": "代发找回密码邮件",
   "account.moderate": "封禁与解封账号",
 };
-
-export function isCapability(value: unknown): value is Capability {
-  return (
-    typeof value === "string" &&
-    (CAPABILITIES as readonly string[]).includes(value)
-  );
-}

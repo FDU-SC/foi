@@ -34,6 +34,15 @@ export function resolveFromRow(account: AccountRow): ResolvedUser {
  * Reads the account by primary key, deliberately bypassing the snapshot in
  * `./cache.ts`: this is the function authorisation is built on, and a
  * suspension must bite on the next request rather than when a TTL expires.
+ *
+ * No `DbOrTx` parameter, unlike the writes in `./queries.ts`. Every caller of
+ * this one is answering "who is making this request" — `auth.ts`, the SSE
+ * heartbeat, the admin actions — and none of them has a transaction open.
+ * Inside one, compose it: `getAccount(handle, tx)` and then `resolveFromRow`,
+ * which is all this function is. That is why the merge is exported separately,
+ * and it is what `app/reset-password/actions.ts` does; a defaulted parameter
+ * here would hide the choice rather than make it, and reaching for the pool
+ * while a transaction is open takes a second connection out of ten.
  */
 export async function resolveUser(
   handle: string,

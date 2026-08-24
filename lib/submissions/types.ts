@@ -21,6 +21,14 @@ export interface SubmissionView {
   maxScore: number | null;
   accepted: boolean | null;
 
+  /**
+   * Why there is no verdict, for the two states that have one. Null otherwise,
+   * including while a submission is still in flight with a dispatch error
+   * recorded against it — see `failureReason`. Not the `error` column: that is
+   * the raw text, and this is the question a player is asking.
+   */
+  reason: string | null;
+
   createdAt: string;
   judgedAt: string | null;
   /**
@@ -39,9 +47,18 @@ export const createSubmissionSchema = z.object({
    * judge decides how to read it.
    */
   payload: z.unknown(),
+  /**
+   * The client's name for this attempt, so a retry is answered from the row
+   * the first try made rather than judged again. Optional because a script
+   * posting straight to this endpoint has no retry loop to protect, and
+   * because the column it lands in tolerates nulls for exactly that reason —
+   * see `submissions.clientNonce`.
+   *
+   * Bounded like any other string arriving from a browser. Nothing reads it
+   * back out, so the shape is the client's business; the length is not.
+   */
+  clientNonce: z.string().min(1).max(64).optional(),
 });
-
-export type CreateSubmissionInput = z.infer<typeof createSubmissionSchema>;
 
 export interface SubmissionListItem extends SubmissionView {
   handle: string;

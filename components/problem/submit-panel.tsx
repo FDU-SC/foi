@@ -130,6 +130,19 @@ export function SubmitPanel({
           </form>
         )}
 
+        {/*
+          The badge above says 评测失败 for both `failed` and `abandoned`, on
+          purpose — see `STATE_PRESETS`. This line is the only place the two
+          differ in front of a player, and it is the difference that decides
+          what to do next: a refusal will refuse the same submission again, a
+          timeout says nothing about the submission and is worth retrying.
+        */}
+        {submission?.reason ? (
+          <p className="text-err bg-err-subtle mt-4 rounded-md px-3 py-2 text-sm">
+            {submission.reason}
+          </p>
+        ) : null}
+
         {submission?.verdict ? (
           <div className="border-border mt-4 border-t pt-4">
             <VerdictDetail verdict={submission.verdict} />

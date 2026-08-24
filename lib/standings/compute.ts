@@ -83,7 +83,6 @@ async function loadAndCompute(
       : declared.map((entrant) => ({
           handle: entrant.handle,
           displayName: entrant.displayName,
-          unofficial: false,
         }));
 
   // Withholding the freeze is expressed by handing the ruleset a contest that
@@ -104,6 +103,13 @@ async function loadAndCompute(
     submissions: submissionRows satisfies SubmissionRecord[],
   };
 
+  // Deliberately not `contestPhase(contest) === "frozen"`, close as the two
+  // look. That one is a clock fact about the round and its window runs to
+  // `endsAt` inclusive, the same as `running`; this one exists only to label a
+  // board, and the board it is labelling was computed by a ruleset applying
+  // its own `freezeAt`/`endsAt` comparison. The label has to agree with what
+  // the format actually did, so it is written the way the format writes it —
+  // see the note on `ContestPhase` for why the two questions stay apart.
   const now = Date.now();
   const wouldFreeze =
     contest.freezeAt !== undefined &&
@@ -134,7 +140,6 @@ function deriveParticipants(
     seen.set(row.handle, {
       handle: row.handle,
       displayName: row.displayName,
-      unofficial: false,
     });
   }
   return [...seen.values()];

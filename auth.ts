@@ -14,6 +14,7 @@ import type { Capability } from "@/lib/auth/policy";
 import type { SessionUser } from "@/lib/auth/session";
 import { viewerFor, type Viewer } from "@/lib/auth/viewer";
 import { rateLimit, sourceFrom } from "@/lib/ratelimit";
+import { ACTION_LIMITS, alsoRule, fixedRule } from "@/lib/ratelimit/policy";
 
 const credentialsSchema = z.object({
   handle: z.string().min(1),
@@ -21,27 +22,23 @@ const credentialsSchema = z.object({
 });
 
 /**
- * Two keys, because the two abuses look different.
+ * Two keys, because the two abuses look different and neither counter sees
+ * the other's.
  *
- * Per handle catches somebody grinding one account's password; per source
- * catches somebody spraying one password across many accounts, which the
- * per-handle counter never sees. Neither bound alone is enough.
- *
- * This matters more than the usual case for rate-limiting a login: every
- * attempt costs an argon2 verify at 19 MiB, and `authorize` deliberately runs
- * one even for handles that do not exist so the timing gives nothing away. An
- * unmetered login is therefore a memory and CPU amplifier, not just a
- * guessing oracle.
+ * Both numbers are read out of `ACTION_LIMITS.login` rather than written
+ * here, which is what makes that table the answer to "what bounds a login"
+ * instead of a second place to keep in step. Why there are two of them, and
+ * why they are set where they are, is argued on the entry.
  */
-const PER_HANDLE = { limit: 10, windowMs: 5 * 60 * 1000 };
-const PER_SOURCE = { limit: 40, windowMs: 5 * 60 * 1000 };
+const PER_HANDLE = fixedRule(ACTION_LIMITS.login);
+const PER_SOURCE = alsoRule(ACTION_LIMITS.login);
 
 function withinLoginRate(handle: string, request: Request | undefined): boolean {
   if (
     !rateLimit(
       `login:handle:${normalizeHandle(handle)}`,
-      PER_HANDLE.limit,
-      PER_HANDLE.windowMs,
+      PER_HANDLE.max,
+      PER_HANDLE.windowSeconds * 1000,
     ).ok
   ) {
     return false;
@@ -54,8 +51,11 @@ function withinLoginRate(handle: string, request: Request | undefined): boolean 
   // value instead of per machine and a sprayer simply varied it.
   const source = request ? sourceFrom(request.headers) : "unknown";
 
-  return rateLimit(`login:ip:${source}`, PER_SOURCE.limit, PER_SOURCE.windowMs)
-    .ok;
+  return rateLimit(
+    `login:ip:${source}`,
+    PER_SOURCE.max,
+    PER_SOURCE.windowSeconds * 1000,
+  ).ok;
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({

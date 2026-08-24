@@ -86,10 +86,26 @@ export const accounts = pgTable(
      * Suspension is data rather than a line in the repository: banning a spam
      * signup should not require a pull request. It is still an accountable
      * act, hence the audit columns.
+     *
+     * All four describe the *most recent* suspension, not the current state —
+     * `status` is the only thing that answers whether somebody may act, and it
+     * is what every caller asks. Reinstating used to clear the three columns
+     * above, which meant a moderation decision survived exactly until it was
+     * reversed; someone suspended and let back in twice left no trace of
+     * either. Keeping them costs nothing because nothing reads them as a
+     * predicate.
+     *
+     * `reinstatedAt` is the other end of that record. Without it a row with
+     * `suspendedAt` set and `status = "active"` says a suspension happened and
+     * ended, but not when — and "when" is the half an operator asks for, since
+     * the reason and the moderator are already on the row. Cleared by
+     * `suspendAccount`, so the pair always describes one episode rather than
+     * two halves of different ones.
      */
     suspendedAt: timestamp("suspended_at", { withTimezone: true }),
     suspendedBy: text("suspended_by"),
     suspendedReason: text("suspended_reason"),
+    reinstatedAt: timestamp("reinstated_at", { withTimezone: true }),
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -294,6 +310,31 @@ export const submissions = pgTable(
     /** Whatever the statement's submitter produced. Never read by the kernel. */
     payload: jsonb("payload").$type<unknown>().notNull(),
 
+    /**
+     * What the browser called this attempt, so that repeating it does not
+     * repeat the submission.
+     *
+     * Every other step of the judging loop is already idempotent — the
+     * callback token is single-use, the state guards make the first verdict
+     * win, `ensureProblem` upserts — and the entrance was the one place a
+     * retry cost something real: a second row and a second slot in a judge's
+     * queue, for one thing the player did once. The client mints one of these
+     * per attempt and reuses it when a submit has to be retried, so a request
+     * whose reply was lost can be re-asked and answered from the row it
+     * already made.
+     *
+     * Nullable, and the unique index below is what makes that work: Postgres
+     * does not consider two nulls equal, so submissions from anything that
+     * sends no nonce — a script, an older client — never collide with each
+     * other. Scoped to the handle rather than global, because it is a client's
+     * private counter and two people must not be able to collide on purpose.
+     *
+     * Deliberately not derived from the payload. Two identical submissions a
+     * minute apart are two submissions, and hashing the body would silently
+     * refuse the second.
+     */
+    clientNonce: text("client_nonce"),
+
     state: text("state").$type<SubmissionState>().notNull().default("pending"),
 
     /**
@@ -392,6 +433,13 @@ export const submissions = pgTable(
     // Drives the reconciler sweep for submissions whose callback never landed.
     index("submissions_pending_idx").on(table.state, table.createdAt),
     index("submissions_handle_idx").on(table.handle, table.createdAt),
+    // The idempotency key itself, not merely an index over it: the submit
+    // route reads before it writes, and two clicks racing would both pass that
+    // read. This is what makes the second insert lose.
+    uniqueIndex("submissions_client_nonce_key").on(
+      table.handle,
+      table.clientNonce,
+    ),
   ],
 );
 

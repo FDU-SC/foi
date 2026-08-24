@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vitest/config";
+import { defaultExclude, defineConfig } from "vitest/config";
 
 // Node's own parser rather than a shell `source`, which chokes on unquoted
 // values like `FOI_MAIL_FROM=FOI <foi@localhost>`. This is only for local
@@ -16,7 +16,29 @@ if (existsSync(".env.local")) process.loadEnvFile(".env.local");
  * and runs anywhere; `db` talks to a real Postgres and skips itself when there
  * is none, so a checkout without a database still gets the scoring and
  * signature coverage.
+ *
+ * Both collect from the whole tree rather than from a list of directories.
+ * They used to name `lib/` and `content/`, which meant a test written beside
+ * a server action or a route handler was collected by nothing and reported by
+ * nothing: `vitest run` says how many files passed, never which ones it
+ * declined to look for. A directory list is only correct until somebody puts
+ * a test somewhere sensible that is not on it, and the cost of being wrong is
+ * a green run.
+ *
+ * That is not an invitation to test pages. Most of what a route handler or an
+ * action does is worth testing one layer down, where it can be reached without
+ * a request — see `lib/submissions/submit-route.db.test.ts`, which exercises
+ * the submission endpoint's rules against the mechanism rather than the
+ * handler. The point here is only that choosing to write the test elsewhere
+ * must be a choice, not something the runner decides in silence.
  */
+const EVERYWHERE = ["**/*.test.{ts,tsx}"];
+const DB_ONLY = ["**/*.db.test.{ts,tsx}"];
+
+// Vitest replaces its own defaults when `exclude` is given, and `.next/`
+// contains compiled copies of anything it has seen.
+const NOT_SOURCE = [...defaultExclude, "**/.next/**"];
+
 export default defineConfig({
   resolve: {
     tsconfigPaths: true,
@@ -39,15 +61,16 @@ export default defineConfig({
         extends: true,
         test: {
           name: "unit",
-          include: ["lib/**/*.test.ts", "content/**/*.test.ts"],
-          exclude: ["lib/**/*.db.test.ts"],
+          include: EVERYWHERE,
+          exclude: [...NOT_SOURCE, ...DB_ONLY],
         },
       },
       {
         extends: true,
         test: {
           name: "db",
-          include: ["lib/**/*.db.test.ts"],
+          include: DB_ONLY,
+          exclude: NOT_SOURCE,
           // These share one database; running files in parallel would have
           // them stepping on each other's rows.
           fileParallelism: false,

@@ -5,7 +5,8 @@ import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { resolveFromRow } from "@/lib/accounts/resolve";
 import { adminAccountsFor } from "@/lib/admin/access";
-import { groupName, isPrivileged } from "@/lib/auth/groups";
+import type { AccountRow } from "@/lib/db/schema";
+import { groupName, hasPrivilege, isPrivileged } from "@/lib/auth/groups";
 import { Field, Input } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { ResendResetForm } from "../resend-reset-form";
@@ -25,12 +26,47 @@ const STATUS: Record<string, { label: string; tone: "ok" | "err" }> = {
 };
 
 /**
- * Whether this account holds any privilege, and therefore may not be suspended
- * from here — `suspendAccountAction` refuses it, and offering the button anyway
- * would be an invitation to discover that the hard way.
+ * What the four audit columns say, which depends on `status` and nothing else.
+ *
+ * Suspended reads them as the current decision; active reads the same columns
+ * as a closed episode, and that second case is the whole reason `reinstatedAt`
+ * exists. Without it a reinstated row would either show nothing — losing the
+ * record a reinstatement used to erase outright — or show a reason with no way
+ * to say it is over.
+ *
+ * Only the most recent episode. A second suspension overwrites the first, so
+ * this is deliberately not a timeline; see `reinstateAccount` for why an
+ * events table is a bigger claim than the console makes.
  */
-function isPrivilegedAccount(account: { groups: string[] }): boolean {
-  return account.groups.some(isPrivileged);
+function ModerationNote({ row }: { row: AccountRow | undefined }) {
+  if (!row?.suspendedAt) return null;
+
+  const by = row.suspendedBy ? `由 ${row.suspendedBy}` : null;
+
+  if (row.status === "suspended") {
+    return (
+      <p className="text-fg-subtle mt-1 text-xs leading-4">
+        {row.suspendedReason}
+        {by ? (
+          <>
+            <br />
+            {by}
+          </>
+        ) : null}
+      </p>
+    );
+  }
+
+  return (
+    <p className="text-fg-subtle mt-1 text-xs leading-4">
+      曾于 {formatter.format(row.suspendedAt)} 被封禁
+      {by ? `，${by}` : ""}
+      <br />
+      {row.reinstatedAt
+        ? `${formatter.format(row.reinstatedAt)} 解封`
+        : "已解封，时间未记录"}
+    </p>
+  );
 }
 
 export default async function AdminAccountsPage({
@@ -174,13 +210,7 @@ export default async function AdminAccountsPage({
                   </td>
                   <td className="px-4 py-2.5">
                     <Badge tone={status.tone}>{status.label}</Badge>
-                    {account.status === "suspended" ? (
-                      <p className="text-fg-subtle mt-1 text-xs leading-4">
-                        {suspensions.get(account.handle)?.suspendedReason}
-                        <br />
-                        由 {suspensions.get(account.handle)?.suspendedBy}
-                      </p>
-                    ) : null}
+                    <ModerationNote row={suspensions.get(account.handle)} />
                   </td>
                   <td className="px-4 py-2.5">
                     {account.groups.length === 0 ? (
@@ -221,7 +251,10 @@ export default async function AdminAccountsPage({
                             hasPassword={credential?.hasPassword ?? false}
                           />
                         ) : null}
-                        {canModerate && !isPrivilegedAccount(account) ? (
+                        {/* `suspendAccountAction` refuses a privileged target,
+                            so drawing the button anyway would be an invitation
+                            to discover that the hard way. */}
+                        {canModerate && !hasPrivilege(account.groups) ? (
                           <ModerateForm
                             handle={account.handle}
                             suspended={account.status === "suspended"}

@@ -1,8 +1,14 @@
 import { normalizeHandle, type ResolvedUser } from "@/lib/accounts/types";
 import { inAudience, type Audience } from "@/lib/auth/audience";
-import type { Viewer } from "@/lib/auth/viewer";
+import { viewerFor, type Viewer } from "@/lib/auth/viewer";
 import { allContests, contestBySlug } from "./registry";
-import { contestPhase, type ContestConfig } from "./types";
+import {
+  hasContestStarted,
+  isContestOpen,
+  type ContestClock,
+  type ContestConfig,
+  type ContestProblemConfig,
+} from "./types";
 
 /**
  * How anything that renders to a person obtains a contest, and who may enter
@@ -143,11 +149,80 @@ export function canEnterContest(
  * certainly read its label and what it is worth.
  */
 export function isContestProblemSetVisibleTo(
-  contest: Pick<ContestConfig, "startsAt" | "endsAt">,
+  contest: ContestClock,
   viewer: Viewer,
   now = new Date(),
 ): boolean {
-  return (
-    contestPhase(contest, now) !== "upcoming" || viewer.can("problem.viewAll")
+  return hasContestStarted(contest, now) || viewer.can("problem.viewAll");
+}
+
+/**
+ * The round a submission or an interactive action belongs to, re-derived from
+ * the slug the client supplied.
+ *
+ * This was written three times — inside `submitFor`, and as a local
+ * `resolveContest` on the statement page and again in the action route — and
+ * the three had drifted. The statement page had dropped the `gate.visible`
+ * check, so a holder of `contest.viewAll` opening `?contest=<staged round>`
+ * got that round's breadcrumb and had its slug handed to the submit panel, for
+ * an attribution the API then refused. Four facts have to hold together and
+ * checking three of them is not a weaker gate, it is a different one.
+ *
+ * The facts, in this order:
+ *
+ *   1. the contest resolves and this person may *read* it — `gate.visible`
+ *      rather than the bare view, so reaching a round through
+ *      `contest.viewAll` stays reading it rather than competing in it
+ *   2. it contains this problem
+ *   3. it is open — `isContestOpen`, so the freeze does not end the round
+ *   4. this person may enter it
+ *
+ * Refusals are tagged because `submitFor` owes its caller the difference: a
+ * round that is over is a malformed request, a round somebody is not in is a
+ * refusal they can act on. The two callers that want a contest or nothing —
+ * the statement page and the action route, where naming a round the player is
+ * not in must become naming no round at all — collapse both to null at the
+ * call site. That last line is all the three ever disagreed about, which is
+ * why it is the only part left outside.
+ *
+ * The account rather than a `Viewer`, and the viewer derived here: entry keys
+ * on a handle that is really somebody's, and two parameters carrying one
+ * identity can be handed arguments that disagree. Null is anonymous, which
+ * reads every public round and enters none.
+ */
+export type ContestEntry =
+  | {
+      ok: true;
+      contest: ContestConfig;
+      /** This round's listing for the problem: its label, points and throttle. */
+      problemEntry: ContestProblemConfig;
+    }
+  | { ok: false; reason: "contest-mismatch" | "not-entered" };
+
+export function contestEntryFor(
+  contestSlug: string,
+  problemSlug: string,
+  user: Pick<ResolvedUser, "handle" | "groups"> | null,
+  now = new Date(),
+): ContestEntry {
+  const view = contestFor(contestSlug, viewerFor(user));
+  const contest = view?.gate.visible ? view.config : undefined;
+
+  // `find` rather than `some`: the entry is also where the round states what it
+  // wants this problem's throttle and point value to be, and having located it
+  // to answer "does this contest contain the problem" there is no reason to
+  // look twice.
+  const problemEntry = contest?.problems.find(
+    (candidate) => candidate.slug === problemSlug,
   );
+
+  if (!contest || !problemEntry || !isContestOpen(contest, now)) {
+    return { ok: false, reason: "contest-mismatch" };
+  }
+
+  if (!user || !canEnterContest(contest, user)) {
+    return { ok: false, reason: "not-entered" };
+  }
+
+  return { ok: true, contest, problemEntry };
 }

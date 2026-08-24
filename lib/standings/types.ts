@@ -15,7 +15,6 @@ export interface Participant {
   /** Identifies the person everywhere: roster, credentials and submissions. */
   handle: string;
   displayName: string;
-  unofficial: boolean;
 }
 
 /**
@@ -67,9 +66,14 @@ export interface StandingsRow<Cell> {
 
 export interface Standings<Cell> {
   rows: StandingsRow<Cell>[];
-  /** Column headers for `total` and `tiebreak`. */
+  /**
+   * Header for the total column.
+   *
+   * There is no counterpart for `tiebreak`, because there is no column for it:
+   * a format that wants its tiebreak on screen renders it inside `render.Total`
+   * the way ACM and CTF do, under the total it belongs to.
+   */
   totalLabel: string;
-  tiebreakLabel?: string;
   /** Set when results are hidden past the freeze time. */
   frozen: boolean;
 }

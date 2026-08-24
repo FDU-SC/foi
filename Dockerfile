@@ -83,6 +83,11 @@ COPY --from=builder --chown=foi:nodejs /app/drizzle ./drizzle
 # image either way.
 COPY --from=builder --chown=foi:nodejs /app/scripts/create-account.cjs ./scripts/
 COPY --from=builder --chown=foi:nodejs /app/scripts/set-password.cjs ./scripts/
+# Both of the above require it, and it is not reachable through the standalone
+# bundle: the application imports it too, but as part of a bundled chunk rather
+# than as a traced file on disk. Named individually like its siblings so that
+# adding a script is a decision rather than a side effect of a glob.
+COPY --from=builder --chown=foi:nodejs /app/scripts/argon2-options.cjs ./scripts/
 
 USER foi
 EXPOSE 3000

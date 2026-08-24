@@ -7,10 +7,12 @@ import {
 } from "@/lib/enrollment/registry";
 import { isHandlesRule } from "@/lib/enrollment/types";
 import {
+  assertFlatImplications,
   capabilitiesOf,
   declaredGroupIds,
   getGroup,
   groupName,
+  hasPrivilege,
   isPrivileged,
   listGroups,
   privilegedGroupIds,
@@ -97,26 +99,25 @@ describe("能力蕴含", () => {
   });
 
   /**
-   * The guard used to stand down under `NODE_ENV === "production"`, which is
-   * every deployed environment there is — so the check that was supposed to
-   * catch a two-hop entry ran only where somebody was already looking.
+   * The guard used to sit inside `capabilitiesOf`, where two things kept it
+   * from being one: it stood down under `NODE_ENV === "production"` — every
+   * deployed environment there is — and even with that removed it could only
+   * fire for somebody who *held* the offending capability, so a two-hop entry
+   * could ship and stay quiet until the first administrator signed in. It now
+   * runs over the whole table at load, and this says so where it is cheap to
+   * read.
    *
    * Reaching into `IMPLIES` because the repository's own table is flat and
    * there is no other way to see the guard fire. Restored in a `finally`: it is
    * module state shared with every case after this one.
    */
-  it("多跳的蕴含项当场抛错，且不看 NODE_ENV", () => {
-    const holder = listGroups().find((group) =>
-      (group.capabilities as readonly string[]).includes("submission.readAny"),
-    );
-    if (!holder) return;
-
+  it("多跳的蕴含项当场抛错，不看 NODE_ENV，也不用有人持有它", () => {
     const saved = IMPLIES["standings.viewFrozen"];
     IMPLIES["standings.viewFrozen"] = ["admin.access"];
     vi.stubEnv("NODE_ENV", "production");
 
     try {
-      expect(() => capabilitiesOf([holder.id])).toThrow(/一跳/);
+      expect(() => assertFlatImplications()).toThrow(/一跳/);
     } finally {
       IMPLIES["standings.viewFrozen"] = saved;
       vi.unstubAllEnvs();
@@ -133,6 +134,27 @@ describe("能力蕴含", () => {
       const granted = capabilitiesOf([holder.id]);
       for (const id of implied ?? []) expect(granted.has(id)).toBe(true);
     }
+  });
+
+  /**
+   * The two spellings `hasPrivilege` replaced: the load-time check in
+   * `lib/enrollment/registry.ts` asked `isPrivileged` per group, the
+   * suspension guard asked whether `capabilitiesOf` came back non-empty. They
+   * agree only because the closure adds to a set that already had something in
+   * it, so pin that here — a capability that nothing grants but something
+   * implies would make the two disagree about who counts as privileged, and
+   * they are the same rule about who may not be touched.
+   */
+  it("hasPrivilege 与「能力集非空」问的是同一件事", () => {
+    const ids = listGroups().map((group) => group.id);
+
+    for (const id of ids) {
+      expect(hasPrivilege([id]), id).toBe(capabilitiesOf([id]).size > 0);
+    }
+
+    expect(hasPrivilege(ids)).toBe(capabilitiesOf(ids).size > 0);
+    expect(hasPrivilege([])).toBe(false);
+    expect(hasPrivilege(["一个不存在的组"])).toBe(false);
   });
 
   it("蕴含出来的能力不会让一个纯分组凭空得到权限", () => {

@@ -27,7 +27,6 @@ export function participants(...handles: string[]): Participant[] {
   return handles.map((handle) => ({
     handle,
     displayName: handle.toUpperCase(),
-    unofficial: false,
   }));
 }
 

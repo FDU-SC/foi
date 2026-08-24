@@ -1,4 +1,5 @@
 import { and, desc, eq } from "drizzle-orm";
+import { failureReason } from "@/lib/backend/types";
 import { db } from "@/lib/db";
 import { accounts, problems, submissions } from "@/lib/db/schema";
 import type { SubmissionRow } from "@/lib/db/schema";
@@ -15,6 +16,7 @@ export function toView(row: SubmissionRow): SubmissionView {
     score: row.score,
     maxScore: row.maxScore,
     accepted: row.accepted,
+    reason: failureReason(row),
     createdAt: row.createdAt.toISOString(),
     judgedAt: row.judgedAt?.toISOString() ?? null,
   };
@@ -27,6 +29,31 @@ export async function getSubmissionRow(
     .select()
     .from(submissions)
     .where(eq(submissions.id, id))
+    .limit(1);
+  return row;
+}
+
+/**
+ * The row a client's nonce already produced, if it produced one.
+ *
+ * Keyed by both columns because the unique index is: a nonce is a client's
+ * private counter, and one person's must not be able to name another's
+ * submission. Serves the read before the insert and the recovery after a lost
+ * race on it — see `submissions.clientNonce`.
+ */
+export async function findSubmissionByNonce(
+  handle: string,
+  clientNonce: string,
+): Promise<SubmissionRow | undefined> {
+  const [row] = await db
+    .select()
+    .from(submissions)
+    .where(
+      and(
+        eq(submissions.handle, handle),
+        eq(submissions.clientNonce, clientNonce),
+      ),
+    )
     .limit(1);
   return row;
 }

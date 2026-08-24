@@ -4,22 +4,62 @@ import type { BadgeTone } from "@/components/ui/badge";
 /**
  * Lifecycle of a submission as tracked by the kernel. Distinct from the
  * judge's own verdict status, which is an opaque string.
+ *
+ * `failed` and `abandoned` are both "no verdict, and none is coming", and they
+ * are two states because they are two different claims. `failed` is a backend
+ * saying no — a 4xx on dispatch, or `accepted: false` — which is a decision
+ * somebody made about this submission. `abandoned` is the reconciler guessing:
+ * nothing has come back for long enough that the kernel stops waiting. A guess
+ * can be wrong, so the write path treats them oppositely — see
+ * `acceptsVerdict`. Players are shown the same thing either way; the
+ * distinction answers a question only the callback handler asks.
  */
 export const SUBMISSION_STATES = [
   "pending",
   "judging",
   "completed",
   "failed",
+  "abandoned",
 ] as const;
 
 export type SubmissionState = (typeof SUBMISSION_STATES)[number];
 
-export function isTerminalState(state: SubmissionState): boolean {
-  return state === "completed" || state === "failed";
+/**
+ * "Is there any point waiting for this?" — the client's question.
+ *
+ * Everything that polls, streams or renders a spinner asks this one: whether
+ * to keep an EventSource open, whether to schedule another poll, whether to
+ * look the row up in a judge's queue. `abandoned` is settled because the
+ * kernel has stopped expecting a result, and a client that kept waiting would
+ * wait on a row nothing is going to touch.
+ */
+export function isSettled(state: SubmissionState): boolean {
+  return (
+    state === "completed" || state === "failed" || state === "abandoned"
+  );
 }
 
 /**
- * The states a submission can still be moved out of.
+ * "May a callback still write to this?" — the server's question.
+ *
+ * Not the negation of `isSettled`, and that is the whole reason there are two
+ * predicates rather than one. `abandoned` answers yes to both: the client
+ * should stop waiting, *and* a late callback is still welcome, because
+ * abandonment was a guess about a backend that had gone quiet and a verdict
+ * arriving afterwards proves the guess wrong. Collapsing the two back into a
+ * single "terminal" would force a choice between clients spinning forever on
+ * abandoned rows and real verdicts being discarded on arrival.
+ *
+ * `completed` and `failed` are excluded for the usual idempotency reason:
+ * whichever verdict landed first is the one that counts, and `failed` is a
+ * refusal the backend itself issued rather than something the kernel inferred.
+ */
+export function acceptsVerdict(state: SubmissionState): boolean {
+  return state === "pending" || state === "judging" || state === "abandoned";
+}
+
+/**
+ * The states a submission can still be moved out of *by the reconciler*.
  *
  * Every write that reaches a terminal state is guarded by this list in its
  * `where` clause rather than by a preceding read. The callback handler and the
@@ -28,8 +68,18 @@ export function isTerminalState(state: SubmissionState): boolean {
  * so whichever writes second has to lose rather than overwrite a verdict that
  * already landed. Without the guard an accepted submission can be rewritten as
  * a timeout, silently and after the fact.
+ *
+ * Deliberately narrower than `acceptsVerdict`: `abandoned` is absent. The
+ * sweep selects on this list too, and a row it has already given up on should
+ * not come back round every fifteen seconds to be polled and given up on
+ * again. A verdict may still land on it — but by callback, which is the
+ * channel that has something new to say.
  */
 export const NON_TERMINAL_STATES: SubmissionState[] = ["pending", "judging"];
+
+/** The states a callback may still write over. See `acceptsVerdict`. */
+export const CALLBACK_WRITABLE_STATES: SubmissionState[] =
+  SUBMISSION_STATES.filter(acceptsVerdict);
 
 /**
  * What a backend may say when it has finished.
@@ -66,10 +116,10 @@ export type Verdict = z.infer<typeof verdictSchema>;
 /**
  * Who a backend is being asked to act for.
  *
- * In the body rather than in a header because `sign()` covers
- * `<timestamp>.<body>` and nothing else — an identity in a header is an
- * identity the signature does not protect, which is worse than none at all
- * since the backend would have every reason to trust it.
+ * In the body rather than in a header because `sign()` covers the timestamp,
+ * the method, the path and the body — and no headers at all. An identity in a
+ * header is an identity the signature does not protect, which is worse than
+ * none at all since the backend would have every reason to trust it.
  *
  * `handle` is the identity: there is no opaque id anywhere in this codebase,
  * and submissions are keyed by handle too, so a backend comparing the two
@@ -270,6 +320,16 @@ export function describeVerdict(result: {
   return { label, short: label, tone };
 }
 
+/**
+ * `abandoned` reads as `failed` on purpose, down to the wording.
+ *
+ * Whether the kernel was told the submission would never be judged or merely
+ * concluded as much is a question about the write path — it decides what a
+ * late callback is allowed to do. The player asked a different question, "do I
+ * have a result", and the answer is no either way. Two labels here would
+ * publish an internal distinction as if it were something to act on. What does
+ * differ is the reason text on the row, which `toView` surfaces for both.
+ */
 export const STATE_PRESETS: Record<
   SubmissionState,
   { label: string; tone: BadgeTone }
@@ -278,4 +338,41 @@ export const STATE_PRESETS: Record<
   judging: { label: "评测中", tone: "info" },
   completed: { label: "已完成", tone: "neutral" },
   failed: { label: "评测失败", tone: "err" },
+  abandoned: { label: "评测失败", tone: "err" },
 };
+
+/**
+ * What to say when nothing more specific was recorded.
+ *
+ * These are the only two sentences that tell `failed` and `abandoned` apart in
+ * front of a player, and they are worth telling apart because they call for
+ * opposite reactions: a refusal means the submission itself was unacceptable
+ * and resubmitting the same thing will be refused again, while a timeout says
+ * nothing about the submission at all and is worth retrying.
+ */
+const DEFAULT_FAILURE_REASONS: Record<"failed" | "abandoned", string> = {
+  failed: "题目后端拒绝了这次提交",
+  abandoned: "评测超时，未收到题目后端结果",
+};
+
+/**
+ * Why there is no verdict, or null when that is not the question.
+ *
+ * Gated on the state rather than simply exposing the `error` column, because
+ * that column is also written on a dispatch whose outcome was *unknown* — a
+ * row that is still `pending` and may yet be judged. Showing "无法连接题目后端"
+ * next to a spinner would announce a failure that has not happened.
+ *
+ * The row's own text wins where there is one: it names the status code or the
+ * refusal the backend gave, which is more use to whoever has to fix it than
+ * either sentence above.
+ */
+export function failureReason(submission: {
+  state: SubmissionState;
+  error: string | null;
+}): string | null {
+  if (submission.state !== "failed" && submission.state !== "abandoned") {
+    return null;
+  }
+  return submission.error ?? DEFAULT_FAILURE_REASONS[submission.state];
+}

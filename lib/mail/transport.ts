@@ -1,5 +1,7 @@
 import { createTransport, type Transporter } from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
+import { enrollmentPolicy } from "@/lib/enrollment/registry";
+import type { EnrollmentPolicy } from "@/lib/enrollment/types";
 
 /**
  * Handing a message to the mail server, and nothing more.
@@ -10,10 +12,12 @@ import type SMTPTransport from "nodemailer/lib/smtp-transport";
  * the two fight over backpressure while splitting the delivery record across
  * two systems. FOI hands the message over once and reports what happened.
  *
- * With no host configured, mail goes to stdout instead. A fresh checkout
- * should be able to run the whole registration flow without a mail server
- * standing by, which is the same bargain `scripts/mock-backend.ts` offers for
- * judging — and printing the link is what makes it usable.
+ * Mail may also go to stdout instead, and which of the two happens is a
+ * declared decision rather than a side effect of the environment — see
+ * `policy.mailDelivery` in `lib/enrollment/types.ts`. A fresh checkout should
+ * be able to run the whole registration flow without a mail server standing
+ * by, which is the same bargain `scripts/mock-backend.ts` offers for judging;
+ * what changed is that a production box has to say it means that.
  */
 export interface MailMessage {
   to: string;
@@ -95,8 +99,78 @@ function transporter(): Transporter | null {
   return built;
 }
 
+/**
+ * Whether a relay is configured. Answers about the environment only — for
+ * where mail actually ends up, which the policy also has a say in, ask
+ * `mailSink`.
+ */
 export function mailIsConfigured(): boolean {
   return Boolean(process.env.FOI_SMTP_HOST);
+}
+
+type MailDelivery = EnrollmentPolicy["mailDelivery"];
+
+const COMPLAINT =
+  "邮件投递配置不完整，拒绝启动:\n" +
+  '  注册策略声明了 mailDelivery: "smtp"，但没有设置 FOI_SMTP_HOST。\n' +
+  "  请设置 FOI_SMTP_HOST（以及需要的 FOI_SMTP_PORT / FOI_SMTP_USER / FOI_SMTP_PASSWORD），\n" +
+  '  或者在 content/enrollment/ 的 policy 里显式写上 mailDelivery: "console"。\n' +
+  "  后者会把验证码和重置链接打印到服务端日志，只适合本地开发，" +
+  "或者还没有用户的首次部署。";
+
+/**
+ * Refuses to boot a deployment that says it sends mail but cannot.
+ *
+ * Called from `instrumentation.ts` right after `assertEnv`, and separate from
+ * it for the reason `backendSecretWarnings` is separate: this reads content,
+ * and `lib/env.ts` deliberately knows nothing about content. The timing is the
+ * same argument though — a deployment whose registration and recovery are dead
+ * ends should say so while the health check is still watching, not at the
+ * first person who cannot get their verification code.
+ *
+ * Fatal only in production. `content/enrollment/example.ts` declares no
+ * `mailDelivery` and so inherits `smtp`, which would make a fresh checkout
+ * with no relay refuse to start — the exact setup the README tells a newcomer
+ * to use. Elsewhere this is a warning and `deliver` falls back to the console.
+ *
+ * The delivery is a parameter defaulting to the policy, the way `assertEnv`
+ * takes `process.env`: what is being checked is a *combination* of a declared
+ * delivery and an environment, and a test cannot edit `content/enrollment/`
+ * to reach one half of it.
+ */
+export function assertMailDelivery(
+  delivery: MailDelivery = enrollmentPolicy.mailDelivery,
+): void {
+  if (delivery === "console" || mailIsConfigured()) return;
+
+  if (process.env.NODE_ENV === "production") throw new Error(COMPLAINT);
+
+  console.warn(
+    "[foi] 未设置 FOI_SMTP_HOST，邮件只会打印到控制台。" +
+      "同样的配置在生产环境会直接拒绝启动；" +
+      '如果这套部署本就不发信，请在 content/enrollment/ 的 policy 里写 mailDelivery: "console"。',
+  );
+}
+
+/**
+ * Which of the two sinks a message goes to.
+ *
+ * The console branch is now reached by declaring it, not by leaving a variable
+ * unset — that is the whole point of `policy.mailDelivery`. The one exception
+ * is the development fallback, which keeps a checkout with no relay working.
+ */
+export function mailSink(
+  delivery: MailDelivery = enrollmentPolicy.mailDelivery,
+): "smtp" | "console" {
+  if (delivery === "console") return "console";
+  if (mailIsConfigured()) return "smtp";
+
+  // Declared `smtp` with nothing behind it. `assertMailDelivery` has already
+  // refused this boot in production, so arriving here means the process was
+  // started some other way — throw rather than print a reset link to the log,
+  // which is the failure the pair of them exists to stop.
+  if (process.env.NODE_ENV === "production") throw new Error(COMPLAINT);
+  return "console";
 }
 
 /**
@@ -107,13 +181,15 @@ export function mailIsConfigured(): boolean {
  */
 export async function deliver(message: MailMessage): Promise<void> {
   const from = readFrom();
-  const smtp = transporter();
+  // The sink is asked first, because it is what may refuse: a deployment that
+  // declared `smtp` with no relay behind it must not quietly get the console.
+  const smtp = mailSink() === "smtp" ? transporter() : null;
 
   if (!smtp) {
     console.log(
       [
         "",
-        "──────── [foi] 未配置 SMTP，邮件打印到控制台 ────────",
+        "──────── [foi] 邮件打印到控制台，未实际投递 ────────",
         `From:    ${from}`,
         `To:      ${message.to}`,
         `Subject: ${message.subject}`,

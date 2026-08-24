@@ -5,7 +5,7 @@ import { z } from "zod";
 import { requireCapability } from "@/auth";
 import { reinstateAccount, suspendAccount } from "@/lib/accounts/queries";
 import { resolveUser } from "@/lib/accounts/resolve";
-import { capabilitiesOf } from "@/lib/auth/groups";
+import { hasPrivilege } from "@/lib/auth/groups";
 import { sendPasswordReset } from "@/lib/mail/notify";
 import { rateLimit } from "@/lib/ratelimit";
 import { ACTION_LIMITS, fixedRule } from "@/lib/ratelimit/policy";
@@ -176,7 +176,10 @@ export async function suspendAccountAction(
   // it fast enough for a spam signup — and also what would let one
   // administrator remove the others without a review. Taking privilege away is
   // a commit against `content/enrollment/`, the same way granting it is.
-  if (capabilitiesOf(target.groups).size > 0) {
+  //
+  // Asked through the shared predicate, so the button that offers this and the
+  // guard that refuses it cannot answer differently.
+  if (hasPrivilege(target.groups)) {
     return {
       error:
         "这个账号属于带权限的用户组，不能在这里封禁。收回权限请改 content/enrollment/ 里点名它的那条规则，那样改动会留在 git 历史里。",
@@ -193,6 +196,21 @@ export async function suspendAccountAction(
   return { message: `已封禁 ${target.handle}，其已登录的会话在下一个请求即失效。` };
 }
 
+/**
+ * Lifts a suspension, and only ever a suspension.
+ *
+ * The status is read before it is written because `reinstateAccount` writes
+ * "active" over whatever was there and hands back a row either way, so an
+ * account that was never suspended came back reported as reinstated — the
+ * console confirming an act it had not performed, on the one screen whose
+ * whole job is to say what the database actually holds.
+ *
+ * Reaching that state means the page was rendered before somebody else lifted
+ * the suspension: the button only exists on a row the server said was
+ * suspended. So the answer is the current status plus a refresh, not an
+ * apology for a failed write — nothing failed, and the account is already in
+ * the state the operator wanted.
+ */
 export async function reinstateAccountAction(
   _prev: ActionState,
   formData: FormData,
@@ -204,7 +222,17 @@ export async function reinstateAccountAction(
     return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
   }
 
-  const row = await reinstateAccount(parsed.data.handle);
+  const target = await resolveUser(parsed.data.handle);
+  if (!target) return { error: "没有这个账号" };
+
+  if (target.status !== "suspended") {
+    revalidatePath("/admin/accounts");
+    return {
+      error: `${target.handle} 当前并未被封禁，没有改动任何东西——这一行大概是在别人解封之前加载的。`,
+    };
+  }
+
+  const row = await reinstateAccount(target.handle);
   if (!row) return { error: "没有这个账号" };
 
   revalidatePath("/admin/accounts");

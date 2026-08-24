@@ -16,6 +16,16 @@ export async function register() {
   const { assertEnv } = await import("@/lib/env");
   assertEnv();
 
+  // Same argument, one variable `assertEnv` cannot judge on its own: whether a
+  // missing `FOI_SMTP_HOST` is fatal depends on what `content/enrollment/`
+  // declared, and `lib/env.ts` deliberately knows nothing about content — the
+  // same split `backendSecretWarnings` below is on the other side of. Without
+  // this, a production deployment that forgot its relay boots happily and then
+  // prints every verification code and reset link to the container log while
+  // telling people the mail is on its way.
+  const { assertMailDelivery } = await import("@/lib/mail/transport");
+  assertMailDelivery();
+
   // Runs before anything touches the schema. Drizzle records applied
   // migrations in its own table, so this is a no-op once up to date. A failure
   // here deliberately aborts startup rather than serving against a stale

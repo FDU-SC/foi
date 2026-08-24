@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { adminContestsFor } from "@/lib/admin/access";
 import { describeAudience } from "@/lib/auth/audience";
-import { contestPhase, PHASE_LABEL } from "@/lib/contests/types";
+import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
 import { rulesetFor } from "@/lib/standings/registry";
 
 export const metadata: Metadata = { title: "比赛管理" };
@@ -84,9 +84,7 @@ export default async function AdminContestsPage() {
                     >
                       {contest.title}
                     </Link>
-                    <Badge tone={phase === "running" ? "ok" : "neutral"}>
-                      {PHASE_LABEL[phase]}
-                    </Badge>
+                    <Badge tone={PHASE_TONE[phase]}>{PHASE_LABEL[phase]}</Badge>
                     <Badge>{ruleset?.name ?? "自定义赛制"}</Badge>
                     {contest.ruleset.id ? null : (
                       <Badge tone="info" title="ruleset.tsx 与这场比赛一起冻结在 git 里，不随共享模板演进">

@@ -9,7 +9,7 @@ import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { VerdictDetail } from "@/components/problem/verdict-detail";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { locateOne } from "@/lib/backend/queue-lookup";
-import { isTerminalState } from "@/lib/backend/types";
+import { failureReason, isSettled } from "@/lib/backend/types";
 import { problemBySlug } from "@/lib/problems/registry";
 import { submissionFor } from "@/lib/submissions/access";
 
@@ -54,7 +54,8 @@ export default async function SubmissionPage({
   // about problems nobody has seen yet, not ones already submitted to.
   const problem = problemBySlug(row.problemSlug);
   const source = extractSource(row.payload);
-  const queue = isTerminalState(row.state) ? null : await locateOne(row.id);
+  const reason = failureReason(row);
+  const queue = isSettled(row.state) ? null : await locateOne(row.id);
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -80,9 +81,18 @@ export default async function SubmissionPage({
         </span>
       </header>
 
-      {row.error ? (
+      {/*
+        Through `failureReason` rather than straight off `row.error`, which is
+        the same judgement `toView` makes for the list and the submit panel.
+        The column is also written on a dispatch whose outcome was *unknown* —
+        the row stays `pending` because the judge may have queued it anyway —
+        and printing that here put "无法连接题目后端，结果未知" in red beside a
+        spinner, announcing a failure that had not happened. Now it appears
+        once the row really is `failed` or `abandoned`.
+      */}
+      {reason ? (
         <p className="text-err bg-err-subtle rounded-md px-3 py-2 text-sm">
-          {row.error}
+          {reason}
         </p>
       ) : null}
 

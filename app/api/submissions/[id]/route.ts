@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/auth";
 import { viewerFor } from "@/lib/auth/viewer";
-import { isTerminalState } from "@/lib/backend/types";
+import { isSettled } from "@/lib/backend/types";
 import { locateOne } from "@/lib/backend/queue-lookup";
 import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest, tooManyRequests } from "@/lib/ratelimit/gate";
@@ -41,7 +41,7 @@ export async function GET(
   }
 
   const view = toView(row);
-  if (!isTerminalState(row.state)) {
+  if (!isSettled(row.state)) {
     view.queue = await locateOne(row.id);
   }
 

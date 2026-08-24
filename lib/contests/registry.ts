@@ -1,4 +1,5 @@
 import { contestModules } from "@/content/contest-modules";
+import { handleSchema, normalizeHandle } from "@/lib/accounts/types";
 import { knownGroups } from "@/lib/enrollment/registry";
 import { audienceCovers, describeAudience } from "@/lib/auth/audience";
 import { problemBySlug } from "@/lib/problems/registry";
@@ -141,28 +142,71 @@ export function contestBySlug(slug: string): ContestConfig | undefined {
 }
 
 /**
- * A contest whose group nothing can produce would render as an empty standings
- * table, which looks identical to a contest nobody has entered. Saying so at
- * startup is the closest thing left to the build-time check that used to catch
- * a mistyped handle.
+ * Entry rules that name something nothing can ever satisfy.
  *
- * Only reported when the rule set is exhaustive. A rule that computes its tags
- * can emit names nothing here can enumerate, and warning about every contest
- * on such a deployment would train people to ignore the warnings.
+ * Both modes render as an empty standings table, which looks identical to a
+ * contest nobody has entered. Saying so at startup is the closest thing left to
+ * the build-time check that used to catch a mistyped reference.
+ *
+ * The two checks are gated differently, and that is the point of separating
+ * them. A group name is only checkable when the rule set is exhaustive — a rule
+ * that computes its tags can emit names nothing here can enumerate, and warning
+ * about every contest on such a deployment would train people to ignore the
+ * warnings. A handle does not depend on the rules at all, so a short-circuit on
+ * `exhaustive` was silently taking the handle check down with it.
+ *
+ * What the handle check can say is narrower than "this person exists": accounts
+ * are data, and a handle in a `list` legitimately belongs to somebody who has
+ * not registered yet. What it can say is that a handle no account may ever
+ * *have* — one `handleSchema` refuses — will never match anybody however long
+ * you wait.
  */
 export function contestWarnings(): string[] {
+  const warnings: string[] = [];
   const { groups, exhaustive } = knownGroups();
-  if (!exhaustive) return [];
-
   const known = new Set(groups);
-  return [...registry.values()]
-    .filter(
-      (contest) =>
-        contest.participants.mode === "group" &&
-        !known.has(contest.participants.group),
-    )
-    .map(
-      (contest) =>
-        `比赛 "${contest.slug}" 的参赛用户组 "${contest.participants.mode === "group" ? contest.participants.group : ""}" 不会被 content/enrollment/ 中的任何规则或授权产生，排行榜将为空。`,
+
+  for (const contest of registry.values()) {
+    const participants = contest.participants;
+
+    if (participants.mode === "group") {
+      if (!exhaustive) continue;
+      if (known.has(participants.group)) continue;
+      warnings.push(
+        `比赛 "${contest.slug}" 的参赛用户组 "${participants.group}" 不会被 content/enrollment/ 中的任何规则或授权产生，排行榜将为空。`,
+      );
+      continue;
+    }
+
+    if (participants.mode !== "list") continue;
+
+    const malformed = participants.handles.filter(
+      (handle) => !handleSchema.safeParse(handle.trim()).success,
     );
+    if (malformed.length > 0) {
+      warnings.push(
+        `比赛 "${contest.slug}" 的参赛名单里有不可能属于任何账号的 handle：${malformed.join("、")}。` +
+          `用户名只能包含字母、数字、下划线和连字符，长度 2–32，所以这些条目永远不会匹配到人。`,
+      );
+    }
+
+    // `canEnterContest` compares normalised handles, so two spellings of one
+    // person are one entrant. Harmless for entry and misleading everywhere the
+    // list is counted — the console prints its length as 参赛人数.
+    const seen = new Set<string>();
+    const duplicated = new Set<string>();
+    for (const handle of participants.handles) {
+      const normalised = normalizeHandle(handle);
+      if (seen.has(normalised)) duplicated.add(normalised);
+      else seen.add(normalised);
+    }
+    if (duplicated.size > 0) {
+      warnings.push(
+        `比赛 "${contest.slug}" 的参赛名单里有重复的 handle：${[...duplicated].join("、")}。` +
+          `名单比对不区分大小写，重复的条目只算一个人。`,
+      );
+    }
+  }
+
+  return warnings;
 }

@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mailIsConfigured, relayOptions } from "./transport";
+import {
+  assertMailDelivery,
+  mailIsConfigured,
+  mailSink,
+  relayOptions,
+} from "./transport";
 
 /**
  * The relay is reached over somebody else's network, and what travels to it is
@@ -32,6 +37,7 @@ function withEnv(overrides: Record<string, string | undefined>): void {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
 
 describe("未配置中继时", () => {
@@ -115,5 +121,78 @@ describe("本机 Mailpit 的例外", () => {
 
       expect(relayOptions()).toMatchObject({ requireTLS: true });
     }
+  });
+});
+
+/**
+ * `policy.mailDelivery` against the environment it lands in.
+ *
+ * The two functions are exercised together because neither settles the
+ * question alone: the policy says what the deployment meant, the environment
+ * says what it has, and every case worth pinning is a disagreement between
+ * them. Both take the delivery as an argument rather than reading the registry
+ * — `content/enrollment/` is a real file a test cannot edit, so passing it is
+ * the only way to reach the declared-`console` half at all.
+ */
+describe("声明的投递方式与环境不一致时", () => {
+  it("声明 console 就走控制台，配没配中继都一样", () => {
+    withEnv({ FOI_SMTP_HOST: "smtp.example.com" });
+    expect(mailSink("console")).toBe("console");
+
+    vi.unstubAllEnvs();
+    withEnv({});
+    expect(mailSink("console")).toBe("console");
+  });
+
+  it("声明 console 时生产环境也不拦", () => {
+    withEnv({});
+    vi.stubEnv("NODE_ENV", "production");
+
+    expect(() => assertMailDelivery("console")).not.toThrow();
+  });
+
+  it("声明 smtp 且配了中继就真的投递", () => {
+    withEnv({ FOI_SMTP_HOST: "smtp.example.com" });
+    vi.stubEnv("NODE_ENV", "production");
+
+    expect(() => assertMailDelivery("smtp")).not.toThrow();
+    expect(mailSink("smtp")).toBe("smtp");
+  });
+
+  it("生产环境声明了 smtp 却没有中继时拒绝启动", () => {
+    withEnv({});
+    vi.stubEnv("NODE_ENV", "production");
+
+    expect(() => assertMailDelivery("smtp")).toThrow(/FOI_SMTP_HOST/);
+  });
+
+  /**
+   * The fresh-checkout bargain. `content/enrollment/example.ts` names no
+   * `mailDelivery` and so inherits `smtp`, so enforcing everywhere would stop
+   * the one setup the README points a newcomer at from starting at all. What
+   * the warning buys is that the fallback is no longer silent — which is the
+   * whole complaint the field was added to answer.
+   */
+  it("非生产环境缺中继时回落到控制台，但会说出来", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    withEnv({});
+    vi.stubEnv("NODE_ENV", "development");
+
+    expect(() => assertMailDelivery("smtp")).not.toThrow();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(mailSink("smtp")).toBe("console");
+  });
+
+  /**
+   * `assertMailDelivery` runs once at startup and `mailSink` runs per message,
+   * so the second cannot lean on the first having happened: a process started
+   * some other way would otherwise print reset links to the container log,
+   * which is the exact failure the pair exists to stop.
+   */
+  it("生产环境即便绕过了启动校验，投递也不会退回控制台", () => {
+    withEnv({});
+    vi.stubEnv("NODE_ENV", "production");
+
+    expect(() => mailSink("smtp")).toThrow(/FOI_SMTP_HOST/);
   });
 });

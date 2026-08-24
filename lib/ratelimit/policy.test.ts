@@ -1,7 +1,12 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ACTION_LIMITS, ROUTE_LIMITS, SOURCE_GATE } from "./policy";
+import {
+  ACTION_LIMITS,
+  ROUTE_LIMITS,
+  SOURCE_GATE,
+  type RateLimitRule,
+} from "./policy";
 
 /**
  * What stops the table becoming a snapshot of one afternoon.
@@ -44,18 +49,54 @@ interface Handler {
   file: string;
 }
 
+/**
+ * Whether a file exports a handler for `method`, in any spelling Next takes.
+ *
+ * This used to know only `export function GET`, and the one it did not know is
+ * the one this repository actually uses for the route it most needed to hear
+ * about: `app/api/auth/[...nextauth]/route.ts` hands the pair straight back
+ * out of Auth.js as `export const { GET, POST } = handlers`. So the
+ * completeness check below passed while the table was two entries short — a
+ * list of every way in that had quietly stopped being one, which is the exact
+ * failure it exists to prevent, arrived at through the test rather than around
+ * it.
+ *
+ * Deliberately loose. A false positive names a route that then has to be
+ * decided about, and whoever reads the failure either fills the entry in or
+ * corrects this function; a false negative says nothing at all. Only one of
+ * those gets found.
+ */
+function exportsHandler(source: string, method: string): boolean {
+  return [
+    // export function GET / export async function GET
+    `export\\s+(?:async\\s+)?function\\s+${method}\\b`,
+    // export const GET = … / export const GET: … = …
+    `export\\s+(?:const|let|var)\\s+${method}\\b`,
+    // export const { GET, POST } = handlers / export { GET, POST }
+    `export\\s+(?:const|let|var)?\\s*\\{[^}]*\\b${method}\\b[^}]*\\}`,
+  ].some((pattern) => new RegExp(pattern).test(source));
+}
+
 function declaredHandlers(): Handler[] {
   return walk(join(ROOT, "app", "api"))
     .filter((file) => file.endsWith("route.ts"))
     .flatMap((file) => {
       const source = readFileSync(file, "utf8");
       return HTTP_METHODS.filter((method) =>
-        new RegExp(`export\\s+(?:async\\s+)?function\\s+${method}\\b`).test(
-          source,
-        ),
+        exportsHandler(source, method),
       ).map((method) => ({ key: `${method} ${routePath(file)}`, file }));
     });
 }
+
+/**
+ * Both tables under one key space, widened from their literal types so that
+ * the optional second bound is readable on every entry rather than only on the
+ * two that carry one.
+ */
+const ALL_RULES: [string, RateLimitRule][] = [
+  ...Object.entries(ROUTE_LIMITS),
+  ...Object.entries(ACTION_LIMITS),
+];
 
 function declaredActions(): Handler[] {
   return walk(join(ROOT, "app"))
@@ -118,10 +159,7 @@ describe("限流入口表", () => {
   });
 
   it("每条 unlimited 都写了理由", () => {
-    for (const [key, rule] of [
-      ...Object.entries(ROUTE_LIMITS),
-      ...Object.entries(ACTION_LIMITS),
-    ]) {
+    for (const [key, rule] of ALL_RULES) {
       if (rule.kind !== "unlimited") continue;
       expect(rule.why.length, `${key} 的 unlimited 没有写理由`).toBeGreaterThan(
         0,
@@ -130,14 +168,39 @@ describe("限流入口表", () => {
   });
 
   it("每条 fixed 的数值都是正的", () => {
-    for (const [key, rule] of [
-      ...Object.entries(ROUTE_LIMITS),
-      ...Object.entries(ACTION_LIMITS),
-    ]) {
+    for (const [key, rule] of ALL_RULES) {
       if (rule.kind !== "fixed") continue;
       expect(rule.max, `${key} 的 max`).toBeGreaterThan(0);
       expect(rule.windowSeconds, `${key} 的 windowSeconds`).toBeGreaterThan(0);
     }
+  });
+
+  /**
+   * What makes a second bound worth writing down rather than folding into the
+   * first: it counts something the first cannot see. Two bounds on the same
+   * subject are one bound and an argument about which number wins, and the
+   * looser of them would then be dead text that reads like a control — see
+   * `AlsoBound`, where the two live cases are argued.
+   */
+  it("第二重限流计的是另一个 subject，并说清它单独挡住什么", () => {
+    const wrong: string[] = [];
+
+    for (const [key, rule] of ALL_RULES) {
+      if (rule.kind === "unlimited" || rule.also === undefined) continue;
+      const also = rule.also;
+
+      if (also.subject === rule.subject) {
+        wrong.push(`${key}：两重限流都按 ${rule.subject} 计数`);
+      }
+      if (also.why.length === 0) {
+        wrong.push(`${key}：第二重限流没有写它单独挡住什么`);
+      }
+      if (also.max <= 0 || also.windowSeconds <= 0) {
+        wrong.push(`${key}：第二重限流的数值不是正的`);
+      }
+    }
+
+    expect(wrong, "第二重限流的声明有问题").toEqual([]);
   });
 
   /**

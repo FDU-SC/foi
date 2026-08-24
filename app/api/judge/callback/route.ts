@@ -15,9 +15,9 @@ import {
   verifySignature,
 } from "@/lib/backend/signature";
 import {
+  acceptsVerdict,
+  CALLBACK_WRITABLE_STATES,
   judgeCallbackSchema,
-  isTerminalState,
-  NON_TERMINAL_STATES,
 } from "@/lib/backend/types";
 import { readTextBody } from "@/lib/body-limit";
 import { guardRequest } from "@/lib/ratelimit/gate";
@@ -47,9 +47,11 @@ function equalTokens(a: string, b: string): boolean {
  * Where judges report results.
  *
  * Unauthenticated writes here would let anyone hand themselves an AC, so every
- * request must carry a valid HMAC over `<timestamp>.<body>` *and* the one-time
- * token issued at dispatch. Repeat deliveries are accepted and ignored, since
- * judges retry when a callback times out.
+ * request must carry a valid HMAC over the timestamp, the method, the path and
+ * the body — see `lib/backend/signature.ts` — *and* the one-time token issued
+ * at dispatch. Repeat deliveries are acknowledged and ignored, since judges
+ * retry when a callback times out; `acceptsVerdict` decides which arrivals are
+ * repeats and which are a first verdict landing late.
  */
 export async function PUT(request: Request) {
   // Before the body is read, before it is parsed, before a single HMAC is
@@ -171,8 +173,14 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "回调令牌无效" }, { status: 401 });
   }
 
-  // Idempotent: the first terminal write wins, retries are acknowledged.
-  if (isTerminalState(row.state)) {
+  // Idempotent: the first verdict wins, retries are acknowledged. Asked as
+  // `!acceptsVerdict` rather than `isSettled`, and the difference is the whole
+  // point of there being two predicates. An `abandoned` row is settled — no
+  // client is still waiting on it — but it is also a guess the reconciler made
+  // about a backend that had gone quiet, and this request is that backend
+  // disproving it. Refusing here would leave the widened `where` below
+  // unreachable and the guess permanent.
+  if (!acceptsVerdict(row.state)) {
     return NextResponse.json({ ok: true, duplicate: true });
   }
 
@@ -186,7 +194,8 @@ export async function PUT(request: Request) {
   } = parsed.data;
 
   // The state guard, not the check above, is what makes this safe: the
-  // reconciler may reach a terminal state between that read and this write.
+  // reconciler may move the row somewhere this write is not allowed over
+  // between that read and this one.
   const [updated] = await db
     .update(submissions)
     .set({
@@ -194,12 +203,17 @@ export async function PUT(request: Request) {
       verdict,
       backendVersion,
       ...verdictColumns(verdict, row.problemSlug),
+      // Whatever explained the absence of a verdict is no longer true. A
+      // dispatch whose outcome was unknown recorded its reason and left the
+      // row open on purpose, and an abandoned row carries the sweep's timeout
+      // text; keeping either would put "无法连接题目后端" beside an AC.
+      error: null,
       judgedAt: new Date(),
     })
     .where(
       and(
         eq(submissions.id, row.id),
-        inArray(submissions.state, NON_TERMINAL_STATES),
+        inArray(submissions.state, CALLBACK_WRITABLE_STATES),
       ),
     )
     .returning();

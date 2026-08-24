@@ -53,11 +53,16 @@ export const SERVER_ACTION_BODY_LIMIT = 64 * 1024;
  * request. Corruption in the costume of user error, with only a server-side
  * warning to say otherwise. `body-limit.test.ts` pins the ordering.
  *
- * `proxy.ts` matches three page prefixes today, so this governs the Server
- * Action POSTs under `/admin`; widening that matcher widens this. Route
- * handlers under `/api` are deliberately outside it — they count bytes off
- * the stream with `readTextBody` below, and buffering a clone first would
- * take that away.
+ * `proxy.ts` matched three page prefixes when this was written, so it once
+ * governed the Server Action POSTs under `/admin` and nothing else. The
+ * matcher is now everything outside `/api` and the static assets — widened so
+ * that the per-source bound covers pages and Server Actions rather than the
+ * three areas that happened to need a redirect — so this governs **every**
+ * Server Action in the app, `login` and `registerAction` among them. That is
+ * also why the number above is the registration form's size rather than an
+ * administrative one. Route handlers under `/api` are deliberately outside it
+ * — they count bytes off the stream with `readTextBody` below, and buffering a
+ * clone first would take that away.
  */
 export const PROXY_CLIENT_MAX_BODY_SIZE = 256 * 1024;
 

@@ -4,7 +4,11 @@ import { allContests } from "@/lib/contests/registry";
 import { db } from "@/lib/db";
 import { contests, problems, submissions } from "@/lib/db/schema";
 import { enumeratedHandles, groupsFor } from "@/lib/enrollment/registry";
-import { backendsSharingSecret, orphanedBackends } from "@/lib/backend/access";
+import {
+  backendsOnLoopback,
+  backendsSharingSecret,
+  orphanedBackends,
+} from "@/lib/backend/access";
 import { mailIsConfigured } from "@/lib/mail/transport";
 import { allProblems } from "@/lib/problems/registry";
 
@@ -168,6 +172,28 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       detail:
         "它们都回落到了共享的 FOI_BACKEND_SECRET，因此任何一台被攻破，它的签名对其余几台同样有效——包括代替它们回报评测结果。为每台服务设置各自的 FOI_BACKEND_<名字>_SECRET 并同步到后端本身；指向同一地址的多个条目是同一个服务，填相同的值即可。",
       items: sharingSecret,
+    });
+  }
+
+  // Only in a deployment. Every backend is the local mock during `pnpm dev`,
+  // and a finding that stands on every developer's console is one nobody reads
+  // by the time it appears on a real one — the same reason the shared-key
+  // warning above counts services rather than entries.
+  //
+  // What this catches is the half `assertEnv` cannot. It can insist the
+  // address variable was set; it cannot tell an address apart from a leftover,
+  // and the leftover this deployment shape produces is `localhost`, which
+  // inside the app container is the app container.
+  const loopback =
+    process.env.NODE_ENV === "production" ? backendsOnLoopback() : [];
+
+  if (loopback.length > 0) {
+    findings.push({
+      severity: "warn",
+      title: "有题目后端的地址指向本机",
+      detail:
+        "容器里的 localhost 就是这个应用自己，那里没有题目后端在听。投递会全部失败，提交一直等到十分钟后被判为超时，而且没有任何地方会说明原因——多半是 .env.example 的开发用地址被抄进了部署。改成后端真正的地址（宿主机上的用 host.docker.internal，同网络的容器用容器名）；后端确实与应用共处一台机器时，可以忽略这一条。",
+      items: loopback,
     });
   }
 

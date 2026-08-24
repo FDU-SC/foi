@@ -1,10 +1,13 @@
 "use server";
 
 import { z } from "zod";
-import { resolveUser } from "@/lib/accounts/resolve";
+import { getAccount } from "@/lib/accounts/queries";
+import { resolveFromRow } from "@/lib/accounts/resolve";
 import { setPassword } from "@/lib/auth/credentials";
 import { redeemToken } from "@/lib/auth/tokens";
+import { db } from "@/lib/db";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
+import { ACTION_LIMITS, fixedRule } from "@/lib/ratelimit/policy";
 
 export interface ResetState {
   error?: string;
@@ -45,26 +48,56 @@ export async function resetPasswordAction(
   // A 160-bit token is not guessable, so this is not about protecting the
   // link — it caps how much database and argon2 work one source can demand
   // from an endpoint that needs no session to reach.
-  const limit = rateLimit(`reset:${await clientIp()}`, 20, 60 * 60 * 1000);
+  //
+  // Read off the table rather than written here, for the reason
+  // `app/forgot-password/actions.ts` gives: `policy.test.ts` can check that an
+  // entry exists, not that anyone enforces its numbers, so a bound written
+  // twice becomes a table describing a limit nothing applies.
+  const rule = fixedRule(ACTION_LIMITS.resetPasswordAction);
+  const limit = rateLimit(
+    `reset:${await clientIp()}`,
+    rule.max,
+    rule.windowSeconds * 1000,
+  );
   if (!limit.ok) {
     return { error: "尝试过于频繁，请稍后再试。" };
   }
 
-  const result = await redeemToken(parsed.data.token, "password_reset");
-  if (!result.ok) {
-    return {
-      error:
-        result.reason === "expired"
-          ? "链接已过期，请重新申请一封重置邮件"
-          : "链接无效或已被使用，请重新申请",
-    };
-  }
+  // Spending the token and writing the password are one act. Apart, a failure
+  // in the second left the link consumed and the password unchanged — the one
+  // outcome the person cannot recover from on this page, because the only way
+  // forward is another mail and the link they are holding will never work
+  // again. Rolled back, the link in their inbox is still good.
+  //
+  // The account is read through `tx` rather than `resolveUser`, which would
+  // take a second connection out of the pool while this one holds a
+  // transaction open. `resolveFromRow` is the same merge `resolveUser` does.
+  return db.transaction<ResetState>(async (tx) => {
+    const result = await redeemToken(
+      parsed.data.token,
+      "password_reset",
+      undefined,
+      tx,
+    );
+    if (!result.ok) {
+      return {
+        error:
+          result.reason === "expired"
+            ? "链接已过期，请重新申请一封重置邮件"
+            : "链接无效或已被使用，请重新申请",
+      };
+    }
 
-  const user = await resolveUser(result.handle);
-  if (!user || user.disabled) {
-    return { error: "该账号当前无法登录，请联系管理员" };
-  }
+    // A refusal is not a failure, so this one commits: the link did reach the
+    // right mailbox and was used, and the answer is to talk to an
+    // administrator rather than to try the link again.
+    const row = await getAccount(result.handle, tx);
+    const user = row ? resolveFromRow(row) : null;
+    if (!user || user.disabled) {
+      return { error: "该账号当前无法登录，请联系管理员" };
+    }
 
-  await setPassword(user.handle, parsed.data.password);
-  return { message: `密码已更新，现在可以用 ${user.handle} 登录了。` };
+    await setPassword(user.handle, parsed.data.password, tx);
+    return { message: `密码已更新，现在可以用 ${user.handle} 登录了。` };
+  });
 }

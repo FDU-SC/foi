@@ -24,6 +24,23 @@ import { accounts, credentials } from "../lib/db/schema";
 
 const ARGON2_OPTIONS = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
 
+// Every seeded account shares one well-known password, so running this against
+// anything but a local checkout hands out working credentials. Refuse rather
+// than rely on the operator noticing the comment above.
+//
+// The condition reads as "production" and blocks rather more than that: the
+// Dockerfile sets NODE_ENV=production and all three deployed environments run
+// that same image, so dev and staging are refused too. That is the intent — a
+// shared weak password is no safer on the tailnet than on the public site — but
+// it means this is a guard against being deployed at all, not against one
+// environment.
+if (process.env.NODE_ENV === "production") {
+  console.error(
+    "seed 会写入统一弱密码的账号，仅限本地开发；检测到 NODE_ENV=production（三套部署环境都会命中），拒绝运行。",
+  );
+  process.exit(1);
+}
+
 interface SeedAccount {
   handle: string;
   displayName: string;

@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 // Node's own parser rather than a shell `source`, which chokes on unquoted
@@ -17,7 +18,14 @@ if (existsSync(".env.local")) process.loadEnvFile(".env.local");
  * signature coverage.
  */
 export default defineConfig({
-  resolve: { tsconfigPaths: true },
+  resolve: {
+    tsconfigPaths: true,
+    alias: {
+      "server-only": fileURLToPath(
+        new URL("./test/server-only.ts", import.meta.url),
+      ),
+    },
+  },
   test: {
     environment: "node",
     // Only the database. A test that needs more of a deployment's environment

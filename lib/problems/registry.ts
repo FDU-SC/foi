@@ -1,5 +1,8 @@
 import type { ComponentType } from "react";
-import { problemConfigModules, problemStatementModules } from "@/content";
+import {
+  problemConfigModules,
+  problemStatementModules,
+} from "@/content/problem-modules";
 import { problemConfigSchema, type ProblemConfig } from "./types";
 
 /**
@@ -7,10 +10,10 @@ import { problemConfigSchema, type ProblemConfig } from "./types";
  * means creating a directory under `content/problems/` — no registration step,
  * and Turbopack's watcher picks up additions and removals during `next dev`.
  *
- * The globs themselves live in `content/index.ts` because Turbopack only scans
- * downward from the calling file. Configs load eagerly since listing pages
- * need all of them; statements load lazily so a problem page pulls in only the
- * MDX it is about to render.
+ * The globs themselves live under `content/` because Turbopack only scans
+ * downward from the calling file. Both load eagerly into the server graph.
+ * A lazy statement glob would emit public static chunks, which is not an
+ * acceptable place for an embargoed statement.
  */
 function slugFromPath(path: string): string | null {
   return path.match(/\/problems\/([^/]+)\/[^/]+$/)?.[1] ?? null;
@@ -54,10 +57,11 @@ function buildRegistry(): Map<string, ProblemConfig> {
 
 const registry = buildRegistry();
 
-const statementLoaders = new Map<string, () => Promise<unknown>>(
-  Object.entries(problemStatementModules).flatMap(([path, load]) => {
+const statements = new Map<string, ComponentType>(
+  Object.entries(problemStatementModules).flatMap(([path, mod]) => {
     const slug = slugFromPath(path);
-    return slug ? [[slug, load] as const] : [];
+    const Statement = (mod as { default?: ComponentType }).default;
+    return slug && Statement ? [[slug, Statement] as const] : [];
   }),
 );
 
@@ -93,8 +97,5 @@ export function hasProblem(slug: string): boolean {
 export async function loadStatement(
   slug: string,
 ): Promise<ComponentType | null> {
-  const load = statementLoaders.get(slug);
-  if (!load) return null;
-  const mod = (await load()) as { default?: ComponentType };
-  return mod.default ?? null;
+  return statements.get(slug) ?? null;
 }

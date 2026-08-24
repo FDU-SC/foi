@@ -26,6 +26,8 @@ import { problemFor } from "@/lib/problems/access";
 import { ensureProblem } from "@/lib/problems/sync";
 import { submitRateLimit } from "@/lib/problems/types";
 import { rateLimit } from "@/lib/ratelimit";
+import { sourceGate, tooManyRequests } from "@/lib/ratelimit/gate";
+import { fixedRule, ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { publish } from "@/lib/submissions/events";
 import { createSubmissionSchema } from "@/lib/submissions/types";
 import { submissionsFor } from "@/lib/submissions/access";
@@ -64,6 +66,9 @@ function tooFast(retryAfterMs: number): NextResponse {
 }
 
 export async function POST(request: Request) {
+  const gated = sourceGate(request, "POST /api/submissions");
+  if (gated) return gated;
+
   // The resolved user, not the session one: entry rules key on cohort tags,
   // which are computed from the account rather than carried in the token.
   const user = await getResolvedUser();
@@ -285,10 +290,23 @@ export async function POST(request: Request) {
  * rendering results, but this endpoint would still answer for them.
  */
 export async function GET(request: Request) {
+  const gated = sourceGate(request, "GET /api/submissions");
+  if (gated) return gated;
+
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
+
+  // Fifty rows joined and rendered per call, and nothing about the shape of
+  // the request says how often it may be asked for.
+  const rule = fixedRule(ROUTE_LIMITS["GET /api/submissions"]);
+  const limited = rateLimit(
+    `submissions:${user.handle}`,
+    rule.max,
+    rule.windowSeconds * 1000,
+  );
+  if (!limited.ok) return tooManyRequests(limited.retryAfterMs);
 
   const { searchParams } = new URL(request.url);
 

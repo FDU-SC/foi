@@ -3,19 +3,36 @@ import { getSessionUser } from "@/auth";
 import { viewerFor } from "@/lib/auth/viewer";
 import { isTerminalState } from "@/lib/backend/types";
 import { locateOne } from "@/lib/backend/queue-lookup";
+import { rateLimit } from "@/lib/ratelimit";
+import { sourceGate, tooManyRequests } from "@/lib/ratelimit/gate";
+import { fixedRule, ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { submissionFor } from "@/lib/submissions/access";
 import { toView } from "@/lib/submissions/queries";
 
 export const runtime = "nodejs";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const gated = sourceGate(request, "GET /api/submissions/[id]");
+  if (gated) return gated;
+
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
+
+  // This is the endpoint the client polls while a verdict is outstanding, and
+  // every call runs a queue lookup on top of the row read. Bounded above what
+  // a few tabs backing off from 800ms legitimately produce.
+  const rule = fixedRule(ROUTE_LIMITS["GET /api/submissions/[id]"]);
+  const limited = rateLimit(
+    `submission:${user.handle}`,
+    rule.max,
+    rule.windowSeconds * 1000,
+  );
+  if (!limited.ok) return tooManyRequests(limited.retryAfterMs);
 
   const { id } = await params;
   const row = await submissionFor(id, viewerFor(user));

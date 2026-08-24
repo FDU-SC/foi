@@ -1,0 +1,151 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { ACTION_LIMITS, ROUTE_LIMITS, SOURCE_GATE } from "./policy";
+
+/**
+ * What stops the table becoming a snapshot of one afternoon.
+ *
+ * A list of every entry point is only worth having if it is still complete
+ * next month, and nothing about writing a new route handler reminds anybody
+ * that a list exists. So the list is checked against the filesystem: add a
+ * route or a Server Action without deciding what bounds it, and this fails
+ * with the name of the thing you added.
+ *
+ * Deliberately a source-text scan rather than importing the modules. Importing
+ * a route handler drags in the database, the content registries and Auth.js,
+ * which is a lot of machinery to stand up in order to ask which functions a
+ * file exports — and a test that is expensive to run is a test that gets
+ * skipped.
+ */
+
+const ROOT = join(import.meta.dirname, "..", "..");
+
+const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"];
+
+function walk(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) return walk(path);
+    return entry.isFile() ? [path] : [];
+  });
+}
+
+/** `app/api/submissions/[id]/route.ts` becomes `/api/submissions/[id]`. */
+function routePath(file: string): string {
+  return file
+    .slice(join(ROOT, "app").length)
+    .replace(/\/route\.ts$/, "")
+    .replace(/\\/g, "/");
+}
+
+interface Handler {
+  key: string;
+  file: string;
+}
+
+function declaredHandlers(): Handler[] {
+  return walk(join(ROOT, "app", "api"))
+    .filter((file) => file.endsWith("route.ts"))
+    .flatMap((file) => {
+      const source = readFileSync(file, "utf8");
+      return HTTP_METHODS.filter((method) =>
+        new RegExp(`export\\s+(?:async\\s+)?function\\s+${method}\\b`).test(
+          source,
+        ),
+      ).map((method) => ({ key: `${method} ${routePath(file)}`, file }));
+    });
+}
+
+function declaredActions(): Handler[] {
+  return walk(join(ROOT, "app"))
+    .filter((file) => file.endsWith(".ts") || file.endsWith(".tsx"))
+    .flatMap((file) => {
+      const source = readFileSync(file, "utf8");
+      if (!/^\s*["']use server["']/m.test(source)) return [];
+
+      return [...source.matchAll(/export\s+async\s+function\s+(\w+)/g)].map(
+        (match) => ({ key: match[1], file }),
+      );
+    });
+}
+
+describe("限流入口表", () => {
+  it("每个 route handler 都在表里表过态", () => {
+    const missing = declaredHandlers()
+      .filter((handler) => !(handler.key in ROUTE_LIMITS))
+      .map((handler) => `${handler.key}  (${handler.file})`);
+
+    expect(missing, "新增了路由但没有在 ROUTE_LIMITS 里说明它的限流").toEqual(
+      [],
+    );
+  });
+
+  it("每个 Server Action 都在表里表过态", () => {
+    const missing = declaredActions()
+      .filter((action) => !(action.key in ACTION_LIMITS))
+      .map((action) => `${action.key}  (${action.file})`);
+
+    expect(missing, "新增了 Server Action 但没有在 ACTION_LIMITS 里说明它的限流").toEqual(
+      [],
+    );
+  });
+
+  /**
+   * The other direction. A stale entry is not a hole, but it is a lie about
+   * what this application has in it, and the whole value of the table is that
+   * it can be read as the truth.
+   */
+  it("表里没有已经不存在的入口", () => {
+    const live = new Set(declaredHandlers().map((handler) => handler.key));
+    const stale = Object.keys(ROUTE_LIMITS).filter((key) => !live.has(key));
+
+    expect(stale, "ROUTE_LIMITS 里的条目在 app/api 下已经找不到").toEqual([]);
+  });
+
+  it("Server Action 表里也没有多余条目", () => {
+    const live = new Set(declaredActions().map((action) => action.key));
+    const stale = Object.keys(ACTION_LIMITS).filter((key) => !live.has(key));
+
+    expect(stale, "ACTION_LIMITS 里的条目已经找不到对应的导出").toEqual([]);
+  });
+
+  it("扫描确实找到了东西，而不是路径写错后空过", () => {
+    // Without this, a wrong ROOT would make every assertion above pass by
+    // finding nothing at all — the failure mode of a filesystem test.
+    expect(declaredHandlers().length).toBeGreaterThanOrEqual(8);
+    expect(declaredActions().length).toBeGreaterThanOrEqual(10);
+  });
+
+  it("每条 unlimited 都写了理由", () => {
+    for (const [key, rule] of [
+      ...Object.entries(ROUTE_LIMITS),
+      ...Object.entries(ACTION_LIMITS),
+    ]) {
+      if (rule.kind !== "unlimited") continue;
+      expect(rule.why.length, `${key} 的 unlimited 没有写理由`).toBeGreaterThan(
+        0,
+      );
+    }
+  });
+
+  it("每条 fixed 的数值都是正的", () => {
+    for (const [key, rule] of [
+      ...Object.entries(ROUTE_LIMITS),
+      ...Object.entries(ACTION_LIMITS),
+    ]) {
+      if (rule.kind !== "fixed") continue;
+      expect(rule.max, `${key} 的 max`).toBeGreaterThan(0);
+      expect(rule.windowSeconds, `${key} 的 windowSeconds`).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * The gate is the only bound `/api/judge/callback` has, so it being loose
+   * enough to be useless would be a quiet regression.
+   */
+  it("来源闸的数值仍然是个闸", () => {
+    expect(SOURCE_GATE.max).toBeGreaterThan(0);
+    expect(SOURCE_GATE.max).toBeLessThanOrEqual(1_000);
+  });
+});

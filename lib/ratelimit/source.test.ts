@@ -1,69 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { rateLimit, sourceFrom } from "./ratelimit";
-
-/** Unique per case, so cases cannot spend each other's budget. */
-let counter = 0;
-function key(): string {
-  return `test:${(counter += 1)}:${Math.random()}`;
-}
+import { isResolvedSource, sourceFrom } from "./source";
 
 afterEach(() => {
-  vi.useRealTimers();
   vi.unstubAllEnvs();
-});
-
-describe("rateLimit", () => {
-  it("放行到上限为止", () => {
-    const k = key();
-
-    for (let i = 0; i < 3; i += 1) {
-      expect(rateLimit(k, 3, 60_000).ok).toBe(true);
-    }
-    expect(rateLimit(k, 3, 60_000).ok).toBe(false);
-  });
-
-  it("被拒时给出还要等多久", () => {
-    const k = key();
-    rateLimit(k, 1, 60_000);
-
-    const result = rateLimit(k, 1, 60_000);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.retryAfterMs).toBeGreaterThan(0);
-      expect(result.retryAfterMs).toBeLessThanOrEqual(60_000);
-    }
-  });
-
-  it("不同 key 各算各的", () => {
-    const a = key();
-    const b = key();
-
-    rateLimit(a, 1, 60_000);
-
-    expect(rateLimit(a, 1, 60_000).ok).toBe(false);
-    expect(rateLimit(b, 1, 60_000).ok).toBe(true);
-  });
-
-  it("窗口过去后重新放行", () => {
-    vi.useFakeTimers();
-    const k = key();
-
-    expect(rateLimit(k, 1, 1_000).ok).toBe(true);
-    expect(rateLimit(k, 1, 1_000).ok).toBe(false);
-
-    vi.advanceTimersByTime(1_001);
-
-    expect(rateLimit(k, 1, 1_000).ok).toBe(true);
-  });
-
-  it("计数器是进程内共享的，不随模块副本翻倍", async () => {
-    const k = key();
-    rateLimit(k, 1, 60_000);
-
-    // A second import must land on the same bucket map.
-    const again = await import("./ratelimit");
-    expect(again.rateLimit(k, 1, 60_000).ok).toBe(false);
-  });
 });
 
 /** What Caddy leaves behind: the peer it saw, appended to whatever arrived. */
@@ -144,5 +83,30 @@ describe("sourceFrom", () => {
       "203.0.113.9",
     );
     expect(sourceFrom(new Headers())).toBe("unknown");
+  });
+});
+
+/**
+ * The sentinels have to be recognisable as "no source", not merely happen to
+ * be unusual strings. A gate that keyed on them would put every caller in one
+ * bucket, which is a different control from the one intended and a much worse
+ * one — see the note in `./gate.ts`.
+ */
+describe("isResolvedSource", () => {
+  it("真实地址算解析出来了", () => {
+    expect(isResolvedSource("203.0.113.9")).toBe(true);
+  });
+
+  it("两个哨兵值都不算", () => {
+    expect(isResolvedSource("direct")).toBe(false);
+    expect(isResolvedSource("unknown")).toBe(false);
+  });
+
+  it("sourceFrom 在无代理与链条过短两种情形下都给出哨兵", () => {
+    vi.stubEnv("FOI_TRUSTED_PROXY_HOPS", "0");
+    expect(isResolvedSource(sourceFrom(forwarded("1.2.3.4")))).toBe(false);
+
+    vi.stubEnv("FOI_TRUSTED_PROXY_HOPS", "2");
+    expect(isResolvedSource(sourceFrom(forwarded("1.2.3.4")))).toBe(false);
   });
 });

@@ -20,6 +20,7 @@ import {
   NON_TERMINAL_STATES,
 } from "@/lib/backend/types";
 import { readTextBody } from "@/lib/body-limit";
+import { sourceGate } from "@/lib/ratelimit/gate";
 import { publish } from "@/lib/submissions/events";
 import { toView } from "@/lib/submissions/queries";
 import { verdictColumns } from "@/lib/submissions/verdict";
@@ -51,6 +52,14 @@ function equalTokens(a: string, b: string): boolean {
  * judges retry when a callback times out.
  */
 export async function PUT(request: Request) {
+  // Before the body is read, before it is parsed, before a single HMAC is
+  // computed. This is the one endpoint with nobody to hold responsible — its
+  // credentials arrive inside the body — so every byte of that work is work an
+  // anonymous caller can ask for, and the source gate is the only bound that
+  // can come first.
+  const gated = sourceGate(request, "PUT /api/judge/callback");
+  if (gated) return gated;
+
   const read = await readTextBody(request, MAX_BODY_BYTES);
   if (!read.ok) {
     return NextResponse.json({ error: "回调内容过大" }, { status: 413 });

@@ -6,7 +6,7 @@ import { StandingsTable } from "@/components/standings/standings-table";
 import { Badge } from "@/components/ui/badge";
 import {
   contestFor,
-  isContestProblemSetVisible,
+  isContestProblemSetVisibleTo,
 } from "@/lib/contests/access";
 import type { ContestConfig } from "@/lib/contests/types";
 import { standingsFor } from "@/lib/standings/compute";
@@ -68,7 +68,7 @@ export default async function StandingsPage({
   // The board renders one column per problem, labelled and titled, so before
   // the start it gives away exactly what the contest page withholds. There is
   // nothing to rank yet either.
-  if (!isContestProblemSetVisible(contest) && !viewer.can("problem.viewAll")) {
+  if (!isContestProblemSetVisibleTo(contest, viewer)) {
     return <UpcomingNotice contest={contest} />;
   }
 

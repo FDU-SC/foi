@@ -39,7 +39,7 @@ export interface ContestView {
  * Only the audience: unlike a problem, a contest is not gated on its own
  * phase. An unstarted round is an announcement — its title and schedule are
  * how people know to turn up — and what it withholds is the problem set, which
- * `isContestProblemSetVisible` answers separately.
+ * `isContestProblemSetVisibleTo` answers separately.
  */
 export function contestVisibility(
   contest: ContestConfig,
@@ -122,17 +122,32 @@ export function canEnterContest(
 }
 
 /**
- * Whether a contest's problem set may be shown.
+ * Whether this viewer may have a contest's problem set.
  *
  * Separate from whether the contest itself may be shown, because the leak is
  * different: the problem set gives away the shape of the round — how many
  * problems, what they are called, what they are worth — without opening a
  * single statement. So an upcoming contest has a public page and a withheld
  * problem list.
+ *
+ * Two halves, and for a while they lived in different places. The clock half
+ * was here; the override half was spelled out on the contest page and again
+ * on the standings page, because both draw the problem set and both have to
+ * let a proofreader in early. Nothing downstream re-checks — the labels and
+ * point values go straight into the HTML — so a third page copying one half
+ * of the rule would publish the shape of an unstarted round. That is the
+ * failure `lib/submissions/access.ts` opens on, one page earlier.
+ *
+ * The override is `problem.viewAll` and not `contest.viewAll`: what is
+ * withheld here is problems, and whoever may read an unopened statement may
+ * certainly read its label and what it is worth.
  */
-export function isContestProblemSetVisible(
+export function isContestProblemSetVisibleTo(
   contest: Pick<ContestConfig, "startsAt" | "endsAt">,
+  viewer: Viewer,
   now = new Date(),
 ): boolean {
-  return contestPhase(contest, now) !== "upcoming";
+  return (
+    contestPhase(contest, now) !== "upcoming" || viewer.can("problem.viewAll")
+  );
 }

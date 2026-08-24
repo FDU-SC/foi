@@ -5,7 +5,7 @@ import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import {
   contestFor,
-  isContestProblemSetVisible,
+  isContestProblemSetVisibleTo,
 } from "@/lib/contests/access";
 import { resolveContestProblems } from "@/lib/contests/queries";
 import { contestPhase, PHASE_LABEL } from "@/lib/contests/types";
@@ -38,14 +38,14 @@ export default async function ContestPage({
 
   const contest = view.config;
   const ruleset = rulesetFor(contest.slug, contest.ruleset.id);
-  const phase = contestPhase(contest);
 
-  // Before the start the problem set is itself the secret: how many problems
-  // there are, what they are called and what they are worth all describe the
-  // round without opening a single statement.
-  const problemSetVisible = isContestProblemSetVisible(contest);
-  const problems =
-    problemSetVisible || preview ? resolveContestProblems(contest) : [];
+  // One clock read for the page. The phase badge and the problem list are two
+  // answers about the same `startsAt`, and a request that lands across it
+  // should not draw a 未开始 header over an open problem list.
+  const now = new Date();
+  const phase = contestPhase(contest, now);
+  const problemSetVisible = isContestProblemSetVisibleTo(contest, viewer, now);
+  const problems = problemSetVisible ? resolveContestProblems(contest) : [];
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -76,7 +76,11 @@ export default async function ContestPage({
 
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-fg text-lg font-semibold">题目</h2>
-        {!problemSetVisible && preview ? (
+        {/* `phase`, not `!problemSetVisible` — the override has already
+            flipped that one true. What the badge reports is *which* of the
+            two reasons opened the list, so a proofreader can tell their view
+            from a competitor's. */}
+        {phase === "upcoming" && preview ? (
           <Badge tone="warn">预览 · 尚未对选手公开</Badge>
         ) : null}
         <Link
@@ -87,7 +91,7 @@ export default async function ContestPage({
         </Link>
       </div>
 
-      {!problemSetVisible && !preview ? (
+      {!problemSetVisible ? (
         <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
           题目将在 {formatter.format(contest.startsAt)} 开赛时公开。
         </p>

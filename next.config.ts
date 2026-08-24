@@ -1,5 +1,11 @@
 import createMDX from "@next/mdx";
 import type { NextConfig } from "next";
+// Relative rather than through the `@/` alias: this file is loaded by Next's
+// own config loader, which does not read `tsconfig` paths.
+import {
+  PROXY_CLIENT_MAX_BODY_SIZE,
+  SERVER_ACTION_BODY_LIMIT,
+} from "./lib/body-limit";
 
 /**
  * Headers every response carries, set here rather than in the Caddyfile.
@@ -51,6 +57,10 @@ const nextConfig: NextConfig = {
   // Emits .next/standalone with only the traced runtime files, so the
   // production image does not need node_modules or a package manager.
   output: "standalone",
+  experimental: {
+    serverActions: { bodySizeLimit: SERVER_ACTION_BODY_LIMIT },
+    proxyClientMaxBodySize: PROXY_CLIENT_MAX_BODY_SIZE,
+  },
   // Names the framework and its major version to anyone scanning for a version
   // with a published advisory.
   poweredByHeader: false,

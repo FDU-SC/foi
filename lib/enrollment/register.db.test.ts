@@ -50,11 +50,18 @@ async function cleanup(): Promise<void> {
   await db.delete(emailVerifications).where(eq(emailVerifications.email, EMAIL));
 }
 
+/**
+ * A filled-in form with no proof cookie attached, which is what a request that
+ * skipped the verify step looks like. Cases that did verify spread a proof
+ * over the top. `proof` is spelled out rather than omitted because `register`
+ * requires the field: a caller with nothing to offer says so.
+ */
 const FORM = {
   handle: HANDLE,
   displayName: "注册测试",
   email: EMAIL,
   password: "correct-horse-battery",
+  proof: undefined,
 };
 
 describeDb("register", () => {

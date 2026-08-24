@@ -83,12 +83,18 @@ export async function register(input: {
   email: string;
   password: string;
   /**
-   * Issued to the browser that typed the code back. Required whenever
+   * Issued to the browser that typed the code back. Checked whenever
    * verification is on: the verified row is a fact about the mailbox, and
    * without this anyone who notices a recently proven address can finish
    * the form first.
+   *
+   * Required rather than optional even though it may be absent. A caller
+   * with no cookie to offer has to say `undefined` out loud, the same way
+   * nothing in this codebase can ask an access layer a question without
+   * naming a viewer — an optional field is one a new call site can forget,
+   * and forgetting this one silently reopens the race.
    */
-  proof?: string;
+  proof: string | undefined;
 }): Promise<RegisterResult> {
   if (!enrollmentPolicy.enabled) return { ok: false, reason: "disabled" };
 

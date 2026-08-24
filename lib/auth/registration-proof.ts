@@ -74,6 +74,34 @@ export function checkRegistrationProof(
   return equalHex(macFor(email, exp), mac);
 }
 
+/**
+ * Whether this deployment is reached over TLS, and therefore whether a cookie
+ * marked `Secure` will be stored at all.
+ *
+ * Derived from `FOI_PUBLIC_URL` rather than from `NODE_ENV`, which cannot
+ * answer the question here: the Dockerfile sets `NODE_ENV=production` and all
+ * three deployed environments run that same image, while dev and staging are
+ * served over plain HTTP on the tailnet. Keying on it would mark the cookie
+ * `Secure` there, the browser would drop it, and registration would fail on
+ * two of the three environments with nothing to say why — the proof would
+ * simply never come back and every attempt would read as `email-unverified`.
+ *
+ * This is also how Auth.js decides `useSecureCookies` for the session cookie,
+ * so the two agree by construction. `assertEnv` already requires the variable
+ * and requires it to parse, so a missing one here is a boot that should not
+ * have happened; treat it as not-TLS rather than throwing inside a cookie
+ * helper.
+ */
+function servedOverTls(): boolean {
+  const base = process.env.FOI_PUBLIC_URL;
+  if (!base) return false;
+  try {
+    return new URL(base).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export function registrationProofCookieOptions(): {
   httpOnly: true;
   sameSite: "lax";
@@ -84,7 +112,7 @@ export function registrationProofCookieOptions(): {
   return {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: servedOverTls(),
     path: "/",
     maxAge: Math.floor(REGISTRATION_PROOF_TTL_MS / 1000),
   };

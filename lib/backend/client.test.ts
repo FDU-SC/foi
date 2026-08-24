@@ -359,6 +359,49 @@ describe("后端响应的字节上限", () => {
     await expect(pollJudge(backend(), "job-42")).resolves.toBeNull();
   });
 
+  /**
+   * The dispatch acknowledgement is the read every submission makes, and the
+   * one left out when the other four were bounded.
+   */
+  it("投递的受理响应过大时判为结果未知，而不是明确拒绝", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(oversized());
+
+    const error = await dispatchToJudge(backend(), {
+      submissionId: "sub_1",
+      user: { handle: "alice", groups: [] },
+      problem: { slug: "maze-runner", config: {} },
+      contestSlug: null,
+      payload: {},
+      callbackUrl: "http://localhost:3000/api/judge/callback",
+      callbackToken: "token",
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(DispatchError);
+    // `rejected` would mark the row terminal, and the backend may well have
+    // queued the submission — the callback still has to be able to land.
+    expect(error.kind).toBe("unknown");
+  });
+
+  it("空的 200 受理仍然算受理，只是没有 judgeRef", async () => {
+    // `judgeRef` is optional in the protocol and `res.json()` threw on an
+    // empty body too, so the parse stays lenient where the size check is not.
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("", { status: 200 }),
+    );
+
+    await expect(
+      dispatchToJudge(backend(), {
+        submissionId: "sub_1",
+        user: { handle: "alice", groups: [] },
+        problem: { slug: "maze-runner", config: {} },
+        contestSlug: null,
+        payload: {},
+        callbackUrl: "http://localhost:3000/api/judge/callback",
+        callbackToken: "token",
+      }),
+    ).resolves.toEqual({ judgeRef: null });
+  });
+
   it("队列响应不是合法 JSON 时说的是格式，不是连不上", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("not json at all", {

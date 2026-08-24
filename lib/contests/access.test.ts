@@ -1,15 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { AS_PLAYER, viewerFor } from "@/lib/auth/viewer";
+import { AS_PLAYER, viewerFor, type Viewer } from "@/lib/auth/viewer";
 import {
   contestFor,
   contestsFor,
   contestVisibility,
-  isContestProblemSetVisible,
+  isContestProblemSetVisibleTo,
 } from "./access";
 import { allContests } from "./registry";
 import { contestConfigSchema, type ContestConfig } from "./types";
 
 const PREVIEW = viewerFor({ handle: "an-admin", groups: ["管理员"] });
+
+/**
+ * Holders of exactly one capability each, spelled out rather than resolved
+ * through `content/enrollment/`.
+ *
+ * The same choice `lib/backend/access.test.ts` makes for its setter: the gate
+ * below asks one capability, and a deployment that hands it to a group other
+ * than 管理员 should get the behaviour without the test noticing.
+ */
+const SETTER: Viewer = {
+  handle: "setter",
+  groups: ["出题人"],
+  can: (capability) => capability === "problem.viewAll",
+};
+
+const CONTEST_READER: Viewer = {
+  handle: "reader",
+  groups: ["助教"],
+  can: (capability) => capability === "contest.viewAll",
+};
 
 const demo = allContests().find((contest) => contest.slug === "demo-acm");
 
@@ -90,15 +110,53 @@ describe("contestFor", () => {
   });
 });
 
-describe("isContestProblemSetVisible", () => {
-  it("未开始的比赛不展示题单", () => {
-    if (!demo) return;
-    expect(isContestProblemSetVisible(demo, before(demo.startsAt))).toBe(false);
+/**
+ * The four cells both contest pages branch on.
+ *
+ * They used to be worked out a page at a time — the clock half here, the
+ * capability half written out on the contest page and again on the standings
+ * page — so the matrix is what says the merged answer still means what each
+ * half meant on its own.
+ */
+describe("isContestProblemSetVisibleTo", () => {
+  const round = contest({});
+  const beforeStart = before(round.startsAt);
+  const afterEnd = after(round.endsAt);
+
+  it("未开始 + 没有 problem.viewAll：扣住", () => {
+    expect(isContestProblemSetVisibleTo(round, AS_PLAYER, beforeStart)).toBe(
+      false,
+    );
   });
 
-  it("进行中与已结束的比赛展示题单", () => {
+  it("未开始 + 有 problem.viewAll：放行，这是校对未开赛轮次的入口", () => {
+    expect(isContestProblemSetVisibleTo(round, SETTER, beforeStart)).toBe(true);
+  });
+
+  it("已开始 + 没有 problem.viewAll：放行", () => {
+    expect(isContestProblemSetVisibleTo(round, AS_PLAYER, round.startsAt)).toBe(
+      true,
+    );
+    expect(isContestProblemSetVisibleTo(round, AS_PLAYER, afterEnd)).toBe(true);
+  });
+
+  it("已开始 + 有 problem.viewAll：放行，能力不改变已经公开的答案", () => {
+    expect(isContestProblemSetVisibleTo(round, SETTER, round.startsAt)).toBe(
+      true,
+    );
+    expect(isContestProblemSetVisibleTo(round, SETTER, afterEnd)).toBe(true);
+  });
+
+  it("contest.viewAll 不开题单：能读这场比赛，不等于能看它有几道题", () => {
+    expect(
+      isContestProblemSetVisibleTo(round, CONTEST_READER, beforeStart),
+    ).toBe(false);
+  });
+
+  it("管理员在真实分流下也是预览者", () => {
     if (!demo) return;
-    expect(isContestProblemSetVisible(demo, demo.startsAt)).toBe(true);
-    expect(isContestProblemSetVisible(demo, after(demo.endsAt))).toBe(true);
+    expect(
+      isContestProblemSetVisibleTo(demo, PREVIEW, before(demo.startsAt)),
+    ).toBe(true);
   });
 });

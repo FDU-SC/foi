@@ -180,8 +180,8 @@ export const READ_GATES = {
   /**
    * Not gated on the phase, unlike a problem. An unstarted round is an
    * announcement — its title and schedule are how people know to turn up. What
-   * it withholds is the problem set, and that is the page check registered in
-   * `PAGE_CHECKS` below rather than a gate here.
+   * it withholds is the problem set, which `isContestProblemSetVisibleTo`
+   * answers on its own below.
    */
   "lib/contests/access.ts#contestFor": {
     what: "取一场比赛的公告页数据",
@@ -200,6 +200,20 @@ export const READ_GATES = {
     noOverride:
       "没有任何能力能把人塞进闭门赛；`contest.viewAll` 尤其不能，否则「能读」就成了「能参赛」",
     grants: ["contest.participants"],
+    denied: "false",
+  },
+  /**
+   * The third contest gate, and the only one the clock decides. It is here
+   * rather than in `PAGE_CHECKS` because it used to be there: the contest
+   * page and the standings page each held half of it, spelling the override
+   * out themselves on top of a clock-only helper. Nothing downstream
+   * re-checks, so the third page to draw a problem list would have been the
+   * one that copied only the half it noticed.
+   */
+  "lib/contests/access.ts#isContestProblemSetVisibleTo": {
+    what: "开赛前扣住题目集：几道题、叫什么、各值多少分",
+    capabilities: ["problem.viewAll"],
+    grants: ["contest-phase"],
     denied: "false",
   },
 
@@ -485,24 +499,16 @@ export const PAGE_CHECKS = {
     ],
   },
   /**
-   * A boundary, despite living in a page. `isContestProblemSetVisible` in
-   * `lib/contests/access.ts` answers the clock half; the capability half is
-   * written out here and again on the standings page. Nothing downstream
-   * re-checks — the labels and point values go straight into the HTML — so
-   * deleting either line publishes the shape of an unstarted round.
+   * Was the boundary, and is not one any more: both halves of the rule moved
+   * into `isContestProblemSetVisibleTo`, which now decides whether the list
+   * gets resolved at all. What is left asks the same capability for a
+   * different question — the gate has already said the viewer may have the
+   * problems, and this only picks which reason to print above them.
    */
   "app/(site)/contests/[slug]/page.tsx": {
-    kind: "boundary",
-    what: "开赛前扣住题目集：几道题、叫什么、各值多少分",
+    kind: "chrome",
+    what: "开赛前的预览者，题目上方画不画「尚未对选手公开」的徽标",
     capabilities: ["problem.viewAll"],
-    why:
-      "受众与相位的那一半在 `isContestProblemSetVisible` 里，能力这一半写在页面上，" +
-      "两个页面各写了一遍。规则被抄成两份，正是这个仓库反复修的那种形状。",
-  },
-  "app/(site)/contests/[slug]/standings/page.tsx": {
-    kind: "boundary",
-    what: "开赛前扣住排行榜，它每道题一列、带标签和标题",
-    capabilities: ["problem.viewAll"],
-    why: "与上一条是同一条规则的第二份拷贝",
+    enforcedBy: ["lib/contests/access.ts#isContestProblemSetVisibleTo"],
   },
 } as const satisfies Record<string, PageCheck>;

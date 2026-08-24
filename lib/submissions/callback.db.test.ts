@@ -69,20 +69,27 @@ async function callback(
   id: string,
   body: Record<string, unknown>,
   slug: string = LIVE.slug,
+  options?: { tokenOverride?: string; skipInsert?: boolean },
 ): Promise<{ response: Response; token: string }> {
   const { token, hash } = createCallbackToken();
 
-  await db.insert(submissions).values({
-    id,
-    handle: HANDLE,
-    problemSlug: slug,
-    payload: {},
-    backendId: "traditional",
-    callbackTokenHash: hash,
-    state: "judging",
-  });
+  if (!options?.skipInsert) {
+    await db.insert(submissions).values({
+      id,
+      handle: HANDLE,
+      problemSlug: slug,
+      payload: {},
+      backendId: "traditional",
+      callbackTokenHash: hash,
+      state: "judging",
+    });
+  }
 
-  const raw = JSON.stringify({ submissionId: id, callbackToken: token, ...body });
+  const raw = JSON.stringify({
+    submissionId: id,
+    callbackToken: options?.tokenOverride ?? token,
+    ...body,
+  });
   const url = new URL(callbackUrl());
 
   const response = await PUT(
@@ -101,6 +108,21 @@ async function callback(
   );
 
   return { response, token };
+}
+
+/** The same shape with the signature headers left off entirely. */
+async function callbackUnsigned(
+  id: string,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  const raw = JSON.stringify({ submissionId: id, callbackToken: "tok", ...body });
+  return PUT(
+    new Request(callbackUrl(), {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: raw,
+    }),
+  );
 }
 
 async function land(
@@ -243,5 +265,75 @@ describeDb("评测回调落地", () => {
     });
 
     expect(row.verdict).toMatchObject({ status: "accepted", detail });
+  });
+
+  /**
+   * Existence is answered only to whoever holds a backend's secret: a judge
+   * calling back about a row the kernel has lost deserves the plain 404, and
+   * anyone else gets the same refusal whether or not the id is real.
+   */
+  it("不存在的提交：有效签名得到 404，无签名得到 401", async () => {
+    const signed = await callback(
+      "sub_cb_ghost",
+      { backendVersion: VERSION, status: "accepted" },
+      LIVE.slug,
+      { skipInsert: true },
+    );
+    expect(signed.response.status).toBe(404);
+
+    const unsigned = await callbackUnsigned("sub_cb_ghost", {
+      backendVersion: VERSION,
+      status: "accepted",
+    });
+    expect(unsigned.status).toBe(401);
+  });
+
+  it("存在的提交缺签名也是 401，且理由与提交不存在时逐字相同", async () => {
+    await db.insert(submissions).values({
+      id: "sub_cb_unsigned",
+      handle: HANDLE,
+      problemSlug: LIVE.slug,
+      payload: {},
+      backendId: "traditional",
+      callbackTokenHash: "irrelevant",
+      state: "judging",
+    });
+
+    const existing = await callbackUnsigned("sub_cb_unsigned", {
+      backendVersion: VERSION,
+      status: "accepted",
+    });
+    expect(existing.status).toBe(401);
+
+    const missing = await callbackUnsigned("sub_cb_no_row", {
+      backendVersion: VERSION,
+      status: "accepted",
+    });
+    expect(missing.status).toBe(401);
+    expect(await existing.json()).toEqual(await missing.json());
+
+    // The refusal must not have written anything.
+    const [row] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.id, "sub_cb_unsigned"));
+    expect(row.state).toBe("judging");
+  });
+
+  it("签名有效但回调令牌错误时被拒绝，提交不被改写", async () => {
+    const { response } = await callback(
+      "sub_cb_badtoken",
+      { backendVersion: VERSION, status: "accepted", score: 100 },
+      LIVE.slug,
+      { tokenOverride: "not-the-issued-token" },
+    );
+    expect(response.status).toBe(401);
+
+    const [row] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.id, "sub_cb_badtoken"));
+    expect(row.state).toBe("judging");
+    expect(row.verdict).toBeNull();
   });
 });

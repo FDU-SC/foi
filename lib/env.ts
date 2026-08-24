@@ -43,6 +43,21 @@ const schema = z.object({
   FOI_BACKEND_SECRET: z
     .string("未设置。用 openssl rand -hex 32 生成，并与题目后端保持一致")
     .min(16, "太短。用 openssl rand -hex 32 生成，并与题目后端保持一致"),
+
+  // Optional, and checked anyway. A typo here does not stop the process from
+  // serving — it silently changes which `x-forwarded-for` entry every rate
+  // limit counts by, which is the kind of wrong that shows up as a password
+  // spray nobody noticed rather than as a failed boot.
+  FOI_TRUSTED_PROXY_HOPS: z
+    .string()
+    .optional()
+    .refine(
+      (value) =>
+        value === undefined ||
+        value === "" ||
+        (Number.isInteger(Number(value)) && Number(value) >= 0),
+      "必须是非负整数：反向代理的层数，直接暴露端口时填 0",
+    ),
 });
 
 /**

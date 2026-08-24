@@ -9,7 +9,7 @@ import { verifyPassword } from "@/lib/auth/credentials";
 import type { Capability } from "@/lib/auth/policy";
 import type { SessionUser } from "@/lib/auth/session";
 import { viewerFor, type Viewer } from "@/lib/auth/viewer";
-import { rateLimit } from "@/lib/ratelimit";
+import { rateLimit, sourceFrom } from "@/lib/ratelimit";
 
 const credentialsSchema = z.object({
   handle: z.string().min(1),
@@ -44,13 +44,11 @@ function withinLoginRate(handle: string, request: Request | undefined): boolean 
   }
 
   // Taken off the request rather than `next/headers`, so this works wherever
-  // Auth.js invokes the provider. Spoofable by anything that reaches the app
-  // directly, which is why it raises cost rather than being a boundary.
-  const forwarded = request?.headers.get("x-forwarded-for");
-  const source =
-    forwarded?.split(",")[0]?.trim() ||
-    request?.headers.get("x-real-ip") ||
-    "unknown";
+  // Auth.js invokes the provider. Read through `sourceFrom` rather than off
+  // `x-forwarded-for` directly: this used to take the leftmost entry, which is
+  // the one the sender writes, so the bound below counted attempts per header
+  // value instead of per machine and a sprayer simply varied it.
+  const source = request ? sourceFrom(request.headers) : "unknown";
 
   return rateLimit(`login:ip:${source}`, PER_SOURCE.limit, PER_SOURCE.windowMs)
     .ok;

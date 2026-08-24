@@ -49,10 +49,16 @@ export async function register() {
   const { enrollmentWarnings } = await import("@/lib/enrollment/registry");
   const { contestWarnings } = await import("@/lib/contests/registry");
   const { problemGateWarnings } = await import("@/lib/problems/access");
+  // Alongside `assertEnv` rather than inside it: which backends are in use is
+  // derived from the problem registry, and `lib/env.ts` deliberately knows
+  // nothing about content. Said here, where the rest of the "your
+  // configuration is legal but probably not what you meant" checks are said.
+  const { backendSecretWarnings } = await import("@/lib/backend/access");
   for (const warning of [
     ...enrollmentWarnings(),
     ...contestWarnings(),
     ...problemGateWarnings(),
+    ...backendSecretWarnings(),
   ]) {
     console.warn(`[foi] ${warning}`);
   }

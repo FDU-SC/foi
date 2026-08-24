@@ -1,16 +1,18 @@
 import { sql } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { backends, type ProblemBackend } from "@/backends.config";
+import { problemsServedBy } from "@/lib/backend/access";
 import { db } from "@/lib/db";
 import { loadAdminOverview } from "./drift";
 
 /**
- * The one failure mode nothing in the product could report.
+ * Things that are wrong with a deployment but not with any of its rows.
  *
- * With no relay configured every send still succeeds — it goes to the server
- * log — so registration and password recovery are dead ends that look like
- * they are working from every angle a user or an operator has. `/admin` is the
- * only surface positioned to say otherwise, and `mailIsConfigured()` sat
- * exported with no callers until it was wired here.
+ * Both cases below are conditions no page could surface on its own: mail with
+ * no relay reports every send as a success, and backends on a shared key work
+ * exactly as well as backends on separate ones right up until one is
+ * compromised. Each is also said at startup, in a container log that scrolled
+ * past weeks ago — so `/admin` is where somebody actually meets them.
  *
  * Counts real rows, so it runs against a real Postgres and skips itself when
  * there is none.
@@ -31,20 +33,31 @@ if (!online) {
   console.warn("[test] 数据库不可达，跳过运维台偏差用例");
 }
 
-/** Whichever finding is about the relay, without pinning its wording. */
-function mailFinding(findings: { title: string; severity: string }[]) {
-  return findings.find((finding) => finding.title.includes("SMTP"));
+type Finding = { title: string; severity: string; items: string[] };
+
+/** Matched on a substring, so the copy can be reworded without a red test. */
+function findingAbout(findings: Finding[], word: string) {
+  return findings.find((finding) => finding.title.includes(word));
+}
+
+const savedBackends = new Map<string, ProblemBackend>();
+
+function patchBackend(id: string, changes: Partial<ProblemBackend>): void {
+  if (!savedBackends.has(id)) savedBackends.set(id, backends[id]);
+  backends[id] = { ...backends[id], ...changes };
 }
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  for (const [id, entry] of savedBackends) backends[id] = entry;
+  savedBackends.clear();
 });
 
 describeDb("运维台偏差：邮件", () => {
   it("没有中继时报出来，因为注册与找回对用户已经失效", async () => {
     vi.stubEnv("FOI_SMTP_HOST", undefined);
 
-    const finding = mailFinding((await loadAdminOverview()).findings);
+    const finding = findingAbout((await loadAdminOverview()).findings, "SMTP");
 
     expect(finding).toBeDefined();
     // A warning, not a note: this is a broken feature rather than a row that
@@ -55,6 +68,45 @@ describeDb("运维台偏差：邮件", () => {
   it("配了中继就不报，否则这条会变成人人都学会忽略的常驻噪音", async () => {
     vi.stubEnv("FOI_SMTP_HOST", "smtp.example.com");
 
-    expect(mailFinding((await loadAdminOverview()).findings)).toBeUndefined();
+    expect(
+      findingAbout((await loadAdminOverview()).findings, "SMTP"),
+    ).toBeUndefined();
+  });
+});
+
+describeDb("运维台偏差：题目后端签名密钥", () => {
+  const inUse = Object.keys(backends).filter(
+    (id) => problemsServedBy(id).length > 0,
+  );
+
+  it("两个服务共用一个密钥时报出来，并列出该配哪几台", async () => {
+    if (inUse.length < 2) return;
+    inUse.forEach((id, index) => {
+      patchBackend(id, { secret: undefined, url: `http://backend-${index}:4100` });
+    });
+
+    const finding = findingAbout((await loadAdminOverview()).findings, "签名密钥");
+
+    expect(finding?.severity).toBe("warn");
+    expect(finding?.items.sort()).toEqual([...inUse].sort());
+  });
+
+  it("各自有密钥时不报", async () => {
+    for (const id of inUse) patchBackend(id, { secret: `secret-for-${id}` });
+
+    expect(
+      findingAbout((await loadAdminOverview()).findings, "签名密钥"),
+    ).toBeUndefined();
+  });
+
+  /**
+   * The state a fresh checkout is in: every entry points at the one mock
+   * backend. One process cannot hold two keys, so there is nothing here to
+   * fix and nothing to say.
+   */
+  it("仓库默认配置——全部指向同一个 mock——不报", async () => {
+    expect(
+      findingAbout((await loadAdminOverview()).findings, "签名密钥"),
+    ).toBeUndefined();
   });
 });

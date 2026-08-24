@@ -29,6 +29,20 @@
       "when": 1787502000000,
       "tag": "0003_retire_setup_code",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787536804119,
+      "tag": "0004_email_verification",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787537180952,
+      "tag": "0005_retire_pending_accounts",
+      "breakpoints": true
     }
   ]
 }

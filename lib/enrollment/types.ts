@@ -72,10 +72,10 @@ export const enrollmentPolicySchema = z.object({
   emailDomains: z.array(z.string().min(1)).default([]),
 
   /**
-   * Whether an account has to prove it owns its address before it can act.
-   * Off is for deployments that pre-verify some other way; leaving it off with
-   * a public form means anybody can claim any address, and addresses decide
-   * cohorts.
+   * Whether the registration form mails a code and requires it back before it
+   * will create anything. Off is for deployments that pre-verify some other
+   * way; leaving it off with a public form means anybody can claim any
+   * address, and addresses decide group membership.
    */
   requireEmailVerification: z.boolean().default(true),
 
@@ -88,9 +88,6 @@ export const enrollmentPolicySchema = z.object({
    * cohorts. See the note in `lib/accounts/types.ts`.
    */
   stripSubaddress: z.boolean().default(true),
-
-  /** How long an unverified signup holds its handle before being swept. */
-  unverifiedTtlHours: z.number().int().positive().default(24),
 
   /** Registrations accepted from one address, per hour. */
   registrationsPerIpPerHour: z.number().int().positive().default(10),

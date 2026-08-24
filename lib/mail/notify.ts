@@ -1,17 +1,17 @@
-import { resetPassword, verifyEmail } from "@/content/emails";
+import { resetPassword, verificationCode } from "@/content/emails";
+import { issueCode } from "@/lib/auth/email-verification";
 import { issueToken, lastIssuedAt } from "@/lib/auth/tokens";
 import type { TokenPurpose } from "@/lib/db/schema";
 import { deliver } from "./transport";
 
 /**
- * The two things FOI mails, each of which is "mint a token, put it in a link,
- * send it".
+ * The two things FOI mails.
  *
- * Throttling lives here rather than in a rate-limit store because the token
- * table already records when the last one went out. That answer survives a
- * restart and is the same in every process, neither of which is true of an
- * in-memory counter — and the thing being limited is precisely the thing being
- * recorded.
+ * They are no longer the same shape. Recovery is still "mint a token, put it
+ * in a link, send it" against an account that exists. Verification happens
+ * before the account does, so it carries a code the person types back into the
+ * page they are already on, and its throttle lives in the row the code is
+ * stored in rather than here.
  */
 const RESEND_COOLDOWN_MS = 60_000;
 
@@ -45,21 +45,23 @@ export interface Recipient {
   email: string;
 }
 
-export async function sendVerification(to: Recipient): Promise<NotifyResult> {
-  const wait = await throttled(to.handle, "email_verify");
-  if (wait > 0) return { ok: false, reason: "throttled", retryAfterMs: wait };
+/**
+ * Takes an address rather than a `Recipient`, because at this point in
+ * registration that is all there is: no handle, no display name, and no
+ * account to hang either on.
+ */
+export async function sendVerificationCode(
+  email: string,
+): Promise<NotifyResult> {
+  const issued = await issueCode(email);
+  if (!issued.ok) return issued;
 
-  const { token, expiresAt } = await issueToken(to.handle, "email_verify");
   await deliver({
-    to: to.email,
-    ...verifyEmail({
-      displayName: to.displayName,
-      url: linkTo("/verify", token),
-      expiresAt,
-    }),
+    to: email,
+    ...verificationCode({ code: issued.code, expiresAt: issued.expiresAt }),
   });
 
-  return { ok: true, expiresAt };
+  return { ok: true, expiresAt: issued.expiresAt };
 }
 
 export async function sendPasswordReset(to: Recipient): Promise<NotifyResult> {
@@ -78,4 +80,3 @@ export async function sendPasswordReset(to: Recipient): Promise<NotifyResult> {
 
   return { ok: true, expiresAt };
 }
-

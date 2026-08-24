@@ -49,8 +49,10 @@ export async function requestPasswordReset(
 
   if (row) {
     const user = resolveFromRow(row);
-    // A pending account has not proved it owns the address yet, so mailing a
-    // password reset there would be mailing a stranger.
+    // Registration proves the address before it writes the row, so this now
+    // only excludes bootstrap accounts — which have no address to mail — and
+    // anyone suspended. It stays an explicit check rather than an assumption
+    // about how every row got there.
     if (!user.disabled && user.email && user.emailVerified) {
       // A throttled resend is reported as success: the person already has a
       // live link in their inbox, and saying so would leak that they exist.

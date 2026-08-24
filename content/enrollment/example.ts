@@ -35,7 +35,6 @@ export const policy: EnrollmentPolicyInput = {
   // page. Handles already granted below are reserved automatically.
   reservedHandles: ["root", "system", "admin", "foi", "judge", "support"],
 
-  unverifiedTtlHours: 24,
   registrationsPerIpPerHour: 10,
 };
 

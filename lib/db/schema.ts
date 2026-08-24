@@ -1,6 +1,7 @@
 import {
   doublePrecision,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -13,7 +14,8 @@ import type { SubmissionState, Verdict } from "@/lib/judge/types";
  * The database holds three kinds of thing and nothing else:
  *
  *   1. secrets and personal data, which cannot be committed — `accounts`
- *      (the email address), `credentials`, `auth_tokens`
+ *      (the email address), `credentials`, `auth_tokens`,
+ *      `email_verifications`
  *   2. mirrors of the filesystem registries, which exist only so that
  *      submissions can carry foreign keys — `problems`, `contests`
  *   3. things that actually happened — `submissions`, and every row in
@@ -39,8 +41,13 @@ import type { SubmissionState, Verdict } from "@/lib/judge/types";
  * `email` is null only for bootstrap accounts, which are declared in the
  * repository and given a password over the CLI. The unique index tolerates
  * that because Postgres does not consider two nulls equal.
+ *
+ * There is no `pending` status. There used to be, covering the gap between
+ * filling in the registration form and clicking the link that arrived
+ * afterwards — a gap that no longer exists now that the address is proved
+ * before the row is written. An account is either able to act or stopped.
  */
-export const accountStatuses = ["pending", "active", "suspended"] as const;
+export const accountStatuses = ["active", "suspended"] as const;
 export type AccountStatus = (typeof accountStatuses)[number];
 
 export const accountSources = ["bootstrap", "registration"] as const;
@@ -65,7 +72,7 @@ export const accounts = pgTable(
       .$type<AccountSource>()
       .notNull()
       .default("registration"),
-    status: text("status").$type<AccountStatus>().notNull().default("pending"),
+    status: text("status").$type<AccountStatus>().notNull().default("active"),
 
     /**
      * Suspension is data rather than a line in the repository: banning a spam
@@ -115,23 +122,21 @@ export const credentials = pgTable("credentials", {
 });
 
 /**
- * Single-use, hashed, expiring secrets sent to an email address.
+ * Single-use, hashed, expiring secrets mailed to the owner of an account.
  *
- * Verifying a new address and recovering a password are the same mechanism
- * with different consequences, so they are one table with a `purpose` rather
- * than two pairs of nullable columns on `credentials`.
- *
- * There used to be a third purpose, `setup_code`, for a code an administrator
- * issued and handed over in person. Self-service registration and recovery
- * replaced both of its jobs, and it was the only secret in the system that
- * travelled through a third party's hands, so it was retired.
+ * Down to one purpose, and kept as a `purpose` column anyway. Two have been
+ * retired: `setup_code`, a credential an administrator handed over in person,
+ * and `email_verify`, whose link has been replaced by a code checked before
+ * the account exists — which is precisely why it could not stay here, since
+ * `handle` below presumes an account to point at. The column costs a text
+ * field and is what makes the next one an insert rather than a migration.
  *
  * Only the digest is stored. A row is consumed rather than deleted so that
  * "this link has already been used" stays distinguishable from "this link
  * never existed", and so that a recently issued token can throttle the next
  * request for one without a separate rate-limit store.
  */
-export const tokenPurposes = ["email_verify", "password_reset"] as const;
+export const tokenPurposes = ["password_reset"] as const;
 export type TokenPurpose = (typeof tokenPurposes)[number];
 
 export const authTokens = pgTable(
@@ -163,6 +168,51 @@ export const authTokens = pgTable(
     ),
   ],
 );
+
+/**
+ * Proof that whoever is filling in the registration form can read the address
+ * they typed — established before there is an account to attach it to.
+ *
+ * This is why it is not a third `auth_tokens` purpose: that table's `handle`
+ * is NOT NULL and references `accounts`, which presumes the very thing
+ * registration has not done yet. Keyed by the address instead, one row per
+ * mailbox, because one mailbox has at most one signup in flight.
+ *
+ * The code is short enough to be retyped from a phone, which changes what
+ * "store the digest" is worth. Six digits is a space of a million, so the
+ * digest cannot be the lookup key the way a 160-bit token's is — that would be
+ * an invitation to grind it. The row is found by address and the code only
+ * ever compared, `attempts` caps how many times that may fail, and the address
+ * goes into the digest so a code mailed to one mailbox cannot be spent on
+ * another.
+ *
+ * `expiresAt` is one deadline covering two phases: until the code is redeemed
+ * it is the code's, and redemption pushes it out to leave time for the rest of
+ * the form. A row survives redemption because `verifiedAt` is what the
+ * registration itself checks; it is deleted once an account exists.
+ */
+export const emailVerifications = pgTable("email_verifications", {
+  /** Normalised the same way `accounts.email` is, and for the same reason. */
+  email: text("email").primaryKey(),
+
+  /** SHA-256 of `email:code`. See the note above on why it is not a key. */
+  codeHash: text("code_hash").notNull(),
+
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+
+  /** Failed comparisons. Past the cap the row is spent and a new code is the
+   * only way forward — which the resend cooldown paces. */
+  attempts: integer("attempts").notNull().default(0),
+
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+
+  /** When the code went out. The resend cooldown reads this, for the reason
+   * given in `lib/auth/tokens.ts`: the row recording the send is the row
+   * recording when. */
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 /**
  * Mirror of the filesystem registry. `content/problems` remains the source of
@@ -253,6 +303,7 @@ export const submissions = pgTable(
 
 export type AccountRow = typeof accounts.$inferSelect;
 export type AuthTokenRow = typeof authTokens.$inferSelect;
+export type EmailVerificationRow = typeof emailVerifications.$inferSelect;
 export type CredentialRow = typeof credentials.$inferSelect;
 export type ProblemRow = typeof problems.$inferSelect;
 export type ContestRow = typeof contests.$inferSelect;

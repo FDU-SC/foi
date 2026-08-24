@@ -11,10 +11,10 @@ import { headers } from "next/headers";
  * This guards the endpoints that cost something to an outsider: signing up and
  * asking for a password reset both send mail, and an unmetered form that sends
  * mail is a way to have somebody else's inbox filled from your domain. The
- * per-recipient half of that is handled separately and durably in
- * `lib/auth/tokens.ts`, which will not mint a second token within a minute;
- * what this adds is a cap on how many *different* addresses one source can
- * aim at.
+ * per-recipient half of that is handled separately and durably, by
+ * `lib/auth/tokens.ts` and `lib/auth/email-verification.ts`, neither of which
+ * will send to the same recipient twice within a minute; what this adds is a
+ * cap on how many *different* addresses one source can aim at.
  */
 interface Window {
   count: number;

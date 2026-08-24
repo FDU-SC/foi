@@ -1,6 +1,6 @@
-import { and, asc, eq, isNotNull, lt, sql } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { accounts, submissions } from "@/lib/db/schema";
+import { accounts } from "@/lib/db/schema";
 import type { AccountRow, AccountSource, AccountStatus } from "@/lib/db/schema";
 import { invalidateAccounts } from "./cache";
 import { normalizeHandle } from "./types";
@@ -74,7 +74,7 @@ export async function createAccount(
       email: input.email ?? null,
       emailVerifiedAt: input.emailVerifiedAt ?? null,
       source: input.source ?? "registration",
-      status: input.status ?? "pending",
+      status: input.status ?? "active",
     })
     .onConflictDoNothing()
     .returning();
@@ -108,16 +108,6 @@ export async function updateAccount(
   return row;
 }
 
-/** Marks a pending account active once it has proved it owns its address. */
-export async function activateAccount(
-  handle: string,
-): Promise<AccountRow | undefined> {
-  return updateAccount(handle, {
-    status: "active",
-    emailVerifiedAt: new Date(),
-  });
-}
-
 export async function suspendAccount(
   handle: string,
   by: string,
@@ -145,45 +135,4 @@ export async function reinstateAccount(
     suspendedBy: null,
     suspendedReason: null,
   });
-}
-
-/**
- * Drops registrations that never confirmed their address, freeing the handle.
- *
- * Only ever touches `pending` rows that carry an email, so a bootstrap account
- * — which has neither — cannot be swept away by it. An account that somehow
- * managed to submit is kept: the foreign key would refuse the delete anyway,
- * and a loud orphan beats a failed cleanup run every fifteen minutes.
- */
-export async function purgeUnverifiedAccounts(
-  olderThan: Date,
-): Promise<string[]> {
-  const stale = await db
-    .select({ handle: accounts.handle })
-    .from(accounts)
-    .where(
-      and(
-        eq(accounts.status, "pending"),
-        eq(accounts.source, "registration"),
-        isNotNull(accounts.email),
-        lt(accounts.createdAt, olderThan),
-      ),
-    );
-  if (stale.length === 0) return [];
-
-  const removed = await db
-    .delete(accounts)
-    .where(
-      and(
-        eq(accounts.status, "pending"),
-        eq(accounts.source, "registration"),
-        isNotNull(accounts.email),
-        lt(accounts.createdAt, olderThan),
-        sql`not exists (select 1 from ${submissions} where ${submissions.handle} = ${accounts.handle})`,
-      ),
-    )
-    .returning({ handle: accounts.handle });
-
-  if (removed.length > 0) invalidateAccounts();
-  return removed.map((row) => row.handle);
 }

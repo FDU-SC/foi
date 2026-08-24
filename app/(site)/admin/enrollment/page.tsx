@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { getViewer } from "@/auth";
 import { accountsFor } from "@/lib/accounts/access";
+import { codeTtlMinutes } from "@/lib/auth/email-verification";
 import { declaredGroupIds, groupName, isPrivileged } from "@/lib/auth/groups";
 import {
   enrollmentPolicy,
@@ -101,9 +102,9 @@ export default async function AdminEnrollmentPage() {
               </dd>
             </div>
             <div className="flex justify-between gap-2">
-              <dt className="text-fg-muted">未验证回收</dt>
+              <dt className="text-fg-muted">验证码有效期</dt>
               <dd className="text-fg font-mono text-xs">
-                {enrollmentPolicy.unverifiedTtlHours} 小时
+                {codeTtlMinutes} 分钟
               </dd>
             </div>
             <div className="flex justify-between gap-2">

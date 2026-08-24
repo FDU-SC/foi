@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
-import { locateInQueues } from "@/lib/judge/queue-lookup";
-import { isTerminalState } from "@/lib/judge/types";
+import { locateInQueues } from "@/lib/backend/queue-lookup";
+import { isTerminalState } from "@/lib/backend/types";
 import { viewerFor } from "@/lib/auth/viewer";
 import { submissionsFor } from "@/lib/submissions/access";
 

@@ -4,7 +4,7 @@ export const problem = {
   slug: "perf-optimize",
   title: "性能优化题示例 · 矩阵乘法",
   maxScore: 100,
-  judge: {
+  backend: {
     id: "performance",
     config: {
       // mode 标记告诉判题机这是一道性能题：编译运行 + 与内置基线对比计时。

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/auth";
 import { viewerFor } from "@/lib/auth/viewer";
-import { judgeQueuesFor } from "@/lib/judge/client";
+import { judgeQueuesFor } from "@/lib/backend/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

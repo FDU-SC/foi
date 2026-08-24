@@ -4,11 +4,11 @@ export const problem = {
   slug: "answer-only",
   title: "提交答案题示例 · 二进制中 1 的个数",
   maxScore: 100,
-  judge: {
+  backend: {
     id: "output-only",
     config: {
       // 期望答案按场景顺序。真实场景下这些数据由判题机从 testdata 读取，
-      // 示例题直接内联——反正 judge.config 不会下发到浏览器。
+      // 示例题直接内联——反正 backend.config 不会下发到浏览器。
       cases: [
         { name: "场景 1", expected: "8" },
         { name: "场景 2", expected: "1" },

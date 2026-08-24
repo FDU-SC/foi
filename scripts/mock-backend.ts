@@ -9,20 +9,21 @@ import {
   TIMESTAMP_HEADER,
   sign,
   verifySignature,
-} from "../lib/judge/signature";
-import type { JudgeQueue, QueueItem, Verdict } from "../lib/judge/types";
+} from "../lib/backend/signature";
+import type { JudgeQueue, QueueItem, Verdict } from "../lib/backend/types";
 
-const PORT = Number(process.env.MOCK_JUDGE_PORT ?? 4100);
-const JUDGE_DELAY_MS = Number(process.env.MOCK_JUDGE_DELAY ?? 1500);
+const PORT = Number(process.env.MOCK_BACKEND_PORT ?? 4100);
+const JUDGE_DELAY_MS = Number(process.env.MOCK_BACKEND_DELAY ?? 1500);
 /** Concurrent evaluation slots; anything beyond this waits in the queue. */
-const CAPACITY = Number(process.env.MOCK_JUDGE_CAPACITY ?? 2);
+const CAPACITY = Number(process.env.MOCK_BACKEND_CAPACITY ?? 2);
 const VERSION = "1.0.0";
 
 /** `--drop-callbacks` judges normally but never reports, to exercise the reconciler. */
 const DROP_CALLBACKS = process.argv.includes("--drop-callbacks");
 
-const secret = process.env.FOI_JUDGE_SECRET;
-if (!secret) throw new Error("缺少环境变量 FOI_JUDGE_SECRET");
+const secret =
+  process.env.FOI_BACKEND_SECRET ?? process.env.FOI_JUDGE_SECRET;
+if (!secret) throw new Error("缺少环境变量 FOI_BACKEND_SECRET");
 
 const startedAt = Date.now();
 
@@ -706,7 +707,7 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`mock 判题机监听 :${PORT}`);
+  console.log(`mock 题目后端监听 :${PORT}`);
   console.log(`  并发容量 ${CAPACITY}，单题耗时 ${JUDGE_DELAY_MS}ms`);
   if (DROP_CALLBACKS) console.log("  已开启丢弃回调模式，用于验证对账兜底");
 });

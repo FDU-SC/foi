@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import type { SubmissionState, Verdict } from "@/lib/judge/types";
+import type { SubmissionState, Verdict } from "@/lib/backend/types";
 
 export interface ContestProblem {
   slug: string;

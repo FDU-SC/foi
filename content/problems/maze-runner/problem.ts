@@ -4,7 +4,7 @@ export const problem = {
   slug: "maze-runner",
   title: "迷宫寻路",
   maxScore: 100,
-  judge: {
+  backend: {
     id: "traditional",
     config: {
       timeLimit: 1000,

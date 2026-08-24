@@ -4,10 +4,10 @@ export const problem = {
   slug: "leaky-bucket",
   title: "Leaky Bucket",
   maxScore: 300,
-  judge: {
+  backend: {
     id: "flag-checker",
     config: {
-      // Never reaches the browser: `toPublicConfig` strips `judge` before the
+      // Never reaches the browser: `toPublicConfig` strips `backend` before the
       // config is handed to the client.
       mode: "static",
       expected: "FOI{r4te_l1m1t_bypa55ed}",

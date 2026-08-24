@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
-import type { Verdict } from "@/lib/judge/types";
+import type { Verdict } from "@/lib/backend/types";
 
 interface TestLike {
   name?: string;

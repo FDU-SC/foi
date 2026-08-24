@@ -1,6 +1,6 @@
 import { getSessionUser } from "@/auth";
 import { viewerFor } from "@/lib/auth/viewer";
-import { isTerminalState } from "@/lib/judge/types";
+import { isTerminalState } from "@/lib/backend/types";
 import { subscribe } from "@/lib/submissions/events";
 import { submissionFor } from "@/lib/submissions/access";
 import { toView } from "@/lib/submissions/queries";

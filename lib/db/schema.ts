@@ -8,7 +8,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import type { SubmissionState, Verdict } from "@/lib/judge/types";
+import type { SubmissionState, Verdict } from "@/lib/backend/types";
 
 /**
  * The database holds three kinds of thing and nothing else:
@@ -278,7 +278,12 @@ export const submissions = pgTable(
 
     /** Judge-side handle, used by the reconciler to poll for a lost callback. */
     judgeRef: text("judge_ref"),
-    judgeId: text("judge_id").notNull(),
+    /**
+     * Which backend this went to. The column keeps its original name: renaming
+     * the concept is a source change, and a migration that rewrites a column
+     * only to spell it differently is downtime bought for nothing.
+     */
+    backendId: text("judge_id").notNull(),
     callbackTokenHash: text("callback_token_hash").notNull(),
 
     error: text("error"),

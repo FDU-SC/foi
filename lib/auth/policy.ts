@@ -2,7 +2,7 @@
  * Every distinct authorisation decision this codebase knows how to make.
  *
  * The kernel owns this list and nothing else about authorisation. These are
- * identifiers the code reads — `viewer.can("judge.inspect")` — so they cannot
+ * identifiers the code reads — `viewer.can("backend.inspect")` — so they cannot
  * be content; which groups exist and which of these each one holds is content,
  * and lives in `content/enrollment/`. See `./groups`.
  *
@@ -47,8 +47,8 @@ export const CAPABILITIES = [
   /** Read submissions belonging to other people. */
   "submission.readAny",
 
-  /** See judge addresses and unredacted queue entries. */
-  "judge.inspect",
+  /** See problem backend addresses and unredacted queue entries. */
+  "backend.inspect",
 
   /**
    * Read the account directory, including the email addresses in it.
@@ -83,7 +83,7 @@ export const CAPABILITY_LABELS: Record<Capability, string> = {
   "contest.viewAll": "查看全部比赛",
   "standings.viewFrozen": "封榜期间查看真实排名",
   "submission.readAny": "查看他人提交",
-  "judge.inspect": "查看判题机细节",
+  "backend.inspect": "查看题目后端细节",
   "account.read": "查看账号目录与邮箱",
   "credential.manage": "代发找回密码邮件",
   "account.moderate": "封禁与解封账号",

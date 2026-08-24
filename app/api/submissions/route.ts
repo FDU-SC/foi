@@ -13,9 +13,9 @@ import {
   createCallbackToken,
   dispatchToJudge,
   DispatchError,
-  resolveJudge,
-} from "@/lib/judge/client";
-import { NON_TERMINAL_STATES } from "@/lib/judge/types";
+  resolveBackend,
+} from "@/lib/backend/client";
+import { NON_TERMINAL_STATES } from "@/lib/backend/types";
 import { problemFor } from "@/lib/problems/access";
 import { ensureProblem } from "@/lib/problems/sync";
 import { publish } from "@/lib/submissions/events";
@@ -105,9 +105,9 @@ export async function POST(request: Request) {
     contestSlug = contest.slug;
   }
 
-  let judge;
+  let backend;
   try {
-    judge = resolveJudge(problem.judge.id);
+    backend = resolveBackend(problem.backend.id);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "判题机配置错误" },
@@ -130,7 +130,7 @@ export async function POST(request: Request) {
       problemSlug: problem.slug,
       contestSlug,
       payload: parsed.data.payload,
-      judgeId: judge.id,
+      backendId: backend.id,
       callbackTokenHash: hash,
       maxScore: problem.maxScore,
       state: "pending",
@@ -162,9 +162,9 @@ export async function POST(request: Request) {
   };
 
   try {
-    const { judgeRef } = await dispatchToJudge(judge, {
+    const { judgeRef } = await dispatchToJudge(backend, {
       submissionId: id,
-      problem: { slug: problem.slug, config: problem.judge.config },
+      problem: { slug: problem.slug, config: problem.backend.config },
       payload: parsed.data.payload,
       callbackUrl: callbackUrl(),
       callbackToken: token,

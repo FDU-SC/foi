@@ -29,10 +29,10 @@ export const problemConfigSchema = z.object({
   maxScore: z.number().positive().default(100),
 
   /**
-   * Which judge handles this problem and what to hand it. `config` is passed
-   * through to the judge verbatim; the kernel never looks inside.
+   * Which backend serves this problem and what to hand it. `config` is passed
+   * through verbatim; the kernel never looks inside.
    */
-  judge: z.object({
+  backend: z.object({
     id: z.string().min(1),
     config: z.unknown().optional(),
   }),
@@ -64,13 +64,14 @@ export type ProblemConfig = z.infer<typeof problemConfigSchema>;
 export type ProblemConfigInput = z.input<typeof problemConfigSchema>;
 
 /**
- * What is safe to hand to the browser. `judge` is stripped because its config
- * routinely holds testdata locations, checker settings, or literal answers.
+ * What is safe to hand to the browser. `backend` is stripped because its
+ * config routinely holds testdata locations, checker settings, or literal
+ * answers.
  */
-export type PublicProblemConfig = Omit<ProblemConfig, "judge">;
+export type PublicProblemConfig = Omit<ProblemConfig, "backend">;
 
 export function toPublicConfig(config: ProblemConfig): PublicProblemConfig {
-  const { judge: _judge, ...rest } = config;
+  const { backend: _backend, ...rest } = config;
   return rest;
 }
 

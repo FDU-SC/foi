@@ -3,17 +3,17 @@ import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { submissions } from "@/lib/db/schema";
-import { hashCallbackToken, resolveJudge } from "@/lib/judge/client";
+import { hashCallbackToken, resolveBackend } from "@/lib/backend/client";
 import {
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
   verifySignature,
-} from "@/lib/judge/signature";
+} from "@/lib/backend/signature";
 import {
   judgeCallbackSchema,
   isTerminalState,
   NON_TERMINAL_STATES,
-} from "@/lib/judge/types";
+} from "@/lib/backend/types";
 import { publish } from "@/lib/submissions/events";
 import { toView } from "@/lib/submissions/queries";
 import { invalidateStandings } from "@/lib/standings/cache";
@@ -60,15 +60,15 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "提交不存在" }, { status: 404 });
   }
 
-  let judge;
+  let backend;
   try {
-    judge = resolveJudge(row.judgeId);
+    backend = resolveBackend(row.backendId);
   } catch {
-    return NextResponse.json({ error: "判题机配置错误" }, { status: 500 });
+    return NextResponse.json({ error: "题目后端配置错误" }, { status: 500 });
   }
 
   const signature = verifySignature({
-    secret: judge.secret,
+    secret: backend.secret,
     timestamp: request.headers.get(TIMESTAMP_HEADER),
     signature: request.headers.get(SIGNATURE_HEADER),
     body: raw,

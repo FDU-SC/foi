@@ -5,9 +5,8 @@ import "server-only";
  *
  * Keeping this glob separate from enrollment, contest, and ruleset registries
  * prevents one dynamic content graph from pulling unrelated private modules
- * into a browser chunk. Statements are eager on purpose: lazy glob chunks are
- * public static assets, while an eager Server Component stays in the server
- * module graph and is rendered only after the access gate has passed.
+ * into a browser chunk. The `server-only` marker keeps lazy statement chunks
+ * in the server graph while preserving per-problem loading.
  */
 export const problemConfigModules = import.meta.glob(
   "./problems/*/problem.ts",
@@ -16,5 +15,4 @@ export const problemConfigModules = import.meta.glob(
 
 export const problemStatementModules = import.meta.glob(
   "./problems/*/statement.mdx",
-  { eager: true },
 );

@@ -11,9 +11,8 @@ import { problemConfigSchema, type ProblemConfig } from "./types";
  * and Turbopack's watcher picks up additions and removals during `next dev`.
  *
  * The globs themselves live under `content/` because Turbopack only scans
- * downward from the calling file. Both load eagerly into the server graph.
- * A lazy statement glob would emit public static chunks, which is not an
- * acceptable place for an embargoed statement.
+ * downward from the calling file. Configs load eagerly; statements load lazily
+ * from a module marked `server-only`, so their chunks remain on the server.
  */
 function slugFromPath(path: string): string | null {
   return path.match(/\/problems\/([^/]+)\/[^/]+$/)?.[1] ?? null;
@@ -57,11 +56,10 @@ function buildRegistry(): Map<string, ProblemConfig> {
 
 const registry = buildRegistry();
 
-const statements = new Map<string, ComponentType>(
-  Object.entries(problemStatementModules).flatMap(([path, mod]) => {
+const statementLoaders = new Map<string, () => Promise<unknown>>(
+  Object.entries(problemStatementModules).flatMap(([path, load]) => {
     const slug = slugFromPath(path);
-    const Statement = (mod as { default?: ComponentType }).default;
-    return slug && Statement ? [[slug, Statement] as const] : [];
+    return slug ? [[slug, load] as const] : [];
   }),
 );
 
@@ -97,5 +95,8 @@ export function hasProblem(slug: string): boolean {
 export async function loadStatement(
   slug: string,
 ): Promise<ComponentType | null> {
-  return statements.get(slug) ?? null;
+  const load = statementLoaders.get(slug);
+  if (!load) return null;
+  const mod = (await load()) as { default?: ComponentType };
+  return mod.default ?? null;
 }

@@ -1,5 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { readTextBody } from "./body-limit";
+import {
+  PROXY_CLIENT_MAX_BODY_SIZE,
+  SERVER_ACTION_BODY_LIMIT,
+  readTextBody,
+} from "./body-limit";
+
+/**
+ * The two global ceilings fail in opposite ways, and the ordering between them
+ * is the part that is not visible from either number alone.
+ *
+ * A Server Action over its limit is refused and the caller is told. A request
+ * over the proxy buffer is silently truncated — a warning in the log, a
+ * partial body to the handler, no error to the client. So the limit that
+ * reports has to be the one that fires first. Backwards, a submission at
+ * exactly the allowed size arrives cut short and is reported to the person as
+ * a malformed request, which is an afternoon of debugging in the wrong place.
+ */
+describe("全局请求体上限", () => {
+  it("proxy 的缓冲上限必须严格大于 Server Action 的上限", () => {
+    expect(PROXY_CLIENT_MAX_BODY_SIZE).toBeGreaterThan(SERVER_ACTION_BODY_LIMIT);
+  });
+
+  it("两个值都是正整数字节数", () => {
+    for (const value of [SERVER_ACTION_BODY_LIMIT, PROXY_CLIENT_MAX_BODY_SIZE]) {
+      expect(Number.isInteger(value)).toBe(true);
+      expect(value).toBeGreaterThan(0);
+    }
+  });
+
+  // Not a security bound, a sanity one: a limit large enough to stop being a
+  // limit is worth noticing, and Next's own default already was.
+  it("Server Action 的上限没有大到失去意义", () => {
+    expect(SERVER_ACTION_BODY_LIMIT).toBeLessThanOrEqual(256 * 1024);
+  });
+});
 
 /** A request whose body arrives in pieces, as a chunked upload does. */
 function streamed(chunks: Uint8Array[], headers?: HeadersInit): Request {

@@ -28,6 +28,39 @@
  * queue poll the reconciler makes.
  */
 
+/**
+ * The largest body a Server Action will accept, wired into `next.config.ts`.
+ *
+ * Every form here is a handful of short fields — registration is the biggest,
+ * at a handle, a display name, an address and two passwords — so Next's 1MB
+ * default is headroom nobody asked for. This is a real limit: over it the
+ * request is refused and the caller finds out.
+ */
+export const SERVER_ACTION_BODY_LIMIT = 64 * 1024;
+
+/**
+ * How much of a request body Next will hold when proxy runs for the route.
+ *
+ * A different kind of number from the one above, and that is why both are
+ * spelled out. When proxy matches a route, Next clones the request body and
+ * buffers it so proxy and the handler can each read it. Exceeding this bound
+ * refuses nothing: the documented behaviour is to buffer the first N bytes,
+ * log a warning, carry on, and *not* return an error to the client.
+ *
+ * So it has to sit **above** every legitimate body that can reach a proxied
+ * route. Below one, a form submission at the allowed size arrives truncated —
+ * the action gets half a body, fails to parse it, and reports a malformed
+ * request. Corruption in the costume of user error, with only a server-side
+ * warning to say otherwise. `body-limit.test.ts` pins the ordering.
+ *
+ * `proxy.ts` matches three page prefixes today, so this governs the Server
+ * Action POSTs under `/admin`; widening that matcher widens this. Route
+ * handlers under `/api` are deliberately outside it — they count bytes off
+ * the stream with `readTextBody` below, and buffering a clone first would
+ * take that away.
+ */
+export const PROXY_CLIENT_MAX_BODY_SIZE = 256 * 1024;
+
 export type BodyResult =
   | { ok: true; text: string }
   | { ok: false; reason: "too-large" };

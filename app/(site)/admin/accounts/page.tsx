@@ -18,9 +18,8 @@ const formatter = new Intl.DateTimeFormat("zh-CN", {
   timeStyle: "short",
 });
 
-const STATUS: Record<string, { label: string; tone: "ok" | "warn" | "err" }> = {
+const STATUS: Record<string, { label: string; tone: "ok" | "err" }> = {
   active: { label: "正常", tone: "ok" },
-  pending: { label: "待验证", tone: "warn" },
   suspended: { label: "已封禁", tone: "err" },
 };
 

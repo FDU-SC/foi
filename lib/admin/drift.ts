@@ -32,7 +32,6 @@ export interface DriftFinding {
 
 export interface AdminOverview {
   accountCount: number;
-  pendingCount: number;
   suspendedCount: number;
   problemCount: number;
   contestCount: number;
@@ -103,23 +102,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     });
   }
 
-  // Held handles that never confirmed an address. Swept automatically once
-  // they age past the policy's TTL; listed here because a spike is worth
-  // noticing.
-  const pending = accountRows
-    .filter((row) => row.status === "pending")
-    .map((row) => row.handle);
-
-  if (pending.length > 0) {
-    findings.push({
-      severity: "info",
-      title: "有注册尚未验证邮箱",
-      detail:
-        "超过 content/enrollment/ 中 unverifiedTtlHours 设定的时限后会自动清理，释放用户名。",
-      items: pending,
-    });
-  }
-
   const unmirroredProblems = registryProblems
     .filter((problem) => !mirroredProblemSlugs.has(problem.slug))
     .map((problem) => problem.slug);
@@ -176,7 +158,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
 
   return {
     accountCount: accountRows.length,
-    pendingCount: pending.length,
     suspendedCount: accountRows.filter((row) => row.status === "suspended")
       .length,
     problemCount: registryProblems.length,

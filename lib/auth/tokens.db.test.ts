@@ -97,14 +97,6 @@ describeDb("auth tokens", () => {
     ).resolves.toEqual({ ok: false, reason: "invalid" });
   });
 
-  it("用途不匹配的 token 不能跨用途使用", async () => {
-    const { token } = await issueToken(HANDLE, "email_verify");
-
-    await expect(redeemToken(token, "password_reset")).resolves.toMatchObject({
-      ok: false,
-    });
-  });
-
   it("expectHandle 与 token 归属不符时拒绝", async () => {
     const { token } = await issueToken(HANDLE, "password_reset");
 
@@ -145,37 +137,42 @@ describeDb("auth tokens", () => {
   });
 
   it("inspectToken 不消费 token，并能看出是否已被消费", async () => {
-    const { token } = await issueToken(HANDLE, "email_verify");
+    const { token } = await issueToken(HANDLE, "password_reset");
 
-    expect(await inspectToken(token, "email_verify")).toMatchObject({
+    expect(await inspectToken(token, "password_reset")).toMatchObject({
       handle: HANDLE,
       consumedAt: null,
     });
 
-    await redeemToken(token, "email_verify");
+    await redeemToken(token, "password_reset");
 
-    const after = await inspectToken(token, "email_verify");
+    const after = await inspectToken(token, "password_reset");
     expect(after?.consumedAt).toBeInstanceOf(Date);
   });
 
   it("lastIssuedAt 反映最近一次签发，用于重发节流", async () => {
-    expect(await lastIssuedAt(HANDLE, "email_verify")).toBeNull();
+    expect(await lastIssuedAt(HANDLE, "password_reset")).toBeNull();
 
-    await issueToken(HANDLE, "email_verify");
+    await issueToken(HANDLE, "password_reset");
 
-    const issued = await lastIssuedAt(HANDLE, "email_verify");
+    const issued = await lastIssuedAt(HANDLE, "password_reset");
     expect(issued).toBeInstanceOf(Date);
     expect(Date.now() - (issued?.getTime() ?? 0)).toBeLessThan(10_000);
   });
 
   it("listPendingTokens 只列出未消费且未过期的", async () => {
+    const stale = await issueToken(HANDLE, "password_reset", { ttlMs: -1_000 });
+
+    const mine = () =>
+      listPendingTokens().then((rows) =>
+        rows.filter((row) => row.handle === HANDLE),
+      );
+
+    expect(await mine()).toHaveLength(0);
+    // 行本身还在，只是不再算作「待用」。
+    expect(await inspectToken(stale.token, "password_reset")).not.toBeNull();
+
     await issueToken(HANDLE, "password_reset");
-    const stale = await issueToken(HANDLE, "email_verify", { ttlMs: -1_000 });
-
-    const pending = await listPendingTokens();
-    const mine = pending.filter((row) => row.handle === HANDLE);
-
-    expect(mine.map((row) => row.purpose)).toEqual(["password_reset"]);
-    expect(await inspectToken(stale.token, "email_verify")).not.toBeNull();
+    expect(await mine()).toHaveLength(1);
   });
 });

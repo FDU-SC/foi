@@ -1,10 +1,10 @@
 declare global {
   var __foiReconciler: ReturnType<typeof setInterval> | undefined;
-  var __foiAccountSweep: ReturnType<typeof setInterval> | undefined;
+  var __foiVerificationSweep: ReturnType<typeof setInterval> | undefined;
 }
 
 const RECONCILE_INTERVAL_MS = 15_000;
-const ACCOUNT_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
+const VERIFICATION_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 
 export async function register() {
   // The registry is Turbopack-built and Node-only; skip other runtimes.
@@ -74,27 +74,27 @@ export async function register() {
       .catch((error) => console.error("[foi] 对账失败", error));
   }, RECONCILE_INTERVAL_MS);
 
-  // A signup that never confirmed its address is holding a handle nobody can
-  // use. Releasing it on a timer is what keeps a typo from being permanent —
-  // the person just registers again — and stops the handle space filling with
-  // abandoned claims.
-  const { purgeUnverifiedAccounts } = await import("@/lib/accounts/queries");
-  const { enrollmentPolicy } = await import("@/lib/enrollment/registry");
+  // This slot used to release handles held by signups that never confirmed
+  // their address. There are no such signups any more — an account is not
+  // created until the code has been typed back — so what is left to forget is
+  // the addresses of people who started and stopped. Every one is somebody's
+  // mailbox, and an abandoned attempt should not leave it in the database.
+  const { purgeExpiredVerifications } = await import(
+    "@/lib/auth/email-verification"
+  );
 
   const sweep = () => {
-    const cutoff = new Date(
-      Date.now() - enrollmentPolicy.unverifiedTtlHours * 60 * 60 * 1000,
-    );
-    void purgeUnverifiedAccounts(cutoff)
-      .then((handles) => {
-        if (handles.length > 0) {
-          console.log(`[foi] 已回收 ${handles.length} 个未验证的用户名`);
-        }
+    void purgeExpiredVerifications()
+      .then((count) => {
+        if (count > 0) console.log(`[foi] 已清理 ${count} 条过期的邮箱验证`);
       })
-      .catch((error) => console.error("[foi] 回收未验证账号失败", error));
+      .catch((error) => console.error("[foi] 清理过期邮箱验证失败", error));
   };
 
-  clearInterval(globalThis.__foiAccountSweep);
-  globalThis.__foiAccountSweep = setInterval(sweep, ACCOUNT_SWEEP_INTERVAL_MS);
+  clearInterval(globalThis.__foiVerificationSweep);
+  globalThis.__foiVerificationSweep = setInterval(
+    sweep,
+    VERIFICATION_SWEEP_INTERVAL_MS,
+  );
   sweep();
 }

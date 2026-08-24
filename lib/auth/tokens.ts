@@ -7,11 +7,14 @@ import { authTokens } from "@/lib/db/schema";
 import type { TokenPurpose } from "@/lib/db/schema";
 
 /**
- * Single-use secrets that arrive by email.
+ * Single-use secrets that arrive by email, addressed to an existing account.
  *
- * Both purposes are the same three steps — mint, mail, redeem — so they are
- * one module rather than two. What differs is only what redemption is allowed
- * to do, which is the caller's business.
+ * That last part is the dividing line between this module and
+ * `./email-verification.ts`. A token here is minted against a handle and sent
+ * as a link; the code there is minted against an address that may never become
+ * an account, and is typed back into the page that asked for it. Sharing an
+ * implementation would mean sharing `handle`, which is exactly what a signup
+ * cannot supply.
  *
  * Tokens are 160 bits of randomness, so a fast digest is enough: there is no
  * low-entropy secret here for an attacker to grind against, and a unique index
@@ -20,7 +23,6 @@ import type { TokenPurpose } from "@/lib/db/schema";
  */
 
 const DEFAULT_TTL_MS = {
-  email_verify: 24 * 60 * 60 * 1000,
   password_reset: 60 * 60 * 1000,
 } as const satisfies Record<TokenPurpose, number>;
 

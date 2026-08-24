@@ -41,8 +41,13 @@ import type { SubmissionState, Verdict } from "@/lib/judge/types";
  * `email` is null only for bootstrap accounts, which are declared in the
  * repository and given a password over the CLI. The unique index tolerates
  * that because Postgres does not consider two nulls equal.
+ *
+ * There is no `pending` status. There used to be, covering the gap between
+ * filling in the registration form and clicking the link that arrived
+ * afterwards — a gap that no longer exists now that the address is proved
+ * before the row is written. An account is either able to act or stopped.
  */
-export const accountStatuses = ["pending", "active", "suspended"] as const;
+export const accountStatuses = ["active", "suspended"] as const;
 export type AccountStatus = (typeof accountStatuses)[number];
 
 export const accountSources = ["bootstrap", "registration"] as const;
@@ -67,7 +72,7 @@ export const accounts = pgTable(
       .$type<AccountSource>()
       .notNull()
       .default("registration"),
-    status: text("status").$type<AccountStatus>().notNull().default("pending"),
+    status: text("status").$type<AccountStatus>().notNull().default("active"),
 
     /**
      * Suspension is data rather than a line in the repository: banning a spam
@@ -117,23 +122,21 @@ export const credentials = pgTable("credentials", {
 });
 
 /**
- * Single-use, hashed, expiring secrets sent to an email address.
+ * Single-use, hashed, expiring secrets mailed to the owner of an account.
  *
- * Verifying a new address and recovering a password are the same mechanism
- * with different consequences, so they are one table with a `purpose` rather
- * than two pairs of nullable columns on `credentials`.
- *
- * There used to be a third purpose, `setup_code`, for a code an administrator
- * issued and handed over in person. Self-service registration and recovery
- * replaced both of its jobs, and it was the only secret in the system that
- * travelled through a third party's hands, so it was retired.
+ * Down to one purpose, and kept as a `purpose` column anyway. Two have been
+ * retired: `setup_code`, a credential an administrator handed over in person,
+ * and `email_verify`, whose link has been replaced by a code checked before
+ * the account exists — which is precisely why it could not stay here, since
+ * `handle` below presumes an account to point at. The column costs a text
+ * field and is what makes the next one an insert rather than a migration.
  *
  * Only the digest is stored. A row is consumed rather than deleted so that
  * "this link has already been used" stays distinguishable from "this link
  * never existed", and so that a recently issued token can throttle the next
  * request for one without a separate rate-limit store.
  */
-export const tokenPurposes = ["email_verify", "password_reset"] as const;
+export const tokenPurposes = ["password_reset"] as const;
 export type TokenPurpose = (typeof tokenPurposes)[number];
 
 export const authTokens = pgTable(

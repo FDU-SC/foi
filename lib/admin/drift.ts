@@ -4,7 +4,7 @@ import { allContests } from "@/lib/contests/registry";
 import { db } from "@/lib/db";
 import { contests, problems, submissions } from "@/lib/db/schema";
 import { enumeratedHandles, groupsFor } from "@/lib/enrollment/registry";
-import { orphanedBackends } from "@/lib/backend/access";
+import { backendsSharingSecret, orphanedBackends } from "@/lib/backend/access";
 import { mailIsConfigured } from "@/lib/mail/transport";
 import { allProblems } from "@/lib/problems/registry";
 
@@ -156,6 +156,20 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       .filter((row) => !registryContestSlugs.has(row.slug))
       .map((row) => `比赛 ${row.slug}`),
   ];
+
+  // Said at startup too, and worth repeating here for the reason every startup
+  // warning is easy to miss: it scrolled past weeks ago, in a container whose
+  // log has since rotated. This is the surface somebody actually looks at.
+  const sharingSecret = backendsSharingSecret();
+  if (sharingSecret.length > 0) {
+    findings.push({
+      severity: "warn",
+      title: "有多台题目后端共用同一个签名密钥",
+      detail:
+        "它们都回落到了共享的 FOI_BACKEND_SECRET，因此任何一台被攻破，它的签名对其余几台同样有效——包括代替它们回报评测结果。为每台服务设置各自的 FOI_BACKEND_<名字>_SECRET 并同步到后端本身；指向同一地址的多个条目是同一个服务，填相同的值即可。",
+      items: sharingSecret,
+    });
+  }
 
   // A judge nothing routes to is invisible to players by design — the gate
   // shows a judge only to somebody who can see a problem on it — so an

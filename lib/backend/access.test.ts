@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { backends } from "@/backends.config";
+import { afterEach, describe, expect, it } from "vitest";
+import { backends, type ProblemBackend } from "@/backends.config";
 import { AS_PLAYER, viewerFor, type Viewer } from "@/lib/auth/viewer";
 import { allContests } from "@/lib/contests/registry";
 import { problemFor } from "@/lib/problems/access";
 import { allProblems } from "@/lib/problems/registry";
 import {
+  backendSecretWarnings,
+  backendsSharingSecret,
   canSeeBackend,
   backendsFor,
   orphanedBackends,
@@ -100,6 +102,93 @@ describe("canSeeBackend", () => {
     }
     // A setter sees the problem, so seeing its backend reveals nothing further.
     expect(canSeeBackend(backendId, SETTER, at)).toBe(true);
+  });
+});
+
+/**
+ * One key for every backend means one compromised backend can sign as all of
+ * them, and the callback route re-checks a verdict against the key of the
+ * backend it was dispatched to precisely so that distinct keys can stop that.
+ *
+ * `backends` is read at import, so these cases edit the entries rather than the
+ * environment — the same reason `groups.test.ts` reaches into `IMPLIES`. Every
+ * one restores what it touched.
+ */
+describe("共用签名密钥的题目后端", () => {
+  const inUse = Object.keys(backends).filter(
+    (id) => problemsServedBy(id).length > 0,
+  );
+
+  const saved = new Map<string, ProblemBackend>();
+
+  /** Replaces an entry wholesale, remembering the original exactly once. */
+  function patch(id: string, changes: Partial<ProblemBackend>): void {
+    if (!saved.has(id)) saved.set(id, backends[id]);
+    backends[id] = { ...backends[id], ...changes };
+  }
+
+  /** Distinct addresses, so the plural weakness this reports on is real. */
+  function scatter(): void {
+    inUse.forEach((id, index) => {
+      patch(id, { secret: undefined, url: `http://backend-${index}:4100` });
+    });
+  }
+
+  afterEach(() => {
+    for (const [id, entry] of saved) backends[id] = entry;
+    saved.clear();
+  });
+
+  it("各自有密钥时什么都不报", () => {
+    scatter();
+    for (const id of inUse) patch(id, { secret: `secret-for-${id}` });
+
+    expect(backendsSharingSecret()).toEqual([]);
+    expect(backendSecretWarnings()).toEqual([]);
+  });
+
+  it("两台以上回落到共享密钥时，把它们都点出来", () => {
+    if (inUse.length < 2) return;
+    scatter();
+
+    expect(backendsSharingSecret().sort()).toEqual([...inUse].sort());
+    expect(backendSecretWarnings()).toHaveLength(1);
+    expect(backendSecretWarnings()[0]).toContain(inUse[0]);
+  });
+
+  it("只剩一台回落时不报——和谁都没共用就不算共用", () => {
+    if (inUse.length < 2) return;
+    scatter();
+    for (const id of inUse.slice(1)) patch(id, { secret: `secret-for-${id}` });
+
+    expect(backendsSharingSecret()).toEqual([]);
+  });
+
+  /**
+   * The default shape of this repository, and of any deployment that puts two
+   * kinds of problem on one judge: those entries are one process holding one
+   * key, so asking for a split asks for something impossible — and a warning
+   * that fires on every `pnpm dev` is one nobody reads by the time it matters.
+   */
+  it("指向同一地址的多个条目算一个服务，不报", () => {
+    if (inUse.length < 2) return;
+    for (const id of inUse) {
+      patch(id, { secret: undefined, url: "http://localhost:4100" });
+    }
+
+    expect(backendsSharingSecret()).toEqual([]);
+  });
+
+  it("没有题目指向的后端从不参与，哪怕它也没有密钥", () => {
+    scatter();
+    for (const id of orphanedBackends()) {
+      patch(id, { secret: undefined, url: `http://orphan-${id}:4100` });
+    }
+
+    const reported = backendsSharingSecret();
+    for (const id of orphanedBackends()) {
+      expect(reported).not.toContain(id);
+    }
   });
 });
 

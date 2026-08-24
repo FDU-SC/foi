@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { backends } from "@/backends.config";
+import { backends, type ProblemBackend } from "@/backends.config";
 import {
   DispatchError,
   callBackendAction,
@@ -50,6 +50,47 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
   globalThis.__foiQueueSnapshot = undefined;
+});
+
+/**
+ * `resolveBackend` needed no change to support per-backend keys — the
+ * `entry.secret ?? FOI_BACKEND_SECRET` chain was written for them long before
+ * `backends.config.ts` ever filled `secret` in. Pinned here because that makes
+ * the precedence load-bearing rather than incidental: get it backwards and
+ * every deployment silently keeps signing with the shared value while its
+ * per-backend keys sit configured and unused.
+ */
+describe("密钥优先级", () => {
+  const id = Object.keys(backends)[0];
+  let saved: ProblemBackend;
+
+  beforeEach(() => {
+    saved = backends[id];
+  });
+
+  afterEach(() => {
+    backends[id] = saved;
+  });
+
+  it("专属密钥压过共享密钥", () => {
+    backends[id] = { ...saved, secret: "dedicated-key" };
+
+    expect(resolveBackend(id).secret).toBe("dedicated-key");
+  });
+
+  it("没有专属密钥时回落到共享的，本机开发才能一把跑起来", () => {
+    backends[id] = { ...saved, secret: undefined };
+
+    expect(resolveBackend(id).secret).toBe("test-secret");
+  });
+
+  it("两者都没有时报错，而不是拿 undefined 去签名", () => {
+    backends[id] = { ...saved, secret: undefined };
+    vi.stubEnv("FOI_BACKEND_SECRET", undefined);
+    vi.stubEnv("FOI_JUDGE_SECRET", undefined);
+
+    expect(() => resolveBackend(id)).toThrow(/FOI_BACKEND_SECRET/);
+  });
 });
 
 describe("fetchAllJudgeQueues 快照", () => {

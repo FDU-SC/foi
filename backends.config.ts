@@ -14,7 +14,10 @@
  */
 export interface ProblemBackend {
   url: string;
-  /** Falls back to FOI_BACKEND_SECRET when a backend has no dedicated secret. */
+  /**
+   * Read from `FOI_BACKEND_<NAME>_SECRET`. Falls back to the shared
+   * `FOI_BACKEND_SECRET` in `resolveBackend` when a backend has none.
+   */
   secret?: string;
   /** Milliseconds to wait for the backend to acknowledge a dispatch. */
   timeoutMs?: number;
@@ -44,26 +47,53 @@ function backendUrl(name: string): string | undefined {
   );
 }
 
+/**
+ * A backend's own signing key, when it has been given one.
+ *
+ * One shared key means one compromised backend can sign as any of the others,
+ * and `app/api/judge/callback/route.ts` was already written for the world
+ * where that is not so: it sweeps every configured secret to decide whether a
+ * caller holds *some* backend's key, then re-checks against the key belonging
+ * to the backend the submission was actually dispatched to. That second check
+ * is a no-op while everything shares one value. Filling this in is what turns
+ * it back on.
+ *
+ * Undefined rather than falling back to the shared key here. The difference
+ * between "has its own" and "borrowing everyone's" is exactly what
+ * `backendSecretWarnings()` reports on, and collapsing it at this layer would
+ * leave nothing able to tell the two apart. The fallback stays in
+ * `resolveBackend`, which is where it already was.
+ */
+function backendSecret(name: string): string | undefined {
+  return process.env[`FOI_BACKEND_${name}_SECRET`];
+}
+
 export const backends: Record<string, ProblemBackend> = {
   traditional: {
     url: backendUrl("TRADITIONAL") ?? "http://localhost:4100",
+    secret: backendSecret("TRADITIONAL"),
   },
   "flag-checker": {
     url: backendUrl("FLAG_CHECKER") ?? "http://localhost:4100",
+    secret: backendSecret("FLAG_CHECKER"),
   },
   "output-only": {
     url: backendUrl("OUTPUT_ONLY") ?? "http://localhost:4100",
+    secret: backendSecret("OUTPUT_ONLY"),
   },
   interactive: {
     url: backendUrl("INTERACTIVE") ?? "http://localhost:4100",
+    secret: backendSecret("INTERACTIVE"),
   },
   performance: {
     url: backendUrl("PERFORMANCE") ?? "http://localhost:4100",
+    secret: backendSecret("PERFORMANCE"),
   },
   // Its own entry rather than a shared checker, because it also orchestrates
   // the containers whose flags it verifies. See its `problem.ts`.
   "leaky-bucket": {
     url: backendUrl("LEAKY_BUCKET") ?? "http://localhost:4100",
+    secret: backendSecret("LEAKY_BUCKET"),
     // Pulling an image the first time takes longer than acknowledging a
     // dispatch ever does.
     actionTimeoutMs: 30_000,

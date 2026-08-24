@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   MAX_CLOCK_SKEW_SECONDS,
@@ -6,34 +7,150 @@ import {
   sign,
   signedHeaders,
   verifySignature,
+  type SignedRequest,
 } from "./signature";
 
 const SECRET = "0123456789abcdef0123456789abcdef";
 const BODY = JSON.stringify({ submissionId: "sub_1", score: 100 });
 const NOW = 1_800_000_000;
 
+const CALLBACK: SignedRequest = {
+  method: "PUT",
+  path: "/api/judge/callback",
+  body: BODY,
+};
+
 function verify(overrides: Partial<Parameters<typeof verifySignature>[0]> = {}) {
   return verifySignature({
     secret: SECRET,
     timestamp: String(NOW),
-    body: BODY,
-    signature: sign(SECRET, NOW, BODY),
+    signature: sign(SECRET, NOW, CALLBACK),
+    request: CALLBACK,
     now: NOW,
     ...overrides,
   });
 }
 
+/** How the protocol signed before the path and the method were covered. */
+function legacySign(secret: string, timestamp: number, body: string): string {
+  const hex = createHmac("sha256", secret)
+    .update(`${timestamp}.${body}`)
+    .digest("hex");
+  return `sha256=${hex}`;
+}
+
 describe("sign", () => {
   it("产出 sha256=<hex> 形状", () => {
-    expect(sign(SECRET, NOW, BODY)).toMatch(/^sha256=[0-9a-f]{64}$/);
+    expect(sign(SECRET, NOW, CALLBACK)).toMatch(/^sha256=[0-9a-f]{64}$/);
   });
 
-  it("时间戳参与签名，换一个就换一份签名", () => {
-    expect(sign(SECRET, NOW, BODY)).not.toBe(sign(SECRET, NOW + 1, BODY));
+  it("时间戳参与签名", () => {
+    expect(sign(SECRET, NOW, CALLBACK)).not.toBe(
+      sign(SECRET, NOW + 1, CALLBACK),
+    );
   });
 
   it("body 参与签名", () => {
-    expect(sign(SECRET, NOW, BODY)).not.toBe(sign(SECRET, NOW, `${BODY} `));
+    expect(sign(SECRET, NOW, CALLBACK)).not.toBe(
+      sign(SECRET, NOW, { ...CALLBACK, body: `${BODY} ` }),
+    );
+  });
+
+  it("method 参与签名", () => {
+    expect(sign(SECRET, NOW, { ...CALLBACK, method: "POST" })).not.toBe(
+      sign(SECRET, NOW, { ...CALLBACK, method: "PUT" }),
+    );
+  });
+
+  it("method 不区分大小写，因为 HTTP 本身不区分", () => {
+    expect(sign(SECRET, NOW, { ...CALLBACK, method: "put" })).toBe(
+      sign(SECRET, NOW, { ...CALLBACK, method: "PUT" }),
+    );
+  });
+
+  /**
+   * The reason this change exists. The action a problem invokes travels in the
+   * path, so a signature that did not cover it let anything on the wire turn
+   * one action into another while the signature still verified.
+   */
+  it("path 参与签名：同一个 body 换一个动作就换一份签名", () => {
+    const body = JSON.stringify({ action: "poll", user: { handle: "alice" } });
+
+    expect(sign(SECRET, NOW, { method: "POST", path: "/action/poll", body })).not.toBe(
+      sign(SECRET, NOW, { method: "POST", path: "/action/destroy", body }),
+    );
+  });
+
+  /**
+   * The sharper half of the same problem. `/queue` and `/status/<ref>` both
+   * send no body, so `<timestamp>.` was their entire signing input and every
+   * empty-bodied request sharing a second shared one signature — a pair of
+   * headers lifted off the queue poll was a valid credential for reading any
+   * submission's verdict straight off the backend.
+   */
+  it("两个空 body 的 GET 不再共用同一份签名", () => {
+    const queue = sign(SECRET, NOW, {
+      method: "GET",
+      path: "/queue",
+      body: "",
+    });
+    const status = sign(SECRET, NOW, {
+      method: "GET",
+      path: "/status/job-42",
+      body: "",
+    });
+
+    expect(queue).not.toBe(status);
+  });
+
+  it("空 body 的两个 status 查询也彼此不同", () => {
+    const one = sign(SECRET, NOW, {
+      method: "GET",
+      path: "/status/job-1",
+      body: "",
+    });
+    const two = sign(SECRET, NOW, {
+      method: "GET",
+      path: "/status/job-2",
+      body: "",
+    });
+
+    expect(one).not.toBe(two);
+  });
+
+  /**
+   * Why the canonical string is newline-delimited. A dot appears in both paths
+   * and bodies, so with `.` between the fields these two would hash the same
+   * string and one signature would be valid for both.
+   */
+  it("字段分隔不可歧义：path 尾部与 body 头部不能互相挪动", () => {
+    expect(sign(SECRET, NOW, { method: "POST", path: "/action/a.b", body: "c" })).not.toBe(
+      sign(SECRET, NOW, { method: "POST", path: "/action/a", body: "b.c" }),
+    );
+  });
+
+  /**
+   * The invariant the delimiter rests on, pinned here because it is an
+   * assumption about somebody else's parser rather than about this module.
+   *
+   * A newline in the path *would* be a field boundary — `path: "/a\nx"` with
+   * body `y` hashes the same string as `path: "/a"` with body `x\ny`. What
+   * rules that out is that every path signed here comes from the WHATWG URL
+   * parser, which strips tabs and newlines from its input outright, so no
+   * caller can produce one. If that ever stops being true, the canonical
+   * string needs a length prefix rather than a delimiter.
+   */
+  it("path 不可能含换行：URL 解析器会先把它删掉", () => {
+    const url = new URL("/action/a\nb?x=1\n2", "http://backend.invalid");
+
+    expect(url.pathname + url.search).not.toContain("\n");
+    expect(url.pathname + url.search).toBe("/action/ab?x=12");
+  });
+
+  it("search 参与签名", () => {
+    expect(sign(SECRET, NOW, { method: "GET", path: "/queue", body: "" })).not.toBe(
+      sign(SECRET, NOW, { method: "GET", path: "/queue?all=1", body: "" }),
+    );
   });
 });
 
@@ -43,15 +160,27 @@ describe("verifySignature", () => {
   });
 
   it("拒绝被篡改的 body", () => {
-    expect(verify({ body: JSON.stringify({ score: 0 }) })).toMatchObject({
+    expect(
+      verify({ request: { ...CALLBACK, body: JSON.stringify({ score: 0 }) } }),
+    ).toMatchObject({ ok: false });
+  });
+
+  it("拒绝被改写的 path", () => {
+    expect(
+      verify({ request: { ...CALLBACK, path: "/api/judge/callback/../evil" } }),
+    ).toMatchObject({ ok: false });
+  });
+
+  it("拒绝被改写的 method", () => {
+    expect(verify({ request: { ...CALLBACK, method: "POST" } })).toMatchObject({
       ok: false,
     });
   });
 
   it("拒绝换了密钥的签名", () => {
-    expect(verify({ signature: sign("another-secret", NOW, BODY) })).toMatchObject(
-      { ok: false },
-    );
+    expect(
+      verify({ signature: sign("another-secret", NOW, CALLBACK) }),
+    ).toMatchObject({ ok: false });
   });
 
   it("缺少任一签名头都拒绝", () => {
@@ -69,14 +198,41 @@ describe("verifySignature", () => {
   });
 });
 
+/**
+ * There is no compatibility switch: the old form is refused outright. What it
+ * gets instead is a reason that names it, because "signature does not match"
+ * and "your backend is a version behind" need opposite fixes and an operator
+ * staring at a wall of 401s cannot tell them apart.
+ */
+describe("verifySignature 对旧签名格式", () => {
+  it("拒绝只签了 body 的旧格式", () => {
+    expect(
+      verify({ signature: legacySign(SECRET, NOW, BODY) }),
+    ).toMatchObject({ ok: false });
+  });
+
+  it("拒绝时明确指出是旧格式，而不是笼统的签名不匹配", () => {
+    const result = verify({ signature: legacySign(SECRET, NOW, BODY) });
+
+    expect(result).toMatchObject({ ok: false });
+    expect(result.ok === false && result.reason).toContain("旧格式");
+  });
+
+  it("密钥配错时说的仍是签名不匹配，两种原因不混为一谈", () => {
+    const result = verify({ signature: sign("wrong-secret", NOW, CALLBACK) });
+
+    expect(result).toMatchObject({ ok: false, reason: "签名不匹配" });
+  });
+});
+
 describe("verifySignature 重放窗口", () => {
   function atSkew(seconds: number) {
     const ts = NOW + seconds;
     return verifySignature({
       secret: SECRET,
       timestamp: String(ts),
-      body: BODY,
-      signature: sign(SECRET, ts, BODY),
+      signature: sign(SECRET, ts, CALLBACK),
+      request: CALLBACK,
       now: NOW,
     });
   }
@@ -94,19 +250,38 @@ describe("verifySignature 重放窗口", () => {
 
 describe("signedHeaders", () => {
   it("产出的头能被 verifySignature 直接接受", () => {
-    const headers = signedHeaders(SECRET, BODY);
+    const headers = signedHeaders(SECRET, CALLBACK);
 
     expect(
       verifySignature({
         secret: SECRET,
         timestamp: headers[TIMESTAMP_HEADER],
-        body: BODY,
         signature: headers[SIGNATURE_HEADER],
+        request: CALLBACK,
       }),
     ).toEqual({ ok: true });
   });
 
+  it("换一个 path 校验就不过，说明头确实绑在这个请求上", () => {
+    const headers = signedHeaders(SECRET, {
+      method: "GET",
+      path: "/queue",
+      body: "",
+    });
+
+    expect(
+      verifySignature({
+        secret: SECRET,
+        timestamp: headers[TIMESTAMP_HEADER],
+        signature: headers[SIGNATURE_HEADER],
+        request: { method: "GET", path: "/status/job-42", body: "" },
+      }),
+    ).toMatchObject({ ok: false });
+  });
+
   it("带上 JSON content-type", () => {
-    expect(signedHeaders(SECRET, BODY)["content-type"]).toBe("application/json");
+    expect(signedHeaders(SECRET, CALLBACK)["content-type"]).toBe(
+      "application/json",
+    );
   });
 });

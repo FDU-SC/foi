@@ -2,11 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { backends } from "@/backends.config";
 import {
   DispatchError,
+  callBackendAction,
   dispatchToJudge,
   fetchAllJudgeQueues,
+  fetchJudgeQueue,
+  pollJudge,
   redactJudgeStatus,
   resolveBackend,
 } from "./client";
+import {
+  SIGNATURE_HEADER,
+  TIMESTAMP_HEADER,
+  verifySignature,
+} from "./signature";
 import type { JudgeRequest } from "./types";
 
 const QUEUE_BODY = {
@@ -218,5 +226,153 @@ describe("dispatchToJudge 失败语义", () => {
     await expect(dispatchToJudge(judge(), request)).resolves.toEqual({
       judgeRef: null,
     });
+  });
+});
+
+/**
+ * The signature covers the method and the path, so every outbound call has to
+ * sign the request it actually makes. That pairing is the thing that can come
+ * apart silently — add a fifth endpoint, or change a path after signing it,
+ * and the backend answers 401 for a reason nothing here would have caught.
+ *
+ * So rather than asserting a particular canonical string, each case takes the
+ * URL and headers `fetch` was handed and verifies one against the other. A
+ * call that signs anything other than what it sends fails.
+ */
+describe("出站请求签的是它实际发出的 method 与 path", () => {
+  const backendId = Object.keys(backends)[0];
+
+  interface Sent {
+    method: string;
+    path: string;
+    body: string;
+    timestamp: string | null;
+    signature: string | null;
+  }
+
+  function captureFetch(response: Response): () => Sent {
+    let sent: Sent | undefined;
+
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = input instanceof URL ? input : new URL(String(input));
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      sent = {
+        method: init?.method ?? "GET",
+        path: url.pathname + url.search,
+        body: typeof init?.body === "string" ? init.body : "",
+        timestamp: headers[TIMESTAMP_HEADER] ?? null,
+        signature: headers[SIGNATURE_HEADER] ?? null,
+      };
+      return Promise.resolve(response);
+    });
+
+    return () => {
+      if (!sent) throw new Error("fetch 没有被调用");
+      return sent;
+    };
+  }
+
+  function verifyAsBackendWould(sent: Sent) {
+    return verifySignature({
+      secret: resolveBackend(backendId).secret,
+      timestamp: sent.timestamp,
+      signature: sent.signature,
+      request: { method: sent.method, path: sent.path, body: sent.body },
+    });
+  }
+
+  it("POST /judge", async () => {
+    const sent = captureFetch(jsonResponse({ accepted: true, judgeRef: "j1" }));
+
+    await dispatchToJudge(resolveBackend(backendId), {
+      submissionId: "sub_1",
+      user: { handle: "alice", groups: [] },
+      problem: { slug: "maze-runner", config: {} },
+      contestSlug: null,
+      payload: {},
+      callbackUrl: "http://localhost:3000/api/judge/callback",
+      callbackToken: "token",
+    });
+
+    expect(sent().path).toBe("/judge");
+    expect(verifyAsBackendWould(sent())).toEqual({ ok: true });
+  });
+
+  it("POST /action/<action>，动作名进了签名", async () => {
+    const sent = captureFetch(jsonResponse({ ok: true }));
+
+    await callBackendAction(resolveBackend(backendId), {
+      action: "spawn",
+      user: { handle: "alice", groups: [] },
+      problem: { slug: "leaky-bucket", config: {} },
+      contestSlug: null,
+      payload: null,
+    });
+
+    expect(sent().path).toBe("/action/spawn");
+    expect(verifyAsBackendWould(sent())).toEqual({ ok: true });
+
+    // The point of signing the path: the same headers do not carry over to a
+    // different action.
+    expect(
+      verifySignature({
+        secret: resolveBackend(backendId).secret,
+        timestamp: sent().timestamp,
+        signature: sent().signature,
+        request: {
+          method: sent().method,
+          path: "/action/destroy",
+          body: sent().body,
+        },
+      }),
+    ).toMatchObject({ ok: false });
+  });
+
+  it("GET /queue，空 body 也绑在这个路径上", async () => {
+    const sent = captureFetch(
+      jsonResponse({ health: "ok", capacity: 1, running: 0, pending: 0 }),
+    );
+
+    await fetchJudgeQueue(backendId);
+
+    expect(sent().path).toBe("/queue");
+    expect(sent().body).toBe("");
+    expect(verifyAsBackendWould(sent())).toEqual({ ok: true });
+  });
+
+  it("GET /status/<ref>，与 /queue 的签名不通用", async () => {
+    const queue = captureFetch(
+      jsonResponse({ health: "ok", capacity: 1, running: 0, pending: 0 }),
+    );
+    await fetchJudgeQueue(backendId);
+    const queueSent = queue();
+
+    const status = captureFetch(jsonResponse({ done: false }));
+    await pollJudge(resolveBackend(backendId), "job-42");
+    const statusSent = status();
+
+    expect(statusSent.path).toBe("/status/job-42");
+    expect(verifyAsBackendWould(statusSent)).toEqual({ ok: true });
+
+    // Both have an empty body, which is exactly the pair that used to share
+    // one signature.
+    expect(queueSent.signature).not.toBe(statusSent.signature);
+    expect(
+      verifySignature({
+        secret: resolveBackend(backendId).secret,
+        timestamp: queueSent.timestamp,
+        signature: queueSent.signature,
+        request: { method: "GET", path: statusSent.path, body: "" },
+      }),
+    ).toMatchObject({ ok: false });
+  });
+
+  it("judgeRef 里的斜杠被编码，签的和发的仍然一致", async () => {
+    const sent = captureFetch(jsonResponse({ done: false }));
+
+    await pollJudge(resolveBackend(backendId), "queue/1?x=2");
+
+    expect(sent().path).toBe("/status/queue%2F1%3Fx%3D2");
+    expect(verifyAsBackendWould(sent())).toEqual({ ok: true });
   });
 });

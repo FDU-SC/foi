@@ -3,7 +3,11 @@ import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { submissions } from "@/lib/db/schema";
-import { hashCallbackToken, resolveBackend } from "@/lib/backend/client";
+import {
+  callbackUrl,
+  hashCallbackToken,
+  resolveBackend,
+} from "@/lib/backend/client";
 import {
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
@@ -67,11 +71,20 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "题目后端配置错误" }, { status: 500 });
   }
 
+  // Signed against the callback URL the kernel itself issued at dispatch, not
+  // against the path this request arrived on. A reverse proxy that strips a
+  // prefix — `location /foi/ { proxy_pass http://app/; }` — would otherwise
+  // leave the backend signing one path and this route verifying another, and
+  // every verdict would fail to land for a reason nothing in the logs explains.
   const signature = verifySignature({
     secret: backend.secret,
     timestamp: request.headers.get(TIMESTAMP_HEADER),
     signature: request.headers.get(SIGNATURE_HEADER),
-    body: raw,
+    request: {
+      method: "PUT",
+      path: new URL(callbackUrl()).pathname,
+      body: raw,
+    },
   });
   if (!signature.ok) {
     return NextResponse.json({ error: signature.reason }, { status: 401 });

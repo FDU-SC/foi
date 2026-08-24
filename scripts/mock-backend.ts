@@ -781,7 +781,14 @@ async function sendCallback(body: JudgeRequestBody, verdict: Verdict) {
       headers: {
         "content-type": "application/json",
         [TIMESTAMP_HEADER]: String(timestamp),
-        [SIGNATURE_HEADER]: sign(secret!, timestamp, payload),
+        // The path is signed, and it has to be the path of the callback URL
+        // the kernel handed over at dispatch — that is the one the kernel
+        // verifies against, whatever a reverse proxy in between does to it.
+        [SIGNATURE_HEADER]: sign(secret!, timestamp, {
+          method: "PUT",
+          path: new URL(body.callbackUrl).pathname,
+          body: payload,
+        }),
       },
       body: payload,
     });
@@ -797,11 +804,19 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
   const raw = await readBody(req);
 
+  // Verified before anything routes on the path, and the path is part of what
+  // is verified. Those two together are what make the path-based dispatch
+  // below safe: the action cannot have been rewritten in transit, so reading
+  // it off the path is as trustworthy as reading it out of the signed body.
   const check = verifySignature({
     secret: secret!,
     timestamp: (req.headers[TIMESTAMP_HEADER] as string | undefined) ?? null,
     signature: (req.headers[SIGNATURE_HEADER] as string | undefined) ?? null,
-    body: raw,
+    request: {
+      method: req.method ?? "",
+      path: url.pathname + url.search,
+      body: raw,
+    },
   });
 
   if (!check.ok) {

@@ -56,6 +56,32 @@ export function callbackUrl(): string {
 }
 
 /**
+ * One place where a request to a backend is turned into a URL and its headers.
+ *
+ * The signature covers the path, so the path that gets signed has to be the
+ * path that gets sent — resolved against the backend's base URL rather than
+ * taken from the relative string, since a base URL carrying a path prefix
+ * would otherwise sign one thing and request another. Every outbound call goes
+ * through here so that pairing cannot come apart at one of four call sites.
+ */
+function signedRequest(
+  backend: ResolvedBackend,
+  method: string,
+  path: string,
+  body: string,
+): { url: URL; headers: Record<string, string> } {
+  const url = new URL(path, backend.url);
+  return {
+    url,
+    headers: signedHeaders(backend.secret, {
+      method,
+      path: url.pathname + url.search,
+      body,
+    }),
+  };
+}
+
+/**
  * Callback tokens are high-entropy random values, so a plain SHA-256 digest is
  * enough — there is nothing to brute-force the way there is with a password.
  */
@@ -101,12 +127,13 @@ export async function dispatchToJudge(
   request: JudgeRequest,
 ): Promise<{ judgeRef: string | null }> {
   const body = JSON.stringify(request);
+  const { url, headers } = signedRequest(backend, "POST", "/judge", body);
 
   let res: Response;
   try {
-    res = await fetch(new URL("/judge", backend.url), {
+    res = await fetch(url, {
       method: "POST",
-      headers: signedHeaders(backend.secret, body),
+      headers,
       body,
       signal: AbortSignal.timeout(backend.timeoutMs),
     });
@@ -170,13 +197,18 @@ export async function callBackendAction(
   request: BackendActionRequest,
 ): Promise<BackendActionResponse> {
   const body = JSON.stringify(request);
-  const path = `/action/${encodeURIComponent(request.action)}`;
+  const { url, headers } = signedRequest(
+    backend,
+    "POST",
+    `/action/${encodeURIComponent(request.action)}`,
+    body,
+  );
 
   let res: Response;
   try {
-    res = await fetch(new URL(path, backend.url), {
+    res = await fetch(url, {
       method: "POST",
-      headers: signedHeaders(backend.secret, body),
+      headers,
       body,
       signal: AbortSignal.timeout(backend.actionTimeoutMs),
     });
@@ -289,9 +321,10 @@ export async function fetchJudgeQueue(
 
   const startedAt = Date.now();
   try {
-    const res = await fetch(new URL("/queue", backend.url), {
+    const { url, headers } = signedRequest(backend, "GET", "/queue", "");
+    const res = await fetch(url, {
       method: "GET",
-      headers: signedHeaders(backend.secret, ""),
+      headers,
       signal: AbortSignal.timeout(QUEUE_TIMEOUT_MS),
       cache: "no-store",
     });
@@ -371,10 +404,15 @@ export async function pollJudge(
   backend: ResolvedBackend,
   judgeRef: string,
 ): Promise<{ done: boolean; verdict?: Verdict } | null> {
-  const path = `/status/${encodeURIComponent(judgeRef)}`;
-  const res = await fetch(new URL(path, backend.url), {
+  const { url, headers } = signedRequest(
+    backend,
+    "GET",
+    `/status/${encodeURIComponent(judgeRef)}`,
+    "",
+  );
+  const res = await fetch(url, {
     method: "GET",
-    headers: signedHeaders(backend.secret, ""),
+    headers,
     signal: AbortSignal.timeout(backend.timeoutMs),
   });
 

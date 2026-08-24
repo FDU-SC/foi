@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sourceGate } from "@/lib/ratelimit/gate";
+import { guardRequest } from "@/lib/ratelimit/gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
  * restarted, which is exactly the outcome that reasoning avoids.
  */
 export async function GET(request: Request) {
-  const gated = sourceGate(request, "GET /api/health");
+  const gated = guardRequest(request, "GET /api/health");
   if (gated) return gated;
 
   try {

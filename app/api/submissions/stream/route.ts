@@ -6,7 +6,7 @@ import {
   MAX_STREAMS_PER_HANDLE,
   streamConcurrency,
 } from "@/lib/ratelimit/concurrency";
-import { sourceGate } from "@/lib/ratelimit/gate";
+import { guardRequest } from "@/lib/ratelimit/gate";
 import { fixedRule, ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { subscribe } from "@/lib/submissions/events";
 import { submissionFor } from "@/lib/submissions/access";
@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 const HEARTBEAT_MS = 20_000;
 
 export async function GET(request: Request) {
-  const gated = sourceGate(request, "GET /api/submissions/stream");
+  const gated = guardRequest(request, "GET /api/submissions/stream");
   if (gated) return gated;
 
   const user = await getSessionUser();

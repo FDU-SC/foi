@@ -4,7 +4,7 @@ import { viewerFor } from "@/lib/auth/viewer";
 import { isTerminalState } from "@/lib/backend/types";
 import { locateOne } from "@/lib/backend/queue-lookup";
 import { rateLimit } from "@/lib/ratelimit";
-import { sourceGate, tooManyRequests } from "@/lib/ratelimit/gate";
+import { guardRequest, tooManyRequests } from "@/lib/ratelimit/gate";
 import { fixedRule, ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { submissionFor } from "@/lib/submissions/access";
 import { toView } from "@/lib/submissions/queries";
@@ -15,7 +15,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const gated = sourceGate(request, "GET /api/submissions/[id]");
+  const gated = guardRequest(request, "GET /api/submissions/[id]");
   if (gated) return gated;
 
   const user = await getSessionUser();

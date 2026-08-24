@@ -1,6 +1,14 @@
 # Debian rather than Alpine: @node-rs/argon2 ships prebuilt native bindings and
 # glibc avoids the musl variant selection going wrong at runtime.
-FROM node:22-bookworm-slim AS base
+#
+# Pinned by digest, with the tag kept in the reference so it stays readable.
+# `node:22-bookworm-slim` is a mutable pointer in somebody else's registry,
+# exactly like `actions/checkout@v5` was before it was pinned — and this one
+# supplies the interpreter that runs the whole application. The tag moves on
+# every Debian security refresh, so this line has to be maintained rather than
+# admired: Renovate's `docker:pinDigests` keeps it current, which is the trade
+# pinning makes.
+FROM node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436 AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 ENV NEXT_TELEMETRY_DISABLED=1

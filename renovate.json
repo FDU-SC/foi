@@ -1,0 +1,76 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommitsDisabled",
+    "helpers:pinGitHubActionDigests",
+    "docker:pinDigests"
+  ],
+  "timezone": "Asia/Shanghai",
+  "schedule": ["before 9am on monday"],
+  "prConcurrentLimit": 5,
+  "labels": ["dependencies"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 9am on the first day of the month"]
+  },
+  "packageRules": [
+    {
+      "description": "开发依赖的 patch/minor 自动合并。它们不进生产镜像，而 verify 会跑 typecheck、lint、真 Postgres 上的集成测试、完整 build 与启动冒烟——能让这套全绿的升级，人再看一遍能多发现的很有限。",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true
+    },
+    {
+      "description": "类型定义包只影响编译期，typecheck 是它们的完整验收。",
+      "matchPackageNames": ["@types/**"],
+      "automerge": true
+    },
+    {
+      "description": "Action 在同一 tag 内的 digest 变动自动合并。钉 SHA 换来的债就是这个——不自动更新的话，几个月后那八个 SHA 就是没人敢动的魔法字符串。",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["digest", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "Next 三件套必须同组。next 与 eslint-config-next 都精确固定在同一版本，版本错开时 lint 会以看不懂的方式报错。",
+      "groupName": "next",
+      "matchPackageNames": ["next", "eslint-config-next", "@next/mdx"],
+      "automerge": false
+    },
+    {
+      "description": "React 与它的类型同组，前两个也是精确固定的。",
+      "groupName": "react",
+      "matchPackageNames": ["react", "react-dom", "@types/react", "@types/react-dom"],
+      "automerge": false
+    },
+    {
+      "description": "next-auth 在 beta 通道上，semver 不成立：beta.33 在版本号里看着像 patch，实际可能改掉整个 authorize 契约。而本仓库对 Auth.js 的默认 redirect callback 与 useSecureCookies 的推导方式都有具体依赖，后者是注册证明 cookie 的判据来源。永不自动，升级前读 changelog。",
+      "matchPackageNames": ["next-auth", "@auth/core"],
+      "automerge": false,
+      "labels": ["dependencies", "需要人工核对"]
+    },
+    {
+      "description": "drizzle 影响 pnpm db:generate 的产物，升级可能改变生成的迁移 SQL。",
+      "matchPackageNames": ["drizzle-orm", "drizzle-kit"],
+      "groupName": "drizzle",
+      "automerge": false,
+      "labels": ["dependencies", "需要人工核对"]
+    },
+    {
+      "description": "base image 的 digest 会随每次 Debian 安全刷新变动，单独一组以免和 npm 升级混在一起。",
+      "matchManagers": ["dockerfile"],
+      "groupName": "docker base image",
+      "automerge": false
+    },
+    {
+      "description": "argon2 是原生模块，装的是预编译产物；换版本等于换二进制，值得看一眼。",
+      "matchPackageNames": ["@node-rs/argon2"],
+      "automerge": false
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "labels": ["dependencies", "安全"],
+    "automerge": false
+  }
+}

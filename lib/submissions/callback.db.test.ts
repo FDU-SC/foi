@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PUT } from "@/app/api/judge/callback/route";
 import {
   callbackUrl,
@@ -39,6 +39,22 @@ async function cleanup(): Promise<void> {
 }
 
 const VERSION = "mock/1.2.3";
+
+/**
+ * The callback path reads two things out of the environment at call time: the
+ * URL it signs against (`callbackUrl`) and the shared secret it signs with
+ * (`resolveBackend`). Stubbed here rather than defaulted in the vitest config
+ * because only this file needs them — and because a checked-in default named
+ * `FOI_BACKEND_SECRET` is the wrong shape to leave lying around in a
+ * repository whose first rule is that keys do not go in git.
+ *
+ * Stubbing also makes the run independent of whoever's `.env.local` is on
+ * disk: the signature has to verify against these values and no others.
+ */
+const TEST_ENV = {
+  FOI_PUBLIC_URL: "http://localhost:3000",
+  FOI_BACKEND_SECRET: "callback-suite-signing-key",
+} as const;
 
 /**
  * Posts a callback the way a backend would: a real signed request through the
@@ -105,6 +121,10 @@ async function land(
 
 describeDb("评测回调落地", () => {
   beforeAll(async () => {
+    for (const [key, value] of Object.entries(TEST_ENV)) {
+      vi.stubEnv(key, value);
+    }
+
     await cleanup();
     await db
       .insert(problems)
@@ -118,7 +138,10 @@ describeDb("评测回调落地", () => {
       .values({ handle: HANDLE, displayName: HANDLE, source: "registration" });
   });
 
-  afterAll(cleanup);
+  afterAll(async () => {
+    await cleanup();
+    vi.unstubAllEnvs();
+  });
 
   it("完整回传时四列都是评测机说的", async () => {
     const row = await land("sub_cb_full", {

@@ -20,17 +20,12 @@ export default defineConfig({
   resolve: { tsconfigPaths: true },
   test: {
     environment: "node",
-    // CI supplies only DATABASE_URL, deliberately: a test run should not need
-    // a deployment's worth of configuration. These two are the exception,
-    // because the callback suite posts a *real* signed request through the
-    // route handler — skipping the signature would leave the part most worth
-    // testing untested. Placeholders are enough; nothing here is contacted.
-    env: {
-      DATABASE_URL: process.env.DATABASE_URL ?? "",
-      FOI_PUBLIC_URL: process.env.FOI_PUBLIC_URL ?? "http://localhost:3000",
-      FOI_BACKEND_SECRET:
-        process.env.FOI_BACKEND_SECRET ?? "test-only-backend-secret-0123456789",
-    },
+    // Only the database. A test that needs more of a deployment's environment
+    // stubs it itself, next to the assertions that depend on it — see
+    // `lib/submissions/callback.db.test.ts`. Putting those here would hand 26
+    // files a configuration one of them wanted, and would put something shaped
+    // like a signing key in a checked-in config file.
+    env: { DATABASE_URL: process.env.DATABASE_URL ?? "" },
     projects: [
       {
         extends: true,

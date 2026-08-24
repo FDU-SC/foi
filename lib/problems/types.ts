@@ -21,8 +21,11 @@ export const DIFFICULTIES = ["入门", "普及", "提高", "省选", "NOI"] as c
  * comparable: starting a container is expensive and asking whether it is ready
  * is not, and a shared window means the polling drains the budget the spawn
  * needed. Left off, `DEFAULT_ACTION_RATE_LIMIT` applies.
+ *
+ * Exported because a contest reuses the shape to override a problem's submit
+ * throttle; see `contestProblemSchema` in `lib/contests/types.ts`.
  */
-const actionRateLimitSchema = z.object({
+export const actionRateLimitSchema = z.object({
   max: z.number().int().positive(),
   windowSeconds: z.number().int().positive(),
 });
@@ -32,6 +35,25 @@ export type ActionRateLimit = z.infer<typeof actionRateLimitSchema>;
 /** Applied to any action that does not name its own. */
 export const DEFAULT_ACTION_RATE_LIMIT: ActionRateLimit = {
   max: 10,
+  windowSeconds: 60,
+};
+
+/**
+ * Applied to a problem that does not name its own submit throttle, and to
+ * every submission made outside a contest.
+ *
+ * The kernel owns the vocabulary and a floor, not the number a round wants —
+ * how often a competitor may submit is a decision about how the competition
+ * runs, and a deployment states it in `content/`. What is left here is a
+ * default chosen to be invisible: twenty a minute is far more than anybody
+ * types by hand, so a problem that says nothing behaves as if there were no
+ * throttle while still not being unbounded.
+ *
+ * The separate cap in `app/api/submissions/route.ts` is a different thing and
+ * deliberately not configurable — see the note there.
+ */
+export const DEFAULT_SUBMIT_RATE_LIMIT: ActionRateLimit = {
+  max: 20,
   windowSeconds: 60,
 };
 
@@ -80,6 +102,16 @@ export const problemConfigSchema = z.object({
       kind: z.enum(["code", "flag", "text", "none"]).default("code"),
       languages: z.array(z.string()).optional(),
       placeholder: z.string().optional(),
+      /**
+       * How often one person may submit to this problem. Omitted means
+       * `DEFAULT_SUBMIT_RATE_LIMIT`; a contest may override it for its own
+       * round without touching the problem.
+       *
+       * Here rather than in the route because it is the same kind of decision
+       * as `backend.actions[…].rateLimit` right above: what this problem costs
+       * to run is the problem's to state.
+       */
+      rateLimit: actionRateLimitSchema.optional(),
     })
     .default({ kind: "code" }),
 
@@ -128,6 +160,28 @@ export const problemConfigSchema = z.object({
 
 export type ProblemConfig = z.infer<typeof problemConfigSchema>;
 export type ProblemConfigInput = z.input<typeof problemConfigSchema>;
+
+/**
+ * The throttle in force for one person submitting to one problem.
+ *
+ * Three layers, most specific first: what the contest said when it listed the
+ * problem, then what the problem says about itself, then the kernel default.
+ * The middle layer is what makes a problem expensive to run say so once
+ * instead of in every round that uses it; the first is what lets a round
+ * decide otherwise without editing the problem — the same relationship
+ * `points` already has with `maxScore`.
+ *
+ * Takes the override as a bare value rather than a contest entry so that
+ * `lib/problems/` stays clear of `lib/contests/`. The caller has the entry in
+ * hand anyway, because it had to find it to know the contest contains this
+ * problem at all.
+ */
+export function submitRateLimit(
+  problem: ProblemConfig,
+  override?: ActionRateLimit,
+): ActionRateLimit {
+  return override ?? problem.submit.rateLimit ?? DEFAULT_SUBMIT_RATE_LIMIT;
+}
 
 /**
  * What is safe to hand to the browser. `backend` is stripped because its

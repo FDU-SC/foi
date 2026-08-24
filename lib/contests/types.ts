@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { audienceSchema } from "@/lib/auth/audience";
+import { actionRateLimitSchema } from "@/lib/problems/types";
 
 /**
  * Contests carry absolute instants, so a bare `2026-01-15T13:00` would mean
@@ -24,6 +25,17 @@ const contestProblemSchema = z.object({
   label: z.string().min(1).max(8),
   /** Overrides the problem's own maxScore for this contest only. */
   points: z.number().positive().optional(),
+  /**
+   * Overrides the problem's own submit throttle for this contest only.
+   *
+   * The same relationship `points` has with `maxScore`, and here for the same
+   * reason: how often a competitor may submit is a property of the round, not
+   * of the problem. A five-hour ACM round and a two-week practice set want
+   * different answers out of the same problem, and neither should have to edit
+   * it. Omitted falls back to the problem's own, then to the kernel default —
+   * see `submitRateLimit` in `lib/problems/types.ts`.
+   */
+  rateLimit: actionRateLimitSchema.optional(),
   /** Per-contest data handed to the ruleset. Opaque to the kernel. */
   config: z.unknown().optional(),
 });

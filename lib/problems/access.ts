@@ -96,7 +96,12 @@ export function problemVisibility(
   now = new Date(),
 ): Visibility {
   const config = problemBySlug(slug);
-  if (!config) return { visible: true };
+
+  // A slug nothing declares is withheld rather than allowed. `problemFor`
+  // already answers `undefined` for one, so no caller sees a difference today
+  // — but this is exported, and a gate whose default is "yes" is the wrong
+  // shape to leave lying around for the caller that forgets to check first.
+  if (!config) return { visible: false, reason: "audience", audience: [] };
 
   // Who it is for, asked first: a problem nobody has been given is withheld
   // whatever its contest is doing, and the answer does not change with time.

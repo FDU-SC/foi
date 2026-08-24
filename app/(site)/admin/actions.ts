@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireCapability } from "@/auth";
 import { reinstateAccount, suspendAccount } from "@/lib/accounts/queries";
 import { resolveUser } from "@/lib/accounts/resolve";
+import { capabilitiesOf } from "@/lib/auth/groups";
 import { syncContests } from "@/lib/contests/queries";
 import { sendPasswordReset } from "@/lib/mail/notify";
 import { syncProblems } from "@/lib/problems/sync";
@@ -132,6 +133,12 @@ const moderateSchema = z.object({
  * that file useless. It is still an accountable act, so who did it and why is
  * recorded on the row.
  *
+ * Which is also why it stops at the edge of the privileged groups. Everything
+ * that grants power is a reviewed commit naming a person; if taking it away
+ * were a button, one holder could remove the others between two page loads and
+ * the repository would still say they were administrators. Nobody gets to
+ * shortcut that, themselves included.
+ *
  * It bites immediately. `getResolvedUser()` reads the account by primary key
  * on every request and never through the snapshot, so an open session stops
  * working on its next page load rather than when a token expires.
@@ -159,6 +166,18 @@ export async function suspendAccountAction(
   // database session to undo.
   if (actor.handle === target.handle) {
     return { error: "不能封禁自己" };
+  }
+
+  // Nor anybody else who holds the same power. Suspension is the one
+  // authorisation decision that is data rather than code, which is what makes
+  // it fast enough for a spam signup — and also what would let one
+  // administrator remove the others without a review. Taking privilege away is
+  // a commit against `content/enrollment/`, the same way granting it is.
+  if (capabilitiesOf(target.groups).size > 0) {
+    return {
+      error:
+        "这个账号属于带权限的用户组，不能在这里封禁。收回权限请改 content/enrollment/ 的 grants，那样改动会留在 git 历史里。",
+    };
   }
 
   await suspendAccount(

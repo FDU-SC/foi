@@ -37,10 +37,11 @@ export const CAPABILITIES = [
   /**
    * See the real standings while a contest is frozen.
    *
-   * Implied in practice by `submission.readAny` — somebody who can open every
-   * submission can already add them up — but named separately because the
-   * question an operator asks is "who sees through the freeze", and an answer
-   * they have to derive is an answer they will get wrong under pressure.
+   * Named separately from `submission.readAny` because the question an operator
+   * asks is "who sees through the freeze", and an answer they have to derive is
+   * an answer they will get wrong under pressure. It is also *implied* by it —
+   * see `IMPLIES` below, which is where that stopped being a remark in a
+   * comment and became something the code does.
    */
   "standings.viewFrozen",
 
@@ -75,6 +76,30 @@ export const CAPABILITIES = [
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
+
+/**
+ * Capabilities that another capability already gives you in practice.
+ *
+ * `submission.readAny` is the case that forced this. Somebody who can open
+ * every submission in a contest can add them up, so withholding
+ * `standings.viewFrozen` from them withholds nothing — it only makes the board
+ * disagree with the data they can already reach, which is worse than either
+ * answer alone. Declaring it as a grant of both was the intent all along; the
+ * comment above `standings.viewFrozen` said so while `capabilitiesOf` did a
+ * plain union, so a deployment that split the two got a freeze it believed in
+ * and a hole it did not know about.
+ *
+ * Kept here rather than in `content/` for the same reason the capability list
+ * is: which decisions exist, and which of them are the same decision wearing
+ * two names, is the kernel's to know. Which groups hold them is not.
+ *
+ * Deliberately not transitive. One hop is enough for every entry there is, and
+ * a fixpoint over a table this small would be machinery guarding against a
+ * problem nobody has — `capabilitiesOf` asserts the flatness instead.
+ */
+export const IMPLIES: Partial<Record<Capability, readonly Capability[]>> = {
+  "submission.readAny": ["standings.viewFrozen"],
+};
 
 /** Shown wherever a capability is displayed to an operator. */
 export const CAPABILITY_LABELS: Record<Capability, string> = {

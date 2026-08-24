@@ -19,12 +19,14 @@ export async function GET() {
       { headers: { "cache-control": "no-store" } },
     );
   } catch (error) {
+    // The reason goes to the log, not to the response. This endpoint is
+    // unauthenticated by necessity, and a driver error carries the host, the
+    // database name and sometimes the user it tried — enough to describe the
+    // internals to anybody who can reach the URL. What a healthcheck needs is
+    // the status code.
+    console.error("[foi] 健康检查失败：数据库不可达", error);
     return NextResponse.json(
-      {
-        ok: false,
-        database: "down",
-        error: error instanceof Error ? error.message : "unknown",
-      },
+      { ok: false, database: "down" },
       { status: 503, headers: { "cache-control": "no-store" } },
     );
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listGroups } from "@/lib/auth/groups";
+import { capabilitiesOf, listGroups } from "@/lib/auth/groups";
 import { CAPABILITIES } from "@/lib/auth/policy";
 import { AS_PLAYER, viewerFor } from "@/lib/auth/viewer";
 import { allContests } from "@/lib/contests/registry";
@@ -55,16 +55,20 @@ describe("viewerFor", () => {
     }
   });
 
-  it("viewer 的答案与用户组声明逐项一致，没有第二份定义", () => {
+  it("viewer 的答案与 capabilitiesOf 逐项一致，没有第二份定义", () => {
     // The property the whole refactor exists to hold: a viewer derives every
     // answer from the declared groups, so there is nowhere for a capability to
     // be added and then forgotten.
+    //
+    // Compared against `capabilitiesOf` rather than against `group.capabilities`
+    // because the two are no longer the same set — `IMPLIES` adds to it, and
+    // asserting the raw declaration would make this fail for a group that holds
+    // an implying capability without its implied one.
     for (const group of listGroups()) {
       const viewer = viewerFor({ handle: "x", groups: [group.id] });
+      const granted = capabilitiesOf([group.id]);
       for (const capability of CAPABILITIES) {
-        expect(viewer.can(capability)).toBe(
-          (group.capabilities as readonly string[]).includes(capability),
-        );
+        expect(viewer.can(capability)).toBe(granted.has(capability));
       }
     }
   });
@@ -151,6 +155,16 @@ describe("problemVisibility", () => {
         reason: "hidden",
       });
     }
+  });
+
+  /**
+   * A gate whose default is "yes" is the wrong shape to export. `problemFor`
+   * checks for the config first so nothing sees a difference today, which is
+   * exactly why this is worth pinning: the next caller might not.
+   */
+  it("不存在的 slug 被拒，而不是默认可见", () => {
+    expect(problemVisibility("no-such-problem", PREVIEW).visible).toBe(false);
+    expect(problemVisibility("no-such-problem", AS_PLAYER).visible).toBe(false);
   });
 });
 

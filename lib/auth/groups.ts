@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { enrollmentModules } from "@/content";
-import { CAPABILITIES, type Capability } from "./policy";
+import { CAPABILITIES, IMPLIES, type Capability } from "./policy";
 
 /**
  * What a group is allowed to do.
@@ -113,6 +113,13 @@ export function privilegedGroupIds(): string[] {
  * A union, because belonging to two groups means being able to do what either
  * allows. Undeclared groups contribute nothing, which is what makes an
  * unlisted cohort name harmless.
+ *
+ * Then the closure over `IMPLIES`, because some of these capabilities are the
+ * same decision under two names and a deployment that grants one without the
+ * other gets a rule it believes in and a bypass it does not. One hop, since
+ * nothing in that table implies something that implies a third thing — asserted
+ * rather than assumed, because the day somebody adds such an entry is the day
+ * this would quietly stop closing.
  */
 export function capabilitiesOf(groupIds: readonly string[]): Set<Capability> {
   const granted = new Set<Capability>();
@@ -121,6 +128,19 @@ export function capabilitiesOf(groupIds: readonly string[]): Set<Capability> {
       granted.add(capability);
     }
   }
+
+  for (const capability of [...granted]) {
+    for (const implied of IMPLIES[capability] ?? []) {
+      if (process.env.NODE_ENV !== "production" && IMPLIES[implied]) {
+        throw new Error(
+          `IMPLIES 里 "${capability}" 蕴含的 "${implied}" 自己也有蕴含项，` +
+            `capabilitiesOf 只走一跳，需要改成求闭包。`,
+        );
+      }
+      granted.add(implied);
+    }
+  }
+
   return granted;
 }
 

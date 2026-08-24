@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AS_PLAYER, viewerFor } from "@/lib/auth/viewer";
-import { listGroups } from "@/lib/auth/groups";
+import { capabilitiesOf, listGroups } from "@/lib/auth/groups";
 import { acmRuleset } from "./rulesets/acm";
 import { at, END, input, participants, problem, solve } from "./test-support";
 
@@ -74,14 +74,28 @@ describe("谁能看穿封榜", () => {
     ).toBe(true);
   });
 
-  it("每个组是否能穿透，只看它有没有声明这项能力", () => {
+  /**
+   * Not "only if it declares the capability", which is what this used to say.
+   * `submission.readAny` implies it — see `IMPLIES` in `lib/auth/policy.ts` —
+   * so a group holding that and nothing else still reads through the freeze,
+   * and asserting the narrower rule would have failed the first time somebody
+   * split the two apart.
+   */
+  it("每个组是否能穿透，看它声明的能力加上蕴含出来的", () => {
     for (const group of listGroups()) {
       const viewer = viewerFor({ handle: "x", groups: [group.id] });
+      const declared = group.capabilities as readonly string[];
       expect(viewer.can("standings.viewFrozen")).toBe(
-        (group.capabilities as readonly string[]).includes(
-          "standings.viewFrozen",
-        ),
+        declared.includes("standings.viewFrozen") ||
+          declared.includes("submission.readAny"),
       );
     }
+  });
+
+  it("只有 submission.readAny 的组也能穿透，因为它本来就能把分加出来", () => {
+    expect(capabilitiesOf(["管理员"]).has("standings.viewFrozen")).toBe(true);
+    expect(
+      capabilitiesOf([]).has("standings.viewFrozen"),
+    ).toBe(false);
   });
 });

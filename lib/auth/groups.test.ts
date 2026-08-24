@@ -13,7 +13,7 @@ import {
   listGroups,
   privilegedGroupIds,
 } from "./groups";
-import { CAPABILITIES } from "./policy";
+import { CAPABILITIES, IMPLIES } from "./policy";
 
 /**
  * The safety property these cases exist for: a regex must never be able to
@@ -56,6 +56,60 @@ describe("用户组声明", () => {
 
   it("空成员资格没有任何能力", () => {
     expect(capabilitiesOf([]).size).toBe(0);
+  });
+});
+
+/**
+ * The union used to be all `capabilitiesOf` did, which made the note above
+ * `standings.viewFrozen` in `./policy` a claim about intent rather than about
+ * behaviour: a deployment granting `submission.readAny` alone got a freeze it
+ * believed in and a bypass it did not know about. These pin the closure so
+ * that the comment and the code cannot drift apart again.
+ */
+describe("能力蕴含", () => {
+  it("IMPLIES 里的键和值都是真实的能力名", () => {
+    for (const [capability, implied] of Object.entries(IMPLIES)) {
+      expect(CAPABILITIES).toContain(capability);
+      for (const id of implied ?? []) expect(CAPABILITIES).toContain(id);
+    }
+  });
+
+  it("没有能力蕴含自己，那会是个无意义的条目", () => {
+    for (const [capability, implied] of Object.entries(IMPLIES)) {
+      expect(implied ?? []).not.toContain(capability);
+    }
+  });
+
+  /**
+   * `capabilitiesOf` walks one hop. Asserted rather than assumed, because the
+   * day somebody writes a two-hop entry is the day the closure would quietly
+   * stop closing — the runtime guard in `capabilitiesOf` throws outside
+   * production, and this says the same thing where it is cheap to read.
+   */
+  it("蕴含关系是平的：没有哪一项的蕴含项自己还有蕴含项", () => {
+    for (const implied of Object.values(IMPLIES)) {
+      for (const id of implied ?? []) {
+        expect(IMPLIES[id]).toBeUndefined();
+      }
+    }
+  });
+
+  it("持有某项能力就持有它蕴含的一切", () => {
+    for (const [capability, implied] of Object.entries(IMPLIES)) {
+      const holder = listGroups().find((group) =>
+        (group.capabilities as readonly string[]).includes(capability),
+      );
+      if (!holder) continue;
+
+      const granted = capabilitiesOf([holder.id]);
+      for (const id of implied ?? []) expect(granted.has(id)).toBe(true);
+    }
+  });
+
+  it("蕴含出来的能力不会让一个纯分组凭空得到权限", () => {
+    // The closure runs over what the groups granted, so a membership that
+    // granted nothing still grants nothing.
+    expect(capabilitiesOf(["2026级", "本科生"]).size).toBe(0);
   });
 });
 

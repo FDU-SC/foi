@@ -4,9 +4,8 @@ import { notFound } from "next/navigation";
 import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { adminContestsFor } from "@/lib/admin/access";
 import { describeAudience } from "@/lib/auth/audience";
-import { resolveParticipants } from "@/lib/contests/queries";
-import { allContests } from "@/lib/contests/registry";
 import { contestPhase, PHASE_LABEL } from "@/lib/contests/types";
 import { getRuleset } from "@/lib/standings/registry";
 
@@ -33,24 +32,14 @@ function participantsLabel(
 }
 
 export default async function AdminContestsPage() {
-  // `proxy.ts` already matched this path, but its answer comes from the token
-  // alone — the session callback reads grants, never the accounts table, so a
-  // suspended administrator holding a live JWT still gets past it. `getViewer`
-  // resolves the account row, which is where a suspension lives.
-  const viewer = await getViewer();
-  if (!viewer.can("admin.access")) notFound();
+  // Entry lists come from the account table, so the access layer resolves them
+  // up front rather than leaving a query inside the render loop.
+  const rows = await adminContestsFor(await getViewer());
+  if (!rows) notFound();
 
-  const all = allContests();
-
-  // Entry lists come from the account table now, so they are resolved up front
-  // rather than inside the render loop.
+  const all = rows.map((row) => row.config);
   const entrantCounts = new Map(
-    await Promise.all(
-      all.map(
-        async (contest) =>
-          [contest.slug, (await resolveParticipants(contest))?.length ?? null] as const,
-      ),
-    ),
+    rows.map((row) => [row.config.slug, row.entrants] as const),
   );
 
   return (

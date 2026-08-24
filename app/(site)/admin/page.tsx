@@ -5,8 +5,9 @@ import { getViewer } from "@/auth";
 import { ActionForm } from "@/components/admin/action-form";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { loadAdminOverview } from "@/lib/admin/drift";
-import { listGroups } from "@/lib/auth/groups";
+import { adminOverviewFor } from "@/lib/admin/access";
+import { capabilitiesOf, listGroups } from "@/lib/auth/groups";
+import { CAPABILITY_LABELS } from "@/lib/auth/policy";
 import { listRulesets } from "@/lib/standings/registry";
 import { syncRegistriesFormAction } from "./actions";
 
@@ -14,14 +15,9 @@ export const metadata: Metadata = { title: "管理" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
-  // `proxy.ts` already matched this path, but its answer comes from the token
-  // alone — the session callback reads grants, never the accounts table, so a
-  // suspended administrator holding a live JWT still gets past it. `getViewer`
-  // resolves the account row, which is where a suspension lives.
   const viewer = await getViewer();
-  if (!viewer.can("admin.access")) notFound();
-
-  const overview = await loadAdminOverview();
+  const overview = await adminOverviewFor(viewer);
+  if (!overview) notFound();
 
   const stats = [
     { label: "账号", value: overview.accountCount, href: "/admin/accounts" },
@@ -116,10 +112,16 @@ export default async function AdminPage() {
               道题、<span className="font-mono">{overview.mirroredContests}</span>{" "}
               场比赛。启动时会自动同步，这里是手动触发。
             </p>
-            <ActionForm
-              action={syncRegistriesFormAction}
-              submitLabel="立即同步"
-            />
+            {viewer.can("registry.sync") ? (
+              <ActionForm
+                action={syncRegistriesFormAction}
+                submitLabel="立即同步"
+              />
+            ) : (
+              <p className="text-fg-subtle text-xs leading-5">
+                手动同步需要 <code className="font-mono">registry.sync</code>。
+              </p>
+            )}
           </div>
         </CardBody>
       </Card>
@@ -132,7 +134,11 @@ export default async function AdminPage() {
             <code className="font-mono">content/enrollment/</code> 的{" "}
             <code className="font-mono">groups</code>
             ，改权限就是改那个文件——变更会出现在 diff 里。这里只列出带权限的组；
-            纯分组不需要声明，出现在规则或授权里即可使用。
+            纯分组不需要声明，出现在规则或授权里即可使用。列出的是
+            <strong className="text-fg font-medium">实际生效</strong>
+            的能力，鼠标悬停看中文说明；蓝色那些是文件里没写、由别的能力蕴含而来的
+            （见 <code className="font-mono">lib/auth/policy.ts</code> 的{" "}
+            <code className="font-mono">IMPLIES</code>）。
           </p>
           <div className="border-border overflow-hidden rounded-md border">
             <table className="w-full text-sm">
@@ -164,11 +170,23 @@ export default async function AdminPage() {
                         </span>
                       ) : (
                         <ul className="flex flex-wrap gap-1.5">
-                          {group.capabilities.map((capability) => (
-                            <li key={capability}>
-                              <Badge mono>{capability}</Badge>
-                            </li>
-                          ))}
+                          {[...capabilitiesOf([group.id])]
+                            .sort()
+                            .map((capability) => (
+                              <li key={capability}>
+                                <Badge
+                                  mono
+                                  tone={
+                                    group.capabilities.includes(capability)
+                                      ? "neutral"
+                                      : "info"
+                                  }
+                                  title={CAPABILITY_LABELS[capability]}
+                                >
+                                  {capability}
+                                </Badge>
+                              </li>
+                            ))}
                         </ul>
                       )}
                       <p className="text-fg-subtle mt-1 text-xs leading-5">

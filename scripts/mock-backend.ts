@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage } from "node:http";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -343,6 +343,67 @@ function judgeInstanceFlag(request: JudgeRequestBody): Verdict {
 interface OutputCase {
   name?: string;
   expected?: string;
+}
+
+/**
+ * Daily roulette check-in: the day's result is derived from the date, so
+ * everyone faces the same wheel and nobody — not even the setter — can know
+ * it before submitting. The verdict reveals the outcome.
+ *
+ * Bets: exact number (0-36), colour (red/black/green), or size (big 19-36,
+ * small 1-18; 0 is neither). Scores come from the problem config.
+ */
+function judgeRoulette(
+  config: unknown,
+  payload: unknown,
+  now = new Date(),
+): Verdict {
+  const cfg = (config ?? {}) as {
+    scoreNumber?: number;
+    scoreColor?: number;
+    scoreSize?: number;
+  };
+  const scoreNumber = cfg.scoreNumber ?? 100;
+  const scoreColor = cfg.scoreColor ?? 30;
+  const scoreSize = cfg.scoreSize ?? 10;
+
+  const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const digest = createHash("sha256").update(`roulette:${day}`).digest();
+  const number = digest.readUInt32BE(0) % 37;
+  const color = number === 0 ? "green" : number % 2 === 1 ? "red" : "black";
+  const size = number === 0 ? null : number <= 18 ? "small" : "big";
+
+  const submitted = String((payload as { text?: unknown })?.text ?? "")
+    .trim()
+    .toLowerCase();
+
+  let score = 0;
+  let hit: string;
+  if (submitted === String(number)) {
+    score = scoreNumber;
+    hit = `押中数字 ${number}`;
+  } else if (submitted === color) {
+    score = scoreColor;
+    hit = `押中颜色 ${color}`;
+  } else if (size !== null && submitted === size) {
+    score = scoreSize;
+    hit = `押中大小 ${size}`;
+  } else {
+    hit = `未命中（${submitted || "空"}）`;
+  }
+
+  return {
+    status: score >= scoreNumber ? "accepted" : score > 0 ? "partial" : "wrong_answer",
+    score,
+    maxScore: scoreNumber,
+    detail: {
+      number,
+      color,
+      size,
+      hit,
+      message: `今日结果：数字 ${number}（${color}${size ? `，${size}` : ""}）。你押「${submitted}」→ ${hit}${score > 0 ? `，+${score} 分` : "，0 分"}。明天再来！`,
+    },
+  };
 }
 
 /**
@@ -762,6 +823,11 @@ async function evaluate(request: JudgeRequestBody): Promise<Verdict> {
   // against — the flag belongs to one instance and one person.
   if (config.image !== undefined) {
     return judgeInstanceFlag(request);
+  }
+  // Roulette also submits `{ text }`, so it must be checked before the
+  // generic output-only branch.
+  if (config.mode === "roulette") {
+    return judgeRoulette(request.problem.config, request.payload);
   }
   if (payload.flag !== undefined || config.mode === "static") {
     return judgeFlag(request.problem.config, request.payload);

@@ -7,6 +7,8 @@ import { reinstateAccount, suspendAccount } from "@/lib/accounts/queries";
 import { resolveUser } from "@/lib/accounts/resolve";
 import { capabilitiesOf } from "@/lib/auth/groups";
 import { sendPasswordReset } from "@/lib/mail/notify";
+import { rateLimit } from "@/lib/ratelimit";
+import { ACTION_LIMITS, fixedRule } from "@/lib/ratelimit/policy";
 
 export interface ActionState {
   error?: string;
@@ -48,7 +50,35 @@ export async function resendPasswordResetAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireCapability("credential.manage");
+  const actor = await requireCapability("credential.manage");
+
+  /**
+   * Bounded per operator, and it was the one send path that was not.
+   *
+   * The public `requestPasswordReset` has always been capped per source. This
+   * one — the privileged path that mails the same thing — had nothing, and the
+   * only bound in reach was the per-recipient cooldown in `lib/mail/notify.ts`,
+   * which stops the *same* account being mailed twice a minute and says
+   * nothing about how many different accounts one operator may mail. A stolen
+   * `credential.manage` session could therefore send one message per account
+   * per minute for as long as it lasted, from this deployment's domain.
+   *
+   * Mail is the one thing here whose cost lands somewhere else: on other
+   * people's inboxes, on this domain's standing with their providers, and on
+   * the relay's quota. A privileged path being looser than the public one that
+   * does the same thing is the wrong way round however small the number.
+   */
+  const rule = fixedRule(ACTION_LIMITS.resendPasswordResetAction);
+  const limited = rateLimit(
+    `resend-reset:${actor.handle}`,
+    rule.max,
+    rule.windowSeconds * 1000,
+  );
+  if (!limited.ok) {
+    return {
+      error: `代发重置邮件过于频繁，请 ${Math.ceil(limited.retryAfterMs / 60_000)} 分钟后再试。`,
+    };
+  }
 
   const parsed = issueSchema.safeParse({ handle: formData.get("handle") });
   if (!parsed.success) {

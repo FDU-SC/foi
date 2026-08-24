@@ -8,6 +8,7 @@ import { contestFor } from "@/lib/contests/access";
 import { canEnterContest } from "@/lib/contests/queries";
 import { contestPhase } from "@/lib/contests/types";
 import { rateLimit } from "@/lib/ratelimit";
+import { sourceGate } from "@/lib/ratelimit/gate";
 
 // Signing uses node:crypto, so this must not run on Edge.
 export const runtime = "nodejs";
@@ -31,6 +32,9 @@ export async function POST(
   request: Request,
   { params }: RouteContext<"/api/problems/[slug]/action/[action]">,
 ) {
+  const gated = sourceGate(request, "POST /api/problems/[slug]/action/[action]");
+  if (gated) return gated;
+
   // The resolved user, not the session one: entry rules key on group
   // membership, which is computed from the account rather than carried in the
   // token.

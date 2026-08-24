@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { sourceGate } from "@/lib/ratelimit/gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,8 +11,18 @@ export const dynamic = "force-dynamic";
  *
  * Used by the compose healthcheck and by the deploy workflow to decide whether
  * a release came up cleanly, so it must not require authentication.
+ *
+ * Gated by source anyway, because it does touch the database and there is no
+ * account to count against. That is safe for the probe rather than a risk to
+ * it: the compose healthcheck curls localhost from inside the container, which
+ * carries no forwarded header, so `sourceFrom` reports no source and the gate
+ * stands aside. A 429 here would be read as an unhealthy container and get it
+ * restarted, which is exactly the outcome that reasoning avoids.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const gated = sourceGate(request, "GET /api/health");
+  if (gated) return gated;
+
   try {
     await db.execute(sql`select 1`);
     return NextResponse.json(

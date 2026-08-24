@@ -32,6 +32,23 @@ export const policy: EnrollmentPolicyInput = {
   // page. Handles named by a rule below are reserved automatically.
   reservedHandles: ["root", "system", "admin", "foi", "judge", "support"],
 
+  // Said out loud rather than left to be inferred from a missing variable,
+  // which is the entire point of this field. This example runs no relay — the
+  // quick start does not ask for one, and `emailDomains` here is a reserved
+  // test domain — so it is a deployment that prints codes to the log, and the
+  // config should be the place that says so.
+  //
+  // A real deployment changes this to `"smtp"` and sets `FOI_SMTP_HOST`.
+  // Forgetting to is not silent: `/admin` reports an unconfigured relay
+  // whatever the policy says, because that finding reads the environment
+  // rather than this line.
+  //
+  // Leaving it out would make `pnpm build && pnpm start` refuse to boot on a
+  // fresh checkout — production is where `assertMailDelivery` throws, and
+  // `next start` is production. That is the check working, and this line is
+  // the answer it is asking for.
+  mailDelivery: "console",
+
   registrationsPerIpPerHour: 10,
 };
 

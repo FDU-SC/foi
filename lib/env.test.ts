@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { backendsMissingUrl } from "@/backends.config";
 import { assertEnv } from "./env";
@@ -156,5 +158,38 @@ describe("生产环境的题目后端地址", () => {
     for (const NODE_ENV of ["development", "test", undefined]) {
       expect(check({ NODE_ENV })).not.toThrow();
     }
+  });
+
+  /**
+   * The one place in this repository that has to satisfy the check above.
+   *
+   * `pnpm start` in the smoke step means `NODE_ENV=production`, so that step
+   * declares every entry — pointing at a host DNS never resolves, because CI
+   * runs no backends and saying so is the honest version of having none. It
+   * declares them rather than switching the check off, for the reason that
+   * step gives about `FOI_AUTO_MIGRATE`: the boot path is worth running as
+   * written, and an opt-out would make the smoke step the one place this check
+   * never runs.
+   *
+   * The cost is that adding a backend breaks CI until a line is added there.
+   * This test is what turns that from a smoke failure three minutes in — whose
+   * message is about environment variables and says nothing about a workflow
+   * file — into a named one from `pnpm test`.
+   */
+  it("CI 的冒烟步骤声明了 backends.config.ts 里的每一台", () => {
+    const workflow = readFileSync(
+      join(import.meta.dirname, "..", ".github", "workflows", "check.yml"),
+      "utf8",
+    );
+
+    const undeclared = URL_VARIABLES.filter(
+      (variable) => !workflow.includes(`${variable}:`),
+    );
+
+    expect(
+      undeclared,
+      "backends.config.ts 里新增了后端，.github/workflows/check.yml 的冒烟步骤" +
+        "还没跟上——不补这几行，那一步会在启动时被 assertEnv 拒绝",
+    ).toEqual([]);
   });
 });

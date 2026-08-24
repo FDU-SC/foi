@@ -26,4 +26,7 @@ export const judges: Record<string, JudgeEndpoint> = {
   interactive: {
     url: process.env.FOI_JUDGE_INTERACTIVE_URL ?? "http://localhost:4100",
   },
+  performance: {
+    url: process.env.FOI_JUDGE_PERFORMANCE_URL ?? "http://localhost:4100",
+  },
 };

@@ -380,6 +380,225 @@ int main() {
   }
 }
 
+interface PerformanceConfig {
+  mode?: string;
+  n?: number;
+  warmupRuns?: number;
+  timedRuns?: number;
+  timeLimitMs?: number;
+  compileFlags?: string;
+}
+
+/**
+ * The baseline for the performance problem: plain i-j-k matrix multiplication.
+ * Compiled once per judge process and reused across submissions, so the
+ * baseline reflects this machine's speed, not a hard-coded constant.
+ */
+const NAIVE_MATMUL_SOURCE = `#include <bits/stdc++.h>
+using namespace std;
+int main() {
+  ios::sync_with_stdio(false);
+  cin.tie(nullptr);
+  int n;
+  if (!(cin >> n)) return 0;
+  vector<vector<long long>> a(n, vector<long long>(n));
+  vector<vector<long long>> b(n, vector<long long>(n));
+  vector<vector<long long>> c(n, vector<long long>(n));
+  for (int i = 0; i < n; i++)
+    for (int j = 0; j < n; j++) cin >> a[i][j];
+  for (int i = 0; i < n; i++)
+    for (int j = 0; j < n; j++) cin >> b[i][j];
+  for (int i = 0; i < n; i++)
+    for (int j = 0; j < n; j++)
+      for (int k = 0; k < n; k++) c[i][j] += a[i][k] * b[k][j];
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < n; j++) {
+      if (j) cout << ' ';
+      cout << c[i][j];
+    }
+    cout << '\\n';
+  }
+  return 0;
+}`;
+
+/** Long-lived asset dir (naive binary etc.) — never deleted for the process. */
+const ASSET_DIR = mkdtempSync(join(tmpdir(), "foi-judge-assets-"));
+let naiveMatmulBinary: string | null = null;
+
+function compileNaiveMatmul(compileFlags: string): string {
+  if (naiveMatmulBinary) return naiveMatmulBinary;
+  const src = join(ASSET_DIR, "naive.cpp");
+  const out = join(ASSET_DIR, "naive");
+  writeFileSync(src, NAIVE_MATMUL_SOURCE);
+  execFileSync("g++", [...compileFlags.split(/\s+/), "-o", out, src], {
+    timeout: 30_000,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  naiveMatmulBinary = out;
+  return out;
+}
+
+/** Deterministic n×n matrices so naive and submission see identical input. */
+function genMatmulInput(n: number): string {
+  const rows: string[] = [String(n)];
+  const emit = (f: (i: number, j: number) => number) => {
+    for (let i = 0; i < n; i++) {
+      const row: string[] = [];
+      for (let j = 0; j < n; j++) row.push(String(f(i, j)));
+      rows.push(row.join(" "));
+    }
+  };
+  emit((i, j) => (i * 31 + j * 17) % 100);
+  emit((i, j) => (i * 13 + j * 7) % 100);
+  return rows.join("\n");
+}
+
+function runTimed(
+  binary: string,
+  input: string,
+  timeoutMs: number,
+): { stdout: Buffer; timeMs: number; killed: boolean } {
+  const start = process.hrtime.bigint();
+  try {
+    const stdout = execFileSync(binary, {
+      input,
+      timeout: timeoutMs,
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    const timeMs = Number(process.hrtime.bigint() - start) / 1e6;
+    return { stdout, timeMs, killed: false };
+  } catch (error) {
+    const failed = error as { killed?: boolean };
+    return {
+      stdout: Buffer.alloc(0),
+      timeMs: timeoutMs,
+      killed: failed.killed ?? false,
+    };
+  }
+}
+
+/**
+ * Performance judging: compile the submission, time the built-in baseline,
+ * then time the submission (warmup + best of N timed runs), byte-compare the
+ * output against the baseline and score by speedup.
+ *
+ * score = min(100, floor(50 * baseline / time)) — a 2× speedup is full marks,
+ * an unoptimized copy of the baseline scores about 50.
+ */
+async function judgePerformance(
+  config: unknown,
+  payload: unknown,
+): Promise<Verdict> {
+  const cfg = (config ?? {}) as PerformanceConfig;
+  const n = cfg.n ?? 512;
+  const warmupRuns = cfg.warmupRuns ?? 1;
+  const timedRuns = cfg.timedRuns ?? 3;
+  const timeLimitMs = cfg.timeLimitMs ?? 8000;
+  const compileFlags = cfg.compileFlags ?? "-O2 -std=c++17";
+  const source = String((payload as { source?: unknown })?.source ?? "");
+
+  const input = genMatmulInput(n);
+  const naiveBin = compileNaiveMatmul(compileFlags);
+
+  const dir = mkdtempSync(join(tmpdir(), "foi-perf-"));
+  let binary: string;
+  try {
+    binary = join(dir, "prog");
+    writeFileSync(join(dir, "prog.cpp"), source);
+    execFileSync(
+      "g++",
+      [...compileFlags.split(/\s+/), "-o", binary, join(dir, "prog.cpp")],
+      { timeout: 30_000, stdio: ["ignore", "pipe", "pipe"] },
+    );
+  } catch (error) {
+    const stderr = (error as { stderr?: Buffer }).stderr?.toString() ?? "编译失败";
+    return {
+      status: "compile_error",
+      score: 0,
+      maxScore: 100,
+      detail: { message: stderr.slice(0, 2000) },
+    };
+  }
+
+  try {
+    const baseline = runTimed(naiveBin, input, timeLimitMs);
+    if (baseline.killed) {
+      return {
+        status: "system_error",
+        score: 0,
+        maxScore: 100,
+        detail: { message: "基线评测超时" },
+      };
+    }
+    const baselineMs = Math.max(1, baseline.timeMs);
+
+    for (let i = 0; i < warmupRuns; i++) runTimed(binary, input, timeLimitMs);
+
+    let best: { stdout: Buffer; timeMs: number } | null = null;
+    let killed = false;
+    const runs: number[] = [];
+    for (let i = 0; i < timedRuns; i++) {
+      const result = runTimed(binary, input, timeLimitMs);
+      runs.push(Math.round(result.timeMs));
+      if (result.killed) {
+        killed = true;
+        break;
+      }
+      if (!best || result.timeMs < best.timeMs) {
+        best = { stdout: result.stdout, timeMs: result.timeMs };
+      }
+    }
+
+    if (killed) {
+      return {
+        status: "time_limit_exceeded",
+        score: 0,
+        maxScore: 100,
+        detail: { message: `超出时间限制（${timeLimitMs}ms）` },
+      };
+    }
+    if (!best) {
+      return {
+        status: "runtime_error",
+        score: 0,
+        maxScore: 100,
+        detail: { message: "程序没有产出任何输出" },
+      };
+    }
+
+    if (!best.stdout.equals(baseline.stdout)) {
+      return {
+        status: "wrong_answer",
+        score: 0,
+        maxScore: 100,
+        detail: {
+          message: "输出与基线不一致",
+          timeMs: Math.round(best.timeMs),
+          baselineMs: Math.round(baselineMs),
+        },
+      };
+    }
+
+    const timeMs = Math.max(1, best.timeMs);
+    const score = Math.min(100, Math.floor((50 * baselineMs) / timeMs));
+    return {
+      status: score >= 100 ? "accepted" : score > 0 ? "partial" : "wrong_answer",
+      score,
+      maxScore: 100,
+      detail: {
+        message: `耗时 ${Math.round(timeMs)}ms，基线 ${Math.round(baselineMs)}ms，加速比 ${(baselineMs / timeMs).toFixed(2)}x`,
+        timeMs: Math.round(timeMs),
+        baselineMs: Math.round(baselineMs),
+        speedup: Number((baselineMs / timeMs).toFixed(2)),
+        runs,
+      },
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 /**
  * Dispatches by payload shape, mirroring how a real judge would branch on the
  * problem's judge id: flag submissions carry `{ flag }`, output-only carry
@@ -398,6 +617,9 @@ async function evaluate(request: JudgeRequestBody): Promise<Verdict> {
   }
   if (config.mode === "interactive") {
     return judgeInteractive(request.problem.config, request.payload);
+  }
+  if (config.mode === "performance") {
+    return judgePerformance(request.problem.config, request.payload);
   }
   return judgeCode(request.problem.config, request.payload);
 }

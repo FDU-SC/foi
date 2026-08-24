@@ -15,12 +15,17 @@ import type { JudgeQueue, QueueItem, Verdict } from "../lib/backend/types";
 // Before anything else: this judge compiles and runs submitted code on the
 // host with no sandbox (see judgeInteractive/judgePerformance), which is an
 // acceptable shortcut for local development and nothing else. Refuse to boot
-// in a production deployment rather than becoming its remote code execution
-// endpoint.
+// rather than become a remote code execution endpoint.
+//
+// The condition reads as "production" and blocks rather more than that: the
+// Dockerfile sets NODE_ENV=production and all three deployed environments run
+// that same image, so dev and staging are refused too. That is the intent — an
+// unsandboxed evaluator is a way in from wherever it is reachable, and the
+// tailnet is not a sandbox.
 if (process.env.NODE_ENV === "production") {
   throw new Error(
     "mock 题目后端没有沙箱，会在宿主机上直接编译并运行提交的代码，仅供本地开发；" +
-      "检测到 NODE_ENV=production，拒绝启动。",
+      "检测到 NODE_ENV=production（三套部署环境都会命中），拒绝启动。",
   );
 }
 

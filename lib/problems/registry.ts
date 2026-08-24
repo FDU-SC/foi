@@ -1,5 +1,8 @@
 import type { ComponentType } from "react";
-import { problemConfigModules, problemStatementModules } from "@/content";
+import {
+  problemConfigModules,
+  problemStatementModules,
+} from "@/content/problem-modules";
 import { problemConfigSchema, type ProblemConfig } from "./types";
 
 /**
@@ -7,10 +10,9 @@ import { problemConfigSchema, type ProblemConfig } from "./types";
  * means creating a directory under `content/problems/` — no registration step,
  * and Turbopack's watcher picks up additions and removals during `next dev`.
  *
- * The globs themselves live in `content/index.ts` because Turbopack only scans
- * downward from the calling file. Configs load eagerly since listing pages
- * need all of them; statements load lazily so a problem page pulls in only the
- * MDX it is about to render.
+ * The globs themselves live under `content/` because Turbopack only scans
+ * downward from the calling file. Configs load eagerly; statements load lazily
+ * from a module marked `server-only`, so their chunks remain on the server.
  */
 function slugFromPath(path: string): string | null {
   return path.match(/\/problems\/([^/]+)\/[^/]+$/)?.[1] ?? null;

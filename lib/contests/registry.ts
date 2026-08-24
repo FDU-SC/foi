@@ -1,4 +1,4 @@
-import { contestModules } from "@/content";
+import { contestModules } from "@/content/contest-modules";
 import { knownGroups } from "@/lib/enrollment/registry";
 import { audienceCovers, describeAudience } from "@/lib/auth/audience";
 import { problemBySlug } from "@/lib/problems/registry";

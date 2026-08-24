@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { enrollmentModules } from "@/content";
+import { enrollmentModules } from "@/content/enrollment-modules";
 import { normalizeHandle } from "@/lib/accounts/types";
 import { declaredGroupIds, isPrivileged, privilegedGroupIds } from "@/lib/auth/groups";
 import {

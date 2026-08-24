@@ -16,6 +16,11 @@
  * Keep these coarse. A capability should describe a thing a person does, not
  * an endpoint they hit, so that adding a second route for the same activity
  * does not require a new entry.
+ *
+ * Where each of these actually gets asked is `./enforcement`, which is a map
+ * rather than a mechanism — nothing reads it at runtime. Adding a capability
+ * here without wiring it to anything fails the test beside it, because a word
+ * in this list that nothing enforces reads as a control and is not one.
  */
 export const CAPABILITIES = [
   /** Reach the /admin operations console at all. */

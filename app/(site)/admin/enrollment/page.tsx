@@ -1,62 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { getViewer } from "@/auth";
-import { accountsFor } from "@/lib/accounts/access";
+import { enrollmentViewFor } from "@/lib/admin/access";
 import { codeTtlMinutes } from "@/lib/auth/email-verification";
-import { declaredGroupIds, groupName, isPrivileged } from "@/lib/auth/groups";
-import {
-  enrollmentPolicy,
-  knownGroups,
-  listGrants,
-  listRules,
-  groupsFor,
-} from "@/lib/enrollment/registry";
+import { groupName, isPrivileged } from "@/lib/auth/groups";
 
 export const metadata: Metadata = { title: "分流规则" };
 export const dynamic = "force-dynamic";
 
-/**
- * The read-only view of `content/enrollment/`, with the one thing the file
- * itself cannot show: how many accounts each rule actually matches.
- *
- * That number is the point of the page. A rule that has fallen behind the
- * current intake's address format looks perfectly reasonable in a diff and
- * matches nobody in production, and a zero here is how you find out before a
- * contest opens to an empty board.
- */
 export default async function AdminEnrollmentPage() {
-  const [rules, grants, accounts] = await Promise.all([
-    Promise.resolve(listRules()),
-    Promise.resolve(listGrants()),
-    // Rule hit counts are computed from addresses, so this page reads PII too
-    // and answers to the same capability as the account directory.
-    accountsFor(await getViewer()),
-  ]);
+  const view = await enrollmentViewFor(await getViewer());
+  if (!view) notFound();
 
-  const active = accounts.filter((row) => row.status === "active");
-  const { groups: allGroups, exhaustive } = knownGroups();
-
-  // Declared groups start at zero so they are listed even when empty. That is
-  // the whole value of this card right after somebody adds a group: a count of
-  // 0 next to a name you just wrote is how a mistyped grant announces itself,
-  // and absence from the list would not.
-  const groupCounts = new Map<string, number>(
-    declaredGroupIds().map((id) => [id, 0]),
-  );
-  let untagged = 0;
-  for (const row of active) {
-    const resolved = groupsFor(row.handle, row.email);
-    if (resolved.length === 0 && row.email) untagged += 1;
-    for (const id of resolved) {
-      groupCounts.set(id, (groupCounts.get(id) ?? 0) + 1);
-    }
-  }
-
-  const ruleMatches = rules.map(
-    (rule) => active.filter((row) => row.email && rule.match.test(row.email)).length,
-  );
+  const {
+    policy: enrollmentPolicy,
+    rules,
+    grants,
+    known: { groups: allGroups, exhaustive },
+    ruleMatches,
+    groupCounts,
+    untagged,
+  } = view;
 
   return (
     <div className="space-y-6">
@@ -152,9 +119,11 @@ export default async function AdminEnrollmentPage() {
                     <th className="border-border border-b px-3 py-2 text-left font-semibold">
                       用户组
                     </th>
-                    <th className="border-border border-b px-3 py-2 text-right font-semibold">
-                      命中账号
-                    </th>
+                    {ruleMatches ? (
+                      <th className="border-border border-b px-3 py-2 text-right font-semibold">
+                        命中账号
+                      </th>
+                    ) : null}
                   </tr>
                 </thead>
                 <tbody className="divide-border divide-y">
@@ -179,24 +148,32 @@ export default async function AdminEnrollmentPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-right align-top">
-                        <span
-                          className={
-                            ruleMatches[index] === 0
-                              ? "text-warn font-mono text-sm tabular-nums"
-                              : "text-fg font-mono text-sm tabular-nums"
-                          }
-                        >
-                          {ruleMatches[index]}
-                        </span>
-                      </td>
+                      {ruleMatches ? (
+                        <td className="px-3 py-2 text-right align-top">
+                          <span
+                            className={
+                              ruleMatches[index] === 0
+                                ? "text-warn font-mono text-sm tabular-nums"
+                                : "text-fg font-mono text-sm tabular-nums"
+                            }
+                          >
+                            {ruleMatches[index]}
+                          </span>
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-          {untagged > 0 ? (
+          {ruleMatches === null ? (
+            <p className="text-fg-subtle text-xs leading-5">
+              命中账号数要读邮箱，需要{" "}
+              <code className="font-mono">account.read</code> 才会显示。
+            </p>
+          ) : null}
+          {untagged !== null && untagged > 0 ? (
             <p className="text-warn text-xs leading-5">
               有 <span className="font-mono">{untagged}</span>{" "}
               个账号的邮箱不匹配任何规则，他们进不了任何 tag 制比赛。
@@ -208,7 +185,13 @@ export default async function AdminEnrollmentPage() {
       <Card>
         <CardHeader title="当前用户组分布" />
         <CardBody>
-          {groupCounts.size === 0 ? (
+          {groupCounts === null ? (
+            <p className="text-fg-muted text-sm leading-6">
+              分布要按邮箱现算每个账号的用户组，需要{" "}
+              <code className="font-mono">account.read</code>。这里列出的是{" "}
+              {allGroups.length} 个仓库声明或规则产生的用户组名。
+            </p>
+          ) : groupCounts.size === 0 ? (
             <p className="text-fg-muted text-sm">还没有任何用户组。</p>
           ) : (
             <ul className="flex flex-wrap gap-1.5">

@@ -12,8 +12,18 @@ export default auth((req) => {
   const user = req.auth?.user;
   const path = nextUrl.pathname;
 
-  // The session callback blanks the handle when the token no longer matches
-  // an active roster entry, so this covers deleted and suspended members too.
+  // A gate on the URL, not on the data behind it, and the distinction is not
+  // academic: this answer comes from the token alone. The session callback in
+  // `auth.config.ts` resolves the handle against the repository's grants and
+  // never reads the accounts table, so a deleted or suspended account holding
+  // a live JWT still looks signed in here, and still looks like an
+  // administrator if a grant says so.
+  //
+  // What that buys is a cheap redirect for the ordinary case — nobody signed
+  // in at all — on a matcher that runs for every prefetch. Refusing anybody is
+  // the job of `getResolvedUser()`, which reads the account row on every
+  // request, and of the access layers every page and route handler goes
+  // through. This may be wrong; those may not.
   const signedIn = Boolean(user?.handle);
 
   const needsAuth =

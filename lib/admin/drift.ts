@@ -43,6 +43,11 @@ export interface AdminOverview {
   findings: DriftFinding[];
 }
 
+/**
+ * Ungated on purpose: this counts every account and every mirror row, so it is
+ * not a thing a page may call. `adminOverviewFor` in `./access` is the way in,
+ * and it is the only caller.
+ */
 export async function loadAdminOverview(): Promise<AdminOverview> {
   const registryProblems = allProblems();
   const registryContests = allContests();

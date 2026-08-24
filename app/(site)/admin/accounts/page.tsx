@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { accountDirectoryFor } from "@/lib/accounts/access";
@@ -23,13 +24,28 @@ const STATUS: Record<string, { label: string; tone: "ok" | "err" }> = {
   suspended: { label: "已封禁", tone: "err" },
 };
 
+/**
+ * Whether this account holds any privilege, and therefore may not be suspended
+ * from here — `suspendAccountAction` refuses it, and offering the button anyway
+ * would be an invitation to discover that the hard way.
+ */
+function isPrivilegedAccount(account: { groups: string[] }): boolean {
+  return account.groups.some(isPrivileged);
+}
+
 export default async function AdminAccountsPage({
   searchParams,
 }: PageProps<"/admin/accounts">) {
   const viewer = await getViewer();
+
+  // The console shell answers to `admin.access`; the directory inside it
+  // answers to `account.read`, because it is the one page here showing
+  // personal data rather than platform state. Both are checked — a viewer with
+  // neither should not be looking at an empty admin page, and `proxy.ts`
+  // guards the URL prefix, which is not the same thing as guarding the data.
+  if (!viewer.can("admin.access")) notFound();
+
   const [directory, params] = await Promise.all([
-    // Scoped by the viewer rather than by the route: `proxy.ts` guards the URL
-    // prefix, which is not the same thing as guarding the data.
     accountDirectoryFor(viewer),
     searchParams,
   ]);
@@ -141,15 +157,16 @@ export default async function AdminAccountsPage({
                     {account.handle}
                   </td>
                   <td className="text-fg px-4 py-2.5">{account.displayName}</td>
+                  {/*
+                    No "unverified" badge: registration proves the address
+                    before it writes the row, so an account with an address has
+                    a verified one and the branch was unreachable. A bootstrap
+                    account has no address at all, which is the other column.
+                  */}
                   <td className="px-4 py-2.5">
                     {account.email ? (
                       <span className="text-fg-muted font-mono text-xs">
                         {account.email}
-                        {account.emailVerified ? null : (
-                          <Badge tone="warn" className="ml-1.5">
-                            未验证
-                          </Badge>
-                        )}
                       </span>
                     ) : (
                       <span className="text-fg-subtle text-xs">—</span>
@@ -204,7 +221,7 @@ export default async function AdminAccountsPage({
                             hasPassword={credential?.hasPassword ?? false}
                           />
                         ) : null}
-                        {canModerate ? (
+                        {canModerate && !isPrivilegedAccount(account) ? (
                           <ModerateForm
                             handle={account.handle}
                             suspended={account.status === "suspended"}

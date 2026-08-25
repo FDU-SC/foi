@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { capabilitiesOf, listGroups } from "@/lib/auth/groups";
 import { CAPABILITIES } from "@/lib/auth/policy";
-import { AS_PLAYER, viewerFor, type Viewer } from "@/lib/auth/viewer";
+import { AS_PLAYER } from "@/lib/auth/test-support";
+import { viewerFor, type Viewer } from "@/lib/auth/viewer";
 import { contestFor } from "@/lib/contests/access";
 import { allContests } from "@/lib/contests/registry";
 import { hasContestStarted, type ContestConfig } from "@/lib/contests/types";

@@ -1,8 +1,15 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { GET } from "@/app/api/runner/jobs/[id]/route";
+import { GET, PUT } from "@/app/api/runner/jobs/[id]/route";
 import { resolveBackend } from "@/lib/backend/client";
-import { signedHeaders } from "@/lib/backend/signature";
+import {
+  MAX_CLOCK_SKEW_SECONDS,
+  sign,
+  signedHeaders,
+  SIGNATURE_HEADER,
+  TIMESTAMP_HEADER,
+  type SignedRequest,
+} from "@/lib/backend/signature";
 import { db } from "@/lib/db";
 import { accounts, problems, submissions } from "@/lib/db/schema";
 import { externallyJudged } from "@/lib/problems/registry";
@@ -40,6 +47,12 @@ const PROBLEM =
 const PAYLOAD = { language: "cpp", source: "int main() { return 0; }" };
 
 /**
+ * An id no row ever has. The 401 contract below is entirely about telling this
+ * apart from a real one, so nothing may insert it.
+ */
+const MISSING = "sub_jr_no_such_row";
+
+/**
  * Stubbed rather than read from whoever's `.env.local` is on disk: the
  * signatures below have to verify against this value and no other.
  */
@@ -72,31 +85,88 @@ async function holding(id: string, lease: string): Promise<string> {
 }
 
 /**
+ * What a caller can put in the two signature headers.
+ *
+ * The three that are not `valid` are the population the 401 contract is about:
+ * none of them demonstrates possession of any configured key, so none of them
+ * may be able to tell an id that exists from one that does not. They are
+ * distinct cases rather than one because they fail at three different points
+ * of `verifySignature` — before the headers are read, on the clock, and on the
+ * HMAC — and it was the first two that used to leak.
+ */
+type Credential = "valid" | "none" | "stale" | "wrong-key";
+
+function credentials(
+  kind: Credential,
+  signed: SignedRequest,
+): Record<string, string> {
+  const secret = resolveBackend(BACKEND).secret;
+
+  switch (kind) {
+    // The content type is held constant on purpose: the signature headers are
+    // the variable under test, and `guardRequest` reads this one.
+    case "none":
+      return { "content-type": "application/json" };
+    case "wrong-key":
+      return signedHeaders(`${secret}-forged`, signed);
+    case "stale": {
+      // Correctly signed, for a timestamp outside the skew window. Worth its
+      // own case because `verifySignature` refuses on the clock before it
+      // compares an HMAC — so this caller has proved nothing either, however
+      // right the rest of it looks.
+      const timestamp =
+        Math.floor(Date.now() / 1000) - MAX_CLOCK_SKEW_SECONDS - 60;
+      return {
+        "content-type": "application/json",
+        [TIMESTAMP_HEADER]: String(timestamp),
+        [SIGNATURE_HEADER]: sign(secret, timestamp, signed),
+      };
+    }
+    case "valid":
+      return signedHeaders(secret, signed);
+  }
+}
+
+/**
  * A request shaped exactly as a runner's is: the lease in the query string,
  * because the signature covers the path and its search and no headers at all,
  * and a GET has no body to put it in.
  */
 function fetchJob(
   id: string,
-  options: { lease?: string; signed?: boolean } = {},
+  options: { lease?: string; credential?: Credential } = {},
 ): Promise<Response> {
   const search =
     options.lease === undefined
       ? ""
       : `?lease=${encodeURIComponent(options.lease)}`;
   const path = jobPath(id) + search;
+  const signed = { method: "GET", path, body: "" };
 
   return GET(
     new Request(`http://localhost:3000${path}`, {
       method: "GET",
-      headers:
-        options.signed === false
-          ? {}
-          : signedHeaders(resolveBackend(BACKEND).secret, {
-              method: "GET",
-              path,
-              body: "",
-            }),
+      headers: credentials(options.credential ?? "valid", signed),
+    }),
+    { params: Promise.resolve({ id }) },
+  );
+}
+
+/** The other half of the protocol: what a holder says about a job it holds. */
+function report(
+  id: string,
+  body: unknown,
+  options: { credential?: Credential } = {},
+): Promise<Response> {
+  const path = jobPath(id);
+  const text = JSON.stringify(body);
+  const signed = { method: "PUT", path, body: text };
+
+  return PUT(
+    new Request(`http://localhost:3000${path}`, {
+      method: "PUT",
+      headers: credentials(options.credential ?? "valid", signed),
+      body: text,
     }),
     { params: Promise.resolve({ id }) },
   );
@@ -107,7 +177,7 @@ async function cleanup(): Promise<void> {
   await db.delete(accounts).where(eq(accounts.handle, HANDLE));
 }
 
-describeDb("取提交详情", () => {
+describeDb("评测机作业接口", () => {
   beforeAll(async () => {
     vi.stubEnv("FOI_BACKEND_SECRET", SECRET);
     vi.stubEnv("FOI_PUBLIC_URL", "http://localhost:3000");
@@ -177,10 +247,54 @@ describeDb("取提交详情", () => {
   it("没有签名连自己那一条都读不到", async () => {
     const response = await fetchJob("sub_jr_mine", {
       lease: "lease-held-by-me",
-      signed: false,
+      credential: "none",
     });
 
     expect(response.status).toBe(401);
     expect(await response.json()).not.toHaveProperty("payload");
+  });
+
+  /**
+   * The existence oracle, and the reason both endpoints route their refusals
+   * through one helper.
+   *
+   * Neither can verify anything until it has looked the row up — the key a
+   * signature is checked against belongs to the backend the *row* names — so
+   * "there is no such submission" was decided in one place and "your signature
+   * is wrong" in another, and the two disagreed. An unsigned request for an id
+   * that existed came back `缺少签名头`; the same request for one that did not
+   * came back `签名不匹配`. Submission ids are time-ordered ULIDs, so that is
+   * an unauthenticated enumeration of who submitted when.
+   *
+   * Asserted as an equality between two responses rather than as two expected
+   * strings, because the property is that the caller cannot tell them apart —
+   * not that either says anything in particular. Two hard-coded expectations
+   * would go on passing after somebody reworded one branch.
+   */
+  describe("没证明持有密钥时，存在与不存在的 id 无从区分", () => {
+    const unproven: Credential[] = ["none", "stale", "wrong-key"];
+
+    it.each(unproven)("取详情：%s", async (credential) => {
+      const [real, fake] = await Promise.all([
+        fetchJob("sub_jr_mine", { lease: "lease-held-by-me", credential }),
+        fetchJob(MISSING, { lease: "lease-held-by-me", credential }),
+      ]);
+
+      expect(real.status).toBe(401);
+      expect(fake.status).toBe(real.status);
+      expect(await fake.text()).toBe(await real.text());
+    });
+
+    it.each(unproven)("上报：%s", async (credential) => {
+      const body = { lease: "lease-held-by-me", state: "alive" };
+      const [real, fake] = await Promise.all([
+        report("sub_jr_mine", body, { credential }),
+        report(MISSING, body, { credential }),
+      ]);
+
+      expect(real.status).toBe(401);
+      expect(fake.status).toBe(real.status);
+      expect(await fake.text()).toBe(await real.text());
+    });
   });
 });

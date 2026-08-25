@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import type { SignedRequest } from "@/lib/backend/signature";
 import { jobReportSchema } from "@/lib/backend/types";
 import { readTextBody } from "@/lib/body-limit";
 import { db } from "@/lib/db";
@@ -40,19 +41,69 @@ async function backendOf(id: string): Promise<string | null> {
 }
 
 /**
- * The answer when a caller names a submission that is not there.
+ * The one thing an unproven caller is ever told, on either branch.
  *
- * A correctly signed request holds a backend's key and deserves the plain
- * answer — a runner asking about a job this deployment has no row for is an
- * environment mismatch worth diagnosing. Anything else is told exactly what it
- * would have been told had the row existed, because submission ids are
- * time-ordered ULIDs and a 404/401 split here is a slow enumeration of who
- * submitted when.
+ * Deliberately the same wording `verifySignature` gives a forgery, so that
+ * "your signature is wrong" and "there is no such submission" are the same
+ * sentence.
  */
-function noSuchJob(request: Request, signed: Parameters<typeof signedByAnyBackend>[1]) {
+const UNPROVEN = "签名不匹配";
+
+/**
+ * Whether this caller may act on this id, and what to say when it may not.
+ *
+ * Both endpoints below have to look the row up before they can verify
+ * anything, because the key a signature is checked against belongs to the
+ * backend the *row* names — there is no caller-supplied backend id here to
+ * trust. So the refusal for an id that is not there was written in one place
+ * and the refusal for a bad signature in another, and the two disagreed:
+ *
+ *   - no signature headers, id does not exist → 401 `{"error":"签名不匹配"}`
+ *   - no signature headers, id exists         → 401 `{"error":"缺少签名头"}`
+ *
+ * Submission ids are time-ordered ULIDs, so that difference is an
+ * unauthenticated enumeration of who submitted when — precisely what the
+ * not-found branch was written to prevent, defeated by the branch above it. A
+ * clock outside the skew window produced the same split, for the same reason:
+ * the reason string was chosen by whichever check happened to run first, and
+ * which check ran first depended on the row.
+ *
+ * One rule instead, applied to both: a caller that has proved it holds a
+ * configured key gets the diagnosis it needs, and everybody else gets one
+ * fixed 401 that reveals nothing about whether the row is there.
+ *
+ * The diagnosis lost by that is `verifySignature`'s "you are still on the old
+ * signature format", which only the right key can provoke and which now
+ * reaches nobody here — proving key possession takes a *current*-format
+ * signature. Nothing is actually lost: a runner reaches these two endpoints
+ * only after claiming a job, and `POST /api/runner/jobs/request` still answers
+ * that one verbatim, because it takes the backend id from its own body and so
+ * has no row existence to give away.
+ */
+async function authorizeJob(
+  request: Request,
+  id: string,
+  signed: SignedRequest,
+): Promise<NextResponse | null> {
+  const backendId = await backendOf(id);
+
+  if (backendId) {
+    const signature = verifyRunner(backendId, request, signed);
+    if (signature.ok) return null;
+
+    // Signed with somebody's key, just not this row's: an operator whose
+    // runner is pointed at the wrong queue, and worth telling.
+    const reason = signedByAnyBackend(request, signed)
+      ? signature.reason
+      : UNPROVEN;
+    return NextResponse.json({ error: reason }, { status: 401 });
+  }
+
+  // A runner asking about a job this deployment has no row for is an
+  // environment mismatch worth diagnosing — once it has shown it belongs here.
   return signedByAnyBackend(request, signed)
     ? NextResponse.json({ error: "提交不存在" }, { status: 404 })
-    : NextResponse.json({ error: "签名不匹配" }, { status: 401 });
+    : NextResponse.json({ error: UNPROVEN }, { status: 401 });
 }
 
 /**
@@ -84,13 +135,8 @@ export async function GET(
   // why only one of the two is reconstructed. See `jobPath`.
   const signed = { method: "GET", path: jobPath(id) + url.search, body: "" };
 
-  const backendId = await backendOf(id);
-  if (!backendId) return noSuchJob(request, signed);
-
-  const signature = verifyRunner(backendId, request, signed);
-  if (!signature.ok) {
-    return NextResponse.json({ error: signature.reason }, { status: 401 });
-  }
+  const refused = await authorizeJob(request, id, signed);
+  if (refused) return refused;
 
   const lease = url.searchParams.get("lease");
   const details = lease ? await jobDetails(id, lease) : null;
@@ -151,13 +197,8 @@ export async function PUT(
     body: read.text,
   };
 
-  const backendId = await backendOf(id);
-  if (!backendId) return noSuchJob(request, signed);
-
-  const signature = verifyRunner(backendId, request, signed);
-  if (!signature.ok) {
-    return NextResponse.json({ error: signature.reason }, { status: 401 });
-  }
+  const refused = await authorizeJob(request, id, signed);
+  if (refused) return refused;
 
   const report = parsed.data;
   const accepted =

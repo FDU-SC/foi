@@ -197,11 +197,21 @@ async function call(
   });
 }
 
-/** Asks for one job. 204 means the queue is empty, which is the usual answer. */
+/**
+ * Asks for one job. 204 means the queue is empty, which is the usual answer.
+ *
+ * A fresh `nonce` every time, which is the whole of what the protocol asks of
+ * a runner here and the reason the field exists: everything else in a claim is
+ * constant — these two fields against a constant path — so without it one
+ * captured signature would be good for a job a second for the whole timestamp
+ * window. Any unpredictable string of the right length does; 16 random bytes
+ * as hex is 32 characters and needs no state to generate.
+ */
 async function claim(backendId: string): Promise<JobTicket | null> {
   const res = await call(backendId, "POST", "/api/runner/jobs/request", {
     backendId,
     runnerId: RUNNER_ID,
+    nonce: randomBytes(16).toString("hex"),
   });
 
   if (res.status === 204) return null;

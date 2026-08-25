@@ -210,10 +210,21 @@ const runnerStatusSchema = z.string().min(1).max(200);
  * `runnerId` is self-reported and unverified. It exists so an operator can tell
  * two machines apart on the board, not to authorise anything — authorisation is
  * the signature, and the holder check on a job is the lease.
+ *
+ * `nonce` is what makes one signature good for one claim. Everything else here
+ * is near enough constant — a runner sends the same two fields to the same
+ * constant path every second — so without it the signing input repeats and a
+ * captured pair of headers could be posted again for the whole of the
+ * timestamp window, taking a job each time. The other two runner endpoints
+ * need nothing like it: they name an id and a lease, and the lease is spent by
+ * the first request that lands. Any fresh random string does; the bounds are
+ * wide enough for a UUID and tight enough that the value has to carry real
+ * entropy. See `lib/runner/replay.ts`.
  */
 export const jobRequestSchema = z.object({
   backendId: z.string().min(1).max(64),
   runnerId: z.string().min(1).max(64),
+  nonce: z.string().min(16).max(64),
 });
 
 /**

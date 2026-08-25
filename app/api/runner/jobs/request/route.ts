@@ -4,6 +4,7 @@ import { guardRequest } from "@/lib/ratelimit/gate";
 import { jobRequestSchema } from "@/lib/backend/types";
 import { CLAIM_PATH, verifyRunner } from "@/lib/runner/auth";
 import { claimJob } from "@/lib/runner/queue";
+import { claimNonces } from "@/lib/runner/replay";
 
 // Signature verification uses node:crypto, so this must not run on Edge.
 export const runtime = "nodejs";
@@ -58,6 +59,19 @@ export async function POST(request: Request) {
   });
   if (!signature.ok) {
     return NextResponse.json({ error: signature.reason }, { status: 401 });
+  }
+
+  // After the signature and not before it, and the order is the whole of what
+  // makes this safe rather than a new problem. The window below is a map held
+  // in this process; checking it first would mean an unauthenticated caller
+  // could write an entry per request, which is the resource exhaustion the
+  // nonce exists to prevent, wearing the nonce's own clothes.
+  //
+  // 401 rather than 409: the caller presented a credential that is no longer
+  // good for this request. A runner that generates a fresh nonce per claim —
+  // which is all the protocol asks — never sees this.
+  if (!claimNonces.firstUse(parsed.data.backendId, parsed.data.nonce)) {
+    return NextResponse.json({ error: "nonce 已被使用" }, { status: 401 });
   }
 
   const ticket = await claimJob(parsed.data.backendId, parsed.data.runnerId);

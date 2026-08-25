@@ -23,7 +23,7 @@ import { CAPABILITIES, IMPLIES, type Capability } from "./policy";
  * which of those decisions each one may make — that is content, and it lives
  * in `content/enrollment/`.
  */
-export const groupSchema = z.object({
+const groupSchema = z.object({
   /** Referenced by enrollment rules and by a contest's `participants`. */
   id: z.string().min(1).max(64),
   /** Shown wherever the group is displayed. Defaults to the id. */

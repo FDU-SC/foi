@@ -52,6 +52,24 @@ export interface IssuedToken {
  * Only one outstanding code per purpose keeps the mental model simple — asking
  * for a new password-reset link should invalidate the last one, or a leaked
  * old email stays live for its full hour after the person has noticed.
+ *
+ * The retirement and the mint are one transaction, because apart they have a
+ * state between them that nothing can get out of: every link revoked and no
+ * new one written. A failed insert — a dropped connection, a constraint, the
+ * process going away — left the account with nothing outstanding while
+ * `sendPasswordReset` reported failure, so the person clicks the link already
+ * in their inbox and is told it is invalid. Rolled back, that link is still
+ * theirs.
+ *
+ * What the transaction does *not* buy is a guarantee that only one link is
+ * ever live, and it is worth being clear about that rather than leaving the
+ * paragraph above to be read as one. Two requests arriving together at read
+ * committed both revoke what they can see, neither sees the other's uncommitted
+ * insert, and both links come out valid. Closing that needs a lock on
+ * something per-handle, and it is not worth one: the two links were minted
+ * seconds apart and both went to the same proven mailbox, so nothing stale is
+ * being kept alive — which is the only thing "only one outstanding" was ever
+ * protecting against.
  */
 export async function issueToken(
   handle: string,
@@ -64,14 +82,16 @@ export async function issueToken(
     Date.now() + (options?.ttlMs ?? DEFAULT_TTL_MS[purpose]),
   );
 
-  await revokeTokens(normalized, purpose);
+  await db.transaction(async (tx) => {
+    await revokeTokens(normalized, purpose, tx);
 
-  await db.insert(authTokens).values({
-    id: `tok_${ulid()}`,
-    handle: normalized,
-    purpose,
-    tokenHash: digest(token),
-    expiresAt,
+    await tx.insert(authTokens).values({
+      id: `tok_${ulid()}`,
+      handle: normalized,
+      purpose,
+      tokenHash: digest(token),
+      expiresAt,
+    });
   });
 
   return { token, expiresAt };
@@ -93,11 +113,19 @@ export type RedeemResult =
  * above: a second request contends on the row lock and waits for the first to
  * commit, and if the first rolls back it was never spent at all — which is the
  * point, since a link burnt on a write that failed cannot be got back.
+ *
+ * There was an `expectHandle` option, for a caller that already knew whose
+ * token it should be. Nothing ever passed one, and the implementation could
+ * not have served such a caller anyway: the single statement below is what
+ * makes this atomic, so the row is already consumed by the time there is a
+ * handle to compare against. A mismatch would have answered "invalid" having
+ * spent the link — burning somebody's only way back into their account in
+ * order to tell its holder they were the wrong person. A check that can only
+ * be made after the irreversible step is not a check.
  */
 export async function redeemToken(
   token: string,
   purpose: TokenPurpose,
-  options?: { expectHandle?: string },
   on: DbOrTx = db,
 ): Promise<RedeemResult> {
   const hash = digest(token);
@@ -115,17 +143,7 @@ export async function redeemToken(
     )
     .returning({ handle: authTokens.handle });
 
-  if (row) {
-    // Callers that already know who the token should belong to can say so.
-    // Links carry the token alone and pass no expectation.
-    if (
-      options?.expectHandle &&
-      normalizeHandle(options.expectHandle) !== row.handle
-    ) {
-      return { ok: false, reason: "invalid" };
-    }
-    return { ok: true, handle: row.handle };
-  }
+  if (row) return { ok: true, handle: row.handle };
 
   // Nothing was consumed. Separate "you waited too long" from "this was never
   // a link", because only the first is worth telling someone how to fix.
@@ -149,11 +167,20 @@ export async function redeemToken(
   };
 }
 
+/**
+ * Retires every outstanding token of a purpose.
+ *
+ * Takes a `DbOrTx` for `issueToken`, which has to do this and the insert as
+ * one act — see the argument there. On its own it is still a caller-facing
+ * operation: revoking without reissuing is what happens when a link should
+ * simply stop working.
+ */
 export async function revokeTokens(
   handle: string,
   purpose: TokenPurpose,
+  on: DbOrTx = db,
 ): Promise<void> {
-  await db
+  await on
     .update(authTokens)
     .set({ consumedAt: new Date() })
     .where(

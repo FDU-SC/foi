@@ -59,9 +59,16 @@ function trustedProxyHops(): number {
  * Not addresses, and callers have to be able to tell. A bound keyed on a
  * sentinel is not a weaker version of a per-source bound — it is every caller
  * sharing one budget, which turns a flood cap into an outage the moment two
- * people use the deployment at once. `./gate.ts` skips rather than lumps.
+ * people use the deployment at once. So every source-keyed bound skips rather
+ * than lumps, and they all reach that decision through `rateLimitBySource` in
+ * `./index.ts` rather than each remembering to ask.
+ *
+ * The list itself is not exported, and `isResolvedSource` is. Handing out the
+ * strings would invite a comparison against one of them somewhere, which is a
+ * second spelling of a question that has to have one answer — `proxy.ts` is
+ * the one caller outside this directory and it asks the predicate.
  */
-export const UNRESOLVED_SOURCES = ["direct", "unknown"] as const;
+const UNRESOLVED_SOURCES = ["direct", "unknown"] as const;
 
 export function isResolvedSource(source: string): boolean {
   return !(UNRESOLVED_SOURCES as readonly string[]).includes(source);

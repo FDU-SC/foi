@@ -13,7 +13,7 @@ import {
 import type { Capability } from "@/lib/auth/policy";
 import type { SessionUser } from "@/lib/auth/session";
 import { viewerFor, type Viewer } from "@/lib/auth/viewer";
-import { rateLimit, sourceFrom } from "@/lib/ratelimit";
+import { rateLimit, rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { ACTION_LIMITS, alsoRule, fixedRule } from "@/lib/ratelimit/policy";
 
 const credentialsSchema = z.object({
@@ -51,8 +51,17 @@ function withinLoginRate(handle: string, request: Request | undefined): boolean 
   // value instead of per machine and a sprayer simply varied it.
   const source = request ? sourceFrom(request.headers) : "unknown";
 
-  return rateLimit(
-    `login:ip:${source}`,
+  // Only the second half stands aside when no source can be established, and
+  // the asymmetry is the point. The per-handle counter above is keyed on
+  // something the caller cannot vary, so it is unaffected by what sits in
+  // front and goes on capping guesses at one account. This one caps a spray
+  // across many accounts, which is a shape only a source can see — so with no
+  // source it has nothing to say, and saying it against a sentinel would have
+  // pooled every login on the deployment into one budget of forty per five
+  // minutes. See `rateLimitBySource`.
+  return rateLimitBySource(
+    "login:ip",
+    source,
     PER_SOURCE.max,
     PER_SOURCE.windowSeconds * 1000,
   ).ok;
@@ -176,6 +185,29 @@ export async function getViewer(): Promise<Viewer> {
 }
 
 /**
+ * What `requireCapability` throws, and the reason it is a class rather than a
+ * bare `Error` with `"FORBIDDEN"` in it.
+ *
+ * A refusal is an ordinary outcome — a stale page offering a button whose
+ * privilege has since been revoked reaches this on every press — and an
+ * ordinary outcome has to be distinguishable from a bug by something better
+ * than a string comparison. The three console actions catch this and answer
+ * their form; anything else that fails, and anything that throws this
+ * somewhere nobody catches, goes on to `app/error.tsx`.
+ *
+ * The capability is carried rather than interpolated into the message, because
+ * the message is written for whoever is looking at the screen and the
+ * capability name is an identifier out of `lib/auth/policy.ts`. Anything
+ * wanting to say which one was missing can read the field.
+ */
+export class ForbiddenError extends Error {
+  constructor(readonly capability: Capability) {
+    super("没有执行这个操作的权限");
+    this.name = "ForbiddenError";
+  }
+}
+
+/**
  * The viewer, or a refusal.
  *
  * Server Actions are reachable by POST regardless of what the proxy matched,
@@ -187,6 +219,6 @@ export async function requireCapability(
   capability: Capability,
 ): Promise<Viewer> {
   const viewer = await getViewer();
-  if (!viewer.can(capability)) throw new Error("FORBIDDEN");
+  if (!viewer.can(capability)) throw new ForbiddenError(capability);
   return viewer;
 }

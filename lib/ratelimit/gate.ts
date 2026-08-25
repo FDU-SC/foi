@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { rateLimit } from "./index";
+import { rateLimitBySource } from "./index";
 import { ROUTE_LIMITS, SOURCE_GATE, type RouteKey } from "./policy";
-import { isResolvedSource, sourceFrom } from "./source";
+import { sourceFrom } from "./source";
 
 /**
  * The first line of every route handler under `/api`.
@@ -41,31 +41,28 @@ export function guardRequest(
 }
 
 function floodGate(request: Request, route: RouteKey): NextResponse | null {
-  const source = sourceFrom(request.headers);
-
   /**
-   * No source, no gate — and this is not the cautious choice, it is the only
-   * correct one.
+   * Stands aside when no source can be established, and that decision is
+   * `rateLimitBySource`'s rather than one taken again here.
    *
-   * When nothing trusted sits in front, `sourceFrom` says so instead of
-   * inventing an address. Counting everybody against one shared budget would
-   * not be a weaker per-source bound, it would be a different control with a
-   * much worse failure: on a tailnet staging box, four people polling a
-   * submission would exhaust a per-minute allowance between them and lock each
-   * other out. A flood cap that turns into an outage under ordinary use is
-   * worse than no flood cap.
+   * It used to be taken here, in a paragraph this file kept and the six Server
+   * Actions did not — so the same `FOI_TRUSTED_PROXY_HOPS=0` meant "no gate"
+   * on an API route and "one shared bucket for the whole deployment" on the
+   * registration form. Two answers to one question is how a rule ends up
+   * enforced in the place that happened to argue it.
    *
-   * Failing open here is also the right direction for what this is. It raises
-   * the cost of volume; it is not what stops anybody doing anything. The bounds
-   * that do that are keyed on an account and are unaffected — see
-   * `./policy.ts`. A mis-set `FOI_TRUSTED_PROXY_HOPS` therefore loses the
-   * flood cap rather than locking out every user, which is the failure worth
-   * having.
+   * What is specific to this gate, and the reason it is the loss worth
+   * accepting rather than a hole: these are the only bounds the three runner
+   * endpoints and the health probe have, because none of them has an account
+   * to count. The alternative would put every runner behind one address *and*
+   * the compose probe into a single budget — and the probe curls localhost
+   * from inside the container, so it resolves to no source at all and would be
+   * among the first things refused. A 429 there reads as an unhealthy
+   * container.
    */
-  if (!isResolvedSource(source)) return null;
-
-  const verdict = rateLimit(
-    `gate:${route}:${source}`,
+  const verdict = rateLimitBySource(
+    `gate:${route}`,
+    sourceFrom(request.headers),
     SOURCE_GATE.max,
     SOURCE_GATE.windowSeconds * 1000,
   );

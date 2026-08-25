@@ -32,7 +32,8 @@ import ARGON2_OPTIONS from "@/scripts/argon2-options.cjs";
  */
 const decoyHash = hash("decoy-for-constant-time-login", ARGON2_OPTIONS);
 
-export function hashPassword(password: string): Promise<string> {
+/** Local to this module: `setPassword` is the only way a hash gets written. */
+function hashPassword(password: string): Promise<string> {
   return hash(password, ARGON2_OPTIONS);
 }
 

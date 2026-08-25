@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireCapability } from "@/auth";
+import { ForbiddenError, requireCapability } from "@/auth";
 import { reinstateAccount, suspendAccount } from "@/lib/accounts/queries";
 import { resolveUser } from "@/lib/accounts/resolve";
 import { hasPrivilege } from "@/lib/auth/groups";
+import type { Viewer } from "@/lib/auth/viewer";
 import { sendPasswordReset } from "@/lib/mail/notify";
 import { rateLimit } from "@/lib/ratelimit";
 import { ACTION_LIMITS, fixedRule } from "@/lib/ratelimit/policy";
@@ -25,6 +26,40 @@ export interface ActionState {
 // their mirror tables by hand. It went when the startup sync did: mirror rows
 // are written on the submission path now, at the moment a foreign key first
 // needs one, so there is nothing left for an operator to trigger.
+
+/**
+ * Turns the refusal into the shape these forms already speak.
+ *
+ * `requireCapability` throws, which is right for the many call sites that have
+ * no partial answer to fall back on — `lib/auth/enforcement.ts` argues that
+ * asymmetry against the read gates. These three do have one: they return an
+ * `ActionState` with an `error` in it, and every other way they can fail
+ * already comes back that way. Letting the throw escape instead sent an
+ * operator to a full-page error for the one failure the page itself is best
+ * placed to explain.
+ *
+ * And it is a failure they can actually hit without doing anything strange.
+ * The buttons are drawn from a capability check on the server-rendered page —
+ * see `PAGE_CHECKS` — so a console left open across a privilege change offers
+ * a button that no longer works, and the honest answer is "not any more,
+ * reload" rather than a stack trace.
+ *
+ * Rethrows anything else, deliberately. A database that has gone away is not
+ * a permission problem and must not be reported as one; that one belongs to
+ * `app/error.tsx`.
+ *
+ * The sentence comes off the error rather than being written here, so that
+ * what a refusal is called has one home; what this adds is the part only the
+ * console knows, which is that there was a button and it is now wrong.
+ */
+function refused(error: unknown): ActionState {
+  if (error instanceof ForbiddenError) {
+    return {
+      error: `${error.message}——如果刚才还看得到这个按钮，多半是权限刚被收回，刷新页面即可。`,
+    };
+  }
+  throw error;
+}
 
 const issueSchema = z.object({
   handle: z.string().min(1, "请选择用户"),
@@ -50,7 +85,12 @@ export async function resendPasswordResetAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const actor = await requireCapability("credential.manage");
+  let actor: Viewer;
+  try {
+    actor = await requireCapability("credential.manage");
+  } catch (error) {
+    return refused(error);
+  }
 
   /**
    * Bounded per operator, and it was the one send path that was not.
@@ -152,7 +192,12 @@ export async function suspendAccountAction(
 ): Promise<ActionState> {
   // The viewer comes back from the check, so the actor's identity does not
   // need fetching a second time by a second route.
-  const actor = await requireCapability("account.moderate");
+  let actor: Viewer;
+  try {
+    actor = await requireCapability("account.moderate");
+  } catch (error) {
+    return refused(error);
+  }
 
   const parsed = moderateSchema.safeParse({
     handle: formData.get("handle"),
@@ -215,7 +260,11 @@ export async function reinstateAccountAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireCapability("account.moderate");
+  try {
+    await requireCapability("account.moderate");
+  } catch (error) {
+    return refused(error);
+  }
 
   const parsed = moderateSchema.safeParse({ handle: formData.get("handle") });
   if (!parsed.success) {

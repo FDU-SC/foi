@@ -23,7 +23,7 @@ import {
 } from "@/lib/enrollment/register";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import { sendVerificationCode } from "@/lib/mail/notify";
-import { clientIp, rateLimit } from "@/lib/ratelimit";
+import { rateLimitByCaller } from "@/lib/ratelimit";
 
 /**
  * Registration in three steps, because proving the address now comes first.
@@ -74,8 +74,8 @@ export async function sendCodeAction(
     return { error: "这个邮箱已经注册过了。如果是你本人，请用「找回密码」。" };
   }
 
-  const limit = rateLimit(
-    `send-code:${await clientIp()}`,
+  const limit = await rateLimitByCaller(
+    "send-code",
     enrollmentPolicy.registrationsPerIpPerHour,
     60 * 60 * 1000,
   );
@@ -133,9 +133,12 @@ export async function verifyCodeAction(
   // The per-address attempt cap is what actually protects a six-digit code;
   // this only bounds how much traffic one source can aim at the endpoint, and
   // is sized at every guess an IP could legitimately need — one full set of
-  // attempts for each registration it is allowed in an hour.
-  const limit = rateLimit(
-    `verify-code:${await clientIp()}`,
+  // attempts for each registration it is allowed in an hour. That division of
+  // labour is also what makes standing this one aside safe when there is no
+  // source: `verifyCode` still burns the code after `maxAttempts` wrong
+  // guesses at it, whoever is guessing.
+  const limit = await rateLimitByCaller(
+    "verify-code",
     enrollmentPolicy.registrationsPerIpPerHour * maxAttempts,
     60 * 60 * 1000,
   );
@@ -225,8 +228,8 @@ export async function registerAction(
     return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
   }
 
-  const limit = rateLimit(
-    `register:${await clientIp()}`,
+  const limit = await rateLimitByCaller(
+    "register",
     enrollmentPolicy.registrationsPerIpPerHour,
     60 * 60 * 1000,
   );

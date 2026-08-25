@@ -1,0 +1,6 @@
+[
+  { "label": "测试数据路径", "value": "maze-runner/v1" },
+  { "label": "靶机镜像名", "value": "foi/chal-leaky-bucket:latest" },
+  { "label": "内联判题实现", "value": "题目配置缺少 cases" },
+  { "label": "内联判题实现", "value": "无法生成今日轮盘" }
+]

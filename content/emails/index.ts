@@ -1,4 +1,9 @@
-import { actionMail, codeMail, type MailBody } from "./layout";
+import type {
+  MailBody,
+  PasswordResetMail,
+  VerificationCodeMail,
+} from "@/lib/mail/types";
+import { actionMail, codeMail } from "./layout";
 
 /**
  * Every message FOI sends, as plain functions.
@@ -6,8 +11,9 @@ import { actionMail, codeMail, type MailBody } from "./layout";
  * This is copy, and copy is deployment-specific — a school competition and a
  * public CTF want different words for the same event — so it lives under
  * `content/` next to the problem statements and the enrollment rules rather
- * than in `lib/`. Adding a template means adding an export here and calling it
- * from wherever the event happens.
+ * than in `lib/`. The kernel finds this file through `content/email-modules.ts`
+ * and checks that both exports are here; which messages exist is its decision,
+ * what they say is this file's.
  */
 export type { MailBody };
 
@@ -16,10 +22,7 @@ export type { MailBody };
  * before an account exists, so there is no display name to greet — only an
  * address somebody has claimed and not yet proved.
  */
-export function verificationCode(input: {
-  code: string;
-  expiresAt: Date;
-}): MailBody {
+export function verificationCode(input: VerificationCodeMail): MailBody {
   return codeMail({
     subject: "验证你的 FOI 注册邮箱",
     intro: [
@@ -35,11 +38,7 @@ export function verificationCode(input: {
   });
 }
 
-export function resetPassword(input: {
-  displayName: string;
-  url: string;
-  expiresAt: Date;
-}): MailBody {
+export function resetPassword(input: PasswordResetMail): MailBody {
   return actionMail({
     subject: "重置你的 FOI 密码",
     intro: [

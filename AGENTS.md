@@ -32,7 +32,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
   `pnpm db:seed` 是这一步的一部分而不是可选项：种子数据在库里，不在快照的别处。
 - **`.env.local` 已生成且被 gitignore**，内含 `AUTH_SECRET`、`FOI_BACKEND_SECRET` 等。快照会保留它，无需重新创建。
-- **必须用 Turbopack**（`next dev` 在 Next 16 默认即是），不要切回 webpack：题目注册表依赖 `import.meta.glob`。
+- **必须用 Turbopack**（`next dev` 在 Next 16 默认即是），不要切回 webpack：`content/` 下七份 `*-modules.ts` 全部依赖 `import.meta.glob`，题目、比赛、赛制、报名、邮件、题目后端、题面组件的注册表都从那里来。
 - **数据库迁移会在 dev server 启动时由 `instrumentation.ts` 自动应用**，也可手动 `pnpm db:migrate`。
 - **种子账号**：`admin` / `alice` / `bob` / `carol`，统一密码 `foi-dev-2026`（可用 `FOI_SEED_PASSWORD` 覆盖）。
 - **mock 题目后端本身就是一个 runner**，返回随机评测结果，用于验证「提交→领活→取详情→心跳→上报」这条闭环。它一个进程服务四个队列，靠 `FOI_BACKEND_SECRET` 认证，**不需要配任何 `FOI_BACKEND_<NAME>_URL`**——评测这条路上内核不连后端，是 runner 连 `FOI_PUBLIC_URL`。地址只有 `leaky-bucket` 的 `spawn`/`poll`/`destroy` 才用得到，而非生产环境下没配地址的条目一律回落到 `:4100`，所以本环境不配也能跑通。**别照抄旧说法说「生产缺任何一个后端 URL 会 `assertEnv` 拒绝启动」**：`assertEnv` 早就不看后端地址了，现在拒绝启动的是 `lib/backend/access.ts` 的 `assertBackendActionUrls()`，而且只针对「有题目在它上面声明了 `actions`、它却没有地址」的后端。`.env.local` 里给的 `FOI_JUDGE_FLAG_CHECKER_URL` 之类也已经不再被读取——`flag-checker`、`output-only`、`roulette` 都退役成了内联判题，见 README「判在哪里」。

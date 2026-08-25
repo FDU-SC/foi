@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { backends, type ProblemBackend } from "@/backends.config";
+import type { ProblemBackend } from "@/lib/backend/types";
+import { backends } from "@/lib/backend/registry";
 import { AS_PLAYER } from "@/lib/auth/test-support";
-import { viewerFor, type Viewer } from "@/lib/auth/viewer";
+import { type Viewer } from "@/lib/auth/viewer";
+import { viewerWith } from "@/test/content-shapes";
 import { allContests } from "@/lib/contests/registry";
 import { problemFor } from "@/lib/problems/access";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
@@ -19,7 +21,7 @@ import {
   problemsServedBy,
 } from "./access";
 
-const PREVIEW = viewerFor({ handle: "an-admin", groups: ["管理员"] });
+const PREVIEW = viewerWith("problem.viewAll", "an-admin");
 
 /**
  * Sees unreleased problems but not the infrastructure.
@@ -35,7 +37,7 @@ const SETTER: Viewer = {
   can: (capability) => capability === "problem.viewAll",
 };
 
-const demo = allContests().find((contest) => contest.slug === "demo-acm");
+const demo = allContests()[0];
 
 function before(date: Date): Date {
   return new Date(date.getTime() - 60_000);

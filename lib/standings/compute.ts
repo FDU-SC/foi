@@ -4,7 +4,7 @@ import {
   resolveContestProblems,
   resolveParticipants,
 } from "@/lib/contests/queries";
-import type { ContestConfig } from "@/lib/contests/types";
+import { contestPhase, type ContestConfig } from "@/lib/contests/types";
 import { db } from "@/lib/db";
 import { accounts, submissions } from "@/lib/db/schema";
 import type { Viewer } from "@/lib/auth/viewer";
@@ -103,23 +103,13 @@ async function loadAndCompute(
     submissions: submissionRows satisfies SubmissionRecord[],
   };
 
-  // Deliberately not `contestPhase(contest) === "frozen"`, close as the two
-  // look. That one is a clock fact about the round; this one exists only to
-  // label a board, and the board it is labelling was computed by a ruleset
-  // applying its own `freezeAt`/`endsAt` comparison. The label has to agree
-  // with what the format actually did, so it is written the way the format
-  // writes it — see the note on `ContestPhase` for why the two questions stay
-  // apart.
-  //
-  // Which is why the right edge is inclusive: `acm.tsx` says `<=`, so this
-  // says `<=`. The pair moves together or the label stops describing the board
-  // it is attached to.
-  const now = Date.now();
-  const wouldFreeze =
-    contest.freezeAt !== undefined &&
-    contest.freezeAt !== null &&
-    now >= contest.freezeAt.getTime() &&
-    now <= contest.endsAt.getTime();
+  // The window is the kernel's, so this asks the kernel for it. It used to
+  // spell out the same comparison inline, justified by the observation that a
+  // shipped ruleset writes the right edge as `<=` — which had the dependency
+  // exactly backwards. `[freezeAt, endsAt]` is defined on `ContestPhase`, the
+  // loader refuses a `freezeAt` outside `[startsAt, endsAt)`, and a format
+  // applying a different interval would be the thing that is wrong.
+  const wouldFreeze = contestPhase(contest) === "frozen";
 
   return {
     contest,

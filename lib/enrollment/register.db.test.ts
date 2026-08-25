@@ -1,6 +1,7 @@
 import { eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAccount } from "@/lib/accounts/queries";
+import { reservedHandle } from "@/test/content-shapes";
 import { issueCode, verifyCode } from "@/lib/auth/email-verification";
 import { issueRegistrationProof } from "@/lib/auth/registration-proof";
 import { db } from "@/lib/db";
@@ -165,9 +166,15 @@ describeDb("register", () => {
   });
 
   it("保留用户名即使验证过也拒绝", async () => {
+    // Taken off the policy rather than spelled out. Naming one meant that a
+    // deployment reserving a different set — or none — did not fail here; it
+    // created the account and left it behind, and the next case along failed
+    // instead with the address already taken.
     const proof = await prove(EMAIL);
 
-    await expect(register({ ...FORM, handle: "root", proof })).resolves.toEqual({
+    await expect(
+      register({ ...FORM, handle: reservedHandle(), proof }),
+    ).resolves.toEqual({
       ok: false,
       reason: "handle-reserved",
     });

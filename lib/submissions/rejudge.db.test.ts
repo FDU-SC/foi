@@ -34,7 +34,7 @@ const HANDLE = "rejudge-alice";
 /**
  * A queue belonging to this suite alone, for the reason spelled out in
  * `lib/runner/queue.db.test.ts`: the column is an opaque selector rather than a
- * lookup into `backends.config.ts`, so a fixture value keeps `claimJob` from
+ * lookup into `content/backends.ts`, so a fixture value keeps `claimJob` from
  * reaching into whatever else a development database happens to have queued.
  */
 const BACKEND = "rejudge-fixture";

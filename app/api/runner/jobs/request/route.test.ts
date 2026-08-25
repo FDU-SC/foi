@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { backends } from "@/backends.config";
+import { backends } from "@/lib/backend/registry";
 import { resolveBackend } from "@/lib/backend/client";
 import {
   SIGNATURE_HEADER,

@@ -13,7 +13,7 @@ import {
 import type { Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
 import { accounts, problems, submissions } from "@/lib/db/schema";
-import { externallyJudged } from "@/lib/problems/registry";
+import { externalProblem } from "@/test/content-shapes";
 import { jobPath } from "./auth";
 
 /**
@@ -36,14 +36,13 @@ const HANDLE = "runner-route-alice";
 /**
  * A real backend, unlike the fixture queues the other two suites use: the
  * signature is verified against `resolveBackend`, so the id has to be one
- * `backends.config.ts` knows. Nothing here claims, so an unrelated row in the
- * same queue cannot interfere.
+ * `content/backends.ts` knows. Taken off a problem rather than named, which
+ * gets both facts from one place — the id resolves *and* something routes to
+ * it. Nothing here claims, so an unrelated row in the same queue cannot
+ * interfere.
  */
-const BACKEND = "traditional";
-
-const PROBLEM =
-  externallyJudged().find((problem) => problem.backend.id === BACKEND) ??
-  externallyJudged()[0]!;
+const PROBLEM = externalProblem();
+const BACKEND = PROBLEM.backend.id;
 
 const PAYLOAD = { language: "cpp", source: "int main() { return 0; }" };
 

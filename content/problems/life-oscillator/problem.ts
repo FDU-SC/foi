@@ -1,3 +1,4 @@
+import type { ProblemUi } from "@/content/components/ui-config";
 import type { ProblemConfigInput } from "@/lib/problems/types";
 import {
   judgeLifeOscillator,
@@ -21,10 +22,10 @@ export const problem = {
       ],
     } satisfies LifeOscillatorConfig,
   },
-  submit: {
-    kind: "text",
+  ui: {
+    submit: "text",
     placeholder: "粘贴图案（. 死 / O 活），场景之间空一行",
-  },
+  } satisfies ProblemUi,
   tags: ["提交答案", "Special Judge", "模拟", "趣味"],
   difficulty: "省选",
   order: 10,

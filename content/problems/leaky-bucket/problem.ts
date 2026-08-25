@@ -1,3 +1,4 @@
+import type { ProblemUi } from "@/content/components/ui-config";
 import type { ProblemConfigInput } from "@/lib/problems/types";
 
 export const problem = {
@@ -34,7 +35,7 @@ export const problem = {
       destroy: {},
     },
   },
-  submit: { kind: "flag", placeholder: "FOI{...}" },
+  ui: { submit: "flag", placeholder: "FOI{...}" } satisfies ProblemUi,
   tags: ["Web", "Rate Limit"],
   order: 2,
 } satisfies ProblemConfigInput;

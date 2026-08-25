@@ -173,7 +173,7 @@ function originGate(request: Request, route: RouteKey): NextResponse | null {
    * safelist — fixed by the Fetch standard, and exactly the set that reaches
    * another origin without a preflight. Anything outside it is already
    * unreachable cross-origin, so demanding `application/json` instead would
-   * only add a way to be wrong: `InstanceControl.tsx` posts `spawn` with no
+   * only add a way to be wrong: an action taking no arguments is posted with no
    * body and therefore no content type, and making every problem author
    * remember a header that stops nothing is the class of rule this codebase
    * keeps having to delete.

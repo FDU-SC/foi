@@ -1,13 +1,14 @@
 import { and, asc, count, gte, inArray } from "drizzle-orm";
-import { backends, type ProblemBackend } from "@/backends.config";
 import type { Viewer } from "@/lib/auth/viewer";
 import { readTextBody } from "@/lib/body-limit";
 import { db } from "@/lib/db";
 import { runners, submissions } from "@/lib/db/schema";
 import { RUNNER_ONLINE_MS } from "@/lib/runner/queue";
 import { backendsFor, effectiveSecret } from "./access";
+import { envFragment } from "./env";
+import { backends, listBackendIds } from "./registry";
 import { signedHeaders } from "./signature";
-import { type BackendActionRequest } from "./types";
+import { type BackendActionRequest, type ProblemBackend } from "./types";
 
 /**
  * How long an interactive endpoint may take to reply.
@@ -73,12 +74,12 @@ export interface ResolvedBackend extends ProblemBackend {
  * The key is what every request in either direction is signed with, so this is
  * reached for on both paths now: the kernel calling an action outward, and a
  * runner's claim being checked inward. The address is only needed by the first
- * of those — see `url` in `backends.config.ts`.
+ * of those — see `url` on `ProblemBackend`.
  */
 export function resolveBackend(id: string): ResolvedBackend {
   const entry = backends[id];
   if (!entry) {
-    throw new Error(`未知的题目后端 "${id}"，请检查 backends.config.ts`);
+    throw new Error(`未知的题目后端 "${id}"，请检查 content/backends.ts`);
   }
 
   // The fallback chain itself lives in `access.ts`, because the shared-key
@@ -147,11 +148,6 @@ function signedRequest(
       body,
     }),
   };
-}
-
-/** `leaky-bucket` → `LEAKY_BUCKET`, the spelling `backends.config.ts` reads. */
-function envFragment(id: string): string {
-  return id.replace(/-/g, "_").toUpperCase();
 }
 
 /** What came back from an interactive endpoint, for relaying verbatim. */
@@ -278,10 +274,6 @@ export async function callBackendAction(
     contentType: relayableContentType(res.headers.get("content-type")),
     body: read.text,
   };
-}
-
-export function listBackendIds(): string[] {
-  return Object.keys(backends);
 }
 
 /** One entry in a backend's queue, as the board draws it. */

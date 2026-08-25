@@ -5,6 +5,7 @@ import { viewerFor } from "@/lib/auth/viewer";
 import { db } from "@/lib/db";
 import { accounts, problems, submissions } from "@/lib/db/schema";
 import { canReadSubmission, submissionFor, submissionsFor } from "./access";
+import { viewerWith } from "@/test/content-shapes";
 
 /**
  * The submission gate needs rows, so this runs against a real Postgres and
@@ -36,7 +37,7 @@ if (!online) {
 
 const ownerViewer = viewerFor({ handle: OWNER, groups: [] });
 const otherViewer = viewerFor({ handle: OTHER, groups: [] });
-const adminViewer = viewerFor({ handle: "subaccess-admin", groups: ["管理员"] });
+const adminViewer = viewerWith("submission.readAny", "subaccess-admin");
 
 async function cleanup() {
   for (const handle of [OWNER, OTHER, "subaccess-admin"]) {
@@ -63,7 +64,7 @@ describeDb("提交门禁", () => {
         handle: OWNER,
         problemSlug: SLUG,
         payload: {},
-        backendId: "traditional",
+        backendId: "queue-a",
         maxScore: 100,
         state: "completed",
       },
@@ -72,7 +73,7 @@ describeDb("提交门禁", () => {
         handle: OTHER,
         problemSlug: SLUG,
         payload: {},
-        backendId: "traditional",
+        backendId: "queue-a",
         maxScore: 100,
         state: "completed",
       },

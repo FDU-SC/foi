@@ -206,7 +206,7 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       severity: "warn",
       title: "有题目声明了交互动作，但后端没有地址",
       detail:
-        "评测本身不需要后端地址——评测机自己来平台领活。但 spawn / poll / destroy 这类动作是平台同步发起的，拉不了，所以承载它们的后端仍然必须可达。缺地址时这些动作会直接失败，选手看到的是一个点不动的按钮。",
+        "评测本身不需要后端地址——评测机自己来平台领活。但题目声明的交互动作是平台代选手同步发起的，拉不了，所以承载它们的后端仍然必须可达。缺地址时这些动作会直接失败，选手看到的是一个点不动的按钮。",
       items: missingActionUrl,
     });
   }
@@ -228,7 +228,7 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       severity: "warn",
       title: "有题目后端的地址指向本机",
       detail:
-        "容器里的 localhost 就是这个应用自己，那里没有题目后端在听。这个地址只用于 spawn / poll / destroy 这类交互动作，所以受影响的是那几道题的按钮，而不是评测——多半是 .env.example 的开发用地址被抄进了部署。改成后端真正的地址（宿主机上的用 host.docker.internal，同网络的容器用容器名）；后端确实与应用共处一台机器时，可以忽略这一条。",
+        "容器里的 localhost 就是这个应用自己，那里没有题目后端在听。这个地址只用于题目声明的交互动作，所以受影响的是那几道题的按钮，而不是评测——多半是 .env.example 的开发用地址被抄进了部署。改成后端真正的地址（宿主机上的用 host.docker.internal，同网络的容器用容器名）；后端确实与应用共处一台机器时，可以忽略这一条。",
       items: loopback,
     });
   }
@@ -280,7 +280,7 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       severity: "info",
       title: "有评测机没有任何题目指向",
       detail:
-        "它们不会出现在选手的 /judges 页面（那里只列出承载了可见题目的题目后端）。确认是备用节点还是 backends.config.ts 里的残留。",
+        "它们不会出现在选手的 /judges 页面（那里只列出承载了可见题目的题目后端）。确认是备用节点还是 content/backends.ts 里的残留。",
       items: unusedJudges,
     });
   }

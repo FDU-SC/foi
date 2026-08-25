@@ -70,8 +70,8 @@ export interface Standings<Cell> {
    * Header for the total column.
    *
    * There is no counterpart for `tiebreak`, because there is no column for it:
-   * a format that wants its tiebreak on screen renders it inside `render.Total`
-   * the way ACM and CTF do, under the total it belongs to.
+   * a format that wants its tiebreak on screen renders it inside `render.Total`,
+   * under the total it belongs to.
    */
   totalLabel: string;
   /** Set when results are hidden past the freeze time. */
@@ -81,14 +81,15 @@ export interface Standings<Cell> {
 /**
  * A scoring format.
  *
- * ACM, OI and CTF ship as templates, not as special cases — the kernel only
- * knows this interface. A new format is a new file in `content/rulesets/`, or
- * a `ruleset.tsx` beside one contest's own definition; see
+ * Every format ships as a template, not as a special case — the kernel only
+ * knows this interface, and has no built-in notion of penalty time, subtask
+ * totals or dynamic scoring. A new format is a new file in `content/rulesets/`,
+ * or a `ruleset.tsx` beside one contest's own definition; see
  * `content/ruleset-modules.ts` for when each is the right choice.
  *
  * `computeStandings` is a pure function over every submission in the contest,
- * which keeps formats like CTF dynamic scoring (where one solve changes
- * everyone's score) expressible without incremental bookkeeping.
+ * which keeps formats where one solve changes everyone's score expressible
+ * without incremental bookkeeping.
  */
 export interface Ruleset<Cell = unknown> {
   id: string;
@@ -99,9 +100,10 @@ export interface Ruleset<Cell = unknown> {
    *
    * Required rather than optional so that writing a new format forces an
    * answer. Freezing is not something the kernel can do on a format's behalf —
-   * it has to decide what a submission made after the cutoff looks like, and
-   * ACM's "pending" cell has no counterpart in a score-based board — so a
-   * format that has not implemented it must say so. `lib/contests/registry.ts`
+   * it has to decide what a submission made after the cutoff looks like, and a
+   * "pending" cell on a solve-count board has no counterpart on a score-based
+   * one — so a format that has not implemented it must say so.
+   * `lib/contests/registry.ts`
    * then refuses to load a contest that sets `freezeAt` against a format that
    * would quietly ignore it, which is how that mistake used to surface: not at
    * all, until the board failed to freeze during a live round.
@@ -174,8 +176,8 @@ export function submissionsInWindow(
  * What makes this the *scored* set is the state filter: a format asking for
  * these is about to read `score` or `isAccepted`, and neither means anything
  * before a backend has answered. A format that also has something to say about
- * the ones still in the queue — ICPC's pending cell is the only one here that
- * does — asks `submissionsInWindow` and sorts them out itself.
+ * the ones still in the queue — drawing them as pending, say — asks
+ * `submissionsInWindow` and sorts them out itself.
  */
 export function scoredSubmissions(input: StandingsInput): SubmissionRecord[] {
   return submissionsInWindow(input).filter(

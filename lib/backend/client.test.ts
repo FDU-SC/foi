@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { backends, type ProblemBackend } from "@/backends.config";
+import type { ProblemBackend } from "@/lib/backend/types";
+import { backends } from "@/lib/backend/registry";
 import {
   callBackendAction,
   redactJudgeStatus,
@@ -31,7 +32,7 @@ afterEach(() => {
 /**
  * `resolveBackend` needed no change to support per-backend keys — the
  * `entry.secret ?? FOI_BACKEND_SECRET` chain was written for them long before
- * `backends.config.ts` ever filled `secret` in. Pinned here because that makes
+ * `content/backends.ts` ever filled `secret` in. Pinned here because that makes
  * the precedence load-bearing rather than incidental: get it backwards and
  * every deployment silently keeps signing with the shared value while its
  * per-backend keys sit configured and unused.
@@ -71,7 +72,7 @@ describe("密钥优先级", () => {
 
 describe("redactJudgeStatus", () => {
   const status = (): BackendQueueStatus => ({
-    id: "traditional",
+    id: "queue-a",
     url: "http://localhost:4100",
     runners: 2,
     queued: 1,
@@ -79,7 +80,7 @@ describe("redactJudgeStatus", () => {
     items: [
       {
         submissionId: "sub_1",
-        problemSlug: "maze-runner",
+        problemSlug: "some-problem",
         state: "queued",
         status: "测试点 3/10",
         runnerId: "runner-a",
@@ -112,7 +113,7 @@ describe("redactJudgeStatus", () => {
     redactJudgeStatus(original);
 
     expect(original.url).not.toBeNull();
-    expect(original.items[0].problemSlug).toBe("maze-runner");
+    expect(original.items[0].problemSlug).toBe("some-problem");
   });
 });
 
@@ -125,9 +126,9 @@ describe("redactJudgeStatus", () => {
 describe("交互端点响应的 content-type 白名单", () => {
   const backend = () => resolveBackend(Object.keys(backends)[0]);
   const request = {
-    action: "spawn",
+    action: "some-action",
     user: { handle: "alice", groups: [] },
-    problem: { slug: "leaky-bucket", config: {} },
+    problem: { slug: "some-problem", config: {} },
     contestSlug: null,
     payload: null,
   };
@@ -219,9 +220,9 @@ describe("后端响应的字节上限", () => {
 
     await expect(
       callBackendAction(backend(), {
-        action: "spawn",
+        action: "some-action",
         user: { handle: "alice", groups: [] },
-        problem: { slug: "leaky-bucket", config: {} },
+        problem: { slug: "some-problem", config: {} },
         contestSlug: null,
         payload: null,
       }),
@@ -242,9 +243,9 @@ describe("后端响应的字节上限", () => {
 describe("出站请求不跟随重定向", () => {
   const backend = () => resolveBackend(Object.keys(backends)[0]);
   const request = {
-    action: "spawn",
+    action: "some-action",
     user: { handle: "alice", groups: [] },
-    problem: { slug: "leaky-bucket", config: {} },
+    problem: { slug: "some-problem", config: {} },
     contestSlug: null,
     payload: null,
   };
@@ -363,14 +364,14 @@ describe("出站请求签的是它实际发出的 method 与 path", () => {
     const sent = captureFetch(jsonResponse({ ok: true }));
 
     await callBackendAction(resolveBackend(backendId), {
-      action: "spawn",
+      action: "some-action",
       user: { handle: "alice", groups: [] },
-      problem: { slug: "leaky-bucket", config: {} },
+      problem: { slug: "some-problem", config: {} },
       contestSlug: null,
       payload: null,
     });
 
-    expect(sent().path).toBe("/action/spawn");
+    expect(sent().path).toBe("/action/some-action");
     expect(verifyAsBackendWould(sent())).toEqual({ ok: true });
 
     // The point of signing the path: the same headers do not carry over to a

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ResolvedUser } from "@/lib/accounts/types";
-import { AS_PLAYER } from "@/lib/auth/test-support";
-import { contestBySlug } from "@/lib/contests/registry";
-import { problemsFor } from "@/lib/problems/access";
-import { allProblems } from "@/lib/problems/registry";
 import { DEFAULT_SUBMIT_RATE_LIMIT } from "@/lib/problems/types";
+import {
+  contestWithGroupEntry,
+  publicProblemOutside,
+  retiredProblem,
+} from "@/test/content-shapes";
 import { submitFor } from "./gate";
 
 /**
@@ -19,25 +20,12 @@ import { submitFor } from "./gate";
  *
  * Everything below reads the real registries, because the gate does. What it
  * must not do is quietly read *different* facts than it was written for, so the
- * fixture's window, entry and participant group are taken from the registry and
- * asserted rather than copied — a content edit then fails this file loudly
- * instead of turning its cases vacuous.
+ * round is located by shape rather than by slug and every fact it supplies is
+ * taken from the registry — content that cannot satisfy the shape fails this
+ * file loudly instead of turning its cases vacuous.
  */
 
-const CONTEST = contestBySlug("demo-acm");
-if (!CONTEST) throw new Error("测试依赖 content/contests/demo-acm");
-
-const ENTRY = CONTEST.problems[0];
-if (!ENTRY) throw new Error("demo-acm 至少要引用一道题");
-
-// Its `rateLimit` override is what proves the gate reads the throttle off the
-// contest's entry rather than off the problem.
-if (!ENTRY.rateLimit) throw new Error("demo-acm 的题目条目应当覆盖 rateLimit");
-
-if (CONTEST.participants.mode !== "group") {
-  throw new Error("这些用例假定 demo-acm 按 group 限制参赛资格");
-}
-const GROUP = CONTEST.participants.group;
+const { contest: CONTEST, entry: ENTRY, group: GROUP } = contestWithGroupEntry();
 
 /** Inside the round's window, so the phase is `running`. */
 const DURING = new Date(CONTEST.startsAt.getTime() + 60_000);
@@ -48,10 +36,7 @@ const AFTER = new Date(CONTEST.endsAt.getTime() + 60_000);
  * mismatch rather than a permission question. Taken through the access layer at
  * `DURING`, so it is one that is genuinely open then.
  */
-const OUTSIDER = problemsFor(AS_PLAYER, DURING)
-  .map((view) => view.config)
-  .find((config) => config.slug !== ENTRY.slug);
-if (!OUTSIDER) throw new Error("需要一道不属于 demo-acm 的公开题目");
+const OUTSIDER = publicProblemOutside(CONTEST, DURING);
 
 function user(groups: string[]): Pick<ResolvedUser, "handle" | "groups"> {
   return { handle: "gate-alice", groups };
@@ -104,10 +89,7 @@ describe("submitFor 的三种拒绝", () => {
    * withdrawn mid-round, which is exactly when somebody has found a fault in it.
    */
   it("下架的题目同样是 no-problem，尽管题面仍然可读", () => {
-    const retired = allProblems().find((config) => config.retired);
-    if (!retired) throw new Error("需要一道已下架的题目来覆盖这条");
-
-    const gate = submitFor(retired.slug, null, ENTRANT, DURING);
+    const gate = submitFor(retiredProblem().slug, null, ENTRANT, DURING);
 
     expect(gate).toEqual({ ok: false, reason: "no-problem" });
   });

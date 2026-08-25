@@ -1,3 +1,4 @@
+import type { ProblemUi } from "@/content/components/ui-config";
 import type { ProblemConfigInput } from "@/lib/problems/types";
 
 export const problem = {
@@ -17,7 +18,7 @@ export const problem = {
       ],
     },
   },
-  submit: { kind: "code", languages: ["cpp", "python"] },
+  ui: { submit: "code", languages: ["cpp", "python"] } satisfies ProblemUi,
   tags: ["递归", "分治", "趣味"],
   difficulty: "普及",
   order: 9,

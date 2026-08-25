@@ -2,6 +2,7 @@ import { createTransport, type Transporter } from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import type { EnrollmentPolicy } from "@/lib/enrollment/types";
+import type { MailBody } from "./types";
 
 /**
  * Handing a message to the mail server, and nothing more.
@@ -19,11 +20,8 @@ import type { EnrollmentPolicy } from "@/lib/enrollment/types";
  * by, which is the same bargain `scripts/mock-backend.ts` offers for judging;
  * what changed is that a production box has to say it means that.
  */
-export interface MailMessage {
+export interface MailMessage extends MailBody {
   to: string;
-  subject: string;
-  text: string;
-  html: string;
 }
 
 declare global {

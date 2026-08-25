@@ -1,3 +1,4 @@
+import type { ProblemUi } from "@/content/components/ui-config";
 import type { ProblemConfigInput } from "@/lib/problems/types";
 import {
   judgeOutputOnly,
@@ -20,10 +21,10 @@ export const problem = {
       ],
     } satisfies OutputOnlyConfig,
   },
-  submit: {
-    kind: "text",
+  ui: {
+    submit: "text",
     placeholder: "每行一个答案，按场景顺序",
-  },
+  } satisfies ProblemUi,
   tags: ["提交答案", "模拟", "趣味"],
   difficulty: "入门",
   order: 8,

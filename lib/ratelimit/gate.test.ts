@@ -202,14 +202,14 @@ describe("guardRequest 的 Content-Type 检查", () => {
   });
 
   /**
-   * `InstanceControl.tsx` posts `spawn` with no body, which is the natural way
+   * an action taking no arguments is posted with no body, which is the natural way
    * to write an action that takes no arguments. Demanding a header of every
    * problem author would stop nothing — a bodiless cross-origin `fetch` still
    * has to pass the origin check.
    */
   it("没有 Content-Type 时放行，因为无参数的 action 就是这么发的", () => {
     const gated = guardRequest(
-      post("http://foi.example.edu/api/problems/leaky-bucket/action/spawn", {
+      post("http://foi.example.edu/api/problems/some-problem/action/some-action", {
         origin: "http://foi.example.edu",
       }),
       "POST /api/problems/[slug]/action/[action]",

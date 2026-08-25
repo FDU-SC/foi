@@ -1,3 +1,4 @@
+import type { ProblemUi } from "@/content/components/ui-config";
 import type { ProblemConfigInput } from "@/lib/problems/types";
 
 export const problem = {
@@ -17,7 +18,7 @@ export const problem = {
       ],
     },
   },
-  submit: { kind: "code", languages: ["cpp", "python"] },
+  ui: { submit: "code", languages: ["cpp", "python"] } satisfies ProblemUi,
   tags: ["图论", "支配树", "Lengauer-Tarjan"],
   difficulty: "NOI",
   order: 7,

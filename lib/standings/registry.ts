@@ -7,7 +7,7 @@ import type { AnyRuleset } from "./types";
 /**
  * Scoring formats, discovered the same way problems and contests are.
  *
- * ACM, OI and CTF are templates rather than built-ins — the kernel knows only
+ * Every format is a template rather than a built-in — the kernel knows only
  * the `Ruleset` interface — and they used to need a line in a hand-written
  * array here to exist. Now a file under `content/rulesets/` is enough, which
  * makes adding a format cost exactly what adding a problem costs.

@@ -1,4 +1,5 @@
-import { listBackendIds, resolveBackend } from "@/lib/backend/client";
+import { resolveBackend } from "@/lib/backend/client";
+import { listBackendIds } from "@/lib/backend/registry";
 import {
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
@@ -56,7 +57,7 @@ function headerPair(request: Request): {
  * Whether this request was signed with one named backend's key.
  *
  * Named rather than inferred, because inference is ambiguous exactly when it
- * matters: several entries in `backends.config.ts` may legitimately hold the
+ * matters: several entries in `content/backends.ts` may legitimately hold the
  * same key when one runner deployment serves them all, and a sweep would then
  * hand the caller whichever entry it happened to try first. A claim says which
  * queue it wants and this checks it may have it; a report is checked against
@@ -72,7 +73,7 @@ export function verifyRunner(
     secret = resolveBackend(backendId).secret;
   } catch {
     // Indistinguishable from a bad signature on purpose. Answering "no such
-    // backend" would let anyone enumerate `backends.config.ts` from outside.
+    // backend" would let anyone enumerate `content/backends.ts` from outside.
     return { ok: false, reason: "签名不匹配" };
   }
 

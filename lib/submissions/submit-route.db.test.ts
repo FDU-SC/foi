@@ -12,7 +12,10 @@ import { problemsFor } from "@/lib/problems/access";
 import {
   DEFAULT_SUBMIT_RATE_LIMIT,
   isInlineBackend,
+  type InlineBackend,
+  type InlineJudge,
 } from "@/lib/problems/types";
+import { inlineProblem } from "@/test/content-shapes";
 
 /**
  * The submission endpoint's throttle, exercised through the route handler
@@ -28,6 +31,9 @@ import {
  */
 
 const HANDLE = "rl-alice";
+
+/** Who `CALLER` goes back to after a suite has borrowed it. */
+const DEFAULT_CALLER = HANDLE;
 
 /**
  * Two real problems that are open to somebody in no group, so the gate and
@@ -170,7 +176,14 @@ describeDb("内联判题的提交", () => {
     .map((view) => view.config)
     .find((config) => isInlineBackend(config.backend));
 
+  // Its own account, because the throttle is keyed by handle and problem and
+  // lives in this process. The suites above spend `rl-alice`'s budget on
+  // whichever problems the registry hands them first, and on a small
+  // `content/` that can be this very problem.
+  const HANDLE = "rl-inline";
+
   beforeAll(async () => {
+    CALLER = HANDLE;
     for (const [key, value] of Object.entries(TEST_ENV)) {
       vi.stubEnv(key, value);
     }
@@ -185,6 +198,7 @@ describeDb("内联判题的提交", () => {
   });
 
   afterAll(async () => {
+    CALLER = DEFAULT_CALLER;
     await db.delete(submissions).where(eq(submissions.handle, HANDLE));
     await db.delete(accounts).where(eq(accounts.handle, HANDLE));
     vi.unstubAllEnvs();
@@ -246,20 +260,31 @@ describeDb("内联判题的提交", () => {
  * is where that lands, and landing is the entire point: a `system_error`
  * verdict — which is what these branches used to return — settles the row as
  * `completed`, which puts a platform misconfiguration on the scoreboard and,
- * under ACM rules, charges the competitor penalty minutes for it.
+ * under any format that charges for a rejected attempt, bills the competitor
+ * for it.
  *
- * `roulette-daily` by name rather than by predicate, because this needs a judge
- * whose refusal the suite can actually provoke, and its dependence on
- * `AUTH_SECRET` is the one thing here that can be taken away from the outside.
+ * The judge is swapped for one that always declines, rather than a real one
+ * being provoked into declining by taking a secret away from it. Which judges
+ * can be made to refuse, and how, is a fact about `content/`; what the route
+ * does with the refusal is a fact about the route, and this is the file for
+ * the second one.
  */
 describeDb("内联判题说自己判不了", () => {
-  const ROULETTE = "roulette-daily";
+  const PROBLEM = inlineProblem();
+  const REASON = "夹具：这道题此刻判不了";
+  const HANDLE = "rl-unavailable";
+  let restore: InlineJudge;
 
   beforeAll(async () => {
+    CALLER = HANDLE;
     for (const [key, value] of Object.entries(TEST_ENV)) {
       vi.stubEnv(key, value);
     }
     vi.stubGlobal("fetch", fetchMock);
+
+    const backend = PROBLEM.backend as InlineBackend;
+    restore = backend.judge;
+    backend.judge = () => ({ unavailable: true, reason: REASON });
 
     await db.delete(submissions).where(eq(submissions.handle, HANDLE));
     await db.delete(accounts).where(eq(accounts.handle, HANDLE));
@@ -269,6 +294,8 @@ describeDb("内联判题说自己判不了", () => {
   });
 
   afterAll(async () => {
+    CALLER = DEFAULT_CALLER;
+    (PROBLEM.backend as InlineBackend).judge = restore;
     await db.delete(submissions).where(eq(submissions.handle, HANDLE));
     await db.delete(accounts).where(eq(accounts.handle, HANDLE));
     vi.unstubAllEnvs();
@@ -276,14 +303,12 @@ describeDb("内联判题说自己判不了", () => {
   });
 
   it("落 disrupted 带上原因，而不是一个零分的 completed", async () => {
-    vi.stubEnv("AUTH_SECRET", "");
-
     const response = await POST(
       new Request("http://localhost:3000/api/submissions", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          problemSlug: ROULETTE,
+          problemSlug: PROBLEM.slug,
           payload: { text: "red" },
         }),
       }),
@@ -301,7 +326,7 @@ describeDb("内联判题说自己判不了", () => {
       .where(eq(submissions.handle, HANDLE));
 
     expect(row.state).toBe("disrupted");
-    expect(row.error).toContain("AUTH_SECRET");
+    expect(row.error).toContain(REASON);
     // No result, and specifically not a zero — the same shape `reportFailed`
     // leaves on the runner path, because it is the same statement being made.
     expect(row.verdict).toBeNull();

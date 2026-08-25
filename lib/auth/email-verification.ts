@@ -1,4 +1,4 @@
-import { createHash, randomInt, timingSafeEqual } from "node:crypto";
+import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
 import type { DbOrTx } from "@/lib/accounts/queries";
 import { db } from "@/lib/db";
@@ -59,12 +59,32 @@ const MAX_ATTEMPTS = 5;
 const CODE_DIGITS = 6;
 
 /**
+ * Read at call time, not at import, so the module loads in a process that has
+ * not been handed a secret yet — the same reason `lib/auth/registration-proof.ts`
+ * does it this way. `assertEnv` requires the variable, so a boot that got here
+ * without one is a boot that should not have happened.
+ */
+function pepper(): string {
+  const value = process.env.AUTH_SECRET;
+  if (!value) throw new Error("AUTH_SECRET is not set");
+  return value;
+}
+
+/**
  * The address is inside the digest, so a code mailed to one mailbox cannot be
  * replayed against another. Without it a person who can receive mail anywhere
  * could request a code for their own address and offer it for someone else's.
+ *
+ * Keyed rather than bare, which is what the six digits make necessary. The
+ * whole space is a million, so a plain hash of `address:code` is a preimage
+ * anybody holding a dump of this table can find in under a second — for every
+ * row at once, and the row also carries the address the code was mailed to.
+ * The neighbouring `lib/auth/tokens.ts` can afford `createHash` because 160
+ * bits of randomness has nothing to grind against; this cannot. With the
+ * secret mixed in, reading the table is no longer enough to recover a code.
  */
 function digest(email: string, code: string): string {
-  return createHash("sha256").update(`${email}:${code}`).digest("hex");
+  return createHmac("sha256", pepper()).update(`${email}:${code}`).digest("hex");
 }
 
 function matches(expected: string, actual: string): boolean {

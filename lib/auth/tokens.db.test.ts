@@ -117,6 +117,37 @@ describeDb("auth tokens", () => {
     ).resolves.toMatchObject({ ok: false });
   });
 
+  it("revokePrior: false 时不动上一个 token", async () => {
+    const first = await issueToken(HANDLE, "password_reset");
+    const second = await issueToken(HANDLE, "password_reset", {
+      revokePrior: false,
+    });
+
+    // 两个都活着，正是「先铸出来、送到了再作废旧的」中间那一刻的样子。
+    await expect(
+      redeemToken(first.token, "password_reset"),
+    ).resolves.toMatchObject({ ok: true });
+    await expect(
+      redeemToken(second.token, "password_reset"),
+    ).resolves.toMatchObject({ ok: true });
+  });
+
+  it("exceptId 作废其余的，独独留下点名的那一个", async () => {
+    const first = await issueToken(HANDLE, "password_reset");
+    const second = await issueToken(HANDLE, "password_reset", {
+      revokePrior: false,
+    });
+
+    await revokeTokens(HANDLE, "password_reset", { exceptId: second.id });
+
+    await expect(
+      redeemToken(first.token, "password_reset"),
+    ).resolves.toMatchObject({ ok: false });
+    await expect(
+      redeemToken(second.token, "password_reset"),
+    ).resolves.toMatchObject({ ok: true });
+  });
+
   /**
    * The property `resetPasswordAction` rests on, checked here rather than
    * there: the action lives under `app/`, which neither vitest project

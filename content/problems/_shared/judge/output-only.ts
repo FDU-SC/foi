@@ -50,10 +50,8 @@ export const judgeOutputOnly: InlineJudge = ({ payload, config }) => {
   const lines = submitted.split(/\r?\n/).map((line) => line.trim());
 
   const perCase = 100 / cases.length;
-  let score = 0;
   const tests = cases.map((testCase, index) => {
     const pass = lines[index] === testCase.expected.trim();
-    if (pass) score += perCase;
     return {
       name: testCase.name ?? `场景 ${index + 1}`,
       status: pass ? "accepted" : "wrong_answer",
@@ -62,9 +60,22 @@ export const judgeOutputOnly: InlineJudge = ({ payload, config }) => {
     };
   });
 
+  // Counted, not summed. Adding `perCase` up and asking whether the total
+  // reached 100 is a floating-point comparison: twelve additions of `100 / 12`
+  // land on 99.99999999999999 and seventeen of `100 / 17` on 99.99999999999997,
+  // so an entirely correct submission settled as `partial`. Whether every case
+  // passed is an integer question, and this is that question.
+  const passed = tests.filter((test) => test.status === "accepted").length;
+  const allPassed = passed === cases.length;
+
   return {
-    status: score >= 100 ? "accepted" : score > 0 ? "partial" : "wrong_answer",
-    score,
+    status: allPassed ? "accepted" : passed > 0 ? "partial" : "wrong_answer",
+    // Stated rather than left null, because `isAccepted` would otherwise
+    // rebuild the same `score >= maxScore` comparison from the columns and get
+    // the same answer wrong — the judgement and the standings would have had to
+    // be fixed twice.
+    accepted: allPassed,
+    score: allPassed ? 100 : passed * perCase,
     maxScore: 100,
     detail: { tests },
   };

@@ -18,6 +18,12 @@ import { judgeRoulette } from "./roulette";
  */
 const USER: BackendUser = { handle: "alice", groups: [] };
 
+/**
+ * Case counts the all-correct assertions run at: two that divide 100 cleanly
+ * enough to hide the old bug, three that do not.
+ */
+const CASE_COUNTS = [2, 3, 12, 14, 17];
+
 /** Whatever the judge said, verdict or refusal. */
 function attempt(
   fn: InlineJudge,
@@ -61,6 +67,34 @@ describe("judgeOutputOnly", () => {
     const verdict = judge(judgeOutputOnly, config, { text: "8\n16" });
 
     expect(verdict.status).toBe("accepted");
+    expect(verdict.accepted).toBe(true);
+    expect(verdict.score).toBe(100);
+  });
+
+  /**
+   * Parameterised on the number of cases, because that is the only thing that
+   * decides whether the old summing was wrong. `100 / n` added back up n times
+   * is exactly 100 for 2 and 3 and short of it for 12, 14 and 17 —
+   * 99.99999999999999, and 99.99999999999997 at 17 — so an entirely correct
+   * submission failed to reach full marks and settled as `partial`.
+   *
+   * Every problem shipped today has two or three scenes. A test written
+   * against the live configuration passes either way, which is exactly how
+   * this survived.
+   */
+  it.each(CASE_COUNTS)("%i 个场景全对时是满分的 AC", (count) => {
+    const cases = Array.from({ length: count }, (_, index) => ({
+      expected: String(index),
+    }));
+
+    const verdict = judge(
+      judgeOutputOnly,
+      { cases },
+      { text: cases.map((testCase) => testCase.expected).join("\n") },
+    );
+
+    expect(verdict.status).toBe("accepted");
+    expect(verdict.accepted).toBe(true);
     expect(verdict.score).toBe(100);
   });
 
@@ -68,6 +102,7 @@ describe("judgeOutputOnly", () => {
     const verdict = judge(judgeOutputOnly, config, { text: "8\n99" });
 
     expect(verdict.status).toBe("partial");
+    expect(verdict.accepted).toBe(false);
     expect(verdict.score).toBe(50);
   });
 
@@ -100,14 +135,32 @@ describe("judgeLifeOscillator", () => {
   const config = { cases: [{ name: "场景 1", maxDim: 16, k: 2 }] };
 
   it("周期正好等于 k 的图案得分", () => {
-    expect(judge(judgeLifeOscillator, config, { text: BLINKER }).status).toBe(
-      "accepted",
+    const verdict = judge(judgeLifeOscillator, config, { text: BLINKER });
+
+    expect(verdict.status).toBe("accepted");
+    expect(verdict.accepted).toBe(true);
+    expect(verdict.score).toBe(100);
+  });
+
+  /** Same floating-point trap as `judgeOutputOnly`; the note is over there. */
+  it.each(CASE_COUNTS)("%i 个场景全对时是满分的 AC", (count) => {
+    const verdict = judge(
+      judgeLifeOscillator,
+      { cases: Array.from({ length: count }, () => ({ maxDim: 16, k: 2 })) },
+      { text: Array.from({ length: count }, () => BLINKER).join("\n\n") },
     );
+
+    expect(verdict.status).toBe("accepted");
+    expect(verdict.accepted).toBe(true);
+    expect(verdict.score).toBe(100);
   });
 
   it("周期不等于 k 的图案不得分", () => {
     const stillLife = "OO\nOO"; // period 1, not 2
-    expect(judge(judgeLifeOscillator, config, { text: stillLife }).score).toBe(0);
+    const verdict = judge(judgeLifeOscillator, config, { text: stillLife });
+
+    expect(verdict.score).toBe(0);
+    expect(verdict.accepted).toBe(false);
   });
 
   /**
@@ -131,6 +184,41 @@ describe("judgeLifeOscillator", () => {
   it("非法字符按格式错误处理", () => {
     const verdict = judge(judgeLifeOscillator, config, { text: "XYZ" });
     expect(verdict.score).toBe(0);
+  });
+
+  /**
+   * `for (let t = 1; t <= k; t++)` runs zero times when k is not positive, so
+   * the scene used to reach the award without simulating anything: a single
+   * mistyped digit in the configuration handed that scene's marks to every
+   * submission, an empty grid included. A non-positive `maxDim` is the same
+   * kind of mistake from the other side.
+   */
+  it.each([
+    { name: "k", cases: [{ maxDim: 16, k: 0 }] },
+    { name: "k 为负", cases: [{ maxDim: 16, k: -1 }] },
+    { name: "maxDim", cases: [{ maxDim: 0, k: 2 }] },
+  ])("$name 非正的场景不给任何提交送分", ({ cases }) => {
+    const judgement = attempt(judgeLifeOscillator, { cases }, { text: "O" });
+
+    expect(isInlineUnavailable(judgement)).toBe(true);
+    expect(judgement).not.toHaveProperty("score");
+  });
+
+  /** Dropped rather than failed: a bad scene must not sit in the denominator. */
+  it("非法场景被丢掉，剩下的场景仍按自己的个数分满分", () => {
+    const verdict = judge(
+      judgeLifeOscillator,
+      {
+        cases: [
+          { maxDim: 16, k: 2 },
+          { maxDim: 16, k: 0 },
+        ],
+      },
+      { text: BLINKER },
+    );
+
+    expect(verdict.status).toBe("accepted");
+    expect(verdict.score).toBe(100);
   });
 });
 

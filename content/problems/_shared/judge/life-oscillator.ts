@@ -108,15 +108,24 @@ function lifeParse(text: string): LifeGrid | null {
  * applies to the submitted grid itself, and it applies first.
  */
 export const judgeLifeOscillator: InlineJudge = ({ payload, config }) => {
+  // Positive, not merely present. A `k` of zero or less makes the generation
+  // loop below run no iterations at all, so the scene fell through to the
+  // award without simulating anything: one mistyped digit in the configuration
+  // and every submission passed that scene, including an empty grid. A
+  // non-positive `maxDim` is the mirror image — the size check rejects every
+  // grid — and is just as much not a scene worth judging.
   const cases = (
     (config as LifeOscillatorConfig | undefined)?.cases ?? []
-  ).filter((testCase) => testCase.k !== undefined && testCase.maxDim !== undefined);
+  ).filter((testCase) => testCase.k > 0 && testCase.maxDim > 0);
 
   // Nothing to check against is not the same as failing the check, and the
   // argument for saying so rather than returning a verdict is on
   // `InlineUnavailable`.
   if (cases.length === 0) {
-    return { unavailable: true, reason: "题目配置缺少 cases，无法判题" };
+    return {
+      unavailable: true,
+      reason: "题目配置没有可用的 cases（k 与 maxDim 必须为正），无法判题",
+    };
   }
 
   const text = String((payload as { text?: unknown })?.text ?? "");
@@ -126,7 +135,6 @@ export const judgeLifeOscillator: InlineJudge = ({ payload, config }) => {
     .filter(Boolean);
 
   const perCase = 100 / cases.length;
-  let score = 0;
   const tests = cases.map((testCase, index) => {
     const name = testCase.name ?? `场景 ${index + 1}`;
     const fail = (message: string) => ({
@@ -167,7 +175,6 @@ export const judgeLifeOscillator: InlineJudge = ({ payload, config }) => {
       }
     }
 
-    score += perCase;
     return {
       name,
       status: "accepted" as const,
@@ -177,9 +184,17 @@ export const judgeLifeOscillator: InlineJudge = ({ payload, config }) => {
     };
   });
 
+  // Counted, not summed — see the same reasoning in `output-only.ts`. Summing
+  // `perCase` and comparing against 100 denies full marks at 12, 14 and 17
+  // scenes, and `accepted` is declared so that `isAccepted` does not repeat the
+  // comparison on the standings side.
+  const passed = tests.filter((test) => test.status === "accepted").length;
+  const allPassed = passed === cases.length;
+
   return {
-    status: score >= 100 ? "accepted" : score > 0 ? "partial" : "wrong_answer",
-    score,
+    status: allPassed ? "accepted" : passed > 0 ? "partial" : "wrong_answer",
+    accepted: allPassed,
+    score: allPassed ? 100 : passed * perCase,
     maxScore: 100,
     detail: { tests },
   };

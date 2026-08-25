@@ -10,6 +10,7 @@ import {
   TIMESTAMP_HEADER,
   type SignedRequest,
 } from "@/lib/backend/signature";
+import type { Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
 import { accounts, problems, submissions } from "@/lib/db/schema";
 import { externallyJudged } from "@/lib/problems/registry";
@@ -45,6 +46,9 @@ const PROBLEM =
   externallyJudged()[0]!;
 
 const PAYLOAD = { language: "cpp", source: "int main() { return 0; }" };
+
+const VERDICT: Verdict = { status: "accepted", score: 100, maxScore: 100 };
+const VERSION = "runner-route-fixture/1.0.0";
 
 /**
  * An id no row ever has. The 401 contract below is entirely about telling this
@@ -172,6 +176,14 @@ function report(
   );
 }
 
+async function rowOf(id: string): Promise<typeof submissions.$inferSelect> {
+  const [row] = await db
+    .select()
+    .from(submissions)
+    .where(eq(submissions.id, id));
+  return row;
+}
+
 async function cleanup(): Promise<void> {
   await db.delete(submissions).where(eq(submissions.handle, HANDLE));
   await db.delete(accounts).where(eq(accounts.handle, HANDLE));
@@ -295,6 +307,131 @@ describeDb("评测机作业接口", () => {
       expect(real.status).toBe(401);
       expect(fake.status).toBe(real.status);
       expect(await fake.text()).toBe(await real.text());
+    });
+  });
+
+  /**
+   * The other side of it: holding a key buys the plain answer, because a
+   * runner asking about a job this deployment has no row for is an environment
+   * mismatch worth diagnosing rather than an attempt to probe anything.
+   */
+  describe("签得过时，不存在的 id 才得到 404", () => {
+    it("取详情", async () => {
+      const response = await fetchJob(MISSING, { lease: "anything" });
+
+      expect(response.status).toBe(404);
+      expect(await response.json()).toEqual({ error: "提交不存在" });
+    });
+
+    it("上报", async () => {
+      const response = await report(MISSING, {
+        lease: "anything",
+        state: "alive",
+      });
+
+      expect(response.status).toBe(404);
+      expect(await response.json()).toEqual({ error: "提交不存在" });
+    });
+  });
+
+  /**
+   * The reporting half of the protocol, end to end at the endpoint.
+   *
+   * `reportAlive` / `reportDone` / `reportFailed` are covered in
+   * `queue.db.test.ts`; what is only visible from here is the wiring — that
+   * the discriminated union is parsed into the right call, that the lease the
+   * caller sent is the one the guard is given, and that a refusal comes back
+   * as 409 rather than as a 5xx a runner would retry against for ever.
+   */
+  describe("上报评测进展", () => {
+    beforeAll(async () => {
+      await holding("sub_jr_alive", "lease-alive");
+      await holding("sub_jr_done", "lease-done");
+      await holding("sub_jr_failed", "lease-failed");
+      await holding("sub_jr_stale", "lease-current");
+    });
+
+    it("alive 记下进度，行仍然在评测中", async () => {
+      const response = await report("sub_jr_alive", {
+        lease: "lease-alive",
+        state: "alive",
+        status: "测试点 3/10",
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ ok: true });
+
+      const row = await rowOf("sub_jr_alive");
+      expect(row.state).toBe("judging");
+      expect(row.runnerStatus).toBe("测试点 3/10");
+      expect(row.lease).toBe("lease-alive");
+    });
+
+    it("done 落定判定，并把 lease 交回去", async () => {
+      const response = await report("sub_jr_done", {
+        lease: "lease-done",
+        state: "done",
+        verdict: VERDICT,
+        backendVersion: VERSION,
+      });
+
+      expect(response.status).toBe(200);
+
+      const row = await rowOf("sub_jr_done");
+      expect(row.state).toBe("completed");
+      expect(row.verdict).toEqual(VERDICT);
+      expect(row.backendVersion).toBe(VERSION);
+      expect(row.judgedAt).not.toBeNull();
+      // Nulled here is what makes a duplicate delivery fall out at the `where`
+      // clause instead of rewriting a settled row.
+      expect(row.lease).toBeNull();
+    });
+
+    it("failed 落 disrupted，理由原样留在行上", async () => {
+      const response = await report("sub_jr_failed", {
+        lease: "lease-failed",
+        state: "failed",
+        reason: "沙箱起不来",
+        backendVersion: VERSION,
+      });
+
+      expect(response.status).toBe(200);
+
+      const row = await rowOf("sub_jr_failed");
+      expect(row.state).toBe("disrupted");
+      expect(row.error).toBe("沙箱起不来");
+      expect(row.verdict).toBeNull();
+      expect(row.lease).toBeNull();
+    });
+
+    /**
+     * 409 rather than 404 or a 5xx, and a runner acts on the difference: the
+     * job exists, it is simply not yours any more — drop it. A 5xx invites the
+     * retry loop the lease exists to cut.
+     */
+    it("拿作废的 lease 上报，什么都写不进去", async () => {
+      const response = await report("sub_jr_stale", {
+        lease: "lease-that-was-revoked",
+        state: "done",
+        verdict: VERDICT,
+        backendVersion: VERSION,
+      });
+
+      expect(response.status).toBe(409);
+
+      const row = await rowOf("sub_jr_stale");
+      expect(row.state).toBe("judging");
+      expect(row.lease).toBe("lease-current");
+      expect(row.verdict).toBeNull();
+    });
+
+    it("上报格式不合法时，签名对也一样被拒", async () => {
+      const response = await report("sub_jr_stale", {
+        lease: "lease-current",
+        state: "finished",
+      });
+
+      expect(response.status).toBe(400);
     });
   });
 });

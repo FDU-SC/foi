@@ -156,6 +156,55 @@ describe("ctf 失败尝试", () => {
   });
 });
 
+describe("ctf 参赛名单", () => {
+  /**
+   * The roster is not a fixed thing: a `mode: "group"` contest resolves it on
+   * every read, so somebody dropping out of a group is enough to put solves
+   * from a non-participant into the input. Counting them changes the answer
+   * for everybody, because the solve count is the divisor.
+   */
+  it("非参赛者的 AC 不改变分值衰减", () => {
+    const alone = compute({
+      participants: participants("alice"),
+      problems,
+      config: plain,
+      submissions: [solve("alice", "a", 10)],
+    });
+    const withOutsider = compute({
+      participants: participants("alice"),
+      problems,
+      config: plain,
+      submissions: [solve("alice", "a", 10), solve("mallory", "a", 20)],
+    });
+
+    expect(cell(alone, "alice", "a")?.score).toBe(500);
+    expect(cell(withOutsider, "alice", "a")?.score).toBe(
+      cell(alone, "alice", "a")?.score,
+    );
+  });
+
+  /**
+   * Skipping the award was never the same as not counting the solve: the
+   * outsider still held the earliest position, so first blood went to nobody
+   * instead of to the first competitor.
+   */
+  it("非参赛者不占血", () => {
+    const standings = compute({
+      participants: participants("alice", "bob"),
+      problems,
+      config: { bloodBonus: [0.1, 0.05] },
+      submissions: [
+        solve("mallory", "a", 5),
+        solve("alice", "a", 10),
+        solve("bob", "a", 20),
+      ],
+    });
+
+    expect(cell(standings, "alice", "a")?.blood).toBe(1);
+    expect(cell(standings, "bob", "a")?.blood).toBe(2);
+  });
+});
+
 describe("ctf 总分与排名", () => {
   it("总分是各题得分之和，tiebreak 是末次解题时刻", () => {
     const standings = compute({

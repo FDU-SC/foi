@@ -83,12 +83,30 @@ export const ruleset: Ruleset<CtfCell> = {
 
     const submissions = scoredSubmissions(input);
 
-    // Pass 1: earliest accepted submission per (user, problem).
+    const cellsByUser = new Map<string, Record<string, CtfCell>>();
+    for (const participant of input.participants) {
+      cellsByUser.set(participant.handle, {});
+    }
+
+    // Pass 1: earliest accepted submission per (user, problem) — competitors
+    // only, and the roster check belongs here rather than at the award because
+    // both of the numbers this pass produces are shared. `list.length` is the
+    // divisor the entire format turns on, and a position in `list` is a blood
+    // slot. A solve from outside the roster used to devalue the problem for
+    // everyone inside it and occupy a blood slot that pass 2 then declined to
+    // award to anybody, rather than passing it down to the next solver.
+    //
+    // The roster is not a fixed thing to be outside of: `mode: "group"`
+    // resolves it on every read, so editing one routing rule re-ranks a contest
+    // that finished months ago. `acm.tsx` filters in its single loop for the
+    // same reason.
     const solves = new Map<string, { handle: string; at: number }[]>();
     const attempts = new Map<string, number>();
     const solvedKeys = new Set<string>();
 
     for (const submission of submissions) {
+      if (!cellsByUser.has(submission.handle)) continue;
+
       const key = `${submission.handle}:${submission.problemSlug}`;
       if (solvedKeys.has(key)) continue;
 
@@ -105,16 +123,13 @@ export const ruleset: Ruleset<CtfCell> = {
     }
 
     // Pass 2: value each problem from its solve count, then award.
-    const cellsByUser = new Map<string, Record<string, CtfCell>>();
-    for (const participant of input.participants) {
-      cellsByUser.set(participant.handle, {});
-    }
-
     for (const problem of input.problems) {
       const list = (solves.get(problem.slug) ?? []).sort((a, b) => a.at - b.at);
       const value = decayedValue(config, list.length);
 
       list.forEach((solve, index) => {
+        // Pass 1 recorded roster members only, so this narrows rather than
+        // filters.
         const cells = cellsByUser.get(solve.handle);
         if (!cells) return;
         const bonus = config.bloodBonus[index] ?? 0;

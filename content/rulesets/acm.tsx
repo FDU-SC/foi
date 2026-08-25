@@ -79,8 +79,18 @@ export const ruleset: Ruleset<AcmCell> = {
     const start = input.contest.startsAt.getTime();
     const now = Date.now();
     const freezeAt = input.contest.freezeAt;
+    // `[freezeAt, endsAt]`, closed at both ends — the same window
+    // `contestPhase` calls `frozen`, written out again because a ruleset in
+    // `content/` computes its own. The right edge used to be exclusive here and
+    // inclusive there, so at the millisecond a round ended the badge said
+    // frozen and the board it sat above was not. Nothing leaks either way, but
+    // `content/` gets none of the exhaustive-switch safety the kernel's phase
+    // callers have, so the two agreeing is a thing this line has to do on
+    // purpose.
     const frozen =
-      freezeAt !== null && now >= freezeAt.getTime() && now < input.contest.endsAt.getTime();
+      freezeAt !== null &&
+      now >= freezeAt.getTime() &&
+      now <= input.contest.endsAt.getTime();
 
     const byUser = new Map<string, Map<string, AcmCell>>();
     for (const participant of input.participants) {

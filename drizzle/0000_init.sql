@@ -98,5 +98,6 @@ CREATE INDEX "auth_tokens_handle_idx" ON "auth_tokens" USING btree ("handle","pu
 CREATE INDEX "submissions_standings_idx" ON "submissions" USING btree ("contest_slug","problem_slug","handle","created_at");--> statement-breakpoint
 CREATE INDEX "submissions_queued_idx" ON "submissions" USING btree ("backend_id","queued_at") WHERE state = 'queued';--> statement-breakpoint
 CREATE INDEX "submissions_lapsed_idx" ON "submissions" USING btree ("last_heartbeat_at") WHERE state = 'judging';--> statement-breakpoint
+CREATE INDEX "submissions_disrupted_idx" ON "submissions" USING btree ("judged_at") WHERE state = 'disrupted';--> statement-breakpoint
 CREATE INDEX "submissions_handle_idx" ON "submissions" USING btree ("handle","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "submissions_client_nonce_key" ON "submissions" USING btree ("handle","client_nonce");

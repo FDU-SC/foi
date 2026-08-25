@@ -578,6 +578,26 @@ export const submissions = pgTable(
     index("submissions_lapsed_idx")
       .on(table.lastHeartbeatAt)
       .where(sql`state = 'judging'`),
+    /**
+     * The disruption count `/admin` opens with.
+     *
+     * `recentDisruptions` asks for `state = 'disrupted' and judged_at >= ?`,
+     * and nothing above covers it: `submissions_standings_idx` leads on the
+     * contest and the two partial ones select other states. So the console was
+     * a sequential scan of every submission ever made, on every page load, at a
+     * cost that grows without bound while the answer it returns is normally
+     * zero.
+     *
+     * Partial for the same reason as the two above, and more sharply than
+     * either: a deployment where `disrupted` is anything but rare has a problem
+     * this page exists to report, so the indexed set stays small by
+     * construction. The predicate leaves the state out of the key — every row
+     * in here has the same one — and keeps `judged_at`, which is what the
+     * window is compared against.
+     */
+    index("submissions_disrupted_idx")
+      .on(table.judgedAt)
+      .where(sql`state = 'disrupted'`),
     index("submissions_handle_idx").on(table.handle, table.createdAt),
     // The idempotency key itself, not merely an index over it: the submit
     // route reads before it writes, and two clicks racing would both pass that

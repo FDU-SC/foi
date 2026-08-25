@@ -1,5 +1,5 @@
 {
-  "id": "c64f4ce5-3153-44aa-8a23-caf339ff89ac",
+  "id": "5a8cc135-1ecd-410f-a377-e2b7d79a097f",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -672,6 +672,22 @@
           ],
           "isUnique": false,
           "where": "state = 'judging'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "submissions_disrupted_idx": {
+          "name": "submissions_disrupted_idx",
+          "columns": [
+            {
+              "expression": "judged_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "state = 'disrupted'",
           "concurrently": false,
           "method": "btree",
           "with": {}

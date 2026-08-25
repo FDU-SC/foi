@@ -149,8 +149,18 @@ export type VerifyCodeFailure =
   | "too-many-attempts"
   | "mismatch";
 
+/**
+ * `matched` says whether *this call* compared a code and found it right, as
+ * opposed to finding the address already proven by an earlier one.
+ *
+ * Both are `ok`, because both mean the address is proven and the caller can
+ * carry on. Only the first is evidence about whoever is asking, though, so
+ * only the first may be turned into a registration proof — see the note on
+ * the shortcut in `explainRefusal`, and `app/register/actions.ts` for the
+ * cookie that hangs off it.
+ */
 export type VerifyCodeResult =
-  | { ok: true }
+  | { ok: true; matched: boolean }
   | { ok: false; reason: VerifyCodeFailure; attemptsLeft: number };
 
 /**
@@ -203,7 +213,7 @@ export async function verifyCode(
     })
     .where(eq(emailVerifications.email, email));
 
-  return { ok: true };
+  return { ok: true, matched: true };
 }
 
 /**
@@ -228,7 +238,12 @@ async function explainRefusal(email: string): Promise<VerifyCodeResult> {
 
   // Already proven, and the proof has not lapsed. The row says what the caller
   // wanted to establish, so the second press of the button is not an error.
-  if (row.verifiedAt && live) return { ok: true };
+  //
+  // `matched: false` because nothing was compared: the update above declined
+  // the row on `verified_at is null`, so the code was never read and no
+  // attempt was spent. Whoever is asking could have typed anything, which is
+  // why this answer must not be worth a registration proof.
+  if (row.verifiedAt && live) return { ok: true, matched: false };
 
   if (!live) return { ok: false, reason: "expired", attemptsLeft: 0 };
   return { ok: false, reason: "too-many-attempts", attemptsLeft: 0 };

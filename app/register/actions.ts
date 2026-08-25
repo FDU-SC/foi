@@ -12,6 +12,7 @@ import {
 } from "@/lib/accounts/types";
 import { maxAttempts, verifyCode } from "@/lib/auth/email-verification";
 import {
+  checkRegistrationProof,
   issueRegistrationProof,
   REGISTRATION_PROOF_COOKIE,
   registrationProofCookieOptions,
@@ -147,16 +148,38 @@ export async function verifyCodeAction(
   const address = normalize(email.data);
   const result = await verifyCode(address, code.data);
   if (result.ok) {
+    const jar = await cookies();
+
     // The cookie is the half `isEmailVerified` cannot be: it names *this*
     // browser as the one that typed the code. HttpOnly so a script on the
     // page cannot lift it; SameSite=lax so a cross-site POST cannot spend it.
-    const jar = await cookies();
-    jar.set(
-      REGISTRATION_PROOF_COOKIE,
-      issueRegistrationProof(address),
-      registrationProofCookieOptions(),
-    );
-    return { verified: true };
+    //
+    // Gated on `matched`, and that is the whole of the binding. `verifyCode`
+    // also answers `ok` for an address a *previous* call proved, without
+    // comparing anything — minting a proof on that answer handed one to
+    // anybody who submitted a wrong code while somebody else's address was
+    // inside its 30-minute window, and a proof plus the verified row is the
+    // entire gate `register` checks.
+    if (result.matched) {
+      jar.set(
+        REGISTRATION_PROOF_COOKIE,
+        issueRegistrationProof(address),
+        registrationProofCookieOptions(),
+      );
+      return { verified: true };
+    }
+
+    // Nothing was compared, so this call says nothing about who is asking; the
+    // cookie already in hand is the only thing that can. A browser holding one
+    // is somebody pressing the button a second time and gets the same answer
+    // as before. Anyone else — a stranger, or a person whose cookie went
+    // missing — is told to start over, which from here is the only thing that
+    // works: answering `verified` would send them to a submit that can only
+    // come back `email-unverified`.
+    const held = jar.get(REGISTRATION_PROOF_COOKIE)?.value;
+    if (checkRegistrationProof(address, held)) return { verified: true };
+
+    return { error: "验证码已失效，请重新获取。" };
   }
 
   if (result.reason === "mismatch") {

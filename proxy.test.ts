@@ -28,12 +28,17 @@ import { describe, expect, it } from "vitest";
  * "need to be constants so they can be statically analyzed at build-time", so
  * moving it somewhere importable would stop it working. Reading the source is
  * what keeps this test and the deployed matcher the same text.
+ *
+ * Which is also why this sits at the repository root, beside the file it reads,
+ * rather than in `lib/ratelimit/` where it started life as
+ * `proxy-matcher.test.ts`. There is no `proxy-matcher.ts` and there cannot be
+ * one — the matcher has to stay inline in `proxy.ts` — so that name invented a
+ * module, and the directory claimed the test was about rate limiting when half
+ * of what it pins is the API exclusion, which exists to keep Next from
+ * buffering request bodies.
  */
 function proxyMatcher(): string[] {
-  const source = readFileSync(
-    join(import.meta.dirname, "..", "..", "proxy.ts"),
-    "utf8",
-  );
+  const source = readFileSync(join(import.meta.dirname, "proxy.ts"), "utf8");
 
   const declaration = source.match(/matcher:\s*\[([\s\S]*?)\]/);
   if (!declaration) throw new Error("proxy.ts 里找不到 matcher 声明");

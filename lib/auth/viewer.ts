@@ -34,35 +34,29 @@ export interface Viewer {
   can(capability: Capability): boolean;
 }
 
-function makeViewer(handle: string | null, groups: readonly string[]): Viewer {
-  // Resolved once per viewer rather than per question: a request asks several
-  // times, and the answer cannot change within one.
-  const granted = capabilitiesOf(groups);
-  return {
-    handle,
-    groups,
-    can: (capability) => granted.has(capability),
-  };
-}
-
 /**
- * The viewer a request should use.
+ * The viewer a request should use, and the only place one is made.
  *
  * Takes the user rather than a capability so that no call site has to remember
  * which capability governs which resource.
+ *
+ * There was a `makeViewer` under this for a while, because there was a second
+ * producer above it — an `AS_PLAYER` constant for callers that wanted to ask
+ * with no groups. Nothing outside a test ever wanted that, and the two gates
+ * it was written for say in their own comments why they do not; it now lives
+ * in `./test-support`, which left this function as the sole producer and the
+ * helper as an indirection with one caller.
  */
 export function viewerFor(
   user: { handle: string; groups: readonly string[] } | null | undefined,
 ): Viewer {
-  return makeViewer(user?.handle ?? null, user?.groups ?? []);
+  const groups = user?.groups ?? [];
+  // Resolved once per viewer rather than per question: a request asks several
+  // times, and the answer cannot change within one.
+  const granted = capabilitiesOf(groups);
+  return {
+    handle: user?.handle ?? null,
+    groups,
+    can: (capability) => granted.has(capability),
+  };
 }
-
-/**
- * A viewer in no group at all, for decisions that must not bend for anybody.
- *
- * Submitting is the case: an administrator proofreading an unopened problem
- * should be able to read it, and should still not be able to queue work on it.
- * Passing this states that intent rather than leaving it to whoever reads the
- * call later.
- */
-export const AS_PLAYER: Viewer = makeViewer(null, []);

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { backends, type ProblemBackend } from "@/backends.config";
-import { AS_PLAYER, viewerFor, type Viewer } from "@/lib/auth/viewer";
+import { AS_PLAYER } from "@/lib/auth/test-support";
+import { viewerFor, type Viewer } from "@/lib/auth/viewer";
 import { allContests } from "@/lib/contests/registry";
 import { problemFor } from "@/lib/problems/access";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";

@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { AS_PLAYER, viewerFor } from "@/lib/auth/viewer";
+import { AS_PLAYER } from "@/lib/auth/test-support";
+import { viewerFor } from "@/lib/auth/viewer";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
 import { accountDirectoryFor, accountsFor } from "./access";

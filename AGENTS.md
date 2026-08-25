@@ -22,7 +22,15 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ### 非显然的注意事项
 
-- **Postgres 用的是原生 apt cluster，不是 `docker compose`**。README 里写的是 `docker compose up`，但本环境未装 Docker；改用系统 cluster，端口已配置为 `5433` 以匹配 `DATABASE_URL`。cluster 开机不会自启，每次会话先跑 `sudo pg_ctlcluster 16 main start`（已启动时会提示 already running，可忽略）。`foi` 角色/数据库、迁移和种子数据都随快照保留。
+- **Postgres 用的是原生 apt cluster，不是 `docker compose`**。README 里写的是 `docker compose up`，但本环境未装 Docker；改用系统 cluster，端口已配置为 `5433` 以匹配 `DATABASE_URL`。cluster 开机不会自启，每次会话先跑 `sudo pg_ctlcluster 16 main start`（已启动时会提示 already running，可忽略）。`foi` 角色与数据库随快照保留。
+- **快照里那个 `foi` 库要先删掉重建一次**，这一条只需要做一次，做完之后照旧。初始迁移被重建过——`judge_id` 正名为 `backend_id`，原先的两份迁移压成一份 `0000_init`——而快照库的 `drizzle.__drizzle_migrations` 记的还是旧的两条哈希。drizzle 于是认为 `0000_init` 从未应用，对着已经存在的表跑 `CREATE TABLE` 并失败：`pnpm db:migrate` 直接退 1，`pnpm dev` 也起不来，因为 `instrumentation.ts` 明确选择迁移失败就中止启动而不是拿旧 schema 硬扛。
+
+  ```
+  sudo -u postgres psql -p 5433 -c 'drop database foi with (force)' -c 'create database foi owner foi'
+  pnpm db:migrate && pnpm db:seed
+  ```
+
+  `pnpm db:seed` 是这一步的一部分而不是可选项：种子数据在库里，不在快照的别处。
 - **`.env.local` 已生成且被 gitignore**，内含 `AUTH_SECRET`、`FOI_BACKEND_SECRET` 等。快照会保留它，无需重新创建。
 - **必须用 Turbopack**（`next dev` 在 Next 16 默认即是），不要切回 webpack：题目注册表依赖 `import.meta.glob`。
 - **数据库迁移会在 dev server 启动时由 `instrumentation.ts` 自动应用**，也可手动 `pnpm db:migrate`。

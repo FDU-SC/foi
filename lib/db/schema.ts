@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   doublePrecision,
@@ -5,6 +6,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -314,12 +316,12 @@ export const submissions = pgTable(
      * What the browser called this attempt, so that repeating it does not
      * repeat the submission.
      *
-     * Every other step of the judging loop is already idempotent — the
-     * callback token is single-use, the state guards make the first verdict
+     * Every other step of the judging loop is already idempotent — a report
+     * has to hold the current lease, the state guards make the first verdict
      * win, `ensureProblem` upserts — and the entrance was the one place a
-     * retry cost something real: a second row and a second slot in a judge's
-     * queue, for one thing the player did once. The client mints one of these
-     * per attempt and reuses it when a submit has to be retried, so a request
+     * retry cost something real: a second row and a second slot in the queue,
+     * for one thing the player did once. The client mints one of these per
+     * attempt and reuses it when a submit has to be retried, so a request
      * whose reply was lost can be re-asked and answered from the row it
      * already made.
      *
@@ -335,7 +337,7 @@ export const submissions = pgTable(
      */
     clientNonce: text("client_nonce"),
 
-    state: text("state").$type<SubmissionState>().notNull().default("pending"),
+    state: text("state").$type<SubmissionState>().notNull().default("queued"),
 
     /**
      * Whatever the backend returned, verbatim.
@@ -344,7 +346,7 @@ export const submissions = pgTable(
      * carried a schema the kernel read fields out of at every call site, which
      * made a message from an extension point into a domain object: the same
      * number was reachable as `verdict.score` and as the column below, with
-     * nothing saying which was authoritative. Now the callback parses it once
+     * nothing saying which was authoritative. Now `reportDone` parses it once
      * and the columns below are what the kernel kept; this is the audit copy,
      * and only a problem's own components look inside it — see `detail` in
      * `lib/backend/types.ts`.
@@ -406,21 +408,112 @@ export const submissions = pgTable(
     releaseSha: text("release_sha"),
     backendVersion: text("backend_version"),
 
-    /** Judge-side handle, used by the reconciler to poll for a lost callback. */
-    judgeRef: text("judge_ref"),
     /**
-     * Which backend this went to. The column keeps its original name: renaming
-     * the concept is a source change, and a migration that rewrites a column
-     * only to spell it differently is downtime bought for nothing.
+     * Which backend this belongs to. The column keeps its original name:
+     * renaming the concept is a source change, and a migration that rewrites a
+     * column only to spell it differently is downtime bought for nothing.
+     *
+     * In the pull model it is the queue selector rather than an address book
+     * entry — a runner signing as `traditional` is handed rows carrying
+     * `traditional` here, and nothing else.
      */
     backendId: text("judge_id").notNull(),
-    callbackTokenHash: text("callback_token_hash").notNull(),
+
+    /**
+     * Who is holding this row, and their proof of it.
+     *
+     * The lease is what makes a stale report cheap to refuse. Without it,
+     * deciding whether an arriving result is current means reasoning about a
+     * runner's identity crossed with how many times the row has been handed
+     * out — and identity alone is not enough, because the case worth catching
+     * is runner A going quiet, the row being requeued, and A waking up to
+     * report on work that is now somebody else's. A does not stop being A. It
+     * stops holding the lease.
+     *
+     * Not a credential: the HMAC on the request is what proves the caller is
+     * the backend it claims to be. This proves the caller is the *current*
+     * holder of this particular row, which is a different question, and the
+     * reason it is compared in the `where` clause of every write rather than
+     * checked up front — the comparison and the write have to be one statement
+     * or a requeue can slip between them.
+     *
+     * `runnerId` is the runner's own name for itself, kept for the board and
+     * for logs. Nothing authorises on it.
+     */
+    runnerId: text("runner_id"),
+    lease: text("lease"),
+
+    /**
+     * The runner's account of what it is doing, in its own words.
+     *
+     * Stored and served verbatim. "拉取镜像" and "测试点 3/10" are both fine and
+     * the kernel understands neither — see `runnerStatusSchema`. Cleared when a
+     * row is requeued, because it described a holder that is gone.
+     */
+    runnerStatus: text("runner_status"),
+
+    /**
+     * When the holder last said it was alive.
+     *
+     * The one clock the reaper reads, and the reason `abandonAfterMs` could
+     * never be placed: the old question was "how long should this problem take
+     * on this backend behind this queue", which is three numbers with three
+     * owners. This one is "how long since anybody said anything", which is a
+     * property of neither the problem nor the backend.
+     */
+    lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
+
+    /**
+     * How many times this row has been handed out.
+     *
+     * A row that is claimed, goes quiet, is requeued and claimed again is
+     * either unlucky or poison, and the count is the only thing that tells the
+     * two apart. Past the cap it stops being offered and the reaper gives up on
+     * it, so a submission that reliably kills whatever picks it up cannot cycle
+     * through every runner in turn, forever.
+     *
+     * Reset by a rejudge, because an administrator asking for this to be tried
+     * again is asking for a fresh budget rather than the last of an old one.
+     */
+    attempts: integer("attempts").notNull().default(0),
 
     error: text("error"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    dispatchedAt: timestamp("dispatched_at", { withTimezone: true }),
+
+    /**
+     * When this row last entered the queue, which is not when it was created.
+     *
+     * The queue fuse is the only reader, and the distinction is the bug it
+     * shipped with. `created_at` answers "when did somebody submit this"; the
+     * fuse asks "how long has this been sitting here with nobody coming for
+     * it", and the two are the same number for exactly one lap. Two paths put a
+     * row back in `queued` without touching `created_at` — the reaper taking a
+     * job back from a holder that went quiet, and an administrator rejudging —
+     * so any submission older than the fuse was written off on the next tick,
+     * fifteen seconds later, with `error` saying no runner had ever come for it
+     * while one demonstrably had. A race in a healthy deployment, where
+     * something claims the row within a second or two; a certainty when the
+     * queue is deep or no runner is online, which is when a rejudge is most
+     * likely to be what somebody just asked for.
+     *
+     * `created_at` could not be moved instead. It is what a submission list
+     * shows, what the contest window is compared against and what `claimJob`
+     * orders by, so advancing it on a rejudge would relocate the submission
+     * inside the round it was made during.
+     *
+     * `not null` with a default, and written explicitly at all three places a
+     * row becomes `queued`, so that a fourth cannot leave behind a row the fuse
+     * quietly declines to consider: a fuse that never fires fails the same way
+     * as one that fires early, only later and with a spinner.
+     */
+    queuedAt: timestamp("queued_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+
+    /** When a runner took it. Null again after a requeue. */
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
     judgedAt: timestamp("judged_at", { withTimezone: true }),
   },
   (table) => [
@@ -430,8 +523,37 @@ export const submissions = pgTable(
       table.handle,
       table.createdAt,
     ),
-    // Drives the reconciler sweep for submissions whose callback never landed.
-    index("submissions_pending_idx").on(table.state, table.createdAt),
+    /**
+     * Handing out work, and the queue fuse.
+     *
+     * Backend first because a claim is always for one backend's queue; the
+     * timestamp after it, because oldest-first is the whole ordering policy.
+     * Partial on `queued` for the reason the states are worth separating at
+     * all: a row nobody is holding is the only kind that can be handed out, and
+     * the set of them is small and short-lived even when the table is not.
+     *
+     * The fuse sweep reads it too, without the leading column — it wants every
+     * backend's stale queue entries. That is a scan of this index rather than a
+     * seek, which is the right trade against a second index over a set that is
+     * usually empty. It filters on `queued_at` rather than the column indexed
+     * here, so those rows are checked against the heap; deliberately not
+     * indexed, because the two clocks disagree only for rows that have been
+     * requeued and the alternative is a second index, or losing the ordering
+     * `claimJob` needs on the one statement every runner in the deployment
+     * runs.
+     */
+    index("submissions_queued_idx")
+      .on(table.backendId, table.createdAt)
+      .where(sql`state = 'queued'`),
+    /**
+     * Taking work back. Partial for the same reason and more sharply: a healthy
+     * deployment has every `judging` row heartbeating, so this normally finds
+     * nothing, and indexing the finished millions to find none of them is
+     * exactly the cost being avoided.
+     */
+    index("submissions_lapsed_idx")
+      .on(table.lastHeartbeatAt)
+      .where(sql`state = 'judging'`),
     index("submissions_handle_idx").on(table.handle, table.createdAt),
     // The idempotency key itself, not merely an index over it: the submit
     // route reads before it writes, and two clicks racing would both pass that
@@ -443,6 +565,49 @@ export const submissions = pgTable(
   ],
 );
 
+/**
+ * The runners that have shown up, and when each was last seen.
+ *
+ * Self-reported and unverified, which is the whole shape of it: a row appears
+ * the first time something signing as this backend asks for work and calls
+ * itself this name, and it is refreshed on every subsequent ask. There is no
+ * registration step, no per-runner credential and nothing to revoke — anything
+ * holding the backend's key is a runner for that backend, so a compromised
+ * machine is dealt with by rotating that key, not by deleting a row here.
+ *
+ * Not a registry, for the same reason `backend_snapshots` was not one: there is
+ * deliberately no address column, because a runner has no inbound address and
+ * inventing one would be a second place to look up something already declared
+ * in `backends.config.ts`.
+ *
+ * It earns its place by answering one question nothing else can: **is anybody
+ * out there?** A deep queue with runners on it means work is arriving faster
+ * than it is finished; the same queue with no runners means nobody is
+ * evaluating at all, and those two call for opposite responses from an
+ * operator. Without this table the board could only show the queue and leave
+ * the reader to guess which of the two they were looking at.
+ *
+ * Nothing prunes it. A row is a few dozen bytes and a runner that never comes
+ * back is a fact worth being able to see; the board filters on `lastSeenAt`
+ * rather than on the row existing.
+ */
+export const runners = pgTable(
+  "runners",
+  {
+    backendId: text("backend_id").notNull(),
+    /** The runner's own name for itself. Unverified — see above. */
+    runnerId: text("runner_id").notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Composite rather than a surrogate id: the pair *is* the identity, and a
+    // generated key would let one runner accumulate a row per restart.
+    primaryKey({ columns: [table.backendId, table.runnerId] }),
+  ],
+);
+
 export type AccountRow = typeof accounts.$inferSelect;
 export type AuthTokenRow = typeof authTokens.$inferSelect;
 export type EmailVerificationRow = typeof emailVerifications.$inferSelect;
@@ -450,3 +615,4 @@ export type CredentialRow = typeof credentials.$inferSelect;
 export type ProblemRow = typeof problems.$inferSelect;
 export type ContestRow = typeof contests.$inferSelect;
 export type SubmissionRow = typeof submissions.$inferSelect;
+export type RunnerRow = typeof runners.$inferSelect;

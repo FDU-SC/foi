@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { backendsMissingUrl } from "@/backends.config";
 
 /**
  * What the process needs before it is allowed to serve anything.
@@ -13,9 +12,14 @@ import { backendsMissingUrl } from "@/backends.config";
  *
  * Only the variables whose absence is fatal are listed. SMTP has a documented
  * fallback that logs to the console and the backup interval has a default;
- * neither should stop a boot. Backend addresses used to be excused on the same
- * grounds and are not any more — see `backendUrlProblems` below for why that
- * was the wrong list to be on.
+ * neither should stop a boot.
+ *
+ * Backend addresses were here for a while and have gone again, which is not a
+ * relaxation. Judging is pulled, so a backend needs no address; what still does
+ * is a backend some problem declares an interactive action on, and *that*
+ * refuses a production boot in `assertBackendActionUrls`. It has to live over
+ * there because answering it means reading the problem registry, and this file
+ * is deliberately incapable of knowing anything about content.
  */
 const schema = z.object({
   DATABASE_URL: z
@@ -29,11 +33,12 @@ const schema = z.object({
     .string("未设置，无法签名会话。用 openssl rand -base64 32 生成")
     .min(16, "太短，会话签名不安全。用 openssl rand -base64 32 生成"),
 
-  // Backends call back to this, so a wrong value is not a local problem: every
-  // verdict silently fails to arrive and the reconciler gives up ten minutes
-  // later, one submission at a time.
+  // Every absolute URL this deployment publishes about itself is built from
+  // it, and it is the address a runner has to be pointed at — the kernel is the
+  // one being connected to now, so an unreachable one means no judging at all
+  // rather than one lost callback at a time.
   FOI_PUBLIC_URL: z
-    .string("未设置，题目后端将无法回调")
+    .string("未设置，评测机将无法连到平台")
     .refine((value) => {
       try {
         new URL(value);
@@ -43,6 +48,10 @@ const schema = z.object({
       }
     }, "必须是完整的 URL，例如 https://foi.example.com"),
 
+  // The fallback key, for backends given none of their own. Still mandatory
+  // because `resolveBackend` reaches for it, though in production every backend
+  // carrying traffic is now required to have its own instead — see
+  // `assertBackendSecrets`.
   FOI_BACKEND_SECRET: z
     .string("未设置。用 openssl rand -hex 32 生成，并与题目后端保持一致")
     .min(16, "太短。用 openssl rand -hex 32 生成，并与题目后端保持一致"),
@@ -80,38 +89,6 @@ function withLegacyNames(
 }
 
 /**
- * Backend addresses, which are fatal in production and nowhere else.
- *
- * Outside the schema because the variables are named after whatever
- * `backends.config.ts` declares rather than fixed here, and conditional
- * because the answer depends on where this is running. Outside production a
- * missing address falls back to the mock in `scripts/mock-backend.ts`, which
- * is what lets a fresh checkout submit before anything has been configured. In
- * production there is no such fallback and no such excuse: a backend nothing
- * can reach fails exactly the way a wrong `FOI_PUBLIC_URL` does, silently and
- * one submission at a time, which is why that variable is on the list above
- * and why these belong beside it.
- *
- * Every declared entry, not only the ones a problem routes to. Telling those
- * apart means reading the problem registry, and this file deliberately knows
- * nothing about content — the same split `backendSecretWarnings` sits on the
- * other side of. What the wider rule costs is an address for a backend nothing
- * currently uses, so the message offers the other way out: delete the entry.
- */
-function backendUrlProblems(
-  env: Record<string, string | undefined>,
-): string[] {
-  if (env.NODE_ENV !== "production") return [];
-
-  return backendsMissingUrl(env).map(
-    (variable) =>
-      `${variable}: 未设置。生产环境不再回落到本地 mock，` +
-      `这台题目后端收不到任何投递，交上来的题会一直等到十分钟后被判为超时。` +
-      `填上它的地址；这套部署不运行它，就从 backends.config.ts 里删掉该条目`,
-  );
-}
-
-/**
  * Checks the environment, throwing with every problem at once.
  *
  * All of them rather than the first: fixing one variable, redeploying, and
@@ -125,15 +102,12 @@ export function assertEnv(
   // Each prefixed with the variable name. Without it a missing value reports
   // Zod's own "expected string, received undefined", which tells an operator
   // staring at a failed deploy neither which variable nor what to put in it.
-  const problems = [
-    ...(parsed.success
-      ? []
-      : parsed.error.issues.map((issue) => {
-          const name = issue.path.join(".");
-          return name ? `${name}: ${issue.message}` : issue.message;
-        })),
-    ...backendUrlProblems(env),
-  ];
+  const problems = parsed.success
+    ? []
+    : parsed.error.issues.map((issue) => {
+        const name = issue.path.join(".");
+        return name ? `${name}: ${issue.message}` : issue.message;
+      });
 
   if (problems.length === 0) return;
 

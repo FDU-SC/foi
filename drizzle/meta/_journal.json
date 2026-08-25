@@ -5,71 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1787331035434,
-      "tag": "0000_cool_hobgoblin",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1787450317981,
-      "tag": "0001_config_as_code",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1787467847192,
-      "tag": "0002_accounts",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1787502000000,
-      "tag": "0003_retire_setup_code",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1787536804119,
-      "tag": "0004_email_verification",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1787537180952,
-      "tag": "0005_retire_pending_accounts",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1787560282472,
-      "tag": "0006_verdict_columns",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1787563634675,
-      "tag": "0007_provenance",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1787585378209,
-      "tag": "0008_submission_idempotency",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1787589864899,
-      "tag": "0009_reinstatement_audit",
+      "when": 1787655263276,
+      "tag": "0000_overconfident_winter_soldier",
       "breakpoints": true
     }
   ]

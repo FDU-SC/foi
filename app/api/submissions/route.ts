@@ -8,15 +8,19 @@ import { ensureContest } from "@/lib/contests/queries";
 import { db } from "@/lib/db";
 import { submissions } from "@/lib/db/schema";
 import {
-  callbackUrl,
-  createCallbackToken,
-  dispatchToJudge,
-  DispatchError,
   releaseSha,
   resolveBackend,
+  type ResolvedBackend,
 } from "@/lib/backend/client";
-import { NON_TERMINAL_STATES } from "@/lib/backend/types";
+import {
+  INLINE_BACKEND_ID,
+  INLINE_BACKEND_VERSION,
+  NON_TERMINAL_STATES,
+} from "@/lib/backend/types";
 import { ensureProblem } from "@/lib/problems/sync";
+import { isInlineBackend, type InlineBackend } from "@/lib/problems/types";
+import { invalidateStandings } from "@/lib/standings/cache";
+import { verdictColumns } from "@/lib/submissions/verdict";
 import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest, tooManyRequests } from "@/lib/ratelimit/gate";
 import { alsoRule, fixedRule, ROUTE_LIMITS } from "@/lib/ratelimit/policy";
@@ -117,8 +121,8 @@ export async function POST(request: Request) {
   }
 
   // Ahead of every check that costs something: the mirror upsert and the
-  // dispatch both write, and both happen before any response. The throttle the
-  // round declared is applied further down, once there is a problem and a
+  // submission row both write, and both happen before any response. The
+  // throttle the round declared is applied further down, once there is a
   // contest to read it from — everything between here and there is a registry
   // lookup or one indexed read, so nothing has been spent by the time it runs.
   const flood = rateLimit(
@@ -176,23 +180,39 @@ export async function POST(request: Request) {
     contestSlug = running.slug;
   }
 
-  let backend;
-  try {
-    backend = resolveBackend(problem.backend.id);
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "评测机配置错误" },
-      { status: 500 },
-    );
+  // Settled before the first write, so a problem naming a backend that is not
+  // configured fails without leaving a row behind. Kept as a tagged value
+  // rather than two nullable locals because the two paths diverge again below,
+  // and a tag is what lets the compiler carry the choice across the early
+  // return instead of each site asserting it again.
+  let judging:
+    | { kind: "inline"; backend: InlineBackend }
+    | { kind: "external"; backend: ResolvedBackend };
+
+  if (isInlineBackend(problem.backend)) {
+    judging = { kind: "inline", backend: problem.backend };
+  } else {
+    try {
+      judging = {
+        kind: "external",
+        backend: resolveBackend(problem.backend.id),
+      };
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "评测机配置错误" },
+        { status: 500 },
+      );
+    }
   }
 
   await ensureProblem(problem);
 
   const id = `sub_${ulid()}`;
-  const { token, hash } = createCallbackToken();
 
-  // Persisted before dispatch so a judge that never acknowledges still leaves
-  // a record the reconciler and the user can see.
+  // The insert *is* the enqueue. There is nothing after it for an external
+  // problem: no outbound request, no acknowledgement to interpret, no window in
+  // which the row exists here and might or might not exist there. A runner will
+  // come and take it, or the fuse will burn through and say nobody did.
   const [created] = await db
     .insert(submissions)
     .values({
@@ -202,15 +222,19 @@ export async function POST(request: Request) {
       contestSlug,
       payload: parsed.data.payload,
       clientNonce: clientNonce ?? null,
-      backendId: backend.id,
-      callbackTokenHash: hash,
+      backendId:
+        judging.kind === "inline" ? INLINE_BACKEND_ID : judging.backend.id,
       maxScore: problem.maxScore,
       // Recorded at creation rather than at judging: this is the code that
-      // decided which backend to dispatch to and what config to hand it, and
-      // that decision is made here. The backend's own version arrives later,
-      // with the verdict.
+      // decided which backend the row belongs to and what config a runner will
+      // be handed, and that decision is made here. The backend's own version
+      // arrives later, with the verdict.
       releaseSha: releaseSha(),
-      state: "pending",
+      state: "queued",
+      // The first lap's clock. Equal to `created_at` here and only here — the
+      // two part company the moment anything requeues the row, which is why the
+      // fuse reads this one.
+      queuedAt: new Date(),
     })
     // The read above is not enough on its own: two clicks arriving together
     // both pass it, and only the index can decide between them. Targets the
@@ -232,16 +256,23 @@ export async function POST(request: Request) {
     // Unreachable while the nonce index is the only conflict target: without a
     // nonce there is nothing to conflict on, and with one the row that won is
     // there to be read. Answered rather than left to throw, because the
-    // alternative is dispatching against `created` being undefined.
+    // alternative is reading fields off `created` being undefined.
     return NextResponse.json({ error: "提交失败，请重试" }, { status: 500 });
   }
 
+  // A backend problem is finished with here. The row is `queued`, which is the
+  // whole of the kernel's involvement until a runner asks for it.
+  if (judging.kind !== "inline") {
+    return NextResponse.json(toView(created), { status: 201 });
+  }
+
   /**
-   * Applies a post-dispatch state change without clobbering a verdict.
+   * Writes the inline judgement without clobbering anything.
    *
-   * Every write below races the callback: a fast judge can finish before the
-   * dispatch call even returns. The guard makes the callback win, and the
-   * re-read makes the response tell the truth about who did.
+   * The guard is redundant on this path — nothing else knows this row exists
+   * yet, and no runner will ever claim it because nothing signs as `inline` —
+   * but a write that states the invariant it depends on is cheaper to keep
+   * right than one that relies on the caller's reading of the surrounding code.
    */
   const settle = async (
     patch: Partial<typeof submissions.$inferInsert>,
@@ -260,37 +291,42 @@ export async function POST(request: Request) {
     publish(toView(updated ?? (await getSubmissionRow(id)) ?? created));
   };
 
+  // Judged here, in this request: no queue, no runner, no reaper. The row goes
+  // straight from `queued` to a terminal state, which is why an inline problem
+  // never appears on the board.
   try {
-    const { judgeRef } = await dispatchToJudge(backend, {
-      submissionId: id,
-      user: { handle: user.handle, groups: user.groups },
-      problem: { slug: problem.slug, config: problem.backend.config },
-      contestSlug,
+    const verdict = judging.backend.judge({
       payload: parsed.data.payload,
-      callbackUrl: callbackUrl(),
-      callbackToken: token,
+      config: judging.backend.config,
+      user: { handle: user.handle, groups: user.groups },
+      contestSlug,
     });
 
-    await settle({ state: "judging", judgeRef, dispatchedAt: new Date() });
+    await settle({
+      state: "completed",
+      verdict,
+      backendVersion: INLINE_BACKEND_VERSION,
+      ...verdictColumns(verdict, problem.slug),
+      judgedAt: new Date(),
+    });
+    if (contestSlug) invalidateStandings(contestSlug);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "投递题目后端失败";
-
-    // Only an outright refusal is terminal. When the outcome is unknown the
-    // row stays `pending`: the judge may have queued it anyway, and the
-    // reconciler will either find the verdict or give up after ten minutes.
-    // Recording the error either way leaves the reason visible in the UI.
-    const rejected =
-      error instanceof DispatchError && error.kind === "rejected";
-
-    await settle(
-      rejected
-        ? { state: "failed", error: message, judgedAt: new Date() }
-        : { error: message },
-    );
+    // `disrupted`, and the change of mind is worth recording. This used to be
+    // `failed`, which put an inline judge throwing in the same bucket as a
+    // backend refusing a submission — but a judge that threw is *our* code
+    // breaking, not the submission being unacceptable, and charging that to the
+    // competitor is precisely the mistake `disrupted` exists to stop. It also
+    // means an administrator can rejudge it once the bug is fixed, which was
+    // never true of `failed`.
+    await settle({
+      state: "disrupted",
+      error: error instanceof Error ? error.message : "内联判题失败",
+      judgedAt: new Date(),
+    });
   }
 
-  const view = toView((await getSubmissionRow(id)) ?? created);
-  return NextResponse.json(view, { status: 201 });
+  const judged = toView((await getSubmissionRow(id)) ?? created);
+  return NextResponse.json(judged, { status: 201 });
 }
 
 /**

@@ -106,7 +106,7 @@ export async function POST(
 
   let backend;
   try {
-    backend = resolveBackend(problem.backend.id);
+    backend = resolveBackend(resolved.backendId);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "题目后端配置错误" },

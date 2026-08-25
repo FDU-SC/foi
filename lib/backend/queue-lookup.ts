@@ -1,19 +1,29 @@
-import { fetchAllJudgeQueues } from "./client";
+import { and, eq, inArray } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { submissions } from "@/lib/db/schema";
 
 export interface QueuePosition {
   backendId: string;
-  state: "running" | "pending";
-  /** Submissions ahead in the queue; 0 once evaluation has started. */
+  state: "judging" | "queued";
+  /** Submissions ahead in the queue; 0 once a runner has taken it. */
   ahead: number;
 }
 
 /**
- * Finds where the given submissions sit in their judges' queues.
+ * Where the given submissions sit in their backends' queues.
  *
- * Queues live inside the judges, so this reads all of them once and matches
- * locally rather than issuing a request per submission. A judge that truncates
- * or omits `items` simply yields no position, and callers fall back to showing
- * the plain "queued" state.
+ * Exact now, which is the dividend of holding the queue here. It used to read
+ * every backend's self-reported snapshot and match locally, so a position was
+ * as fresh as the last poll, silently absent for a backend that truncated its
+ * listing, and wrong for the whole interval after a judge dequeued something.
+ *
+ * Two statements, and the second reads the entire queue rather than counting
+ * per row. That is deliberate: the set of `queued` rows is small by
+ * construction — a runner takes the oldest every second or two, so the queue is
+ * work that has arrived and not yet started, not the history — and it is
+ * exactly the set the partial index covers. Counting in the database instead
+ * would mean a correlated subquery or a window function written in raw SQL, and
+ * the column names in it would be a rename waiting to break silently.
  */
 export async function locateInQueues(
   submissionIds: string[],
@@ -21,33 +31,49 @@ export async function locateInQueues(
   const found = new Map<string, QueuePosition>();
   if (submissionIds.length === 0) return found;
 
-  const wanted = new Set(submissionIds);
-  const statuses = await fetchAllJudgeQueues();
+  const wanted = await db
+    .select({
+      id: submissions.id,
+      backendId: submissions.backendId,
+      state: submissions.state,
+      createdAt: submissions.createdAt,
+    })
+    .from(submissions)
+    .where(
+      and(
+        inArray(submissions.id, submissionIds),
+        inArray(submissions.state, ["queued", "judging"]),
+      ),
+    );
 
-  for (const status of statuses) {
-    if (!status.queue) continue;
+  if (wanted.length === 0) return found;
 
-    const pending = status.queue.items
-      .filter((item) => item.state === "pending")
-      .sort((a, b) => a.enqueuedAt.localeCompare(b.enqueuedAt));
+  const queued = await db
+    .select({
+      backendId: submissions.backendId,
+      createdAt: submissions.createdAt,
+    })
+    .from(submissions)
+    .where(eq(submissions.state, "queued"));
 
-    for (const item of status.queue.items) {
-      if (!wanted.has(item.submissionId)) continue;
+  // How many rows are ahead of a given instant on a given backend. Oldest
+  // first, because that is the order `claimJob` hands work out in — the
+  // position is a fact about that ordering rather than a display convention.
+  const aheadOf = (backendId: string, createdAt: Date): number =>
+    queued.filter(
+      (row) =>
+        row.backendId === backendId && row.createdAt.getTime() < createdAt.getTime(),
+    ).length;
 
-      found.set(item.submissionId, {
-        backendId: status.id,
-        state: item.state,
-        ahead:
-          item.state === "running"
-            ? 0
-            : Math.max(
-                0,
-                pending.findIndex(
-                  (candidate) => candidate.submissionId === item.submissionId,
-                ),
-              ),
-      });
-    }
+  for (const row of wanted) {
+    found.set(row.id, {
+      backendId: row.backendId,
+      state: row.state === "judging" ? "judging" : "queued",
+      // A row somebody is already holding has nothing ahead of it, whatever the
+      // queue behind it looks like.
+      ahead:
+        row.state === "judging" ? 0 : aheadOf(row.backendId, row.createdAt),
+    });
   }
 
   return found;

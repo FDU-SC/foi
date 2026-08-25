@@ -13,61 +13,47 @@
  * that half really is about judging.
  */
 export interface ProblemBackend {
-  url: string;
+  /**
+   * Where the kernel reaches this backend — and only for the half it still
+   * initiates.
+   *
+   * Optional now, and for most backends absent. Judging is pulled: a runner
+   * comes to `POST /api/runner/jobs/request`, so it needs to reach *us* and
+   * nothing here needs to reach it. What is left going outward is
+   * `POST /action/<name>`, which a player sets off synchronously and which
+   * therefore cannot be pulled — so an address is needed by exactly those
+   * backends that some problem declares an `actions` entry on.
+   *
+   * That is not a compromise held over from the old direction. A problem
+   * handing out containers for a competitor to connect into needs that machine
+   * reachable regardless of how judging works.
+   */
+  url?: string;
   /**
    * Read from `FOI_BACKEND_<NAME>_SECRET`. Falls back to the shared
-   * `FOI_BACKEND_SECRET` in `resolveBackend` when a backend has none.
+   * `FOI_BACKEND_SECRET` in `resolveBackend` when a backend has none — outside
+   * production, where `assertBackendSecrets` refuses the boot instead.
    */
   secret?: string;
-  /** Milliseconds to wait for the backend to acknowledge a dispatch. */
-  timeoutMs?: number;
   /**
-   * Milliseconds to wait on an interactive endpoint.
+   * Milliseconds to wait for a reply from an interactive endpoint.
    *
-   * Separate from `timeoutMs` because a dispatch is acknowledged and queued
-   * while an action is answered: starting a container takes as long as it
-   * takes. A backend that cannot answer quickly should return early with
-   * something a poll action can follow up on, the same bargain judging makes.
-   */
-  actionTimeoutMs?: number;
-  /**
-   * Milliseconds a submission may go without a result before it is given up
-   * on entirely.
+   * One knob, where there used to be three, and now with only one endpoint
+   * left to apply to. `actionTimeoutMs` went because the protocol already
+   * requires every action to answer promptly and let a `poll` action follow up.
+   * `abandonAfterMs` went because it was never a property of the backend at
+   * all: it had to cover both how long a problem takes to judge and how deep
+   * the queue was. Its replacement is a heartbeat, which is a property of
+   * neither and is one number for the whole deployment.
    *
-   * Per backend rather than one constant in the reconciler, because the two
-   * ends of the range are nowhere near each other: the wait that means "this
-   * verdict is lost" on a flag check is still an ordinary queue on a backend
-   * that times a baseline. `resolveBackend` supplies the default for entries
-   * that say nothing.
+   * Rarely worth setting. A backend that cannot answer a cheap question inside
+   * ten seconds is one `/judges` should be showing as unhealthy.
    */
-  abandonAfterMs?: number;
+  replyTimeoutMs?: number;
 }
 
 /** The mock in `scripts/mock-backend.ts`, which `pnpm backend:mock` starts. */
 const DEVELOPMENT_MOCK_URL = "http://localhost:4100";
-
-/**
- * What an entry holds in production when nothing configured it.
- *
- * Never dispatched to in practice — `assertEnv` refuses a production boot on
- * exactly this condition, and it runs first thing in `instrumentation.ts`. A
- * value rather than a throw because these entries are built at import: a throw
- * here would surface at whichever request first pulled this file in, which is
- * the failure mode `lib/env.ts` exists to move back to boot time. `.invalid`
- * is reserved by RFC 2606 and resolves nowhere, so anything that does reach it
- * fails DNS and says why, instead of reaching a neighbour on :4100.
- */
-const UNCONFIGURED_URL = "http://backend-url-not-configured.invalid";
-
-/**
- * The `<NAME>` half of every address variable the entries below read.
- *
- * Collected as they are read rather than written out a second time for
- * `backendsMissingUrl`: a hand-kept list is how a backend added later becomes
- * the one entry nothing checks, which is the failure the check is there to
- * stop.
- */
-const urlNames = new Set<string>();
 
 /**
  * Reads the new name, then the old one, then decides what silence means.
@@ -77,74 +63,51 @@ const urlNames = new Set<string>();
  * `FOI_JUDGE_*` and would otherwise have lost every backend address at once.
  * Drop it once the deployed environments have been updated.
  *
- * A missing address used to mean `localhost:4100` everywhere, which made
- * forgetting one in a deployment free at boot and expensive afterwards:
- * dispatches go to whatever is listening on that port beside the app — nothing
- * — so no verdict ever arrives and the reconciler gives up on the submissions
- * one at a time, ten minutes each. That is word for word the reason
- * `lib/env.ts` gives for holding `FOI_PUBLIC_URL` mandatory, and it is the
- * same failure, so the default it was defending against is worse than the
- * missing value. The mock is a development convenience only; in production
- * `assertEnv` refuses the boot instead.
+ * Silence is now `undefined` rather than an unroutable placeholder, and the
+ * placeholder is gone with it. It existed because every backend needed an
+ * address and a missing one had to fail loudly at the point of use; almost none
+ * of them need one any more, so "not configured" and "not needed" are the same
+ * state and there is nothing to distinguish. Which backends genuinely require
+ * an address is a question about the problem registry — see
+ * `backendsMissingActionUrl` in `lib/backend/access.ts`.
+ *
+ * The development fallback stays, and only for development: it is what lets a
+ * fresh checkout run `leaky-bucket`'s actions against `pnpm backend:mock`
+ * without configuring anything.
  */
-function backendUrl(name: string): string {
-  urlNames.add(name);
-
-  // Empty reads as absent, here and in `backendsMissingUrl`: a line left as
-  // `FOI_BACKEND_X_URL=` is somebody who has not filled it in yet, and taking
-  // it for an address is the one way past the boot check.
+function backendUrl(name: string): string | undefined {
+  // Empty reads as absent: a line left as `FOI_BACKEND_X_URL=` is somebody who
+  // has not filled it in yet, and taking it for an address is the one way past
+  // the boot check.
   const configured =
     process.env[`FOI_BACKEND_${name}_URL`] ||
     process.env[`FOI_JUDGE_${name}_URL`];
   if (configured) return configured;
 
   return process.env.NODE_ENV === "production"
-    ? UNCONFIGURED_URL
+    ? undefined
     : DEVELOPMENT_MOCK_URL;
-}
-
-/**
- * Entries with no address anywhere in `env`, named by the variable to set.
- *
- * Answered here rather than assembled in `lib/env.ts`, because both the naming
- * convention and the pre-rename spelling live in this file: a second reader of
- * them is a second thing to update when the legacy fallback above is finally
- * deleted, and a stale copy would start refusing deployments that are
- * configured correctly.
- *
- * Takes the environment instead of reading `process.env`, so the boot check
- * judges backends against the same record it judges everything else against.
- */
-export function backendsMissingUrl(
-  env: Record<string, string | undefined> = process.env,
-): string[] {
-  const missing = [...urlNames].filter(
-    (name) => !env[`FOI_BACKEND_${name}_URL`] && !env[`FOI_JUDGE_${name}_URL`],
-  );
-
-  return missing.map((name) => `FOI_BACKEND_${name}_URL`);
 }
 
 /**
  * A backend's own signing key, when it has been given one.
  *
  * One shared key means one compromised backend can sign as any of the others,
- * and `app/api/judge/callback/route.ts` was already written for the world
- * where that is not so: it sweeps every configured secret to decide whether a
- * caller holds *some* backend's key, then re-checks against the key belonging
- * to the backend the submission was actually dispatched to. That second check
- * is a no-op while everything shares one value. Filling this in is what turns
- * it back on.
+ * and what that now buys has grown teeth: a runner authenticates *inbound* with
+ * this, so holding it drains that backend's queue, reads every submission in it
+ * and writes whatever verdicts it likes. Sharing one across backends makes all
+ * of that transitive. Production refuses to boot on it — see
+ * `assertBackendSecrets` in `lib/backend/access.ts`.
  *
  * Undefined rather than falling back to the shared key here. The difference
- * between "has its own" and "borrowing everyone's" is exactly what
- * `backendSecretWarnings()` reports on, and collapsing it at this layer would
- * leave nothing able to tell the two apart. The fallback stays in
- * `resolveBackend`, which is where it already was.
+ * between "has its own" and "borrowing everyone's" is exactly what that check
+ * reports on, and collapsing it at this layer would leave nothing able to tell
+ * the two apart. The fallback stays in `resolveBackend`, which is where it
+ * already was.
  *
  * Empty is undefined, so that every reader of these variables agrees on what
  * counts as a key: an `.env` carrying an unfilled `FOI_BACKEND_X_SECRET=` is
- * somebody who has not filled it in yet, and `backendSecretWarnings` already
+ * somebody who has not filled it in yet, and `backendsSharingSecret` already
  * read the blank line as "no key of its own". `resolveBackend` reaches for the
  * shared key with `||` for the same reason. It used to use `??`, which kept
  * the `""` — a value, so no fallback — and then found it falsy a line later
@@ -155,46 +118,53 @@ function backendSecret(name: string): string | undefined {
   return process.env[`FOI_BACKEND_${name}_SECRET`] || undefined;
 }
 
+/**
+ * Only the problems that genuinely need a service are here.
+ *
+ * Three entries used to live alongside these and no longer do —
+ * `flag-checker`, `output-only` and `roulette` — because none of them needed
+ * anything this file provides. Judging them takes nothing the kernel does not
+ * already hold: the submission, the problem's own config, and who submitted.
+ * They are now inline judges in `content/problems/_shared/judge/`, and with
+ * them went three URLs, three secrets and three deployments.
+ *
+ * The test for whether something belongs here is whether the judgement needs
+ * **isolation** (it runs what the competitor submitted), **resources** (a time
+ * or memory limit worth measuring), or **state the kernel does not hold** (a
+ * container, a flag minted when that container was handed out). Every entry
+ * below is here for one of those three reasons; anything else is inline.
+ */
 export const backends: Record<string, ProblemBackend> = {
   traditional: {
     url: backendUrl("TRADITIONAL"),
     secret: backendSecret("TRADITIONAL"),
   },
-  "flag-checker": {
-    url: backendUrl("FLAG_CHECKER"),
-    secret: backendSecret("FLAG_CHECKER"),
-  },
-  "output-only": {
-    url: backendUrl("OUTPUT_ONLY"),
-    secret: backendSecret("OUTPUT_ONLY"),
-  },
   interactive: {
     url: backendUrl("INTERACTIVE"),
     secret: backendSecret("INTERACTIVE"),
   },
+  // A timed problem cannot share a machine with anything else without changing
+  // the number being measured, so this queue is a serial one and it runs long:
+  // `perf-optimize` alone is a warmup plus three timed runs at an 8s limit,
+  // against a baseline judged the same way. That used to need a thirty-minute
+  // `abandonAfterMs` here, because the kernel gave up on anything older than
+  // ten. It needs nothing now: a runner heartbeating through a long evaluation
+  // keeps its job for as long as it takes, and the kernel never has to know how
+  // long that is.
   performance: {
     url: backendUrl("PERFORMANCE"),
     secret: backendSecret("PERFORMANCE"),
-    // Counted from submission, so it covers the queue as well as the run, and
-    // a timed problem cannot share a machine with anything else without
-    // changing the number being measured — so the queue here is a serial one.
-    // `perf-optimize` alone is a warmup plus three timed runs at an 8s limit,
-    // against a baseline the backend runs the same way, and one machine
-    // grading a room's worth of those is still working long after the
-    // ten-minute default has declared every one of them lost.
-    abandonAfterMs: 30 * 60 * 1000,
   },
-  roulette: {
-    url: backendUrl("ROULETTE") ?? "http://localhost:4100",
-    secret: backendSecret("ROULETTE"),
-  },
-  // Its own entry rather than a shared checker, because it also orchestrates
-  // the containers whose flags it verifies. See its `problem.ts`.
+  // The one entry that genuinely needs its address, and the reason `url`
+  // survives at all. It hands out containers, so `spawn`/`poll`/`destroy` are
+  // synchronous requests the kernel makes on a player's behalf — there is no
+  // pulling those. Its own entry rather than a shared checker because it also
+  // verifies the flags those containers mint; see its `problem.ts`.
+  //
+  // Two-phase, which is why ten seconds is enough: `spawn` returns straight
+  // away and a `poll` action follows the container to ready.
   "leaky-bucket": {
     url: backendUrl("LEAKY_BUCKET"),
     secret: backendSecret("LEAKY_BUCKET"),
-    // Pulling an image the first time takes longer than acknowledging a
-    // dispatch ever does.
-    actionTimeoutMs: 30_000,
   },
 };

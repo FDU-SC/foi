@@ -17,6 +17,7 @@ export function toView(row: SubmissionRow): SubmissionView {
     maxScore: row.maxScore,
     accepted: row.accepted,
     reason: failureReason(row),
+    runnerStatus: row.runnerStatus,
     createdAt: row.createdAt.toISOString(),
     judgedAt: row.judgedAt?.toISOString() ?? null,
   };

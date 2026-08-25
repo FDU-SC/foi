@@ -1,69 +1,53 @@
-import { createHash, randomBytes } from "node:crypto";
+import { and, asc, count, gte, inArray } from "drizzle-orm";
 import { backends, type ProblemBackend } from "@/backends.config";
 import type { Viewer } from "@/lib/auth/viewer";
 import { readTextBody } from "@/lib/body-limit";
+import { db } from "@/lib/db";
+import { runners, submissions } from "@/lib/db/schema";
 import { backendsFor } from "./access";
 import { signedHeaders } from "./signature";
-import {
-  judgeQueueSchema,
-  judgeStatusSchema,
-  type BackendActionRequest,
-  type JudgeQueue,
-  type JudgeRequest,
-  type JudgeStatus,
-} from "./types";
-
-const DEFAULT_TIMEOUT_MS = 10_000;
-
-/** Longer than a dispatch: an action is answered, not merely acknowledged. */
-const DEFAULT_ACTION_TIMEOUT_MS = 20_000;
+import { type BackendActionRequest } from "./types";
 
 /**
- * How long a submission may go unresolved before the reconciler stops waiting.
+ * How long an interactive endpoint may take to reply.
  *
- * Not a timeout in the sense the two above are: nothing is being held open, and
- * the deadline is measured from when the row was created rather than from a
- * request. It is how long the kernel is willing to be wrong about a backend
- * that has gone quiet, which is why it belongs to the backend — a performance
- * problem running a baseline is slower than a flag check by more than any
- * single number can straddle, and raising it for everyone would mean every
- * player watching a spinner for the slowest case.
- *
- * Exported because the reconciler needs an answer even for a row whose backend
- * no longer resolves. Ten minutes is long enough that reaching it means
- * something is actually wrong.
+ * One number, and it is now the only timeout in the file. Dispatch and status
+ * polling had their own until the direction reversed and both endpoints went
+ * away; what is left is the half a backend cannot pull, and the protocol
+ * already says what it owes: answer promptly and let a `poll` action follow up.
+ * A backend that cannot answer a cheap question inside ten seconds is one
+ * `/judges` should be showing as unhealthy.
  */
-export const DEFAULT_ABANDON_MS = 10 * 60 * 1000;
+const DEFAULT_REPLY_TIMEOUT_MS = 10_000;
 
 /**
  * How much of a backend's answer this process will hold.
  *
  * The timeout bounds how long a backend can keep the kernel waiting; nothing
- * bounded how much it could make the kernel buffer. `res.text()` and
- * `res.json()` read to completion, so one backend answering a queue poll with
- * an endless body took the app down with it — and the reconciler polls every
- * fifteen seconds whether anybody is watching or not.
+ * bounded how much it could make the kernel buffer, and `res.text()` reads to
+ * completion — so one backend answering with an endless body took the app down
+ * with it.
  *
- * Generous, because an action response is the problem's to define and a
- * verdict's `detail` can be a whole compile log. A backend that needs more
- * than this is not returning a message, it is returning a file, and that
- * wants a URL rather than a relay.
- *
- * Applies to every read of a backend's answer in this file. There is no
- * per-endpoint variation on purpose: the bound is about what this process
- * will hold, not about what any one endpoint means, and the one time these
- * were done individually the dispatch acknowledgement got left out.
+ * Generous, because an action response is the problem's to define. A backend
+ * that needs more than this is not returning a message, it is returning a file,
+ * and that wants a URL rather than a relay.
  */
 const MAX_RESPONSE_BYTES = 256 * 1024;
 
 export interface ResolvedBackend extends ProblemBackend {
   id: string;
   secret: string;
-  timeoutMs: number;
-  actionTimeoutMs: number;
-  abandonAfterMs: number;
+  replyTimeoutMs: number;
 }
 
+/**
+ * A backend's key and, where it has one, its address.
+ *
+ * The key is what every request in either direction is signed with, so this is
+ * reached for on both paths now: the kernel calling an action outward, and a
+ * runner's claim being checked inward. The address is only needed by the first
+ * of those — see `url` in `backends.config.ts`.
+ */
 export function resolveBackend(id: string): ResolvedBackend {
   const entry = backends[id];
   if (!entry) {
@@ -91,9 +75,7 @@ export function resolveBackend(id: string): ResolvedBackend {
     ...entry,
     id,
     secret,
-    timeoutMs: entry.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-    actionTimeoutMs: entry.actionTimeoutMs ?? DEFAULT_ACTION_TIMEOUT_MS,
-    abandonAfterMs: entry.abandonAfterMs ?? DEFAULT_ABANDON_MS,
+    replyTimeoutMs: entry.replyTimeoutMs ?? DEFAULT_REPLY_TIMEOUT_MS,
   };
 }
 
@@ -110,20 +92,20 @@ export function releaseSha(): string | null {
   return process.env.FOI_RELEASE_SHA || null;
 }
 
-export function callbackUrl(): string {
-  const base = process.env.FOI_PUBLIC_URL;
-  if (!base) throw new Error("缺少环境变量 FOI_PUBLIC_URL");
-  return new URL("/api/judge/callback", base).toString();
-}
-
 /**
  * One place where a request to a backend is turned into a URL and its headers.
  *
  * The signature covers the path, so the path that gets signed has to be the
  * path that gets sent — resolved against the backend's base URL rather than
  * taken from the relative string, since a base URL carrying a path prefix
- * would otherwise sign one thing and request another. Every outbound call goes
- * through here so that pairing cannot come apart at one of four call sites.
+ * would otherwise sign one thing and request another.
+ *
+ * Throws on a backend with no address, which is now reachable configuration
+ * rather than an impossibility: only backends a problem declares an action on
+ * need one. `actionFor` has already established that this problem declared this
+ * action, so getting here without an address means the deployment is running an
+ * interactive problem it has not finished configuring, and saying which
+ * variable is missing is more use than a fetch to `undefined`.
  */
 function signedRequest(
   backend: ResolvedBackend,
@@ -131,6 +113,12 @@ function signedRequest(
   path: string,
   body: string,
 ): { url: URL; headers: Record<string, string> } {
+  if (!backend.url) {
+    throw new Error(
+      `题目后端 "${backend.id}" 声明了交互动作但没有地址，请设置 FOI_BACKEND_${envFragment(backend.id)}_URL`,
+    );
+  }
+
   const url = new URL(path, backend.url);
   return {
     url,
@@ -142,116 +130,9 @@ function signedRequest(
   };
 }
 
-/**
- * Callback tokens are high-entropy random values, so a plain SHA-256 digest is
- * enough — there is nothing to brute-force the way there is with a password.
- */
-export function createCallbackToken(): { token: string; hash: string } {
-  const token = randomBytes(32).toString("base64url");
-  return { token, hash: hashCallbackToken(token) };
-}
-
-export function hashCallbackToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
-}
-
-/**
- * Why a dispatch produced no acknowledgement.
- *
- * The distinction decides whether the submission is finished or merely
- * unaccounted for. `rejected` means the backend answered and refused: it will
- * never evaluate this submission, so the row can go terminal immediately.
- * `unknown` means we never got an answer worth trusting — a timeout, a dropped
- * connection, a 5xx. The backend may have queued the submission regardless, so
- * the row has to stay non-terminal and let the reconciler settle it. Calling
- * that case `failed` would be worse than saying nothing: the eventual callback
- * would arrive to find a terminal row and discard a real verdict.
- */
-export type DispatchFailure = "rejected" | "unknown";
-
-export class DispatchError extends Error {
-  readonly kind: DispatchFailure;
-
-  constructor(message: string, kind: DispatchFailure) {
-    super(message);
-    this.name = "DispatchError";
-    this.kind = kind;
-  }
-}
-
-/**
- * Hands a submission to its backend for judging. Only the acknowledgement is awaited; the
- * result arrives later via callback (or via the reconciler, if it is lost).
- */
-export async function dispatchToJudge(
-  backend: ResolvedBackend,
-  request: JudgeRequest,
-): Promise<{ judgeRef: string | null }> {
-  const body = JSON.stringify(request);
-  const { url, headers } = signedRequest(backend, "POST", "/judge", body);
-
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers,
-      body,
-      signal: AbortSignal.timeout(backend.timeoutMs),
-    });
-  } catch (error) {
-    // The request may well have arrived and been queued; we just never saw
-    // the reply. Nothing here says the submission is dead.
-    throw new DispatchError(
-      error instanceof Error && error.name === "TimeoutError"
-        ? "投递题目后端超时，结果未知"
-        : "无法连接题目后端，结果未知",
-      "unknown",
-    );
-  }
-
-  if (!res.ok) {
-    // 4xx is the backend saying it will not take this submission. 5xx is it
-    // falling over, which says nothing about whether it queued first.
-    throw new DispatchError(
-      `题目后端返回 ${res.status}: ${await safeText(res)}`,
-      res.status < 500 ? "rejected" : "unknown",
-    );
-  }
-
-  // Bounded like every other read of a backend's answer. This one was missed
-  // when the others were done, and it is the one on the hot path: every
-  // submission goes through it, so a backend answering a dispatch with an
-  // endless body took the process down one `POST /api/submissions` at a time.
-  const read = await readTextBody(res, MAX_RESPONSE_BYTES);
-  if (!read.ok) {
-    // Not `rejected`. The backend answered 2xx and may well have queued the
-    // submission; what we do not have is a readable acknowledgement, which is
-    // exactly what `unknown` means — leave the row non-terminal so a callback
-    // can still land on it.
-    throw new DispatchError("题目后端的受理响应过大，结果未知", "unknown");
-  }
-
-  // Deliberately lenient about the parse, unlike the size check above. An
-  // empty 200 is a legitimate acknowledgement — `judgeRef` is optional in the
-  // protocol — and `res.json()` threw on that too, so treating unparseable as
-  // "accepted, no reference" is the behaviour backends already rely on. A body
-  // that was cut short is different: we know we did not see all of it.
-  let data: { accepted?: unknown; judgeRef?: unknown } | null = null;
-  try {
-    data = JSON.parse(read.text) as { accepted?: unknown; judgeRef?: unknown };
-  } catch {
-    data = null;
-  }
-
-  // The protocol has a backend answer `{ accepted: true, judgeRef }`. An explicit
-  // `false` is the one way a 2xx still means "this will never be judged".
-  if (data?.accepted === false) {
-    throw new DispatchError("题目后端拒绝接收该提交", "rejected");
-  }
-
-  return {
-    judgeRef: typeof data?.judgeRef === "string" ? data.judgeRef : null,
-  };
+/** `leaky-bucket` → `LEAKY_BUCKET`, the spelling `backends.config.ts` reads. */
+function envFragment(id: string): string {
+  return id.replace(/-/g, "_").toUpperCase();
 }
 
 /** What came back from an interactive endpoint, for relaying verbatim. */
@@ -336,7 +217,7 @@ export async function callBackendAction(
       method: "POST",
       headers,
       body,
-      signal: AbortSignal.timeout(backend.actionTimeoutMs),
+      signal: AbortSignal.timeout(backend.replyTimeoutMs),
     });
   } catch (error) {
     const timedOut = error instanceof Error && error.name === "TimeoutError";
@@ -372,29 +253,151 @@ export function listBackendIds(): string[] {
   return Object.keys(backends);
 }
 
-export interface JudgeQueueStatus {
-  id: string;
-  /** Null once redacted for non-admins. */
-  url: string | null;
-  online: boolean;
-  latencyMs: number | null;
-  error: string | null;
-  queue: JudgeQueue | null;
+/**
+ * How recently a runner must have asked for work to count as here.
+ *
+ * Several times the poll interval the protocol suggests, because a runner that
+ * misses one poll to a network hiccup has not gone anywhere and a board that
+ * flickers is one nobody reads. What it has to catch is a runner that has
+ * stopped, and that shows up within a minute.
+ */
+const RUNNER_ONLINE_MS = 60_000;
+
+/** One entry in a backend's queue, as the board draws it. */
+export interface QueueEntry {
+  submissionId: string;
+  /**
+   * Absent once redacted for non-admins: it would reveal which problem each
+   * person is working on, mid-contest.
+   */
+  problemSlug?: string;
+  state: "queued" | "judging";
+  /**
+   * The holder's own account of what it is doing, verbatim, or null. Opaque —
+   * see `runnerStatusSchema`. Redacted alongside `runnerId`, because a problem
+   * is perfectly capable of writing its own name into it.
+   */
+  status?: string | null;
+  runnerId?: string | null;
+  enqueuedAt: string;
+  claimedAt?: string;
 }
 
 /**
- * The judging queues this viewer may see, already redacted for them.
+ * What one backend's queue looks like right now.
+ *
+ * A database read rather than a report from the backend, and that is the whole
+ * change: the queue is here, so positions are exact rather than a snapshot of
+ * whatever a judge said fifteen seconds ago, and nothing has to be reachable to
+ * be shown.
+ *
+ * `health`, `capacity`, `latencyMs` and `online` all went with it. Every one of
+ * them was a backend describing itself over a link that had to be up for the
+ * description to arrive, which meant the board's answer to "is this working"
+ * was mostly an answer about the network. `runners` replaces the lot: it is the
+ * number of processes that have actually asked for work lately, which is the
+ * only fact an operator needs beside the queue depth to tell a backlog apart
+ * from an outage.
+ */
+export interface BackendQueueStatus {
+  id: string;
+  /**
+   * Where the kernel reaches this backend for interactive actions, or null —
+   * both when the viewer may not see it and when the backend has none, which is
+   * now the ordinary case. Judging needs no address at all.
+   */
+  url: string | null;
+  runners: number;
+  queued: number;
+  judging: number;
+  items: QueueEntry[];
+}
+
+/** Rows drawn per backend. A board, not an export. */
+const BOARD_LIMIT = 50;
+
+/**
+ * Every configured backend's queue, from the database.
+ *
+ * Driven by the configuration rather than by what happens to be in the table,
+ * so a backend with nothing queued still appears — as an idle one, which is
+ * information.
+ */
+async function allBackendQueues(): Promise<BackendQueueStatus[]> {
+  const ids = listBackendIds();
+  if (ids.length === 0) return [];
+
+  const since = new Date(Date.now() - RUNNER_ONLINE_MS);
+
+  const [rows, online] = await Promise.all([
+    db
+      .select({
+        id: submissions.id,
+        backendId: submissions.backendId,
+        problemSlug: submissions.problemSlug,
+        state: submissions.state,
+        runnerId: submissions.runnerId,
+        runnerStatus: submissions.runnerStatus,
+        createdAt: submissions.createdAt,
+        claimedAt: submissions.claimedAt,
+      })
+      .from(submissions)
+      .where(
+        and(
+          inArray(submissions.backendId, ids),
+          inArray(submissions.state, ["queued", "judging"]),
+        ),
+      )
+      .orderBy(asc(submissions.createdAt))
+      .limit(BOARD_LIMIT * ids.length),
+    db
+      .select({ backendId: runners.backendId, count: count() })
+      .from(runners)
+      .where(
+        and(
+          inArray(runners.backendId, ids),
+          gte(runners.lastSeenAt, since),
+        ),
+      )
+      .groupBy(runners.backendId),
+  ]);
+
+  const runnersById = new Map(online.map((row) => [row.backendId, row.count]));
+
+  return ids.map((id) => {
+    const mine = rows.filter((row) => row.backendId === id);
+    return {
+      id,
+      url: backends[id]?.url ?? null,
+      runners: runnersById.get(id) ?? 0,
+      queued: mine.filter((row) => row.state === "queued").length,
+      judging: mine.filter((row) => row.state === "judging").length,
+      items: mine.slice(0, BOARD_LIMIT).map((row) => ({
+        submissionId: row.id,
+        problemSlug: row.problemSlug,
+        state: row.state === "judging" ? "judging" : "queued",
+        status: row.runnerStatus,
+        runnerId: row.runnerId,
+        enqueuedAt: row.createdAt.toISOString(),
+        claimedAt: row.claimedAt?.toISOString(),
+      })),
+    };
+  });
+}
+
+/**
+ * The queues this viewer may see, already redacted for them.
  *
  * Two decisions that used to be made separately at two call sites — the page
  * and the API each fetched every queue and then chose how much to blank out,
  * and neither asked whether the viewer should know the backend existed at all.
- * Both now ask here.
+ * Both ask here.
  */
 export async function judgeQueuesFor(
   viewer: Viewer,
-): Promise<JudgeQueueStatus[]> {
+): Promise<BackendQueueStatus[]> {
   const allowed = new Set(backendsFor(viewer));
-  const statuses = (await fetchAllJudgeQueues()).filter((status) =>
+  const statuses = (await allBackendQueues()).filter((status) =>
     allowed.has(status.id),
   );
 
@@ -407,196 +410,26 @@ export async function judgeQueuesFor(
  * What a player is allowed to see of a queue they may see at all.
  *
  * Submission ids stay, so everyone can find their own entry and read their
- * position off the queue. The backend's address and other players' problem
- * choices are removed: the former is infrastructure detail that only widens
- * the attack surface, the latter leaks who is working on what mid-contest.
+ * position off the queue. Removed: the backend's address, which is
+ * infrastructure detail that only widens the attack surface; other players'
+ * problem choices, which leak who is working on what mid-contest; and the
+ * runner's name and self-description, because both are strings a backend
+ * author chose and neither is anything a competitor is owed.
  */
-export function redactJudgeStatus(status: JudgeQueueStatus): JudgeQueueStatus {
+export function redactJudgeStatus(
+  status: BackendQueueStatus,
+): BackendQueueStatus {
   return {
     ...status,
     url: null,
-    queue: status.queue
-      ? {
-          ...status.queue,
-          items: status.queue.items.map(
-            ({ problemSlug: _problemSlug, ...rest }) => rest,
-          ),
-        }
-      : null,
+    items: status.items.map(
+      ({
+        problemSlug: _problemSlug,
+        status: _status,
+        runnerId: _runnerId,
+        ...rest
+      }) => rest,
+    ),
   };
 }
 
-/** Kept short: this drives a status page that polls, not a submission path. */
-const QUEUE_TIMEOUT_MS = 3_000;
-
-/**
- * Reads one backend's internal judging queue.
- *
- * Signed like every other backend call, which is also why the browser cannot
- * query backends directly — the shared secret must not leave the server.
- */
-export async function fetchJudgeQueue(
-  backendId: string,
-): Promise<JudgeQueueStatus> {
-  const base: JudgeQueueStatus = {
-    id: backendId,
-    url: backends[backendId]?.url ?? "",
-    online: false,
-    latencyMs: null,
-    error: null,
-    queue: null,
-  };
-
-  let backend: ResolvedBackend;
-  try {
-    backend = resolveBackend(backendId);
-  } catch (error) {
-    return {
-      ...base,
-      error: error instanceof Error ? error.message : "题目后端配置错误",
-    };
-  }
-
-  const startedAt = Date.now();
-  try {
-    const { url, headers } = signedRequest(backend, "GET", "/queue", "");
-    const res = await fetch(url, {
-      method: "GET",
-      headers,
-      signal: AbortSignal.timeout(QUEUE_TIMEOUT_MS),
-      cache: "no-store",
-    });
-
-    const latencyMs = Date.now() - startedAt;
-    if (!res.ok) {
-      return { ...base, latencyMs, error: `返回 ${res.status}` };
-    }
-
-    const read = await readTextBody(res, MAX_RESPONSE_BYTES);
-    if (!read.ok) {
-      return { ...base, latencyMs, error: "队列响应过大" };
-    }
-
-    // Parsed here rather than via `res.json()` so that malformed JSON reports
-    // the format it is — the outer catch would otherwise call it "无法连接",
-    // which sends an operator to look at the network.
-    let body: unknown;
-    try {
-      body = JSON.parse(read.text);
-    } catch {
-      return { ...base, latencyMs, error: "队列响应格式不合法" };
-    }
-
-    const parsed = judgeQueueSchema.safeParse(body);
-    if (!parsed.success) {
-      return { ...base, latencyMs, error: "队列响应格式不合法" };
-    }
-
-    return { ...base, online: true, latencyMs, queue: parsed.data };
-  } catch (error) {
-    return {
-      ...base,
-      latencyMs: Date.now() - startedAt,
-      error:
-        error instanceof Error && error.name === "TimeoutError"
-          ? "连接超时"
-          : "无法连接",
-    };
-  }
-}
-
-declare global {
-  var __foiQueueSnapshot:
-    | { value: Promise<JudgeQueueStatus[]>; expiresAt: number }
-    | undefined;
-}
-
-/**
- * How long one sweep of the backends is reused.
- *
- * Short enough that the queue board still reads as live, long enough to
- * collapse a contest's worth of concurrent readers into one request each.
- */
-const QUEUE_SNAPSHOT_TTL_MS = 1_000;
-
-/**
- * Every backend's judging queue, at most once per second per process.
- *
- * This is on the hot path twice over. `/judges` polls it every four seconds
- * per viewer, and every poll of an unfinished submission calls it too — with
- * the client backing off from 800ms, a hundred players waiting on a verdict
- * meant hundreds of outbound requests per second, one per backend per poll. The
- * load arrived precisely when the backends were already saturated, which is when
- * players watch the queue.
- *
- * The promise is cached rather than its result, so callers arriving during a
- * sweep join it instead of starting another. A rejected sweep is not possible
- * here — `fetchJudgeQueue` reports failure as a value — but the entry is
- * dropped on rejection anyway so a future refactor cannot pin a failure for a
- * full second.
- */
-export function fetchAllJudgeQueues(): Promise<JudgeQueueStatus[]> {
-  const cached = globalThis.__foiQueueSnapshot;
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-
-  const value = Promise.all(listBackendIds().map(fetchJudgeQueue));
-  const entry = { value, expiresAt: Date.now() + QUEUE_SNAPSHOT_TTL_MS };
-  globalThis.__foiQueueSnapshot = entry;
-
-  value.catch(() => {
-    if (globalThis.__foiQueueSnapshot === entry) {
-      globalThis.__foiQueueSnapshot = undefined;
-    }
-  });
-
-  return value;
-}
-
-/** Asks a backend directly whether a submission finished. Used by the reconciler. */
-export async function pollJudge(
-  backend: ResolvedBackend,
-  judgeRef: string,
-): Promise<JudgeStatus | null> {
-  const { url, headers } = signedRequest(
-    backend,
-    "GET",
-    `/status/${encodeURIComponent(judgeRef)}`,
-    "",
-  );
-  const res = await fetch(url, {
-    method: "GET",
-    headers,
-    signal: AbortSignal.timeout(backend.timeoutMs),
-  });
-
-  if (!res.ok) return null;
-
-  const read = await readTextBody(res, MAX_RESPONSE_BYTES);
-  if (!read.ok) return null;
-
-  let body: unknown = null;
-  try {
-    body = JSON.parse(read.text);
-  } catch {
-    return null;
-  }
-
-  const parsed = judgeStatusSchema.safeParse(body);
-  return parsed.success ? parsed.data : null;
-}
-
-/**
- * A refusal's body, for putting in an error message.
- *
- * Bounded twice over: the read stops at 4 KiB so a backend cannot answer a
- * dispatch with a gigabyte of prose, and the slice is what actually ends up in
- * front of somebody. Reading first and truncating after — which is what this
- * did — meant the whole thing was already in memory by the time 200 characters
- * were chosen from it.
- */
-async function safeText(res: Response): Promise<string> {
-  const read = await readTextBody(res, 4 * 1024).catch(
-    () => ({ ok: false }) as const,
-  );
-  return read.ok ? read.text.slice(0, 200) : "";
-}

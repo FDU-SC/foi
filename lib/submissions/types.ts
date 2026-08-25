@@ -22,18 +22,29 @@ export interface SubmissionView {
   accepted: boolean | null;
 
   /**
-   * Why there is no verdict, for the two states that have one. Null otherwise,
-   * including while a submission is still in flight with a dispatch error
-   * recorded against it — see `failureReason`. Not the `error` column: that is
-   * the raw text, and this is the question a player is asking.
+   * Why there is no verdict, for the one state that has a reason. Null
+   * otherwise, including while a submission is still in flight with a runner's
+   * last words recorded against it — see `failureReason`. Not the `error`
+   * column: that is the raw text, and this is the question a player is asking.
    */
   reason: string | null;
+
+  /**
+   * What the runner holding this says it is doing, in its own words, or null.
+   *
+   * Opaque both ways: a backend author writes it and a statement's component
+   * may render it, and nothing between the two reads it. Present on every
+   * channel including SSE frames, unlike `queue` below, because it changes
+   * while the submission is being judged and that is exactly when somebody is
+   * watching.
+   */
+  runnerStatus: string | null;
 
   createdAt: string;
   judgedAt: string | null;
   /**
-   * Where the submission sits in its judge's queue. Only filled in by paths
-   * that poll the judges; SSE frames omit it, so clients keep the last known
+   * Where the submission sits in its backend's queue. Only filled in by paths
+   * that ask for it; SSE frames omit it, so clients keep the last known
    * position until the next poll or until the submission reaches a verdict.
    */
   queue?: QueuePosition | null;

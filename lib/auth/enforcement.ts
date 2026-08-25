@@ -547,6 +547,22 @@ export const WRITE_GATES = {
     grants: ["capability-only"],
     denied: "throws",
   },
+  /**
+   * The only way a finished submission changes after the fact, and the only
+   * state transition anybody drives by hand.
+   *
+   * `capability-only`, with no owner grant beside it, and that asymmetry is
+   * deliberate: reading a submission is yours because it is yours, but
+   * rejudging your own is asking for a second roll of the dice on a problem
+   * whose judging you did not like. The row's `handle` opens the statement, not
+   * the queue.
+   */
+  rejudgeSubmissionAction: {
+    what: "把一条已终结的提交放回评测队列",
+    capabilities: ["submission.rejudge"],
+    grants: ["capability-only"],
+    denied: "throws",
+  },
 } as const satisfies Record<string, Gate>;
 
 export type ReadGateKey = keyof typeof READ_GATES;
@@ -641,5 +657,18 @@ export const PAGE_CHECKS = {
     what: "开赛前的预览者，题目上方画不画「尚未对选手公开」的徽标",
     capabilities: ["problem.viewAll"],
     enforcedBy: ["lib/contests/access.ts#isContestProblemSetVisibleTo"],
+  },
+  /**
+   * Chrome, and it matters that it is only chrome: the page has already been
+   * opened by `submissionFor`, which lets an owner read their own row, and
+   * `submission.rejudge` is a strictly narrower question than that. Whether the
+   * button is worth drawing is all this decides — the action re-asks, and it is
+   * the one that refuses.
+   */
+  "app/(site)/submissions/[id]/page.tsx": {
+    kind: "chrome",
+    what: "详情页上画不画「重新评测」按钮",
+    capabilities: ["submission.rejudge"],
+    enforcedBy: ["rejudgeSubmissionAction"],
   },
 } as const satisfies Record<string, PageCheck>;

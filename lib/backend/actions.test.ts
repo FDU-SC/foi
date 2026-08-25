@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import { AS_PLAYER, viewerFor, type Viewer } from "@/lib/auth/viewer";
 import { allContests } from "@/lib/contests/registry";
 import { problemFor } from "@/lib/problems/access";
-import { allProblems } from "@/lib/problems/registry";
-import { DEFAULT_ACTION_RATE_LIMIT } from "@/lib/problems/types";
+import { allProblems, externallyJudged } from "@/lib/problems/registry";
+import {
+  DEFAULT_ACTION_RATE_LIMIT,
+  isInlineBackend,
+} from "@/lib/problems/types";
 import { actionFor } from "./actions";
 
 /**
@@ -17,7 +20,7 @@ const PREVIEW = viewerFor({ handle: "an-admin", groups: ["管理员"] });
 const PLAYER = viewerFor({ handle: "bob", groups: ["本科生", "2026级"] });
 
 /** Every (problem, action) pair the repository declares. */
-const declared = allProblems().flatMap((problem) =>
+const declared = externallyJudged().flatMap((problem) =>
   Object.keys(problem.backend.actions).map((action) => ({
     slug: problem.slug,
     action,
@@ -25,7 +28,7 @@ const declared = allProblems().flatMap((problem) =>
 );
 
 /** The subset still in service. A retired problem's actions are closed too. */
-const live = allProblems()
+const live = externallyJudged()
   .filter((problem) => !problem.retired)
   .flatMap((problem) =>
     Object.keys(problem.backend.actions).map((action) => ({
@@ -72,7 +75,7 @@ describe("actionFor 白名单", () => {
   });
 
   it("没有声明任何 action 的题目，什么都调不动", () => {
-    const inert = allProblems().filter(
+    const inert = externallyJudged().filter(
       (problem) => Object.keys(problem.backend.actions).length === 0,
     );
     for (const problem of inert) {
@@ -83,7 +86,7 @@ describe("actionFor 白名单", () => {
 
 describe("actionFor 配额", () => {
   it("声明了 rateLimit 就用声明的那个", () => {
-    const own = allProblems().flatMap((problem) =>
+    const own = externallyJudged().flatMap((problem) =>
       Object.entries(problem.backend.actions)
         .filter(([, spec]) => spec.rateLimit)
         .map(([action, spec]) => ({ slug: problem.slug, action, spec })),
@@ -96,7 +99,7 @@ describe("actionFor 配额", () => {
   });
 
   it("没声明就用内核默认值", () => {
-    const bare = allProblems()
+    const bare = externallyJudged()
       .filter((problem) => !problem.retired)
       .flatMap((problem) =>
         Object.entries(problem.backend.actions)
@@ -120,7 +123,7 @@ describe("actionFor 配额", () => {
  * file, which holds over every problem and moment regardless.
  */
 const embargoed = demo
-  ? allProblems()
+  ? externallyJudged()
       .filter((problem) =>
         demo.problems.some((entry) => entry.slug === problem.slug),
       )
@@ -173,7 +176,7 @@ describe("actionFor 门禁", () => {
 
     for (const viewer of viewers) {
       for (const now of moments) {
-        for (const problem of allProblems()) {
+        for (const problem of externallyJudged()) {
           for (const action of Object.keys(problem.backend.actions)) {
             const open = problemFor(problem.slug, viewer, now);
             expect(Boolean(actionFor(problem.slug, action, viewer, now))).toBe(
@@ -192,21 +195,44 @@ describe("actionFor 门禁", () => {
    * because it is the case where `gate.visible` and `open` disagree — if
    * `actionFor` ever drifts back to reading the former, only this fails.
    */
-  it("下架题目声明过的 action 也调不动，尽管题面还读得到", () => {
-    const retired = allProblems()
-      .filter((problem) => problem.retired)
-      .flatMap((problem) =>
-        Object.keys(problem.backend.actions).map((action) => ({
-          slug: problem.slug,
-          action,
-        })),
-      );
+  const retired = externallyJudged()
+    .filter((problem) => problem.retired)
+    .flatMap((problem) =>
+      Object.keys(problem.backend.actions).map((action) => ({
+        slug: problem.slug,
+        action,
+      })),
+    );
 
-    expect(retired.length).toBeGreaterThan(0);
-    for (const { slug, action } of retired) {
-      expect(problemFor(slug, PLAYER)?.gate.visible).toBe(true);
-      expect(actionFor(slug, action, PLAYER)).toBeUndefined();
-      expect(actionFor(slug, action, PREVIEW)).toBeUndefined();
+  // Skipped rather than asserted non-empty, for the same reason `embargoed`
+  // above is: nothing ships this shape today. `warmup-2025` used to — it was
+  // retired and still declared `inputs` — until it became an inline problem,
+  // and an inline problem has no actions to close. The invariant above still
+  // covers retirement, since it holds `actionFor` to `open` over every problem.
+  it.skipIf(retired.length === 0)(
+    "下架题目声明过的 action 也调不动，尽管题面还读得到",
+    () => {
+      for (const { slug, action } of retired) {
+        expect(problemFor(slug, PLAYER)?.gate.visible).toBe(true);
+        expect(actionFor(slug, action, PLAYER)).toBeUndefined();
+        expect(actionFor(slug, action, PREVIEW)).toBeUndefined();
+      }
+    },
+  );
+
+  /**
+   * An inline problem has no service behind it, so every name is undeclared —
+   * including the ones a problem on a backend would legitimately offer.
+   */
+  it("内联判题的题目调不动任何 action", () => {
+    const inline = allProblems().filter((p) => isInlineBackend(p.backend));
+    expect(inline.length).toBeGreaterThan(0);
+
+    for (const problem of inline) {
+      for (const action of ["spawn", "poll", "destroy", "inputs"]) {
+        expect(actionFor(problem.slug, action, PLAYER)).toBeUndefined();
+        expect(actionFor(problem.slug, action, PREVIEW)).toBeUndefined();
+      }
     }
   });
 });

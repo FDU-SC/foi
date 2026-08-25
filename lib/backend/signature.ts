@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 export const TIMESTAMP_HEADER = "x-foi-timestamp";
 export const SIGNATURE_HEADER = "x-foi-signature";
 
-/** Replay window for both outbound requests and inbound callbacks. */
+/** Replay window for both outbound actions and inbound runner requests. */
 export const MAX_CLOCK_SKEW_SECONDS = 300;
 
 /**
@@ -19,11 +19,12 @@ export const MAX_CLOCK_SKEW_SECONDS = 300;
  * `scripts/mock-backend.ts` does, and therefore what a backend author is
  * likely to copy — would then run `destroy` for a request signed as `poll`.
  *
- * Worse, the two GET endpoints carry no body at all, so `<timestamp>.` was
- * their entire signing input: every empty-bodied request sharing a second
- * shared one signature. A pair of headers captured from the queue poll — which
- * runs up to once a second — was a valid credential for any path on that
- * backend, `GET /status/<any judgeRef>` included.
+ * Worse, a GET carries no body at all, so `<timestamp>.` was its entire
+ * signing input: every empty-bodied request sharing a second shared one
+ * signature. One captured pair of headers was a valid credential for every
+ * other path — which is what makes this load-bearing in the direction traffic
+ * runs now, where the empty-bodied GET is a runner asking for a job's contents
+ * and the path is the only thing naming *which* job.
  *
  * So the path and the method are signed now, and the whitelist in
  * `lib/backend/actions.ts` is no longer the only thing standing between a path

@@ -5,10 +5,12 @@ import { db } from "@/lib/db";
 import { contests, problems, submissions } from "@/lib/db/schema";
 import { enumeratedHandles, groupsFor } from "@/lib/enrollment/registry";
 import {
+  backendsMissingActionUrl,
   backendsOnLoopback,
   backendsSharingSecret,
   orphanedBackends,
 } from "@/lib/backend/access";
+import { reaperHealth, recentDisruptions } from "@/lib/runner/reaper";
 import { mailIsConfigured } from "@/lib/mail/transport";
 import { allProblems } from "@/lib/problems/registry";
 
@@ -27,6 +29,15 @@ import { allProblems } from "@/lib/problems/registry";
  * its intake shows up as people quietly belonging to nothing.
  */
 export type DriftSeverity = "info" | "warn";
+
+/**
+ * How far back the disrupted count below looks.
+ *
+ * An hour, because the finding is about a rate rather than a total: it should
+ * appear while a bad runner is still bad and disappear once it has been fixed,
+ * without an operator having to remember what the number was yesterday.
+ */
+const DISRUPTION_WINDOW_MS = 60 * 60 * 1000;
 
 export interface DriftFinding {
   severity: DriftSeverity;
@@ -170,8 +181,23 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       severity: "warn",
       title: "有多台题目后端共用同一个签名密钥",
       detail:
-        "它们都回落到了共享的 FOI_BACKEND_SECRET，因此任何一台被攻破，它的签名对其余几台同样有效——包括代替它们回报评测结果。为每台服务设置各自的 FOI_BACKEND_<名字>_SECRET 并同步到后端本身；指向同一地址的多个条目是同一个服务，填相同的值即可。",
+        "拉模型下这把密钥是评测机进来的凭证：拿到它就能领走该后端队列里的任意提交、读到里面所有人的代码、写任意评测结果。几台共用一把，等于其中任何一台被攻破，另外几台的队列也一起丢。为每台服务设置各自的 FOI_BACKEND_<名字>_SECRET 并同步到后端本身；确实由同一套评测机服务的多个条目，填相同的值即可。生产环境会因为这一条直接拒绝启动，所以看到它说明这是开发或测试环境。",
       items: sharingSecret,
+    });
+  }
+
+  // Not fatal here for the same reason the loopback finding is not: outside
+  // production a missing address falls back to the local mock, which is what a
+  // checkout looks like. In production `assertBackendActionUrls` has already
+  // refused the boot, so this can only appear where it is survivable.
+  const missingActionUrl = backendsMissingActionUrl();
+  if (missingActionUrl.length > 0) {
+    findings.push({
+      severity: "warn",
+      title: "有题目声明了交互动作，但后端没有地址",
+      detail:
+        "评测本身不需要后端地址——评测机自己来平台领活。但 spawn / poll / destroy 这类动作是平台同步发起的，拉不了，所以承载它们的后端仍然必须可达。缺地址时这些动作会直接失败，选手看到的是一个点不动的按钮。",
+      items: missingActionUrl,
     });
   }
 
@@ -192,8 +218,46 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       severity: "warn",
       title: "有题目后端的地址指向本机",
       detail:
-        "容器里的 localhost 就是这个应用自己，那里没有题目后端在听。投递会全部失败，提交一直等到十分钟后被判为超时，而且没有任何地方会说明原因——多半是 .env.example 的开发用地址被抄进了部署。改成后端真正的地址（宿主机上的用 host.docker.internal，同网络的容器用容器名）；后端确实与应用共处一台机器时，可以忽略这一条。",
+        "容器里的 localhost 就是这个应用自己，那里没有题目后端在听。这个地址只用于 spawn / poll / destroy 这类交互动作，所以受影响的是那几道题的按钮，而不是评测——多半是 .env.example 的开发用地址被抄进了部署。改成后端真正的地址（宿主机上的用 host.docker.internal，同网络的容器用容器名）；后端确实与应用共处一台机器时，可以忽略这一条。",
       items: loopback,
+    });
+  }
+
+  // The one failure with no other outward sign. If the reaper stops, a runner
+  // that dies takes its jobs with it — they sit in `judging` for good — while
+  // pages render, submissions are accepted, and the database is reachable, so
+  // every other check stays green.
+  //
+  // This answers for *this* process, which is the right scope while the loop
+  // runs inside it; see `reaperRanAt`.
+  const reaper = reaperHealth();
+  if (!reaper.ok) {
+    findings.push({
+      severity: "warn",
+      title: "回收循环似乎已经停摆",
+      detail:
+        "reaper 负责把失联评测机手上的提交收回来重新排队，也负责判定 attempts 用尽与排队超时。它停下之后，评测机一崩，它当时领走的提交就永远停在评测中——而页面、提交、数据库都照常，所以别的检查全是绿的。先看应用日志里有没有「回收失败」，再确认进程没有卡在某个没有超时的调用上。",
+      items: [
+        reaper.ranAt
+          ? `最后一次回收：${reaper.ranAt.toISOString()}`
+          : "本进程还没有跑过一轮",
+      ],
+    });
+  }
+
+  // The cheapest stand-in for the internal-error console this deliberately does
+  // not have. One disrupted submission is visible on its own row and an
+  // administrator can rejudge it; what nothing else would show is a runner
+  // failing everything it touches, which looks exactly like a quiet afternoon
+  // until somebody complains.
+  const disrupted = await recentDisruptions(DISRUPTION_WINDOW_MS);
+  if (disrupted > 0) {
+    findings.push({
+      severity: "warn",
+      title: "最近有提交因为评测中断而没有结果",
+      detail:
+        "disrupted 表示这次评测没有产出结论，且不算在选手头上——可能是评测机自己报了 failed，也可能是它失联后被判定不会再回来。零星几条正常，成片出现说明某台评测机在持续失败。逐条打开看 error 里的原因，修好之后可以重判。",
+      items: [`最近一小时 ${disrupted} 条`],
     });
   }
 

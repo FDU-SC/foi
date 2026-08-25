@@ -12,6 +12,8 @@ import { locateOne } from "@/lib/backend/queue-lookup";
 import { failureReason, isSettled } from "@/lib/backend/types";
 import { problemBySlug } from "@/lib/problems/registry";
 import { submissionFor } from "@/lib/submissions/access";
+import { isRejudgeable } from "@/lib/submissions/rejudge";
+import { RejudgeForm } from "./rejudge-form";
 
 export const metadata: Metadata = { title: "提交详情" };
 export const dynamic = "force-dynamic";
@@ -43,9 +45,11 @@ export default async function SubmissionPage({
   const { id } = await params;
   if (!user) redirect(`/login?next=/submissions/${id}`);
 
+  const viewer = viewerFor(user);
+
   // Undefined covers both "no such submission" and "not yours": no reason to
   // confirm an id exists to somebody who cannot read it.
-  const row = await submissionFor(id, viewerFor(user));
+  const row = await submissionFor(id, viewer);
   if (!row) notFound();
 
   // Raw on purpose: this row is proof the viewer already interacted with the
@@ -83,16 +87,34 @@ export default async function SubmissionPage({
 
       {/*
         Through `failureReason` rather than straight off `row.error`, which is
-        the same judgement `toView` makes for the list and the submit panel.
-        The column is also written on a dispatch whose outcome was *unknown* —
-        the row stays `pending` because the judge may have queued it anyway —
-        and printing that here put "无法连接题目后端，结果未知" in red beside a
-        spinner, announcing a failure that had not happened. Now it appears
-        once the row really is `failed` or `abandoned`.
+        the same judgement `toView` makes for the list and the submit panel. The
+        column also carries text on rows that are still in flight — a runner's
+        last words before the reaper took the job off it — and printing that
+        here would announce a failure beside a spinner. It appears once the row
+        really is `disrupted`.
+
+        Amber rather than red, matching the badge: nothing here is the
+        submitter's doing, and the colour that says "you got this wrong" is
+        reserved for verdicts that mean it.
       */}
       {reason ? (
-        <p className="text-err bg-err-subtle rounded-md px-3 py-2 text-sm">
+        <p className="text-warn bg-warn-subtle rounded-md px-3 py-2 text-sm">
           {reason}
+        </p>
+      ) : null}
+
+      {viewer.can("submission.rejudge") && isRejudgeable(row) ? (
+        <RejudgeForm id={row.id} />
+      ) : null}
+
+      {/*
+        The holder's own words, while it is still holding. Rendered verbatim and
+        interpreted not at all — "拉取镜像" and "测试点 3/10" are equally valid
+        and the kernel knows what neither means.
+      */}
+      {row.runnerStatus && !isSettled(row.state) ? (
+        <p className="text-fg-muted bg-surface-2 rounded-md px-3 py-2 font-mono text-xs">
+          {row.runnerStatus}
         </p>
       ) : null}
 

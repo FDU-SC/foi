@@ -33,11 +33,22 @@ collect(root);
 // Strings that only exist inside a problem's `backend.config` or an enrolment
 // rule, so a match means the module itself was bundled rather than the public
 // projection `toPublicConfig` produces.
+//
+// Inline judging widened what a leak would cost. A problem judged in the
+// kernel keeps its answers in `backend.config` exactly as a dispatched one
+// does — `toPublicConfig` strips the whole key either way — but it now also
+// ships the comparison itself. So there are markers for both halves: the
+// config shape, and strings that exist only inside the judge implementations
+// under `content/problems/_shared/judge/`. A placeholder or a tag would be the
+// wrong marker for this — those are public by design.
 const forbidden = [
   { label: "题目后端配置", value: "backend:{id:" },
+  { label: "内联判题配置", value: 'backend:{kind:"inline"' },
   { label: "题目配置模块", value: 's.s(["problem",0,{slug:' },
   { label: "测试数据路径", value: "maze-runner/v1" },
   { label: "靶机镜像名", value: "foi/chal-leaky-bucket:latest" },
+  { label: "内联判题实现", value: "题目配置缺少 cases" },
+  { label: "内联判题实现", value: "无法生成今日轮盘" },
   { label: "报名规则", value: "reservedHandles" },
 ];
 

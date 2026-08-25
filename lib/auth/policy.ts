@@ -53,6 +53,17 @@ export const CAPABILITIES = [
   /** Read submissions belonging to other people. */
   "submission.readAny",
 
+  /**
+   * Put a finished submission back in the queue.
+   *
+   * Separate from `submission.readAny` because reading somebody's work and
+   * changing what it scored are not the same trust. A rejudge overwrites a
+   * verdict with no copy of the old one kept — see `lib/submissions/rejudge.ts`
+   * on why there is no history table — so it belongs with the capabilities that
+   * change things rather than the ones that reveal them.
+   */
+  "submission.rejudge",
+
   /** See problem backend addresses and unredacted queue entries. */
   "backend.inspect",
 
@@ -111,6 +122,7 @@ export const CAPABILITY_LABELS: Record<Capability, string> = {
   "contest.viewAll": "查看全部比赛",
   "standings.viewFrozen": "封榜期间查看真实排名",
   "submission.readAny": "查看他人提交",
+  "submission.rejudge": "重判提交",
   "backend.inspect": "查看题目后端细节",
   "account.read": "查看账号目录与邮箱",
   "credential.manage": "代发找回密码邮件",

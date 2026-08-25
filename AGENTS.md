@@ -27,5 +27,6 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - **必须用 Turbopack**（`next dev` 在 Next 16 默认即是），不要切回 webpack：题目注册表依赖 `import.meta.glob`。
 - **数据库迁移会在 dev server 启动时由 `instrumentation.ts` 自动应用**，也可手动 `pnpm db:migrate`。
 - **种子账号**：`admin` / `alice` / `bob` / `carol`，统一密码 `foi-dev-2026`（可用 `FOI_SEED_PASSWORD` 覆盖）。
-- **mock 题目后端返回随机评测结果**，用于验证「提交→投递→回调」闭环。`backends.config.ts` 里六个后端在**没有配** `FOI_BACKEND_<NAME>_URL` 时都回落到 `:4100`，所以本环境不配也能跑通闭环。注意这条回落**只在非生产环境成立**：生产缺任何一个后端 URL 会 `assertEnv` 拒绝启动。`.env.local` 目前只给了 `traditional` 与 `flag-checker`（用的还是改名前的 `FOI_JUDGE_*`，仍然认），其余四个走的就是这条回落。
+- **mock 题目后端返回随机评测结果**，用于验证「提交→投递→回调」闭环。`backends.config.ts` 里四个后端在**没有配** `FOI_BACKEND_<NAME>_URL` 时都回落到 `:4100`，所以本环境不配也能跑通闭环。注意这条回落**只在非生产环境成立**：生产缺任何一个后端 URL 会 `assertEnv` 拒绝启动。`.env.local` 里给的 `FOI_JUDGE_FLAG_CHECKER_URL` 之类已经不再被读取——`flag-checker`、`output-only`、`roulette` 都退役成了内联判题，见 README「判在哪里」。
+- **有五道题不经过任何后端**（`answer-only`、`game-of-life`、`warmup-2025`、`life-oscillator`、`roulette-daily`）。它们在提交那一次请求里同步判完，所以不启 mock 也能验证这几道题的完整闭环。`roulette-daily` 的结果由 `HMAC(AUTH_SECRET, handle|日期)` 派生，换一把 `AUTH_SECRET` 就换一套结果。
 - Postgres 用户密码认证：连接串已用 `foi_dev_password`，通过 TCP `localhost:5433` 连接。

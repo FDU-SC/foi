@@ -3,7 +3,12 @@ import {
   problemConfigModules,
   problemStatementModules,
 } from "@/content/problem-modules";
-import { problemConfigSchema, type ProblemConfig } from "./types";
+import {
+  isInlineBackend,
+  problemConfigSchema,
+  type ExternallyJudged,
+  type ProblemConfig,
+} from "./types";
 
 /**
  * Problems are discovered from the filesystem at build time. Adding a problem
@@ -79,6 +84,21 @@ const statementLoaders = new Map<string, () => Promise<unknown>>(
 export function allProblems(): ProblemConfig[] {
   return [...registry.values()].sort(
     (a, b) => a.order - b.order || a.title.localeCompare(b.title, "zh"),
+  );
+}
+
+/**
+ * The problems that route to a backend, with the union already narrowed.
+ *
+ * Everything that reasons about backends — the reverse index, the orphan
+ * report, the queue board's audience — wants this set rather than
+ * `allProblems()`, because an inline problem has no `backend.id` to key on and
+ * must not make a real backend look busy. Answered here so that skipping them
+ * is one decision instead of a `continue` each caller has to remember.
+ */
+export function externallyJudged(): ExternallyJudged[] {
+  return allProblems().filter(
+    (problem): problem is ExternallyJudged => !isInlineBackend(problem.backend),
   );
 }
 

@@ -133,11 +133,10 @@ export function useSubmit() {
           }),
         });
 
-        // The same distinction `DispatchError` draws one layer down. Under 500
-        // the kernel answered for itself — accepted, or refused before writing
-        // anything — so the nonce has done its job and the next attempt is a
-        // new submission. A 5xx says nothing about whether a row exists, which
-        // is precisely the case worth holding it for.
+        // Under 500 the kernel answered for itself — accepted, or refused
+        // before writing anything — so the nonce has done its job and the next
+        // attempt is a new submission. A 5xx says nothing about whether a row
+        // exists, which is precisely the case worth holding it for.
         if (res.status < 500) nonceRef.current = null;
 
         if (!res.ok) {

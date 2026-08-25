@@ -210,9 +210,9 @@ describe("限流入口表", () => {
    * `read-only` on a POST is one careless copy-paste, and it silently removes
    * the cross-origin check from a route that writes.
    *
-   * A state-changing route may still be exempt — `PUT /api/judge/callback` is —
-   * but it has to claim `signed`, which is a different sentence and one nobody
-   * writes by accident.
+   * A state-changing route may still be exempt — `PUT /api/runner/jobs/[id]`
+   * is — but it has to claim `signed`, which is a different sentence and one
+   * nobody writes by accident.
    */
   it("会改状态的方法不能声明成 read-only", () => {
     const mislabelled = Object.entries(ROUTE_LIMITS)
@@ -227,8 +227,8 @@ describe("限流入口表", () => {
   });
 
   /**
-   * The gate is the only bound `/api/judge/callback` has, so it being loose
-   * enough to be useless would be a quiet regression.
+   * The gate is the only bound the runner routes have, so it being loose enough
+   * to be useless would be a quiet regression.
    */
   it("来源闸的数值仍然是个闸", () => {
     expect(SOURCE_GATE.max).toBeGreaterThan(0);

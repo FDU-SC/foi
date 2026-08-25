@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import type { BackendUser } from "@/lib/backend/types";
+import type { BackendUser, Verdict } from "@/lib/backend/types";
+import {
+  isInlineUnavailable,
+  type InlineJudge,
+  type InlineJudgement,
+} from "@/lib/problems/types";
 import { judgeLifeOscillator } from "./life-oscillator";
 import { judgeOutputOnly } from "./output-only";
 import { judgeRoulette } from "./roulette";
@@ -13,13 +18,35 @@ import { judgeRoulette } from "./roulette";
  */
 const USER: BackendUser = { handle: "alice", groups: [] };
 
-function judge(
-  fn: typeof judgeOutputOnly,
+/** Whatever the judge said, verdict or refusal. */
+function attempt(
+  fn: InlineJudge,
   config: unknown,
   payload: unknown,
   user: BackendUser = USER,
-) {
+): InlineJudgement {
   return fn({ payload, config, user, contestSlug: null });
+}
+
+/**
+ * The same call, insisting a verdict came back.
+ *
+ * Every assertion below except the two about unavailability is about what a
+ * judgement *says*, and reading `.score` off a union whose other half is "I
+ * cannot judge this" would either not compile or quietly compare `undefined`.
+ * Failing here names which judge declined and why.
+ */
+function judge(
+  fn: InlineJudge,
+  config: unknown,
+  payload: unknown,
+  user: BackendUser = USER,
+): Verdict {
+  const judgement = attempt(fn, config, payload, user);
+  if (isInlineUnavailable(judgement)) {
+    throw new Error(`判题拒绝给出结果：${judgement.reason}`);
+  }
+  return judgement;
 }
 
 describe("judgeOutputOnly", () => {
@@ -54,10 +81,16 @@ describe("judgeOutputOnly", () => {
 
   /**
    * A setter's mistake, not a competitor's — so it must not read as a wrong
-   * answer, and must not cost anybody a score.
+   * answer, and must not cost anybody a score. The second half of that only
+   * became true when this stopped being a `system_error` verdict: any verdict
+   * settles the row as `completed`, which is on the board and, under ACM
+   * rules, a penalised attempt.
    */
-  it("配置缺 cases 时报 system_error", () => {
-    expect(judge(judgeOutputOnly, {}, { text: "8" }).status).toBe("system_error");
+  it("配置缺 cases 时说自己判不了，而不是给一个判决", () => {
+    const judgement = attempt(judgeOutputOnly, {}, { text: "8" });
+
+    expect(isInlineUnavailable(judgement)).toBe(true);
+    expect(judgement).not.toHaveProperty("score");
   });
 });
 
@@ -109,11 +142,12 @@ describe("judgeRoulette", () => {
     return (verdict.detail as { number: number }).number;
   }
 
-  it("没有 AUTH_SECRET 时报 system_error，而不是掷出一个可推算的数", () => {
+  it("没有 AUTH_SECRET 时说自己判不了，而不是掷出一个可推算的数", () => {
     vi.stubEnv("AUTH_SECRET", "");
-    expect(judge(judgeRoulette, config, { text: "red" }).status).toBe(
-      "system_error",
-    );
+    const judgement = attempt(judgeRoulette, config, { text: "red" });
+
+    expect(isInlineUnavailable(judgement)).toBe(true);
+    expect(judgement).not.toHaveProperty("score");
     vi.unstubAllEnvs();
   });
 

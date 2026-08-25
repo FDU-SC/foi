@@ -89,6 +89,13 @@ export async function rejudgeSubmissionAction(
     };
   }
 
+  if (result.skippedNotDispatched > 0) {
+    return {
+      error:
+        "题库里这道题已经不再交给评测机了——改成了内核内联判题，或是整道题已经不在题库中。放回队列只会让评测机白领三次再中断一次，请让选手重新提交。",
+    };
+  }
+
   if (result.keptAccepted > 0) {
     return {
       error:

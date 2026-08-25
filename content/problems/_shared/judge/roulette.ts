@@ -51,14 +51,12 @@ export const judgeRoulette: InlineJudge = ({ payload, config, user }) => {
   // `assertEnv` holds this at boot, so reaching the guard means something is
   // very wrong — but a missing key would otherwise silently make every spin
   // derivable, which is the failure this whole function exists to avoid.
+  // Declining outright rather than returning a zero: a deployment missing its
+  // signing key is not something to charge the person who happened to check in
+  // that morning.
   const secret = process.env.AUTH_SECRET;
   if (!secret) {
-    return {
-      status: "system_error",
-      score: 0,
-      maxScore: scoreNumber,
-      detail: { message: "缺少 AUTH_SECRET，无法生成今日轮盘" },
-    };
+    return { unavailable: true, reason: "缺少 AUTH_SECRET，无法生成今日轮盘" };
   }
 
   // Domain-separated rather than hashing the bare inputs: `AUTH_SECRET` signs

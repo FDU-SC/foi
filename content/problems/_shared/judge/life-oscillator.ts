@@ -108,15 +108,24 @@ function lifeParse(text: string): LifeGrid | null {
  * applies to the submitted grid itself, and it applies first.
  */
 export const judgeLifeOscillator: InlineJudge = ({ payload, config }) => {
+  // Positive, not merely present. A `k` of zero or less makes the generation
+  // loop below run no iterations at all, so the scene fell through to the
+  // award without simulating anything: one mistyped digit in the configuration
+  // and every submission passed that scene, including an empty grid. A
+  // non-positive `maxDim` is the mirror image — the size check rejects every
+  // grid — and is just as much not a scene worth judging.
   const cases = (
     (config as LifeOscillatorConfig | undefined)?.cases ?? []
-  ).filter((testCase) => testCase.k !== undefined && testCase.maxDim !== undefined);
+  ).filter((testCase) => testCase.k > 0 && testCase.maxDim > 0);
 
   // Nothing to check against is not the same as failing the check, and the
   // argument for saying so rather than returning a verdict is on
   // `InlineUnavailable`.
   if (cases.length === 0) {
-    return { unavailable: true, reason: "题目配置缺少 cases，无法判题" };
+    return {
+      unavailable: true,
+      reason: "题目配置没有可用的 cases（k 与 maxDim 必须为正），无法判题",
+    };
   }
 
   const text = String((payload as { text?: unknown })?.text ?? "");

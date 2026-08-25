@@ -185,6 +185,41 @@ describe("judgeLifeOscillator", () => {
     const verdict = judge(judgeLifeOscillator, config, { text: "XYZ" });
     expect(verdict.score).toBe(0);
   });
+
+  /**
+   * `for (let t = 1; t <= k; t++)` runs zero times when k is not positive, so
+   * the scene used to reach the award without simulating anything: a single
+   * mistyped digit in the configuration handed that scene's marks to every
+   * submission, an empty grid included. A non-positive `maxDim` is the same
+   * kind of mistake from the other side.
+   */
+  it.each([
+    { name: "k", cases: [{ maxDim: 16, k: 0 }] },
+    { name: "k 为负", cases: [{ maxDim: 16, k: -1 }] },
+    { name: "maxDim", cases: [{ maxDim: 0, k: 2 }] },
+  ])("$name 非正的场景不给任何提交送分", ({ cases }) => {
+    const judgement = attempt(judgeLifeOscillator, { cases }, { text: "O" });
+
+    expect(isInlineUnavailable(judgement)).toBe(true);
+    expect(judgement).not.toHaveProperty("score");
+  });
+
+  /** Dropped rather than failed: a bad scene must not sit in the denominator. */
+  it("非法场景被丢掉，剩下的场景仍按自己的个数分满分", () => {
+    const verdict = judge(
+      judgeLifeOscillator,
+      {
+        cases: [
+          { maxDim: 16, k: 2 },
+          { maxDim: 16, k: 0 },
+        ],
+      },
+      { text: BLINKER },
+    );
+
+    expect(verdict.status).toBe("accepted");
+    expect(verdict.score).toBe(100);
+  });
 });
 
 describe("judgeRoulette", () => {

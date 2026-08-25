@@ -104,18 +104,22 @@ async function loadAndCompute(
   };
 
   // Deliberately not `contestPhase(contest) === "frozen"`, close as the two
-  // look. That one is a clock fact about the round and its window runs to
-  // `endsAt` inclusive, the same as `running`; this one exists only to label a
-  // board, and the board it is labelling was computed by a ruleset applying
-  // its own `freezeAt`/`endsAt` comparison. The label has to agree with what
-  // the format actually did, so it is written the way the format writes it —
-  // see the note on `ContestPhase` for why the two questions stay apart.
+  // look. That one is a clock fact about the round; this one exists only to
+  // label a board, and the board it is labelling was computed by a ruleset
+  // applying its own `freezeAt`/`endsAt` comparison. The label has to agree
+  // with what the format actually did, so it is written the way the format
+  // writes it — see the note on `ContestPhase` for why the two questions stay
+  // apart.
+  //
+  // Which is why the right edge is inclusive: `acm.tsx` says `<=`, so this
+  // says `<=`. The pair moves together or the label stops describing the board
+  // it is attached to.
   const now = Date.now();
   const wouldFreeze =
     contest.freezeAt !== undefined &&
     contest.freezeAt !== null &&
     now >= contest.freezeAt.getTime() &&
-    now < contest.endsAt.getTime();
+    now <= contest.endsAt.getTime();
 
   return {
     contest,

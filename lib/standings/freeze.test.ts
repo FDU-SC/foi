@@ -2,8 +2,17 @@ import { describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/lib/auth/test-support";
 import { viewerFor } from "@/lib/auth/viewer";
 import { capabilitiesOf, listGroups } from "@/lib/auth/groups";
+import { contestPhase } from "@/lib/contests/types";
 import { ruleset as acmRuleset } from "@/content/rulesets/acm";
-import { at, END, input, participants, problem, solve } from "./test-support";
+import {
+  at,
+  END,
+  input,
+  participants,
+  problem,
+  solve,
+  START,
+} from "./test-support";
 
 /**
  * Reading through a freeze is expressed by handing the ruleset a contest with
@@ -58,6 +67,36 @@ describe("封榜的开关就是 freezeAt", () => {
       .toEqual(
         afterEnd.rows.map((r) => [r.participant.handle, r.total, r.tiebreak]),
       );
+  });
+});
+
+describe("封榜窗口与比赛相位说的是同一个窗口", () => {
+  const freezeAt = at(240);
+  const clock = { startsAt: START, endsAt: END, freezeAt };
+
+  /**
+   * One window, written twice. `contestPhase` is the kernel's copy and
+   * documents `[freezeAt, endsAt]` as closed at both ends — `endsAt` belongs
+   * to the phase before `ended` so that a contest never walks backwards. The
+   * ACM ruleset writes the comparison out again, because a format in
+   * `content/` computes its own and inherits none of the exhaustive switch
+   * that keeps the kernel's phase callers honest.
+   *
+   * They disagreed at exactly one instant, the millisecond a round ended: the
+   * badge said frozen and the board under it was not. Nothing leaked — the
+   * next millisecond unfreezes the board anyway — but the only thing keeping
+   * the two copies together is a case that reads them side by side.
+   */
+  it.each([
+    { label: "封榜前一刻", now: new Date(freezeAt.getTime() - 1) },
+    { label: "封榜当刻", now: freezeAt },
+    { label: "封榜期间", now: at(250) },
+    { label: "结束当刻", now: END },
+    { label: "结束之后", now: new Date(END.getTime() + 1) },
+  ])("$label", ({ now }) => {
+    expect(board(freezeAt, now).frozen).toBe(
+      contestPhase(clock, now) === "frozen",
+    );
   });
 });
 

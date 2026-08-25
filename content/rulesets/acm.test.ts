@@ -245,6 +245,18 @@ describe("acm 封榜", () => {
     expect(cell(standings, "alice", "b")?.pending).toBe(1);
   });
 
+  /**
+   * `contestPhase` calls the freeze window `[freezeAt, endsAt]` and reports
+   * `frozen` at `endsAt` itself, for the same reason it reports `running`
+   * there when no freeze is declared: the sequence a contest walks must never
+   * go backwards. This format writes that comparison out again — nothing in
+   * `content/` inherits the exhaustive switch that keeps the kernel's phase
+   * callers honest — so the right edge being closed is this suite's to hold.
+   */
+  it("结束当刻仍算封榜，和 contestPhase 的闭区间对齐", () => {
+    expect(compute(frozenContest, END).frozen).toBe(true);
+  });
+
   it("比赛结束后解冻，封榜期的提交被重新计入", () => {
     const standings = compute(frozenContest, new Date(END.getTime() + 1));
 
@@ -253,7 +265,7 @@ describe("acm 封榜", () => {
     expect(cell(standings, "alice", "b")?.solvedAt).toBe(250);
   });
 
-  it("freezeAt 等于 endsAt 时永远不会封榜", () => {
+  it("freezeAt 等于 endsAt 时，结束之前都不封榜", () => {
     const standings = compute(
       { ...frozenContest, freezeAt: END },
       new Date(END.getTime() - 1),

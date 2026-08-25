@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { backends, type ProblemBackend } from "@/backends.config";
 import { AS_PLAYER } from "@/lib/auth/test-support";
 import { viewerFor, type Viewer } from "@/lib/auth/viewer";
@@ -7,7 +7,10 @@ import { problemFor } from "@/lib/problems/access";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
 import { isInlineBackend } from "@/lib/problems/types";
 import {
+  assertBackendActionUrls,
+  assertBackendSecrets,
   backendSecretWarnings,
+  backendsMissingActionUrl,
   backendsOnLoopback,
   backendsSharingSecret,
   canSeeBackend,
@@ -157,6 +160,7 @@ describe("共用签名密钥的题目后端", () => {
   afterEach(() => {
     for (const [id, entry] of saved) backends[id] = entry;
     saved.clear();
+    vi.unstubAllEnvs();
   });
 
   it("各自有密钥时什么都不报", () => {
@@ -211,6 +215,51 @@ describe("共用签名密钥的题目后端", () => {
     for (const id of orphanedBackends()) {
       expect(reported).not.toContain(id);
     }
+  });
+
+  /**
+   * The arrangement the message asks for, and the one it must not nag about:
+   * two entries really served by one runner say so by naming the same value
+   * twice. Nobody is borrowing, so nobody is surprised.
+   */
+  it("都写明了同一个值时不报——那是部署在说这几台确实是一台", () => {
+    if (inUse.length < 2) return;
+    vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
+    for (const id of inUse) patch(id, { secret: "one-runner-for-both" });
+
+    expect(backendsSharingSecret()).toEqual([]);
+  });
+
+  /**
+   * The gap between "has a key of its own" and "signs with its own value".
+   * Filling in `FOI_BACKEND_<NAME>_SECRET` by copying `FOI_BACKEND_SECRET` is
+   * the plausible way to arrive here, and the check used to read it as one
+   * backend on the shared key — which is not sharing, so it said nothing. Two
+   * backends are still signing with one value.
+   */
+  it("专属密钥的值恰好等于共享密钥时，照样算共用", () => {
+    if (inUse.length < 2) return;
+    vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
+    scatter();
+    patch(inUse[0], { secret: "shared-key" });
+    for (const id of inUse.slice(2)) patch(id, { secret: `secret-for-${id}` });
+
+    expect(backendsSharingSecret().sort()).toEqual([inUse[0], inUse[1]].sort());
+  });
+
+  /**
+   * Legacy `FOI_JUDGE_SECRET` is the same fallback under an older name, so a
+   * value copied out of it collides just as thoroughly.
+   */
+  it("回落到旧名 FOI_JUDGE_SECRET 时也一样比得出来", () => {
+    if (inUse.length < 2) return;
+    vi.stubEnv("FOI_BACKEND_SECRET", undefined);
+    vi.stubEnv("FOI_JUDGE_SECRET", "legacy-key");
+    scatter();
+    patch(inUse[0], { secret: "legacy-key" });
+    for (const id of inUse.slice(2)) patch(id, { secret: `secret-for-${id}` });
+
+    expect(backendsSharingSecret().sort()).toEqual([inUse[0], inUse[1]].sort());
   });
 });
 
@@ -302,6 +351,131 @@ describe("指向本机的题目后端", () => {
 
     expect(() => backendsOnLoopback()).not.toThrow();
     expect(backendsOnLoopback()).toEqual([]);
+  });
+});
+
+/**
+ * The two gates README argues must refuse a boot rather than warn, and which
+ * nothing was holding to it. Both read `NODE_ENV` themselves and both are
+ * silent outside production, so a test suite that never says `production`
+ * exercises only the branch that returns immediately — the whole of what makes
+ * them boot checks was uncovered.
+ *
+ * What is being pinned is the refusal, not the wording: a warning here is a
+ * deployment that comes up and hands one runner every queue's source, or one
+ * that comes up and answers a player's "启动实例" with a 500.
+ */
+describe("生产环境拒绝启动", () => {
+  const inUse = Object.keys(backends).filter(
+    (id) => problemsServedBy(id).length > 0,
+  );
+
+  /** The backends an address is actually required for; see the assert. */
+  const withActions = [
+    ...new Set(
+      externallyJudged()
+        .filter((problem) => Object.keys(problem.backend.actions).length > 0)
+        .map((problem) => problem.backend.id),
+    ),
+  ];
+
+  const saved = new Map<string, ProblemBackend>();
+
+  function patch(id: string, changes: Partial<ProblemBackend>): void {
+    if (!saved.has(id)) saved.set(id, backends[id]);
+    backends[id] = { ...backends[id], ...changes };
+  }
+
+  afterEach(() => {
+    for (const [id, entry] of saved) backends[id] = entry;
+    saved.clear();
+    vi.unstubAllEnvs();
+  });
+
+  describe("assertBackendSecrets", () => {
+    it("生产环境下几台共用一把密钥就抛，并点名是哪几台", () => {
+      if (inUse.length < 2) return;
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
+      for (const id of inUse) patch(id, { secret: undefined });
+
+      expect(() => assertBackendSecrets()).toThrow(/拒绝启动/);
+      for (const id of inUse) {
+        expect(() => assertBackendSecrets()).toThrow(new RegExp(id));
+      }
+    });
+
+    it("各自有密钥时生产环境也照常启动", () => {
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
+      for (const id of inUse) patch(id, { secret: `secret-for-${id}` });
+
+      expect(() => assertBackendSecrets()).not.toThrow();
+    });
+
+    /**
+     * A checkout has every backend on the mock's key, which is simply what
+     * `pnpm dev` looks like — the warning list is where that gets said.
+     */
+    it("非生产环境只告警不拦，哪怕全都在共用", () => {
+      if (inUse.length < 2) return;
+      vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
+      for (const id of inUse) patch(id, { secret: undefined });
+
+      expect(() => assertBackendSecrets()).not.toThrow();
+      expect(backendSecretWarnings()).toHaveLength(1);
+    });
+  });
+
+  describe("assertBackendActionUrls", () => {
+    it("有题目声明了动作、后端却没有地址时，生产环境拒绝启动", () => {
+      if (withActions.length === 0) return;
+      vi.stubEnv("NODE_ENV", "production");
+      for (const id of withActions) patch(id, { url: undefined });
+
+      expect(() => assertBackendActionUrls()).toThrow(/拒绝启动/);
+      // Names the variable to set, which is the only part of the message that
+      // tells an operator what to do next.
+      for (const variable of backendsMissingActionUrl()) {
+        expect(() => assertBackendActionUrls()).toThrow(new RegExp(variable));
+      }
+    });
+
+    it("地址都填了就照常启动", () => {
+      vi.stubEnv("NODE_ENV", "production");
+      for (const id of Object.keys(backends)) {
+        patch(id, { url: "http://backend.internal:4100" });
+      }
+
+      expect(backendsMissingActionUrl()).toEqual([]);
+      expect(() => assertBackendActionUrls()).not.toThrow();
+    });
+
+    it("非生产环境缺地址不拦——本机跑不起 mock 也该能开发", () => {
+      if (withActions.length === 0) return;
+      for (const id of withActions) patch(id, { url: undefined });
+
+      expect(backendsMissingActionUrl().length).toBeGreaterThan(0);
+      expect(() => assertBackendActionUrls()).not.toThrow();
+    });
+
+    /**
+     * The narrowing this check exists for: judging is pulled, so a backend
+     * nothing declares an action on needs no address at all and must not hold
+     * a deployment down for missing one.
+     */
+    it("只判题、不做交互的后端没有地址也不算缺", () => {
+      vi.stubEnv("NODE_ENV", "production");
+      for (const id of Object.keys(backends)) {
+        patch(id, {
+          url: withActions.includes(id)
+            ? "http://backend.internal:4100"
+            : undefined,
+        });
+      }
+
+      expect(() => assertBackendActionUrls()).not.toThrow();
+    });
   });
 });
 

@@ -63,7 +63,7 @@ export function orphanedBackends(): string[] {
 }
 
 /**
- * Backends carrying real traffic that fall back to the shared signing key,
+ * Backends carrying real traffic that end up signing with the shared key,
  * reported only when that actually weakens something.
  *
  * The weakness is a plural one: sharing a key with nobody is not sharing. What
@@ -89,11 +89,45 @@ export function orphanedBackends(): string[] {
  * deployment actually uses, so the check is built on that.
  */
 export function backendsSharingSecret(): string[] {
-  const borrowing = Object.keys(backends).filter(
-    (id) => problemsServedBy(id).length > 0 && !backends[id].secret,
+  const onSharedValue = Object.keys(backends).filter(
+    (id) => problemsServedBy(id).length > 0 && effectiveSecret(id) === shared(),
   );
 
-  return borrowing.length > 1 ? borrowing : [];
+  // Every entry on this value named it, which is the deployment saying one
+  // runner really does serve them all — the arrangement the message below asks
+  // for. Only a borrower makes it accidental.
+  const borrowed = onSharedValue.some((id) => !backends[id].secret);
+  if (!borrowed) return [];
+
+  return onSharedValue.length > 1 ? onSharedValue : [];
+}
+
+/**
+ * The key a backend actually signs with — its own, or the shared fallback.
+ *
+ * Exported because `resolveBackend` needs the same answer, and the check above
+ * needs it for a reason that only shows up when the two chains disagree: it
+ * used to ask whether an entry had a key of its own, not what key it ended up
+ * with. So the one arrangement that is both plausible and silent — somebody
+ * fills in `FOI_BACKEND_TRADITIONAL_SECRET` by copying the value out of
+ * `FOI_BACKEND_SECRET`, while the next backend along is still borrowing it —
+ * read as one backend on the shared key and got waved through. Two backends
+ * signing with one value is exactly the state this file refuses a production
+ * boot on, however each of them arrived at it.
+ */
+export function effectiveSecret(id: string): string | undefined {
+  return backends[id]?.secret || shared();
+}
+
+/**
+ * The fallback itself. `||` and the trailing `undefined` so that a blank line
+ * in an `.env` reads as absent here too — see `backendSecret` in
+ * `backends.config.ts`, which every reader of these variables now agrees with.
+ */
+function shared(): string | undefined {
+  return (
+    process.env.FOI_BACKEND_SECRET || process.env.FOI_JUDGE_SECRET || undefined
+  );
 }
 
 const SHARED_SECRET_MESSAGE =

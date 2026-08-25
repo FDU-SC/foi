@@ -5,7 +5,7 @@ import { readTextBody } from "@/lib/body-limit";
 import { db } from "@/lib/db";
 import { runners, submissions } from "@/lib/db/schema";
 import { RUNNER_ONLINE_MS } from "@/lib/runner/queue";
-import { backendsFor } from "./access";
+import { backendsFor, effectiveSecret } from "./access";
 import { signedHeaders } from "./signature";
 import { type BackendActionRequest } from "./types";
 
@@ -35,6 +35,32 @@ const DEFAULT_REPLY_TIMEOUT_MS = 10_000;
  */
 const MAX_RESPONSE_BYTES = 256 * 1024;
 
+/**
+ * The kernel does not chase a backend's redirects.
+ *
+ * `fetch` defaults to `follow`, and Node will take up to twenty hops. That
+ * turns the one outbound call left into a fetcher somebody else aims: a
+ * compromised backend answers `302 Location: http://169.254.169.254/...` and
+ * the kernel makes that request from inside the deployment's network and
+ * relays the answer to whoever pressed the button. Nothing about the response
+ * is inspected — that is the bargain of these endpoints — so the body would go
+ * straight back to the player.
+ *
+ * `manual` rather than `error`, and the difference is only in what the kernel
+ * can say afterwards. Neither follows the hop; `error` rejects with the same
+ * `TypeError: fetch failed` that a DNS failure produces, so telling "the
+ * backend is down" (503, worth retrying) apart from "the backend answered with
+ * a redirect" (502, a misconfigured or hostile service) would come down to
+ * matching on undici's wording. `manual` hands back the 3xx itself, which is a
+ * fact this file can check and a test can reproduce.
+ */
+const NO_REDIRECT = "manual" as const;
+
+/** A hop, per the fetch spec's own definition of a redirect status. */
+function isRedirect(status: number): boolean {
+  return status >= 300 && status < 400;
+}
+
 export interface ResolvedBackend extends ProblemBackend {
   id: string;
   secret: string;
@@ -55,19 +81,11 @@ export function resolveBackend(id: string): ResolvedBackend {
     throw new Error(`未知的题目后端 "${id}"，请检查 backends.config.ts`);
   }
 
-  // Old name accepted as a fallback for the same reason the URLs are; see
-  // `backends.config.ts`.
-  //
-  // `||` and not `??`, because the test below is `!secret` and the two have to
-  // agree on what counts as a key. An `.env` carrying an unfilled
-  // `FOI_BACKEND_SECRET=` hands this `""`: a value, so `??` kept it, and then
-  // falsy, so the throw fired — naming the very variable that was set. Every
-  // reader of these now treats blank as absent, `backendSecret` in
-  // `backends.config.ts` included.
-  const secret =
-    entry.secret ||
-    process.env.FOI_BACKEND_SECRET ||
-    process.env.FOI_JUDGE_SECRET;
+  // The fallback chain itself lives in `access.ts`, because the shared-key
+  // check there has to reach the same answer this does: it reports on entries
+  // that sign with one value, and a second copy of "which value is that" is
+  // the way the two would come to disagree.
+  const secret = effectiveSecret(id);
   if (!secret) {
     throw new Error("缺少环境变量 FOI_BACKEND_SECRET");
   }
@@ -218,6 +236,7 @@ export async function callBackendAction(
       method: "POST",
       headers,
       body,
+      redirect: NO_REDIRECT,
       signal: AbortSignal.timeout(backend.replyTimeoutMs),
     });
   } catch (error) {
@@ -228,6 +247,17 @@ export async function callBackendAction(
       body: JSON.stringify({
         error: timedOut ? "题目后端响应超时" : "无法连接题目后端",
       }),
+    };
+  }
+
+  if (isRedirect(res.status)) {
+    // Nothing will read the hop's own body, so let go of the socket rather
+    // than leaving it to the collector.
+    await res.body?.cancel().catch(() => {});
+    return {
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "题目后端返回了重定向" }),
     };
   }
 

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   assertMailDelivery,
+  mailDeliveryUnmet,
   mailIsConfigured,
   mailSink,
   relayOptions,
@@ -127,11 +128,11 @@ describe("本机 Mailpit 的例外", () => {
 /**
  * `policy.mailDelivery` against the environment it lands in.
  *
- * The two functions are exercised together because neither settles the
- * question alone: the policy says what the deployment meant, the environment
- * says what it has, and every case worth pinning is a disagreement between
- * them. Both take the delivery as an argument rather than reading the registry
- * — `content/enrollment/` is a real file a test cannot edit, so passing it is
+ * The three functions are exercised together because none settles the question
+ * alone: the policy says what the deployment meant, the environment says what
+ * it has, and every case worth pinning is a disagreement between them. All
+ * three take the delivery as an argument rather than reading the registry —
+ * `content/enrollment/` is a real file a test cannot edit, so passing it is
  * the only way to reach the declared-`console` half at all.
  */
 describe("声明的投递方式与环境不一致时", () => {
@@ -194,5 +195,35 @@ describe("声明的投递方式与环境不一致时", () => {
     vi.stubEnv("NODE_ENV", "production");
 
     expect(() => mailSink("smtp")).toThrow(/FOI_SMTP_HOST/);
+  });
+
+  /**
+   * The same combination the two above refuse, asked by something that only
+   * wants to name it. The operations console has to report this from a page
+   * that still renders, which is why it is a third function rather than a call
+   * to either of them — on this exact input `mailSink` throws and
+   * `assertMailDelivery` refuses the boot.
+   */
+  it("声明 smtp 却没有中继，是一条可以报告的分歧，生产环境下也只是报告", () => {
+    withEnv({});
+    vi.stubEnv("NODE_ENV", "production");
+
+    expect(mailDeliveryUnmet("smtp")).toBe(true);
+  });
+
+  /**
+   * Nothing to report in the other three corners. A declaration of `console`
+   * is a decision rather than drift whatever the environment happens to hold —
+   * that is the whole reason the field exists — and `smtp` with a relay behind
+   * it is simply a deployment that works.
+   */
+  it("其余三种组合都不是分歧", () => {
+    withEnv({});
+    expect(mailDeliveryUnmet("console")).toBe(false);
+
+    vi.unstubAllEnvs();
+    withEnv({ FOI_SMTP_HOST: "smtp.example.com" });
+    expect(mailDeliveryUnmet("console")).toBe(false);
+    expect(mailDeliveryUnmet("smtp")).toBe(false);
   });
 });

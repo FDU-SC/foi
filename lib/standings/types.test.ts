@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { at, END, input, participants, problem, submission } from "./test-support";
-import { assignRanks, isAccepted, scoredSubmissions } from "./types";
+import {
+  at,
+  END,
+  input,
+  participants,
+  problem,
+  submission,
+  unjudged,
+} from "./test-support";
+import {
+  assignRanks,
+  isAccepted,
+  scoredSubmissions,
+  submissionsInWindow,
+} from "./types";
 
 describe("assignRanks", () => {
   function ranked(rows: { total: number; tiebreak: number }[]) {
@@ -130,6 +143,72 @@ describe("scoredSubmissions", () => {
     );
 
     expect(rows.map((row) => row.createdAt)).toEqual([at(10), at(20), at(30)]);
+  });
+});
+
+/**
+ * The set a format asks for when it has something to say about a submission
+ * that has not been judged yet — ICPC's pending cell. Same window and same
+ * ordering as `scoredSubmissions`, one state filter fewer.
+ */
+describe("submissionsInWindow", () => {
+  const base = {
+    participants: participants("alice"),
+    problems: [problem("a", "A")],
+  };
+
+  it("保留还没判完的提交", () => {
+    const rows = submissionsInWindow(
+      input({
+        ...base,
+        submissions: [
+          submission({ handle: "alice", problemSlug: "a", minutes: 5, score: 100 }),
+          unjudged("alice", "a", 6),
+          unjudged("alice", "a", 7, "judging"),
+        ],
+      }),
+    );
+
+    expect(rows.map((row) => row.state)).toEqual([
+      "completed",
+      "queued",
+      "judging",
+    ]);
+  });
+
+  /**
+   * The one state it does drop. A disrupted submission will never get a
+   * verdict and is explicitly not charged to whoever sent it, so a format
+   * counting it as pending would draw a cell that never resolves.
+   */
+  it("剔除 disrupted", () => {
+    const rows = submissionsInWindow(
+      input({
+        ...base,
+        submissions: [unjudged("alice", "a", 5, "disrupted")],
+      }),
+    );
+
+    expect(rows).toEqual([]);
+  });
+
+  it("窗口与排序和 scoredSubmissions 一致", () => {
+    const built = input({
+      ...base,
+      submissions: [
+        submission({ handle: "alice", problemSlug: "a", minutes: -1, score: 100 }),
+        submission({ handle: "alice", problemSlug: "a", minutes: 30, score: 0 }),
+        submission({ handle: "alice", problemSlug: "a", minutes: 10, score: 0 }),
+        submission({ handle: "alice", problemSlug: "a", minutes: 999, score: 100 }),
+      ],
+      endsAt: END,
+    });
+
+    expect(submissionsInWindow(built).map((row) => row.createdAt)).toEqual([
+      at(10),
+      at(30),
+    ]);
+    expect(submissionsInWindow(built)).toEqual(scoredSubmissions(built));
   });
 });
 

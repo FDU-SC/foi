@@ -225,13 +225,27 @@ function overrideFor(
   return null;
 }
 
-function viewOf(config: ProblemConfig, viewer: Viewer, now: Date): ProblemView {
+/**
+ * Everything a view holds except the override, which is the expensive half.
+ *
+ * Split out because the two are asked for at different times: `problemFor`
+ * needs both at once, while `problemsFor` has a filter to apply first and no
+ * reason to price the entries it is about to throw away.
+ */
+function gatedView(
+  config: ProblemConfig,
+  viewer: Viewer,
+  now: Date,
+): Omit<ProblemView, "reachedVia"> {
   const gate = problemVisibility(config.slug, viewer, now);
+  return { config, gate, open: gate.visible && !config.retired };
+}
+
+function viewOf(config: ProblemConfig, viewer: Viewer, now: Date): ProblemView {
+  const entry = gatedView(config, viewer, now);
   return {
-    config,
-    gate,
-    open: gate.visible && !config.retired,
-    reachedVia: overrideFor(config.slug, gate, viewer, now),
+    ...entry,
+    reachedVia: overrideFor(config.slug, entry.gate, viewer, now),
   };
 }
 
@@ -252,12 +266,25 @@ function viewOf(config: ProblemConfig, viewer: Viewer, now: Date): ProblemView {
  * the catalogue, because the filter below is `open`, which such a problem is
  * not. Listing it would put a problem in somebody's 题库 that they cannot
  * submit to and were never given.
+ *
+ * Which is also why the override is resolved after the filter rather than
+ * during the mapping. `reachableViaContest` walks every round a problem
+ * appears in and puts each of them through the contest gate, and it used to
+ * run once per gate-refused problem on a list that then dropped every one of
+ * them. Nothing that survives the filter needs the expensive answer anyway: an
+ * `open` entry has a gate that said yes, so there is no override to look for,
+ * and a refused one is only here because the viewer holds `problem.viewAll`,
+ * which `overrideFor` checks first.
  */
 export function problemsFor(viewer: Viewer, now = new Date()): ProblemView[] {
   const override = viewer.can("problem.viewAll");
   return allProblems()
-    .map((config) => viewOf(config, viewer, now))
-    .filter((entry) => override || entry.open);
+    .map((config) => gatedView(config, viewer, now))
+    .filter((entry) => override || entry.open)
+    .map((entry) => ({
+      ...entry,
+      reachedVia: overrideFor(entry.config.slug, entry.gate, viewer, now),
+    }));
 }
 
 /**

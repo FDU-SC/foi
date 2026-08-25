@@ -93,6 +93,25 @@ export function fail(
   return submission({ handle, problemSlug, minutes, score });
 }
 
+/**
+ * Sent, with no verdict on it — the third case a format may have to render,
+ * beside `solve` and `fail`.
+ *
+ * `queued` by default because the two non-terminal states say the same thing
+ * to a ruleset (nobody has an answer yet) and pinning both everywhere would be
+ * noise. `disrupted` is reachable through the argument and is not the same
+ * thing at all: that one will never get an answer, which is why the window
+ * helpers drop it.
+ */
+export function unjudged(
+  handle: string,
+  problemSlug: string,
+  minutes: number,
+  state: Exclude<SubmissionRecord["state"], "completed"> = "queued",
+): SubmissionRecord {
+  return submission({ handle, problemSlug, minutes, score: 0, state });
+}
+
 export function input(options: {
   submissions: SubmissionRecord[];
   participants: Participant[];

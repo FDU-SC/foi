@@ -1,5 +1,14 @@
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import type { Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
 import { accounts, problems, runners, submissions } from "@/lib/db/schema";
@@ -14,7 +23,7 @@ import {
   reportDone,
   reportFailed,
 } from "./queue";
-import { reapOnce } from "./reaper";
+import { reaperHealth, reapOnce, startReaping } from "./reaper";
 
 /**
  * The only loop, and the only place the kernel concludes anything by itself.
@@ -163,6 +172,80 @@ describeDb("失联回收", () => {
   });
 
   /**
+   * The negative space, and it needs cases of its own because every recovery
+   * case above calls `goSilent` first.
+   *
+   * Delete `last_heartbeat_at < lapsedBefore` from both of the first two
+   * statements — turning the reaper into something that takes every `judging`
+   * row away from its holder once per tick — and all of them still pass. The
+   * predicate deciding *who* gets reaped is the one thing the suite was not
+   * asserting on, and it is the whole difference between a queue that recovers
+   * from a dead runner and one that never finishes anything.
+   */
+  it("心跳还新鲜的行不会被收走，lease 也不动", async () => {
+    const id = await enqueue("sub_rr_fresh");
+    const ticket = await claimJob(BACKEND, "r-working");
+    expect(ticket?.id).toBe(id);
+
+    await reapOnce();
+
+    const row = await rowOf(id);
+    expect(row.state).toBe("judging");
+    // The lease is the load-bearing one again, from the other side: a reaper
+    // that nulls it here has silently fired a runner that was doing its job,
+    // and the report it is about to send will be refused.
+    expect(row.lease).toBe(ticket?.lease);
+    expect(row.runnerId).toBe("r-working");
+    expect(row.claimedAt).not.toBeNull();
+    expect(row.attempts).toBe(1);
+    expect(row.error).toBeNull();
+  });
+
+  /**
+   * The same row a tick later, once the runner has spoken. This is the only
+   * thing `reportAlive` is for, so if the reaper reads anything other than the
+   * column that heartbeat writes, a slow-but-healthy evaluation is taken away
+   * from its holder no matter how loudly it says otherwise.
+   */
+  it("失联之后又报了心跳的行，同样不会被收走", async () => {
+    const id = await enqueue("sub_rr_revived");
+    const ticket = await claimJob(BACKEND, "r-slow");
+    await goSilent(id);
+    await expect(
+      reportAlive(id, ticket!.lease, "测试点 7/10"),
+    ).resolves.toBe(true);
+
+    await reapOnce();
+
+    const row = await rowOf(id);
+    expect(row.state).toBe("judging");
+    expect(row.lease).toBe(ticket?.lease);
+    expect(row.runnerStatus).toBe("测试点 7/10");
+  });
+
+  /**
+   * The last lap, where the predicate matters most. `claimJob` hands out a row
+   * sitting at `MAX_ATTEMPTS - 1` and leaves it at the cap, so a runner
+   * partway through its third and final attempt matches everything the
+   * write-off statement asks for except the lapsed heartbeat — and this row
+   * has no fourth attempt to be given.
+   */
+  it("最后一次尝试正在跑、心跳正常的行不会被直接写掉", async () => {
+    const id = await enqueue("sub_rr_last_lap", {
+      attempts: MAX_ATTEMPTS - 1,
+    });
+    const ticket = await claimJob(BACKEND, "r-final");
+    expect((await rowOf(id)).attempts).toBe(MAX_ATTEMPTS);
+
+    await reapOnce();
+
+    const row = await rowOf(id);
+    expect(row.state).toBe("judging");
+    expect(row.lease).toBe(ticket?.lease);
+    expect(row.judgedAt).toBeNull();
+  });
+
+  /**
    * The sequence a lease exists for, end to end: A goes quiet, the row is taken
    * back and handed to B, and then A wakes up. Checking the runner's identity
    * could not refuse this — A does not stop being A, it stops holding the lease
@@ -297,5 +380,95 @@ describeDb("失联回收", () => {
       await reapOnce();
       expect((await rowOf(id)).state).toBe("queued");
     });
+  });
+});
+
+/**
+ * The loop's own health signal, which is the one thing here that touches no
+ * table.
+ *
+ * It lives in this file rather than a `reaper.test.ts` of its own because
+ * `reaper.ts` imports `lib/db`, and that module throws on import without a
+ * connection string — a unit-project test would take the whole DB-less run
+ * down with it. Ungated for the same reason the rest of the file is gated: by
+ * the time anything here executes, the import has already succeeded.
+ */
+describe("回收循环的存活信号", () => {
+  /** Longer than any plausible staleness window, and shorter than none. */
+  const AN_HOUR = 60 * 60_000;
+
+  const forget = () => {
+    globalThis.__foiReaperRanAt = undefined;
+    globalThis.__foiReaperStartedAt = undefined;
+  };
+
+  beforeEach(() => {
+    forget();
+    // Before `startReaping`, so the tick it books at zero never fires: this
+    // suite is about what the signal reports, not about what a pass does, and
+    // a real pass would write the success timestamp the cases below withhold.
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    forget();
+  });
+
+  it("没有循环被启动过时不报故障", () => {
+    expect(reaperHealth()).toEqual({ ok: true, ranAt: null });
+  });
+
+  it("刚启动、还没跑完一趟时是绿的", () => {
+    const stop = startReaping(15_000);
+    try {
+      expect(reaperHealth()).toEqual({ ok: true, ranAt: null });
+    } finally {
+      stop();
+    }
+  });
+
+  /**
+   * The failure this signal exists for, and the one it used to be blind to.
+   *
+   * `tick` writes the success timestamp only after `reapOnce` returns, so a
+   * loop whose every pass throws never writes one — and "no timestamp" was
+   * read as "freshly started". `/api/health` therefore answered
+   * `reaper: "up"` for the lifetime of a process whose reaper had never once
+   * completed a pass, which is precisely the silent fault it is watching for.
+   */
+  it("从来没有一趟跑成功过时，过了 stale 窗口就要报停摆", () => {
+    const stop = startReaping(15_000);
+    try {
+      vi.setSystemTime(Date.now() + AN_HOUR);
+
+      const health = reaperHealth();
+      expect(health.ok).toBe(false);
+      // Still null, and it has to stay null: the two readers of this print
+      // "本进程还没有跑过一轮" from it, which is the difference between a loop
+      // that stopped and a loop that never started working.
+      expect(health.ranAt).toBeNull();
+    } finally {
+      stop();
+    }
+  });
+
+  it("跑成功过之后，判据换成最后一次成功的时间", () => {
+    const stop = startReaping(15_000);
+    try {
+      // Long enough that the start time alone would already read as stalled.
+      vi.setSystemTime(Date.now() + AN_HOUR);
+      const ranAt = Date.now();
+      globalThis.__foiReaperRanAt = ranAt;
+
+      expect(reaperHealth()).toEqual({ ok: true, ranAt: new Date(ranAt) });
+
+      // And it goes stale in its turn, or the fallback above would have been
+      // bought by making the check unable to fail.
+      vi.setSystemTime(Date.now() + AN_HOUR);
+      expect(reaperHealth()).toEqual({ ok: false, ranAt: new Date(ranAt) });
+    } finally {
+      stop();
+    }
   });
 });

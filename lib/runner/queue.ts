@@ -284,13 +284,16 @@ export async function reportDone(
   verdict: Verdict,
   backendVersion: string,
 ): Promise<boolean> {
-  // Read before the write only because the score denominator falls back to the
-  // problem's configured total, and the verdict has to be resolved against the
-  // row's own problem rather than against anything the runner asserted. Safe to
-  // do in two statements: whatever moves underneath it is caught by the guard
-  // on the update, which is the only place correctness rests.
+  // Read before the write only because the score denominator has a fallback,
+  // and every candidate for it belongs to the row rather than to anything the
+  // runner asserted. Safe to do in two statements: whatever moves underneath it
+  // is caught by the guard on the update, which is the only place correctness
+  // rests.
   const [row] = await db
-    .select({ problemSlug: submissions.problemSlug })
+    .select({
+      problemSlug: submissions.problemSlug,
+      maxScore: submissions.maxScore,
+    })
     .from(submissions)
     .where(eq(submissions.id, id))
     .limit(1);
@@ -302,7 +305,17 @@ export async function reportDone(
       state: "completed",
       verdict,
       backendVersion,
-      ...verdictColumns(verdict, row.problemSlug),
+      // The row's own column first, because it is the older and better answer:
+      // the submit route wrote the total in force when the competitor pressed
+      // the button, and `rejudgeSubmissions` deliberately leaves it alone while
+      // clearing everything else. The registry is the second try, for a row
+      // predating that column. Null last — a problem deleted while a submission
+      // to it was still in flight has no denominator, and inventing one is how
+      // a late report rescores against a number nobody ever configured.
+      ...verdictColumns(
+        verdict,
+        row.maxScore ?? problemBySlug(row.problemSlug)?.maxScore ?? null,
+      ),
       error: null,
       judgedAt: new Date(),
       // The holder is done with it. Nulling the lease is what makes a duplicate

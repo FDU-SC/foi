@@ -1,5 +1,4 @@
 import type { Verdict } from "@/lib/backend/types";
-import { problemBySlug } from "@/lib/problems/registry";
 
 /**
  * The one place a verdict is read.
@@ -24,15 +23,26 @@ export interface VerdictColumns {
 
 export function verdictColumns(
   verdict: Verdict,
-  problemSlug: string,
+  fallbackMaxScore: number | null,
 ): VerdictColumns {
   return {
     score: verdict.score ?? null,
 
-    // The configured total is the fallback, resolved now rather than at read
-    // time: editing a problem's `maxScore` should not silently rescore every
-    // submission ever made against the old one.
-    maxScore: verdict.maxScore ?? problemBySlug(problemSlug)?.maxScore ?? null,
+    // Resolved on the way in rather than at read time, so editing a problem's
+    // configured total cannot silently rescore every submission ever made
+    // against the old one.
+    //
+    // The fallback arrives as a number because the caller is the only thing
+    // that knows which number it is. This parameter used to be a slug and the
+    // lookup happened here, which quietly made the current registry
+    // authoritative on every path — including the one path that had decided
+    // otherwise. `rejudgeSubmissions` clears an entire judging but keeps
+    // `max_score`, for precisely the reason above, and then the next verdict
+    // overwrote it from the registry anyway; the exemption bought nothing. A
+    // denominator is a decision about one submission's history, and the two
+    // landing paths do not make it the same way, so neither of them should have
+    // to discover that by reading this function.
+    maxScore: verdict.maxScore ?? fallbackMaxScore,
 
     // Null when the backend did not say, which is not the same as false.
     // `isAccepted` in `lib/standings/types.ts` derives an answer from the

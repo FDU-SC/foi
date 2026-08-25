@@ -1,7 +1,7 @@
-import { resetPassword, verificationCode } from "@/content/emails";
 import { issueCode } from "@/lib/auth/email-verification";
 import { issueToken, lastIssuedAt, revokeTokens } from "@/lib/auth/tokens";
 import type { TokenPurpose } from "@/lib/db/schema";
+import { emailTemplates } from "./registry";
 import { deliver } from "./transport";
 
 /**
@@ -87,7 +87,10 @@ export async function sendVerificationCode(
 
   await deliver({
     to: email,
-    ...verificationCode({ code: issued.code, expiresAt: issued.expiresAt }),
+    ...emailTemplates.verificationCode({
+      code: issued.code,
+      expiresAt: issued.expiresAt,
+    }),
   });
 
   return { ok: true, expiresAt: issued.expiresAt };
@@ -113,7 +116,7 @@ export async function sendPasswordReset(to: Recipient): Promise<NotifyResult> {
   });
   await deliver({
     to: to.email,
-    ...resetPassword({
+    ...emailTemplates.resetPassword({
       displayName: to.displayName,
       url: linkTo("/reset-password", token),
       expiresAt,

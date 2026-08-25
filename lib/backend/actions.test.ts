@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/lib/auth/test-support";
 import { viewerFor, type Viewer } from "@/lib/auth/viewer";
+import { viewerWith } from "@/test/content-shapes";
 import { allContests } from "@/lib/contests/registry";
 import { problemFor } from "@/lib/problems/access";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
@@ -15,10 +16,15 @@ import { actionFor } from "./actions";
  * the point is that the actions this deployment actually ships are reachable
  * by exactly the people who may already see their problem.
  */
-const demo = allContests().find((contest) => contest.slug === "demo-acm");
+/** Any round this deployment ships; the cases below need one, not a
+ * particular one. */
+const demo = allContests()[0];
 
-const PREVIEW = viewerFor({ handle: "an-admin", groups: ["管理员"] });
-const PLAYER = viewerFor({ handle: "bob", groups: ["本科生", "2026级"] });
+const PREVIEW = viewerWith("problem.viewAll", "an-admin");
+// An ordinary competitor: in a group, and that group grants nothing. Which
+// group is immaterial, and inventing one keeps the case from depending on
+// whether this deployment happens to declare an unprivileged one.
+const PLAYER = viewerFor({ handle: "bob", groups: ["一个普通分组"] });
 
 /** Every (problem, action) pair the repository declares. */
 const declared = externallyJudged().flatMap((problem) =>
@@ -72,7 +78,7 @@ describe("actionFor 白名单", () => {
   });
 
   it("不存在的题目 undefined", () => {
-    expect(actionFor("no-such-problem", "spawn", PLAYER)).toBeUndefined();
+    expect(actionFor("no-such-problem", "some-action", PLAYER)).toBeUndefined();
   });
 
   it("没有声明任何 action 的题目，什么都调不动", () => {
@@ -80,7 +86,7 @@ describe("actionFor 白名单", () => {
       (problem) => Object.keys(problem.backend.actions).length === 0,
     );
     for (const problem of inert) {
-      expect(actionFor(problem.slug, "spawn", PLAYER)).toBeUndefined();
+      expect(actionFor(problem.slug, "some-action", PLAYER)).toBeUndefined();
     }
   });
 });
@@ -118,8 +124,8 @@ describe("actionFor 配额", () => {
 
 /**
  * A problem that both declares an action and sits in a contest, if one is
- * shipped. Nothing does today — the demo contest holds `maze-runner`, which
- * declares none — so the two cases below skip rather than pass vacuously. The
+ * shipped. A deployment whose rounds hold no such problem skips the two cases
+ * below rather than passing them vacuously. The
  * behaviour they describe is verified by the invariant at the end of this
  * file, which holds over every problem and moment regardless.
  */
@@ -206,9 +212,9 @@ describe("actionFor 门禁", () => {
     );
 
   // Skipped rather than asserted non-empty, for the same reason `embargoed`
-  // above is: nothing ships this shape today. `warmup-2025` used to — it was
-  // retired and still declared `inputs` — until it became an inline problem,
-  // and an inline problem has no actions to close. The invariant above still
+  // above is: a deployment may ship nothing of this shape. A retired problem
+  // that still declares an action is the case — one that has since become an
+  // inline problem has no actions left to close. The invariant above still
   // covers retirement, since it holds `actionFor` to `open` over every problem.
   it.skipIf(retired.length === 0)(
     "下架题目声明过的 action 也调不动，尽管题面还读得到",
@@ -230,7 +236,7 @@ describe("actionFor 门禁", () => {
     expect(inline.length).toBeGreaterThan(0);
 
     for (const problem of inline) {
-      for (const action of ["spawn", "poll", "destroy", "inputs"]) {
+      for (const action of ["some-action", "another-action"]) {
         expect(actionFor(problem.slug, action, PLAYER)).toBeUndefined();
         expect(actionFor(problem.slug, action, PREVIEW)).toBeUndefined();
       }

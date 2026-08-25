@@ -8,8 +8,8 @@ import { problemStatus } from "@/lib/problems/access";
  * The two pages that show submissions used to answer this differently: the
  * list joined the mirror table and printed whatever title was last synced, the
  * detail page read the registry and fell back to the bare slug. So one deleted
- * problem appeared as「迷宫」in one place and `maze-runner` in the other, and
- * both linked somewhere that 404s.
+ * problem appeared under its old title in one place and as a bare slug in the
+ * other, and both linked somewhere that 404s.
  *
  * `fallbackTitle` is the snapshot in `problems`, which is all that survives a
  * directory being deleted for real.

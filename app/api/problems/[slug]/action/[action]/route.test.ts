@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { backends, type ProblemBackend } from "@/backends.config";
+import type { ProblemBackend } from "@/lib/backend/types";
+import { backends } from "@/lib/backend/registry";
 import { externallyJudged } from "@/lib/problems/registry";
 
 /**
@@ -39,7 +40,7 @@ const target = externallyJudged().find(
 let calls = 0;
 
 function post(slug: string, action: string): Promise<Response> {
-  session.user = { handle: `caller-${++calls}`, groups: ["本科生", "2026级"] };
+  session.user = { handle: `caller-${++calls}`, groups: ["一个普通分组"] };
 
   const request = new Request(
     `http://localhost:3000/api/problems/${slug}/action/${action}`,
@@ -92,7 +93,7 @@ describe.skipIf(!target)("交互端点的配置错误不回传原文", () => {
     expect(body).not.toContain("FOI_BACKEND_SECRET");
   });
 
-  it("后端条目根本不存在时也不点名 backends.config.ts", async () => {
+  it("后端条目根本不存在时也不点名 content/backends.ts", async () => {
     patch(undefined);
 
     const response = await post(slug, action);
@@ -100,7 +101,7 @@ describe.skipIf(!target)("交互端点的配置错误不回传原文", () => {
 
     expect(response.status).toBe(500);
     expect(JSON.parse(body)).toEqual({ error: "题目后端配置错误" });
-    expect(body).not.toContain("backends.config");
+    expect(body).not.toContain("content/backends");
     expect(body).not.toContain(backendId);
   });
 

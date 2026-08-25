@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ResolvedUser } from "@/lib/accounts/types";
 import { AS_PLAYER } from "@/lib/auth/test-support";
-import { viewerFor, type Viewer } from "@/lib/auth/viewer";
-import { allProblems } from "@/lib/problems/registry";
+import { type Viewer } from "@/lib/auth/viewer";
+import {
+  contestWithGroupEntry,
+  publicProblemOutside,
+  viewerWith,
+} from "@/test/content-shapes";
 import {
   contestEntryFor,
   contestFor,
@@ -13,15 +17,16 @@ import {
 import { allContests } from "./registry";
 import { contestConfigSchema, type ContestConfig } from "./types";
 
-const PREVIEW = viewerFor({ handle: "an-admin", groups: ["管理员"] });
+const PREVIEW = viewerWith("problem.viewAll", "an-admin");
 
 /**
  * Holders of exactly one capability each, spelled out rather than resolved
  * through `content/enrollment/`.
  *
  * The same choice `lib/backend/access.test.ts` makes for its setter: the gate
- * below asks one capability, and a deployment that hands it to a group other
- * than 管理员 should get the behaviour without the test noticing.
+ * below asks one capability, and which group a deployment hands it to should
+ * not be something these cases can notice. The group ids are decoration — the
+ * `can` beside them is what the gate reads.
  */
 const SETTER: Viewer = {
   handle: "setter",
@@ -35,7 +40,8 @@ const CONTEST_READER: Viewer = {
   can: (capability) => capability === "contest.viewAll",
 };
 
-const demo = allContests().find((contest) => contest.slug === "demo-acm");
+/** Any round this deployment ships, for the cases that only need one to exist. */
+const anyContest = allContests()[0];
 
 function before(date: Date): Date {
   return new Date(date.getTime() - 60_000);
@@ -49,7 +55,7 @@ function contest(overrides: Record<string, unknown>): ContestConfig {
   return contestConfigSchema.parse({
     slug: "test",
     title: "Test",
-    ruleset: { id: "acm" },
+    ruleset: { id: "some-ruleset" },
     startsAt: "2026-01-15T13:00:00+08:00",
     endsAt: "2026-01-15T18:00:00+08:00",
     problems: [],
@@ -89,17 +95,17 @@ describe("contestsFor", () => {
   it("未开始的比赛照常出现在列表里", () => {
     // Only the problem set is withheld before the start; the contest itself is
     // an announcement.
-    if (!demo) return;
+    if (!anyContest) return;
     expect(contestsFor(AS_PLAYER).map((e) => e.config.slug)).toContain(
-      demo.slug,
+      anyContest.slug,
     );
   });
 });
 
 describe("contestFor", () => {
   it("已公开的比赛对选手可取", () => {
-    if (!demo) return;
-    expect(contestFor(demo.slug, AS_PLAYER)?.config.slug).toBe(demo.slug);
+    if (!anyContest) return;
+    expect(contestFor(anyContest.slug, AS_PLAYER)?.config.slug).toBe(anyContest.slug);
   });
 
   it("不存在的 slug 返回 undefined", () => {
@@ -157,10 +163,10 @@ describe("isContestProblemSetVisibleTo", () => {
     ).toBe(false);
   });
 
-  it("管理员在真实分流下也是预览者", () => {
-    if (!demo) return;
+  it("真实分流里持有 problem.viewAll 的组也是预览者", () => {
+    if (!anyContest) return;
     expect(
-      isContestProblemSetVisibleTo(demo, PREVIEW, before(demo.startsAt)),
+      isContestProblemSetVisibleTo(anyContest, PREVIEW, before(anyContest.startsAt)),
     ).toBe(true);
   });
 });
@@ -174,14 +180,8 @@ describe("isContestProblemSetVisibleTo", () => {
  * distinguishable for the one caller that owes its client the difference.
  */
 describe("contestEntryFor", () => {
-  if (!demo) throw new Error("这些用例依赖 content/contests/demo-acm");
-  if (demo.participants.mode !== "group") {
-    throw new Error("这些用例假定 demo-acm 按 group 限制参赛资格");
-  }
-
-  const GROUP = demo.participants.group;
-  const ENTRY = demo.problems[0];
-  if (!ENTRY) throw new Error("demo-acm 至少要引用一道题");
+  const { contest: round_, entry: ENTRY, group: GROUP } = contestWithGroupEntry();
+  const demo = round_;
 
   /** Inside the round's window, so it is open. */
   const DURING = new Date(demo.startsAt.getTime() + 60_000);
@@ -195,10 +195,7 @@ describe("contestEntryFor", () => {
   const OUTSIDER = user([]);
 
   /** A problem this round does not list, so naming the two together is a mismatch. */
-  const UNLISTED = allProblems().find(
-    (problem) => !demo.problems.some((entry) => entry.slug === problem.slug),
-  );
-  if (!UNLISTED) throw new Error("需要一道不属于 demo-acm 的题目");
+  const UNLISTED = publicProblemOutside(demo, DURING);
 
   it("四个事实都成立时给出比赛与它的题目条目", () => {
     const round = contestEntryFor(demo.slug, ENTRY.slug, ENTRANT, DURING);

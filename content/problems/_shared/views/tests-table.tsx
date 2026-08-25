@@ -38,10 +38,18 @@ function extractMessage(detail: unknown): string | null {
 }
 
 /**
- * Best-effort rendering of the opaque `verdict.detail`. FOI understands one
- * conventional shape (`{ tests, message }`) and falls back to a collapsed JSON
- * dump for anything else. Problems that want richer output should render
- * `detail` themselves from their own statement components.
+ * `verdict.detail` as `{ tests, message }`, which is what the backends behind
+ * these problems report.
+ *
+ * A convention between a set of problems and the services that judge them, not
+ * part of the protocol — `verdictSchema` says `detail: z.unknown()` and means
+ * it. So this lives beside the problems that share it and each one names it in
+ * its own `views.tsx`; a problem whose backend answers with something else
+ * writes its own, and one that names nothing gets the kernel's dump.
+ *
+ * Anything it does not recognise still collapses to JSON here, because a
+ * backend may add a shape mid-round and a competitor should see whatever came
+ * back rather than nothing.
  */
 export function VerdictDetail({ verdict }: { verdict: Verdict }) {
   const [expanded, setExpanded] = useState(false);

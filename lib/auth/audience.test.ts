@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { audienceCovers, describeAudience, inAudience } from "./audience";
 import { AS_PLAYER } from "./test-support";
+import { viewerWith } from "@/test/content-shapes";
 import { viewerFor } from "./viewer";
 
 const player = viewerFor({ handle: "alice", groups: ["2026级", "本科生"] });
@@ -36,7 +37,7 @@ describe("inAudience", () => {
     // `inAudience` answers "is this for you". Whether somebody may look past
     // that answer is a separate question, asked with `viewer.can(...)`, so
     // that the two axes stay legible where they are combined.
-    const admin = viewerFor({ handle: "root", groups: ["管理员"] });
+    const admin = viewerWith("problem.viewAll", "root");
     expect(inAudience(["校队"], admin)).toBe(false);
   });
 });

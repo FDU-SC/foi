@@ -1,16 +1,17 @@
+import type { MailBody } from "@/lib/mail/types";
+
 /**
- * The shared shape of every message FOI sends.
+ * The shared look of every message this deployment sends.
  *
  * Same idea as `mdx-components.tsx`: a single place that decides what these
  * look like, so a new template is a few lines of copy rather than a fresh
  * attempt at HTML email. Everything is inline-styled and table-free, because
  * mail clients strip stylesheets and disagree about everything else.
+ *
+ * `MailBody` comes from the kernel because it is the contract the templates in
+ * `./index.ts` have to meet; the styling below is entirely this deployment's.
  */
-export interface MailBody {
-  subject: string;
-  text: string;
-  html: string;
-}
+export type { MailBody };
 
 export interface ActionMail {
   subject: string;

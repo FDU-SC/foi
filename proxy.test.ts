@@ -68,8 +68,8 @@ describe("proxy matcher 覆盖面", () => {
   it("页面进全局层", () => {
     expect(matches("/")).toBe(true);
     expect(matches("/problems")).toBe(true);
-    expect(matches("/problems/maze-runner")).toBe(true);
-    expect(matches("/contests/demo-acm/standings")).toBe(true);
+    expect(matches("/problems/some-problem")).toBe(true);
+    expect(matches("/contests/some-contest/standings")).toBe(true);
     expect(matches("/admin/accounts")).toBe(true);
   });
 
@@ -105,7 +105,7 @@ describe("proxy matcher 覆盖面", () => {
       "/api/runner/jobs/sub_01",
       "/api/judges/status",
       "/api/health",
-      "/api/problems/maze-runner/action/spawn",
+      "/api/problems/some-problem/action/some-action",
       "/api/auth/session",
     ]) {
       expect(matches(route), `${route} 不应当进 proxy`).toBe(false);

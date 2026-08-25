@@ -109,7 +109,7 @@ export async function POST(
     backend = resolveBackend(resolved.backendId);
   } catch (error) {
     // The message is written for whoever configured the deployment: it names
-    // the environment variable that is missing, or `backends.config.ts`. That
+    // the environment variable that is missing, or `content/backends.ts`. That
     // is the right text to have and the wrong audience to hand it to — the
     // caller here is a player who pressed a button, and this route is reachable
     // by anyone who can see the problem. Same split `/api/health` makes for an

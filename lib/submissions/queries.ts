@@ -10,8 +10,9 @@ import type { SubmissionListItem, SubmissionView } from "./types";
  *
  * `error` is in the list for `failureReason` rather than for the view, which
  * has no field of that name. What is deliberately *not* in it is `payload`:
- * capped at 512 KiB, genuinely that big for an `output-only` problem, never
- * sent to anybody by the function below, and fifty to a page in
+ * capped at 512 KiB, genuinely that big when the submission is a file of
+ * answers rather than a program, never sent to anybody by the function below,
+ * and fifty to a page in
  * `listSubmissions`. Narrowing here is what lets that query stop asking for
  * it, and keeping the two in step is the type checker's job from now on — a
  * field added to `SubmissionView` and read off the row will not compile until

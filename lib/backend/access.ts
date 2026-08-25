@@ -1,7 +1,8 @@
 import type { Viewer } from "@/lib/auth/viewer";
 import { problemFor } from "@/lib/problems/access";
 import { externallyJudged } from "@/lib/problems/registry";
-import { backends } from "@/backends.config";
+import { envFragment } from "./env";
+import { backends } from "./registry";
 
 /**
  * Which backends this deployment actually uses, and what it needs from each.
@@ -63,6 +64,33 @@ export function orphanedBackends(): string[] {
 }
 
 /**
+ * The mirror image: backends some problem routes to that nothing declares.
+ *
+ * This is the failure a declared list exists to catch, and until it was said
+ * at startup it was only caught at the worst moment. A problem carrying a
+ * misspelt `backend.id` loads fine — the schema asks for a non-empty string
+ * and nothing more — and stays fine right up to the first submission, which
+ * gets a 500 from `resolveBackend` naming a backend nobody meant to have.
+ *
+ * A warning rather than a refusal, because the blast radius is one problem and
+ * the deployment around it works. `assertBackendActionUrls` is the harder
+ * cousin, and it is harder because a missing address cannot be told apart from
+ * a backend that legitimately needs none.
+ */
+export function undeclaredBackends(): string[] {
+  return [...problemsByBackend.keys()].filter((id) => !backends[id]);
+}
+
+/** Said at startup, next to the enrollment and contest warnings. */
+export function backendRegistryWarnings(): string[] {
+  return undeclaredBackends().map(
+    (id) =>
+      `题目 ${problemsServedBy(id).join("、")} 指向了没有登记的题目后端 "${id}"，` +
+      `提交到这些题会失败。在 content/backends.ts 里补一个条目，或改掉题目的 backend.id`,
+  );
+}
+
+/**
  * Backends carrying real traffic that end up signing with the shared key,
  * reported only when that actually weakens something.
  *
@@ -85,7 +113,7 @@ export function orphanedBackends(): string[] {
  * index above is. #22 proposed requiring all six entries to be filled in, which
  * would have meant configuring a key for a backend nothing routes to, and would
  * have made `.env.production.example` a second list to keep in step with
- * `backends.config.ts`. `problemsServedBy` already knows which backends a
+ * `content/backends.ts`. `problemsServedBy` already knows which backends a
  * deployment actually uses, so the check is built on that.
  */
 export function backendsSharingSecret(): string[] {
@@ -121,8 +149,8 @@ export function effectiveSecret(id: string): string | undefined {
 
 /**
  * The fallback itself. `||` and the trailing `undefined` so that a blank line
- * in an `.env` reads as absent here too — see `backendSecret` in
- * `backends.config.ts`, which every reader of these variables now agrees with.
+ * in an `.env` reads as absent here too — see `backendSecret` in `./config.ts`,
+ * which every reader of these variables now agrees with.
  */
 function shared(): string | undefined {
   return (
@@ -199,7 +227,7 @@ export function backendsMissingActionUrl(): string[] {
     .map((problem) => problem.backend.id)
     .filter((id, index, ids) => ids.indexOf(id) === index)
     .filter((id) => !backends[id]?.url)
-    .map((id) => `FOI_BACKEND_${id.replace(/-/g, "_").toUpperCase()}_URL`);
+    .map((id) => `FOI_BACKEND_${envFragment(id)}_URL`);
 }
 
 /** Refuses a production boot on an interactive backend with nowhere to call. */
@@ -215,7 +243,7 @@ export function assertBackendActionUrls(): void {
         .map(
           (variable) =>
             `  - ${variable}: 未设置。评测不需要地址（评测机自己来领活），` +
-            `但 spawn/poll/destroy 这类动作是平台同步发起的，拉不了。` +
+            `但交互动作是平台代选手同步发起的，拉不了。` +
             `填上它的地址；这套部署不开这道题，就把题目的 actions 去掉`,
         )
         .join("\n"),

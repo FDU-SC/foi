@@ -1,22 +1,8 @@
 import { z } from "zod";
 import { audienceSchema } from "@/lib/auth/audience";
-// Types only: this module is reachable from client components (`LANGUAGES` is
-// read by `components/problem/submit-panel.tsx`), so nothing here may pull a
-// runtime dependency on the backend layer into a browser chunk.
+// Types only: `PublicProblemConfig` is handed to client components, so nothing
+// here may pull a runtime dependency on the backend layer into a browser chunk.
 import type { BackendUser, Verdict } from "@/lib/backend/types";
-
-/** Display names for the languages the built-in code submitter offers. */
-export const LANGUAGES: Record<string, string> = {
-  c: "C",
-  cpp: "C++",
-  python: "Python",
-  java: "Java",
-  rust: "Rust",
-  go: "Go",
-  javascript: "JavaScript",
-};
-
-const DIFFICULTIES = ["入门", "普及", "提高", "省选", "NOI"] as const;
 
 /**
  * How often one person may invoke one action.
@@ -77,9 +63,9 @@ export const DEFAULT_SUBMIT_RATE_LIMIT: ActionRateLimit = {
  * `status: "system_error"` when their configuration was missing. It renders as
  * a fault, which is why it looked like the right answer, but it is still a
  * verdict — the row lands in `completed`, `scoredSubmissions` counts it, it
- * shows on the board, and under ACM rules it buys the competitor a failed
- * attempt with the penalty minutes attached. A setter forgetting one config
- * key charged the next person to submit for it.
+ * shows on the board, and any format that charges for a rejected attempt
+ * charges for this one. A setter forgetting one config key billed the next
+ * person to submit for it.
  *
  * `reason` is prose for whoever opens the submission, and lands in
  * `submissions.error` exactly where a runner's would.
@@ -244,12 +230,17 @@ export const problemConfigSchema = z.object({
    */
   backend: z.union([inlineBackendSchema, externalBackendSchema]),
 
-  /** Drives the default `<SubmitPanel />`. Statements may ignore it entirely. */
+  /**
+   * What submitting to this problem costs the deployment. Nothing about what
+   * it looks like — see `ui`.
+   *
+   * This used to carry `kind`, `languages` and `placeholder` as well, which
+   * made the kernel's problem schema the place a competition declared that its
+   * submissions are source files in one of seven named languages, or a flag.
+   * Those are facts about a submitter widget, and the widget is a template.
+   */
   submit: z
     .object({
-      kind: z.enum(["code", "flag", "text", "none"]).default("code"),
-      languages: z.array(z.string()).optional(),
-      placeholder: z.string().optional(),
       /**
        * How often one person may submit to this problem. Omitted means
        * `DEFAULT_SUBMIT_RATE_LIMIT`; a contest may override it for its own
@@ -261,10 +252,33 @@ export const problemConfigSchema = z.object({
        */
       rateLimit: actionRateLimitSchema.optional(),
     })
-    .default({ kind: "code" }),
+    .default({}),
+
+  /**
+   * Whatever this deployment's statement components need, uninterpreted.
+   *
+   * The third opaque field, and deliberately the same bargain as
+   * `backend.config` and `verdict.detail`: the kernel carries it from the
+   * problem file to `useProblem()` and never looks inside. What the built-in
+   * submitter used to read off `submit` lives here now, which is what lets a
+   * deployment ship a submitter that takes something else entirely without
+   * asking for a schema change.
+   *
+   * Reaches the browser, unlike `backend.config` — `toPublicConfig` strips
+   * that one and not this one. Nothing secret goes here.
+   */
+  ui: z.unknown().optional(),
 
   tags: z.array(z.string()).default([]),
-  difficulty: z.enum(DIFFICULTIES).optional(),
+  /**
+   * Free text, rendered as a badge and never compared against anything.
+   *
+   * A closed enum once, holding the five rungs of one country's olympiad
+   * ladder. Which rungs exist is a fact about a syllabus, and a deployment
+   * that grades on a different one should not have to edit the kernel to say
+   * so.
+   */
+  difficulty: z.string().min(1).optional(),
   /**
    * Which groups may see this problem. Omitted means everyone, `[]` means
    * nobody — that is how a problem is staged before it has an audience.

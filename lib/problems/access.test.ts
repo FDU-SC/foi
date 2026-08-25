@@ -3,6 +3,7 @@ import { capabilitiesOf, listGroups } from "@/lib/auth/groups";
 import { CAPABILITIES } from "@/lib/auth/policy";
 import { AS_PLAYER } from "@/lib/auth/test-support";
 import { viewerFor, type Viewer } from "@/lib/auth/viewer";
+import { viewerWith } from "@/test/content-shapes";
 import { contestFor } from "@/lib/contests/access";
 import { allContests } from "@/lib/contests/registry";
 import { hasContestStarted, type ContestConfig } from "@/lib/contests/types";
@@ -26,9 +27,11 @@ import {
  * deployed.
  */
 const contests = allContests();
-const demo = contests.find((contest) => contest.slug === "demo-acm");
+/** Any round this deployment ships: these cases need one to exist, not a
+ * particular one. */
+const demo = contests[0];
 
-const PREVIEW = viewerFor({ handle: "an-admin", groups: ["管理员"] });
+const PREVIEW = viewerWith("problem.viewAll", "an-admin");
 
 function before(date: Date): Date {
   return new Date(date.getTime() - 60_000);
@@ -46,8 +49,8 @@ describe("viewerFor", () => {
     );
   });
 
-  it("管理员拿得到预览", () => {
-    expect(viewerFor({ handle: "a", groups: ["管理员"] }).can("problem.viewAll")).toBe(
+  it("持有该能力的组拿得到预览", () => {
+    expect(viewerWith("problem.viewAll", "a").can("problem.viewAll")).toBe(
       true,
     );
   });
@@ -92,7 +95,7 @@ describe("viewerFor", () => {
   });
 
   it("未声明的组不带任何能力", () => {
-    const viewer = viewerFor({ handle: "x", groups: ["2026级", "本科生"] });
+    const viewer = viewerFor({ handle: "x", groups: ["未声明的组-甲", "未声明的组-乙"] });
     for (const capability of CAPABILITIES) {
       expect(viewer.can(capability)).toBe(false);
     }
@@ -308,7 +311,7 @@ describe("能看到比赛与能看到题目的关系", () => {
   /** Enough shapes to cover both override axes and neither. */
   const VIEWERS: Viewer[] = [
     AS_PLAYER,
-    viewerFor({ handle: "player", groups: ["本科生", "2026级"] }),
+    viewerFor({ handle: "player", groups: ["一个普通分组"] }),
     PREVIEW,
     { handle: "reader", groups: [], can: (c) => c === "contest.viewAll" },
     {
@@ -487,8 +490,10 @@ describe("problemStatus", () => {
  * move.
  */
 describe("受众与阶段的组合", () => {
-  const inTeam = viewerFor({ handle: "t", groups: ["校队"] });
-  const outsider = viewerFor({ handle: "o", groups: ["2026级"] });
+  // Two ordinary viewers in different groups. Which groups is immaterial —
+  // what the cases below need is that neither carries a capability.
+  const inTeam = viewerFor({ handle: "t", groups: ["无能力的组-甲"] });
+  const outsider = viewerFor({ handle: "o", groups: ["无能力的组-乙"] });
 
   /** A problem this deployment has actually given to some group. */
   const gated = allProblems().find((problem) => problem.visibleTo?.length);

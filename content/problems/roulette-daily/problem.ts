@@ -1,3 +1,4 @@
+import type { ProblemUi } from "@/content/components/ui-config";
 import type { ProblemConfigInput } from "@/lib/problems/types";
 import {
   judgeRoulette,
@@ -19,9 +20,11 @@ export const problem = {
       scoreSize: 10,
     } satisfies RouletteConfig,
   },
-  submit: {
-    kind: "text",
+  ui: {
+    submit: "text",
     placeholder: "red / black / green / 0-36 / big / small",
+  } satisfies ProblemUi,
+  submit: {
     // 签到：约 24 小时可以来一次。
     rateLimit: { max: 1, windowSeconds: 86400 },
   },

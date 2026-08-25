@@ -234,7 +234,7 @@ export function JudgeStatusBoard({
 
       {statuses.length === 0 ? (
         <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
-          backends.config.ts 中还没有登记题目后端。
+          content/backends.ts 中还没有登记题目后端。
         </p>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">

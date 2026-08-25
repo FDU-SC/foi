@@ -44,7 +44,7 @@ describe("用户组声明", () => {
   });
 
   it("groupName 对未声明的组回落到 id 本身", () => {
-    expect(groupName("2026级")).toBe("2026级");
+    expect(groupName("一个不存在的组")).toBe("一个不存在的组");
   });
 
   it("capabilitiesOf 取并集", () => {
@@ -160,7 +160,7 @@ describe("能力蕴含", () => {
   it("蕴含出来的能力不会让一个纯分组凭空得到权限", () => {
     // The closure runs over what the groups granted, so a membership that
     // granted nothing still grants nothing.
-    expect(capabilitiesOf(["2026级", "本科生"]).size).toBe(0);
+    expect(capabilitiesOf(["未声明的组-甲", "未声明的组-乙"]).size).toBe(0);
   });
 });
 

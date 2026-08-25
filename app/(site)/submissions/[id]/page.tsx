@@ -6,7 +6,8 @@ import { viewerFor } from "@/lib/auth/viewer";
 import { ProblemRef } from "@/components/problem/problem-ref";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
-import { VerdictDetail } from "@/components/problem/verdict-detail";
+import { PayloadBody } from "@/components/opaque/payload-body";
+import { VerdictBody } from "@/components/opaque/verdict-body";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { locateOne } from "@/lib/backend/queue-lookup";
 import { failureReason, isSettled } from "@/lib/backend/types";
@@ -22,21 +23,6 @@ const formatter = new Intl.DateTimeFormat("zh-CN", {
   dateStyle: "medium",
   timeStyle: "medium",
 });
-
-/** Pulls a readable source string out of the payload shapes FOI ships with. */
-function extractSource(payload: unknown): { text: string; label: string } | null {
-  if (typeof payload !== "object" || payload === null) return null;
-  const record = payload as Record<string, unknown>;
-
-  if (typeof record.source === "string") {
-    const language =
-      typeof record.language === "string" ? record.language : "代码";
-    return { text: record.source, label: language };
-  }
-  if (typeof record.flag === "string") return { text: record.flag, label: "flag" };
-  if (typeof record.text === "string") return { text: record.text, label: "文本" };
-  return null;
-}
 
 export default async function SubmissionPage({
   params,
@@ -57,7 +43,6 @@ export default async function SubmissionPage({
   // here would only blank out a page the reader is entitled to — the gate is
   // about problems nobody has seen yet, not ones already submitted to.
   const problem = problemBySlug(row.problemSlug);
-  const source = extractSource(row.payload);
   const reason = failureReason(row);
   const queue = isSettled(row.state) ? null : await locateOne(row.id);
 
@@ -122,26 +107,22 @@ export default async function SubmissionPage({
         <Card>
           <CardHeader title="评测详情" />
           <CardBody>
-            <VerdictDetail verdict={row.verdict} />
+            <VerdictBody problemSlug={row.problemSlug} verdict={row.verdict} />
           </CardBody>
         </Card>
       ) : null}
 
-      {source ? (
-        <Card>
-          <CardHeader title={`提交内容 · ${source.label}`} />
-          <pre className="text-fg overflow-x-auto px-4 py-3 font-mono text-[13px] leading-relaxed whitespace-pre-wrap">
-            {source.text}
-          </pre>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader title="提交内容" />
-          <pre className="text-fg-muted overflow-x-auto px-4 py-3 font-mono text-xs">
-            {JSON.stringify(row.payload, null, 2)}
-          </pre>
-        </Card>
-      )}
+      {/*
+        Both of these are opaque to the kernel, so both go through a slot a
+        deployment may fill — see `lib/presentation/types.ts`. Unfilled, they
+        render as the JSON they are.
+      */}
+      <Card>
+        <CardHeader title="提交内容" />
+        <CardBody>
+          <PayloadBody problemSlug={row.problemSlug} payload={row.payload} />
+        </CardBody>
+      </Card>
     </div>
   );
 }

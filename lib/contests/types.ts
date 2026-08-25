@@ -176,13 +176,20 @@ export type ContestClock = Pick<
  * `freezeAt` and has not ended. It is *not* the question the standings page
  * asks. Whether the board somebody is looking at is frozen depends on who they
  * are — `standings.viewFrozen` reads through it — and that answer lives on
- * `Standings.frozen` and `ContestStandings.freezeBypassed`. A UI that reaches
- * for `phase === "frozen"` to answer the second question will tell a holder of
- * the capability that the real ranking they are reading is withheld.
+ * `Standings.frozen`. A UI that reaches for `phase === "frozen"` to answer the
+ * second question will tell a holder of the capability that the real ranking
+ * they are reading is withheld.
+ *
+ * `ContestStandings.freezeBypassed` is the two questions multiplied together —
+ * the clock says frozen *and* this viewer read through it — so it is a correct
+ * caller of this function and the only one in the standings path.
  *
  * The window is `[freezeAt, endsAt]`: `endsAt` is inclusive here for the same
  * reason it is inclusive of `running`, so the sequence a contest walks is
- * always upcoming → running → frozen → ended and never goes backwards.
+ * always upcoming → running → frozen → ended and never goes backwards. This is
+ * the kernel's definition of the window and rulesets follow it; `freezeAt` is
+ * refused outside `[startsAt, endsAt)` above, which is what makes the two
+ * agree without either having to read the other.
  */
 export type ContestPhase = "upcoming" | "running" | "frozen" | "ended";
 

@@ -1,11 +1,6 @@
 import type { MDXComponents } from "mdx/types";
 import type { ComponentPropsWithoutRef } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Callout } from "@/components/problem/callout";
-import { Constraints } from "@/components/problem/constraints";
-import { Sample } from "@/components/problem/sample";
-import { SubmitPanel } from "@/components/problem/submit-panel";
+import { presentation } from "@/lib/presentation/registry";
 import { cn } from "@/lib/utils";
 
 type Props<T extends keyof React.JSX.IntrinsicElements> =
@@ -16,11 +11,17 @@ type Props<T extends keyof React.JSX.IntrinsicElements> =
  * this, which is what keeps them visually consistent without each author
  * having to think about styling.
  *
- * Keep this list small: widely used primitives only. Anything specific to a
- * single problem belongs in that problem's own directory and gets imported
- * directly by its statement.
+ * Two halves, and the split is the point. Below is how a heading, a table and
+ * a code fence look, which is the design system and therefore the kernel's.
+ * `Callout`, `Sample`, a submitter — the things a statement *writes* — are a
+ * deployment's, and arrive through `presentation.mdxComponents`. They used to
+ * be imported here by name, which made a statement vocabulary invented for one
+ * competition part of the platform, and made `content/` undeletable.
+ *
+ * The file has to stay at the repository root: Next resolves
+ * `useMDXComponents` from exactly here.
  */
-const components: MDXComponents = {
+const elements: MDXComponents = {
   h1: ({ className, ...props }: Props<"h1">) => (
     <h1
       className={cn(
@@ -141,13 +142,13 @@ const components: MDXComponents = {
       {...props}
     />
   ),
+};
 
-  Callout,
-  Constraints,
-  Sample,
-  SubmitPanel,
-  Badge,
-  Button,
+// Content last, so a deployment that wants its own `pre` can have it. Built
+// once at module load rather than per call: both halves are static.
+const components: MDXComponents = {
+  ...elements,
+  ...presentation.mdxComponents,
 };
 
 export function useMDXComponents(): MDXComponents {

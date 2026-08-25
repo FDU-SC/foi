@@ -5,6 +5,7 @@ import { viewerFor } from "@/lib/auth/viewer";
 import { db } from "@/lib/db";
 import { allContests } from "@/lib/contests/registry";
 import { listRules } from "@/lib/enrollment/registry";
+import { viewerWith } from "@/test/content-shapes";
 import {
   adminAccountsFor,
   adminContestsFor,
@@ -40,7 +41,7 @@ if (!online) {
   console.warn("[test] 数据库不可达，跳过运维台门禁集成用例");
 }
 
-const admin = viewerFor({ handle: "adminaccess-admin", groups: ["管理员"] });
+const admin = viewerWith("admin.access", "adminaccess-admin");
 const player = viewerFor({ handle: "adminaccess-player", groups: [] });
 
 /**

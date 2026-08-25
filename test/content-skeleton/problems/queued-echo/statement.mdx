@@ -1,0 +1,19 @@
+<Constraints time="1 s" memory="256 MiB" extra={{ 判题: "后端队列" }} />
+
+## 题目描述
+
+读入一行文本，原样输出。
+
+提交之后这一行会停在 `queued`，直到某台 runner 拿着 `example` 后端的密钥来
+`POST /api/runner/jobs/request` 把它领走。本地起一个：
+
+```bash
+pnpm backend:mock
+```
+
+<Callout kind="warning">
+没有 runner 在跑的时候，提交会一直排队，直到六小时的保险丝把它标成
+`disrupted`。这是设计如此，不是故障。
+</Callout>
+
+<SubmitPanel />

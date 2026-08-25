@@ -64,9 +64,10 @@ export default async function AdminContestsPage() {
 
       {all.length === 0 ? (
         <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
-          还没有比赛。复制{" "}
-          <code className="font-mono">content/contests/demo-acm/</code>{" "}
-          改一改即可。
+          还没有比赛。在{" "}
+          <code className="font-mono">content/contests/</code>{" "}
+          下新建一个目录，写一份{" "}
+          <code className="font-mono">contest.ts</code> 即可。
         </p>
       ) : (
         all.map((contest) => {

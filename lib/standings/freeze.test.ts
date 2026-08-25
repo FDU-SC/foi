@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/lib/auth/test-support";
-import { viewerFor } from "@/lib/auth/viewer";
 import { capabilitiesOf, listGroups } from "@/lib/auth/groups";
+import { viewerFor } from "@/lib/auth/viewer";
 import { contestPhase } from "@/lib/contests/types";
-import { ruleset as acmRuleset } from "@/content/rulesets/acm";
+import { groupWith } from "@/test/content-shapes";
+import { listRulesets } from "./registry";
 import {
   at,
   END,
@@ -13,22 +14,34 @@ import {
   solve,
   START,
 } from "./test-support";
+import type { AnyRuleset } from "./types";
 
 /**
+ * What every format claiming `supportsFreeze` owes the kernel.
+ *
  * Reading through a freeze is expressed by handing the ruleset a contest with
- * no `freezeAt`, so no format has to know the option exists. These cases pin
- * that equivalence: the unfrozen board must match what the same contest would
- * produce if it had never declared a freeze at all.
+ * no `freezeAt`, so no format has to know the option exists. That only works
+ * if a format's own comparison agrees with the kernel's — which is why these
+ * run over the whole registry rather than over one shipped ruleset. This file
+ * used to import `content/rulesets/acm` by name and was the only thing in
+ * `lib/` that reached into a specific template; what it was really asserting
+ * was true of any freezing format, and now it says so.
+ *
+ * A format's *scoring* under a freeze is its own business and is pinned beside
+ * it, in `content/rulesets/`.
  */
-const problems = [problem("a", "A"), problem("b", "B")];
+const freezing = listRulesets().filter((ruleset) => ruleset.supportsFreeze);
 
+const problems = [problem("a", "A"), problem("b", "B")];
 const submissions = [solve("alice", "a", 10), solve("alice", "b", 250)];
 
-function board(freezeAt: Date | null, now: Date) {
+function board(ruleset: AnyRuleset, freezeAt: Date | null, now: Date) {
+  // Formats read `Date.now()` to place themselves in the round, which is the
+  // one thing these cases have to move.
   const original = Date.now;
   Date.now = () => now.getTime();
   try {
-    return acmRuleset.computeStandings(
+    return ruleset.computeStandings(
       input({
         participants: participants("alice"),
         problems,
@@ -42,32 +55,35 @@ function board(freezeAt: Date | null, now: Date) {
 }
 
 describe("封榜的开关就是 freezeAt", () => {
+  it("至少有一种赛制支持封榜，否则这组用例什么也没测", () => {
+    expect(freezing.length).toBeGreaterThan(0);
+  });
+
   const during = at(250);
   const freezeAt = at(240);
 
-  it("带 freezeAt 时，封榜后的题不计入", () => {
-    const frozen = board(freezeAt, during);
-    expect(frozen.frozen).toBe(true);
-    expect(frozen.rows[0].total).toBe(1);
-  });
+  it.each(freezing.map((ruleset) => ({ ruleset, id: ruleset.id })))(
+    "$id：带 freezeAt 就封，去掉就不封",
+    ({ ruleset }) => {
+      expect(board(ruleset, freezeAt, during).frozen).toBe(true);
+      expect(board(ruleset, null, during).frozen).toBe(false);
+    },
+  );
 
-  it("去掉 freezeAt 后，同一批提交全部计入", () => {
-    const open = board(null, during);
-    expect(open.frozen).toBe(false);
-    expect(open.rows[0].total).toBe(2);
-  });
+  it.each(freezing.map((ruleset) => ({ ruleset, id: ruleset.id })))(
+    "$id：解冻后的榜与比赛结束后的榜一致",
+    ({ ruleset }) => {
+      // The point of the bypass: an administrator mid-freeze sees the same
+      // ranking everyone will see when the contest ends.
+      const bypassed = board(ruleset, null, during);
+      const afterEnd = board(ruleset, freezeAt, new Date(END.getTime() + 1));
 
-  it("解冻后的榜与比赛结束后的榜一致", () => {
-    // The point of the bypass: an administrator mid-freeze sees the same
-    // ranking everyone will see when the contest ends.
-    const bypassed = board(null, during);
-    const afterEnd = board(freezeAt, new Date(END.getTime() + 1));
+      const shape = (b: ReturnType<typeof board>) =>
+        b.rows.map((row) => [row.participant.handle, row.total, row.tiebreak]);
 
-    expect(bypassed.rows.map((r) => [r.participant.handle, r.total, r.tiebreak]))
-      .toEqual(
-        afterEnd.rows.map((r) => [r.participant.handle, r.total, r.tiebreak]),
-      );
-  });
+      expect(shape(bypassed)).toEqual(shape(afterEnd));
+    },
+  );
 });
 
 describe("封榜窗口与比赛相位说的是同一个窗口", () => {
@@ -77,24 +93,30 @@ describe("封榜窗口与比赛相位说的是同一个窗口", () => {
   /**
    * One window, written twice. `contestPhase` is the kernel's copy and
    * documents `[freezeAt, endsAt]` as closed at both ends — `endsAt` belongs
-   * to the phase before `ended` so that a contest never walks backwards. The
-   * ACM ruleset writes the comparison out again, because a format in
-   * `content/` computes its own and inherits none of the exhaustive switch
-   * that keeps the kernel's phase callers honest.
+   * to the phase before `ended` so that a contest never walks backwards. A
+   * format in `content/` writes the comparison out again, because it computes
+   * its own and inherits none of the exhaustive switch that keeps the kernel's
+   * phase callers honest.
    *
-   * They disagreed at exactly one instant, the millisecond a round ended: the
-   * badge said frozen and the board under it was not. Nothing leaked — the
-   * next millisecond unfreezes the board anyway — but the only thing keeping
-   * the two copies together is a case that reads them side by side.
+   * Two copies disagreed at exactly one instant once, the millisecond a round
+   * ended: the badge said frozen and the board under it was not. Nothing
+   * leaked — the next millisecond unfreezes the board anyway — but the only
+   * thing keeping them together is a case that reads them side by side.
    */
-  it.each([
+  const moments = [
     { label: "封榜前一刻", now: new Date(freezeAt.getTime() - 1) },
     { label: "封榜当刻", now: freezeAt },
     { label: "封榜期间", now: at(250) },
     { label: "结束当刻", now: END },
     { label: "结束之后", now: new Date(END.getTime() + 1) },
-  ])("$label", ({ now }) => {
-    expect(board(freezeAt, now).frozen).toBe(
+  ];
+
+  it.each(
+    freezing.flatMap((ruleset) =>
+      moments.map((moment) => ({ ...moment, ruleset, id: ruleset.id })),
+    ),
+  )("$id · $label", ({ ruleset, now }) => {
+    expect(board(ruleset, freezeAt, now).frozen).toBe(
       contestPhase(clock, now) === "frozen",
     );
   });
@@ -108,9 +130,10 @@ describe("谁能看穿封榜", () => {
     expect(AS_PLAYER.can("standings.viewFrozen")).toBe(false);
   });
 
-  it("管理员能", () => {
+  it("持有这项能力的组能", () => {
+    const group = groupWith("standings.viewFrozen");
     expect(
-      viewerFor({ handle: "a", groups: ["管理员"] }).can("standings.viewFrozen"),
+      viewerFor({ handle: "a", groups: [group] }).can("standings.viewFrozen"),
     ).toBe(true);
   });
 
@@ -133,9 +156,11 @@ describe("谁能看穿封榜", () => {
   });
 
   it("只有 submission.readAny 的组也能穿透，因为它本来就能把分加出来", () => {
-    expect(capabilitiesOf(["管理员"]).has("standings.viewFrozen")).toBe(true);
     expect(
-      capabilitiesOf([]).has("standings.viewFrozen"),
-    ).toBe(false);
+      capabilitiesOf([groupWith("submission.readAny")]).has(
+        "standings.viewFrozen",
+      ),
+    ).toBe(true);
+    expect(capabilitiesOf([]).has("standings.viewFrozen")).toBe(false);
   });
 });

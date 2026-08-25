@@ -1,34 +1,54 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Input, Select, Textarea } from "@/components/ui/field";
+import { VerdictBody } from "@/components/opaque/verdict-body";
 import { useProblem } from "@/components/problem/problem-context";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
-import { VerdictDetail } from "@/components/problem/verdict-detail";
-import { LANGUAGES } from "@/lib/problems/types";
+import { Button } from "@/components/ui/button";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Input, Select, Textarea } from "@/components/ui/field";
 import { useSubmit } from "@/lib/submissions/use-submit";
+import { problemUi, type SubmitKind } from "./ui-config";
+
+/** Display names for the languages this deployment's code submitter offers. */
+const LANGUAGES: Record<string, string> = {
+  c: "C",
+  cpp: "C++",
+  python: "Python",
+  java: "Java",
+  rust: "Rust",
+  go: "Go",
+  javascript: "JavaScript",
+};
 
 const DEFAULT_LANGUAGES = ["cpp", "python"];
 
 /**
  * The stock submitter, registered globally so a statement can just write
  * `<SubmitPanel />`. It covers code and single-value submissions; problems
- * needing anything else set `submit.kind` to `"none"` and render their own
+ * needing anything else set `ui.submit` to `"none"` and render their own
  * component built on `useSubmit()`.
+ *
+ * A template, not the kernel. `useSubmit` posts whatever object it is handed
+ * and `POST /api/submissions` stores it without looking inside, so the three
+ * payload shapes below — `{ language, source }`, `{ flag }`, `{ text }` — are
+ * this deployment's convention and nothing else has to agree with them. They
+ * used to be spelled out in `problemConfigSchema`, which made them the
+ * platform's. The half that reads them back is
+ * `content/problems/_shared/views/submitted.tsx`.
+ *
+ * The verdict below goes through the kernel's `VerdictBody`, which asks the
+ * problem how to draw its own `detail` — this panel serves every problem and
+ * has no business choosing for any of them.
  */
-export function SubmitPanel({
-  kind: kindOverride,
-}: {
-  kind?: "code" | "flag" | "text";
-}) {
+export function SubmitPanel({ kind: kindOverride }: { kind?: SubmitKind }) {
   const { config, canAct } = useProblem();
   const { submit, submission, submitting, error } = useSubmit();
 
-  const kind = kindOverride ?? config.submit.kind;
-  const languages = config.submit.languages ?? DEFAULT_LANGUAGES;
+  const ui = problemUi(config);
+  const kind = kindOverride ?? ui.submit;
+  const languages = ui.languages ?? DEFAULT_LANGUAGES;
 
   const [language, setLanguage] = useState(languages[0] ?? "cpp");
   const [value, setValue] = useState("");
@@ -63,7 +83,14 @@ export function SubmitPanel({
       <CardBody>
         {!canAct ? (
           <p className="text-fg-muted text-sm">
-            请先<a className="text-primary underline underline-offset-2" href="/login">登录</a>后提交。
+            请先
+            <a
+              className="text-primary underline underline-offset-2"
+              href="/login"
+            >
+              登录
+            </a>
+            后提交。
           </p>
         ) : (
           <form onSubmit={onSubmit} className="space-y-3">
@@ -87,7 +114,7 @@ export function SubmitPanel({
                   onChange={(e) => setValue(e.target.value)}
                   rows={12}
                   spellCheck={false}
-                  placeholder={config.submit.placeholder ?? "在此粘贴你的代码"}
+                  placeholder={ui.placeholder ?? "在此粘贴你的代码"}
                 />
               </>
             ) : kind === "flag" ? (
@@ -97,14 +124,14 @@ export function SubmitPanel({
                 spellCheck={false}
                 autoComplete="off"
                 className="font-mono"
-                placeholder={config.submit.placeholder ?? "flag{...}"}
+                placeholder={ui.placeholder ?? "flag{...}"}
               />
             ) : (
               <Textarea
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 rows={6}
-                placeholder={config.submit.placeholder}
+                placeholder={ui.placeholder}
               />
             )}
 
@@ -145,7 +172,7 @@ export function SubmitPanel({
 
         {submission?.verdict ? (
           <div className="border-border mt-4 border-t pt-4">
-            <VerdictDetail verdict={submission.verdict} />
+            <VerdictBody problemSlug={config.slug} verdict={submission.verdict} />
           </div>
         ) : null}
       </CardBody>

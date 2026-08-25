@@ -36,7 +36,7 @@ const CONTEST = "runner-queue-round";
  * A queue belonging to this suite alone.
  *
  * `claimJob` selects on the backend column and nothing else — it is an opaque
- * queue selector, never resolved against `backends.config.ts`, see the note on
+ * queue selector, never resolved against `content/backends.ts`, see the note on
  * `backendId` in `lib/db/schema.ts`. A fixture value is therefore what keeps
  * the concurrency case exact: under a real backend id the counts below would
  * include whatever else happened to be queued in a development database, and a

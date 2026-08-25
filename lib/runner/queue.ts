@@ -64,7 +64,7 @@ export const MAX_ATTEMPTS = 3;
  *
  * The other half of GitHub's two-number model, and the only guard against the
  * failure the push model could not have at all: nobody is running a runner for
- * this backend. That covers a backend deleted from `backends.config.ts`, a
+ * this backend. That covers a backend deleted from `content/backends.ts`, a
  * deployment where somebody forgot to start the runner, and an outage that
  * outlasts the round. Long, because it must not fire during an ordinary
  * backlog — six hours is longer than any queue this deployment can produce and

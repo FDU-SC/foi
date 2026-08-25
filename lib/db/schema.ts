@@ -382,7 +382,8 @@ export const submissions = pgTable(
 
     /**
      * The backend's own status string, for the badge. An opaque label:
-     * `VERDICT_PRESETS` translates the ones FOI ships with and anything else
+     * `presentation.verdicts` translates the ones a deployment names and
+     * anything else
      * renders as itself.
      */
     outcome: text("outcome"),
@@ -622,7 +623,7 @@ export const submissions = pgTable(
  * Not a registry, for the same reason `backend_snapshots` was not one: there is
  * deliberately no address column, because a runner has no inbound address and
  * inventing one would be a second place to look up something already declared
- * in `backends.config.ts`.
+ * in `content/backends.ts`.
  *
  * It earns its place by answering one question nothing else can: **is anybody
  * out there?** A deep queue with runners on it means work is arriving faster

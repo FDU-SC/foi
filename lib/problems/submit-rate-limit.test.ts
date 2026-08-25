@@ -17,7 +17,7 @@ function problemWith(submit?: Record<string, unknown>) {
   return problemConfigSchema.parse({
     slug: "example",
     title: "Example",
-    backend: { id: "traditional" },
+    backend: { id: "queue-a" },
     ...(submit ? { submit } : {}),
   });
 }

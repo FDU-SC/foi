@@ -2,11 +2,66 @@ import { z } from "zod";
 import type { BadgeTone } from "@/components/ui/badge";
 
 /**
+ * What the kernel needs to know about one problem backend.
+ *
+ * The type is the kernel's; the list of backends is not. A deployment declares
+ * its own in `content/backends.ts`, discovered through
+ * `content/backend-modules.ts` the way problems and rulesets are, and the
+ * conventions for spelling one out of the environment are in `./env.ts`.
+ *
+ * "Backend" rather than "judge" because judging is one of the things these
+ * services do, not the only one: the same process that grades a submission is
+ * also the one that would hand out a container for the problem, and it has to
+ * be, since a per-instance flag is only known to whoever created the instance.
+ * The judging half of the protocol keeps the `judge` name throughout, because
+ * that half really is about judging.
+ */
+export interface ProblemBackend {
+  /**
+   * Where the kernel reaches this backend — and only for the half it still
+   * initiates.
+   *
+   * Optional now, and for most backends absent. Judging is pulled: a runner
+   * comes to `POST /api/runner/jobs/request`, so it needs to reach *us* and
+   * nothing here needs to reach it. What is left going outward is
+   * `POST /action/<name>`, which a player sets off synchronously and which
+   * therefore cannot be pulled — so an address is needed by exactly those
+   * backends that some problem declares an `actions` entry on.
+   *
+   * That is not a compromise held over from the old direction. A problem
+   * handing out containers for a competitor to connect into needs that machine
+   * reachable regardless of how judging works.
+   */
+  url?: string;
+  /**
+   * Read from `FOI_BACKEND_<NAME>_SECRET`. Falls back to the shared
+   * `FOI_BACKEND_SECRET` in `resolveBackend` when a backend has none — outside
+   * production, where `assertBackendSecrets` refuses the boot instead.
+   */
+  secret?: string;
+  /**
+   * Milliseconds to wait for a reply from an interactive endpoint.
+   *
+   * One knob, where there used to be three, and now with only one endpoint
+   * left to apply to. `actionTimeoutMs` went because the protocol already
+   * requires every action to answer promptly and let a `poll` action follow up.
+   * `abandonAfterMs` went because it was never a property of the backend at
+   * all: it had to cover both how long a problem takes to judge and how deep
+   * the queue was. Its replacement is a heartbeat, which is a property of
+   * neither and is one number for the whole deployment.
+   *
+   * Rarely worth setting. A backend that cannot answer a cheap question inside
+   * ten seconds is one `/judges` should be showing as unhealthy.
+   */
+  replyTimeoutMs?: number;
+}
+
+/**
  * `submissions.backendId` for a problem the kernel judged itself.
  *
  * The column is `not null` because every other row has a real backend to name,
  * and a sentinel keeps it that way rather than making every reader handle a
- * null. Safe as a value because `backends.config.ts` keys double as
+ * null. Safe as a value because `content/backends.ts` keys double as
  * environment-variable fragments: a real entry by this name would need
  * `FOI_BACKEND_INLINE_SECRET`, which nothing sets.
  *
@@ -144,10 +199,10 @@ export interface BackendUser {
  * Request body the kernel POSTs to an interactive endpoint.
  *
  * The one thing the kernel still initiates against a backend, and the reason
- * `leaky-bucket` keeps an inbound address while the other three no longer need
- * one: `spawn`/`poll`/`destroy` are synchronous requests a player set off, and
- * there is no way to pull those. That is not a compromise — a player who is
- * going to connect into a container needs that machine reachable anyway.
+ * `url` survives on `ProblemBackend` at all: an action is a synchronous
+ * request a player set off, and there is no way to pull one. That is not a
+ * compromise — a problem handing out a machine for a competitor to connect
+ * into needs that machine reachable regardless of how judging works.
  *
  * The kernel reads `action` to pick the path and nothing else: `payload` and
  * the response are as opaque here as a verdict's `detail` is everywhere else.
@@ -285,69 +340,15 @@ export const jobReportSchema = z.discriminatedUnion("state", [
 
 export type JobReport = z.infer<typeof jobReportSchema>;
 
-interface VerdictPreset {
-  label: string;
-  short: string;
-  tone: BadgeTone;
-}
-
 /**
- * Display metadata for verdict statuses FOI ships with. Judges are free to
- * return anything else; `describeVerdict` falls back to scoring the result.
+ * Naming and colouring a verdict lives in `lib/presentation/verdict.ts`.
  *
- * `system_error` stays as a rendering fallback for rows written before the pull
- * model, and for a backend that insists on reporting one. It is not how an
- * internal failure should be reported: `state: "failed"` is, and it is the only
- * one of the two that keeps the submission out of the standings.
+ * Nine statuses used to be listed here, which put one grading tradition's
+ * abbreviations inside the module that defines the protocol — a protocol whose
+ * only claim about `status` is that it is one to sixty-four characters. The
+ * four states below stay, because the kernel really does own those: they are
+ * the queue's lifecycle, not a judge's opinion.
  */
-export const VERDICT_PRESETS: Record<string, VerdictPreset> = {
-  accepted: { label: "通过", short: "AC", tone: "ok" },
-  wrong_answer: { label: "答案错误", short: "WA", tone: "err" },
-  time_limit_exceeded: { label: "超出时间限制", short: "TLE", tone: "warn" },
-  memory_limit_exceeded: { label: "超出内存限制", short: "MLE", tone: "warn" },
-  output_limit_exceeded: { label: "超出输出限制", short: "OLE", tone: "warn" },
-  runtime_error: { label: "运行时错误", short: "RE", tone: "err" },
-  compile_error: { label: "编译错误", short: "CE", tone: "err" },
-  partial: { label: "部分正确", short: "PC", tone: "partial" },
-  system_error: { label: "系统错误", short: "SE", tone: "err" },
-};
-
-/**
- * How to render a finished submission's badge.
- *
- * Takes the resolved columns rather than the verdict, because that is where
- * the kernel's copy of these lives now and because a backend may have declared
- * a pass without reporting any score at all.
- */
-export function describeVerdict(result: {
-  outcome: string | null;
-  score: number | null;
-  maxScore: number | null;
-  accepted: boolean | null;
-}): VerdictPreset {
-  const label = result.outcome ?? "已评测";
-  const preset = result.outcome ? VERDICT_PRESETS[result.outcome] : undefined;
-  if (preset) return preset;
-
-  // An unrecognised status, so the tone has to come from the numbers. A
-  // declared pass settles it; otherwise full marks reads as a pass, anything
-  // above zero as partial. With no score reported there is nothing to grade
-  // the colour on, which is what neutral is for.
-  const tone: BadgeTone =
-    result.accepted !== null
-      ? result.accepted
-        ? "ok"
-        : "err"
-      : result.score === null
-        ? "neutral"
-        : result.maxScore !== null && result.score >= result.maxScore
-          ? "ok"
-          : result.score > 0
-            ? "partial"
-            : "err";
-
-  return { label, short: label, tone };
-}
 
 /**
  * `disrupted` is not spelled as a failure, and that is the point of it being a

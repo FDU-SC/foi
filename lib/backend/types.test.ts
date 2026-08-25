@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeVerdict, verdictSchema } from "./types";
+import { verdictSchema } from "./types";
 
 /**
  * A backend may reply with nothing but a status label, so the badge has to
@@ -18,45 +18,5 @@ describe("verdictSchema", () => {
     expect(
       verdictSchema.safeParse({ status: "accepted", maxScore: 0 }).success,
     ).toBe(false);
-  });
-});
-
-describe("describeVerdict", () => {
-  const base = { score: null, maxScore: null, accepted: null };
-
-  it("认识的 status 翻译成中文与缩写", () => {
-    expect(describeVerdict({ ...base, outcome: "accepted" })).toMatchObject({
-      short: "AC",
-      tone: "ok",
-    });
-  });
-
-  it("不认识的 status 原样显示，颜色由分数推出来", () => {
-    expect(
-      describeVerdict({
-        outcome: "slow_but_correct",
-        score: 40,
-        maxScore: 100,
-        accepted: null,
-      }),
-    ).toMatchObject({ label: "slow_but_correct", tone: "partial" });
-  });
-
-  it("评测机声明了通过就按通过着色，哪怕分数不满", () => {
-    expect(
-      describeVerdict({
-        outcome: "slow_but_correct",
-        score: 40,
-        maxScore: 100,
-        accepted: true,
-      }),
-    ).toMatchObject({ tone: "ok" });
-  });
-
-  it("没有分数可依据时保持中性，而不是判成错误", () => {
-    expect(describeVerdict({ ...base, outcome: "checked" })).toMatchObject({
-      label: "checked",
-      tone: "neutral",
-    });
   });
 });

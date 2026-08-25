@@ -103,12 +103,17 @@ export async function register() {
   // derived from the problem registry, and `lib/env.ts` deliberately knows
   // nothing about content. Said here, where the rest of the "your
   // configuration is legal but probably not what you meant" checks are said.
-  const { backendSecretWarnings } = await import("@/lib/backend/access");
+  const { backendRegistryWarnings, backendSecretWarnings } = await import(
+    "@/lib/backend/access"
+  );
+  const { mailTemplateWarnings } = await import("@/lib/mail/registry");
   for (const warning of [
     ...enrollmentWarnings(),
     ...contestWarnings(),
     ...problemGateWarnings(),
+    ...backendRegistryWarnings(),
     ...backendSecretWarnings(),
+    ...mailTemplateWarnings(),
   ]) {
     console.warn(`[foi] ${warning}`);
   }

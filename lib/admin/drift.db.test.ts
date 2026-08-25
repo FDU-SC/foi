@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { backends, type ProblemBackend } from "@/backends.config";
+import type { ProblemBackend } from "@/lib/backend/types";
+import { backends } from "@/lib/backend/registry";
 import { problemsServedBy } from "@/lib/backend/access";
 import { db } from "@/lib/db";
 import { loadAdminOverview } from "./drift";

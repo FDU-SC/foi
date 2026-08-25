@@ -5,6 +5,7 @@ import { viewerFor } from "@/lib/auth/viewer";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
 import { accountDirectoryFor, accountsFor } from "./access";
+import { viewerWith } from "@/test/content-shapes";
 
 /**
  * The one access layer that had no tests, which is a poor place for the gap to
@@ -32,7 +33,7 @@ if (!online) {
   console.warn("[test] 数据库不可达，跳过账号门禁集成用例");
 }
 
-const reader = viewerFor({ handle: "acctaccess-admin", groups: ["管理员"] });
+const reader = viewerWith("account.read", "acctaccess-admin");
 const player = viewerFor({ handle: ACTIVE, groups: [] });
 
 async function cleanup() {

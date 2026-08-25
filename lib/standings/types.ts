@@ -143,17 +143,44 @@ export function assignRanks<Cell>(
   });
 }
 
-/** Submissions within the scored window, oldest first. */
-export function scoredSubmissions(input: StandingsInput): SubmissionRecord[] {
+/**
+ * Everything sent during the contest window, oldest first, whatever state it
+ * is in.
+ *
+ * `disrupted` is the one state dropped, and it is dropped here rather than at
+ * each caller because it is not a submission anybody is waiting on: the
+ * judging produced no conclusion, none is coming, and it is explicitly not
+ * charged to the person who submitted — see the note on the state in
+ * `lib/backend/types.ts`. A format that showed it would be showing a cell that
+ * never resolves.
+ */
+export function submissionsInWindow(
+  input: StandingsInput,
+): SubmissionRecord[] {
   const { startsAt, endsAt } = input.contest;
   return input.submissions
     .filter(
       (submission) =>
-        submission.state === "completed" &&
+        submission.state !== "disrupted" &&
         submission.createdAt >= startsAt &&
         submission.createdAt <= endsAt,
     )
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+}
+
+/**
+ * The subset of those that have a verdict.
+ *
+ * What makes this the *scored* set is the state filter: a format asking for
+ * these is about to read `score` or `isAccepted`, and neither means anything
+ * before a backend has answered. A format that also has something to say about
+ * the ones still in the queue — ICPC's pending cell is the only one here that
+ * does — asks `submissionsInWindow` and sorts them out itself.
+ */
+export function scoredSubmissions(input: StandingsInput): SubmissionRecord[] {
+  return submissionsInWindow(input).filter(
+    (submission) => submission.state === "completed",
+  );
 }
 
 /**

@@ -3,7 +3,7 @@ import { formatDuration } from "@/lib/utils";
 import {
   assignRanks,
   isAccepted,
-  scoredSubmissions,
+  submissionsInWindow,
   type Ruleset,
   type StandingsInput,
   type StandingsRow,
@@ -17,7 +17,18 @@ export interface AcmCell {
   attempts: number;
   /** Minutes from contest start, or null if unsolved. */
   solvedAt: number | null;
-  /** Attempts made after the freeze, shown as pending. */
+  /**
+   * Attempts whose outcome the board is not showing: made after the freeze, or
+   * simply not judged yet.
+   *
+   * The two are one number because they are one thing to the person reading
+   * the board — something was sent and the result is not in — and because the
+   * ICPC convention this cell imitates has always covered both. It used to
+   * count only the first, which meant a submission still in the queue showed
+   * as nothing at all and then appeared as a solve or a rejection out of
+   * nowhere; during a freeze, the state the freeze exists for, that is the
+   * whole population of the cell.
+   */
   pending: number;
 }
 
@@ -26,10 +37,16 @@ function AcmCellView({ cell }: { cell: AcmCell | undefined }) {
     return <span className="text-fg-subtle">·</span>;
   }
 
+  // The rejected count is dropped rather than printed as `−0`, because a cell
+  // holding nothing but pending attempts is now the ordinary case: any
+  // submission still in the queue produces one, not just a freeze with nothing
+  // before it.
   if (cell.solvedAt === null) {
     return (
-      <span className="text-err font-mono text-xs tabular-nums">
-        −{cell.attempts}
+      <span className="font-mono text-xs tabular-nums">
+        {cell.attempts > 0 ? (
+          <span className="text-err">−{cell.attempts}</span>
+        ) : null}
         {cell.pending > 0 ? (
           <span className="text-info">+{cell.pending}</span>
         ) : null}
@@ -70,7 +87,11 @@ export const ruleset: Ruleset<AcmCell> = {
       byUser.set(participant.handle, new Map());
     }
 
-    for (const submission of scoredSubmissions(input)) {
+    // Everything in the window rather than only what has a verdict, because
+    // this format has a cell state for "no verdict yet" and the scored set
+    // cannot express it. `isAccepted` still decides the solves, and it answers
+    // no for anything unjudged, so the two halves cannot disagree.
+    for (const submission of submissionsInWindow(input)) {
       const cells = byUser.get(submission.handle);
       if (!cells) continue;
 
@@ -84,7 +105,13 @@ export const ruleset: Ruleset<AcmCell> = {
       // Once solved, later submissions on that problem are irrelevant.
       if (cell.solvedAt !== null) continue;
 
-      if (frozen && freezeAt && submission.createdAt >= freezeAt) {
+      // Withheld by the freeze, or not judged yet. Both are the same statement
+      // to a reader — an attempt exists and its outcome is not being shown —
+      // and neither may move the total or the penalty, since doing so would
+      // announce the result the cell is declining to give.
+      const withheld =
+        frozen && freezeAt !== null && submission.createdAt >= freezeAt;
+      if (withheld || submission.state !== "completed") {
         cell.pending += 1;
         continue;
       }

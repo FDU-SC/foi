@@ -11,7 +11,7 @@ import {
   orphanedBackends,
 } from "@/lib/backend/access";
 import { reaperHealth, recentDisruptions } from "@/lib/runner/reaper";
-import { mailIsConfigured } from "@/lib/mail/transport";
+import { mailDeliveryUnmet } from "@/lib/mail/transport";
 import { allProblems } from "@/lib/problems/registry";
 
 /**
@@ -98,25 +98,35 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
   // First, because it is the only one here that means a whole feature is dead
   // rather than that some rows need attention.
   //
-  // The failure of an unconfigured relay is not that codes and reset links end
-  // up in the container log. Reading that log takes a shell on the deploy
-  // host, and whoever has one already has the `.env`, the database and
-  // `scripts/set-password.cjs` — the log tells them nothing new. It is that
-  // registration and recovery are dead ends that announce themselves as
-  // working: the page says a code was sent, every individual send succeeds,
-  // and the person waiting on the mail has no way to find out why it will
-  // never arrive. Nothing else in the product is in a position to say so,
-  // which is why this is the one place that can.
+  // The failure is not that codes and reset links end up in the container log.
+  // Reading that log takes a shell on the deploy host, and whoever has one
+  // already has the `.env`, the database and `scripts/set-password.cjs` — the
+  // log tells them nothing new. It is that registration and recovery are dead
+  // ends that announce themselves as working: the page says a code was sent,
+  // every individual send succeeds, and the person waiting on the mail has no
+  // way to find out why it will never arrive. Nothing else in the product is
+  // in a position to say so, which is why this is the one place that can.
   //
-  // A warning rather than a refusal to boot for the same reason the enrollment
-  // checks in `instrumentation.ts` are: a deployment with registration closed
-  // needs no relay, and an outage would be the worse failure.
-  if (!mailIsConfigured()) {
+  // Asked of the mail module rather than of `FOI_SMTP_HOST`, which is the
+  // whole reason `policy.mailDelivery` exists: where mail goes is a
+  // declaration now, not an inference from an absent variable. Reading the
+  // variable meant a deployment that had written `mailDelivery: "console"` on
+  // purpose — the value `content/enrollment/example.ts` ships — was told at
+  // every visit to fix a decision it had made, and a list whose first entry
+  // can never be resolved is a list that gets skimmed past.
+  //
+  // What is left is barely reachable in production, because
+  // `assertMailDelivery` refuses that boot: short of a process started some
+  // other way, such a deployment either has its relay or never came up. So
+  // this mostly repeats a warning that was printed at startup, for the reason
+  // the shared-key finding below repeats one — it scrolled past in a log that
+  // has since rotated.
+  if (mailDeliveryUnmet()) {
     findings.push({
       severity: "warn",
-      title: "未配置 SMTP，邮件只打印到容器日志",
+      title: "声明了要发信，却没有可用的 SMTP 中继",
       detail:
-        "注册要收验证码、找回密码要收链接，两者现在都只出现在服务端日志里——用户看到「已发送」，然后永远等不到。设置 FOI_SMTP_HOST 等变量即可；若这套部署本就不开放注册，可以忽略。",
+        'content/enrollment/ 的 policy 声明了 mailDelivery: "smtp"，但没有设置 FOI_SMTP_HOST——注册的验证码、找回密码的链接都只会打印到服务端日志里，用户看到「已发送」，然后永远等不到。设置 FOI_SMTP_HOST 等变量，或者在 policy 里明确写上 mailDelivery: "console"。同样的组合在生产环境会直接拒绝启动，所以看到它说明这是开发或测试环境。',
       items: [],
     });
   }

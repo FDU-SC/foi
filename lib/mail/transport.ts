@@ -102,7 +102,7 @@ function transporter(): Transporter | null {
 /**
  * Whether a relay is configured. Answers about the environment only — for
  * where mail actually ends up, which the policy also has a say in, ask
- * `mailSink`.
+ * `mailSink`; for whether the two contradict each other, `mailDeliveryUnmet`.
  */
 export function mailIsConfigured(): boolean {
   return Boolean(process.env.FOI_SMTP_HOST);
@@ -171,6 +171,27 @@ export function mailSink(
   // which is the failure the pair of them exists to stop.
   if (process.env.NODE_ENV === "production") throw new Error(COMPLAINT);
   return "console";
+}
+
+/**
+ * The disagreement itself: this deployment says it sends mail and has nothing
+ * to send it with.
+ *
+ * The same condition `assertMailDelivery` refuses to boot on and `mailSink`
+ * refuses to answer for, asked by something that only wants to report it. Both
+ * refusals are right where they are — a caller one line away from printing a
+ * reset link should not be handed a quiet fallback — and both are wrong for
+ * the operations console, whose entire job is to name drift like this and
+ * which cannot do it from a page that throws instead of rendering.
+ *
+ * Takes the delivery for the reason `assertMailDelivery` does: what is being
+ * checked is a *combination* of a declared delivery and an environment, and a
+ * test cannot edit `content/enrollment/` to reach one half of it.
+ */
+export function mailDeliveryUnmet(
+  delivery: MailDelivery = enrollmentPolicy.mailDelivery,
+): boolean {
+  return delivery === "smtp" && !mailIsConfigured();
 }
 
 /**

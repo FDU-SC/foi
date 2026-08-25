@@ -79,16 +79,29 @@ export async function GET(request: Request) {
       // unable to open streams.
       cleanups.push(release);
 
-      const close = () => {
+      /**
+       * The single exit. `error` is the difference between the connection
+       * ending because there is nothing more to say and it ending because
+       * something broke — the client reconnects either way, but a stream that
+       * closes cleanly on a failure claims the submission is settled when it
+       * is not.
+       */
+      const finish = (error?: unknown) => {
         if (closed) return;
         closed = true;
         for (const cleanup of cleanups) cleanup();
         try {
-          controller.close();
+          if (error === undefined) controller.close();
+          else controller.error(error);
         } catch {
           // Already closed by the runtime.
         }
       };
+
+      // Takes no arguments of its own, which is what lets it be handed
+      // straight to `addEventListener` below without the abort event arriving
+      // as a failure.
+      const close = () => finish();
 
       const send = (view: SubmissionView) => {
         if (closed) return;
@@ -101,65 +114,92 @@ export async function GET(request: Request) {
         if (isSettled(view.state)) close();
       };
 
-      controller.enqueue(encoder.encode("retry: 5000\n\n"));
-      send(toView(initial));
-      if (closed) return;
-
-      cleanups.push(subscribe(id, send));
-
-      // A verdict can land between the snapshot above and the subscription
-      // being active. Re-read once now that we are listening so that update
-      // is not lost. Duplicate frames are harmless — the client is idempotent.
-      const afterSubscribe = await submissionFor(id, viewer);
-      if (afterSubscribe) send(toView(afterSubscribe));
-      if (closed) return;
-
       /**
-       * The one place a suspension can reach a connection that is already up.
+       * Everything from here on runs under the catch, and the re-read below is
+       * why: it is a database call, so it can fail for reasons that have
+       * nothing to do with this connection.
        *
-       * Everywhere else in the application re-resolves the account per request,
-       * so "the session dies on the next request" is true — but a stream makes
-       * no further requests. It was authorised once and then held open for as
-       * long as the submission takes, which is exactly the window somebody
-       * being suspended mid-contest is still inside. The heartbeat was already
-       * running, and the check costs one lookup by primary key.
-       *
-       * `resolveUser` rather than `getResolvedUser`, because this runs on a
-       * timer long after the request that created it: there is no request scope
-       * left to read a cookie from, and the handle was fixed when the stream
-       * opened anyway. What that gives up is the password-epoch half of
-       * `getResolvedUser` — a reset ends the session on the next request, not
-       * on this stream — and only suspension is in scope here.
-       *
-       * A failed lookup leaves the stream alone rather than closing it. Every
-       * client reconnects on close, so failing closed during a database blip
-       * would turn one outage into a reconnect storm, and one more heartbeat of
-       * a suspended account reading its own submission is the smaller harm.
-       *
-       * Judging is deliberately untouched: work already handed to a backend
-       * runs to completion, since cancelling it would leave an orphan task
-       * there and the verdict has nowhere to be shown anyway.
+       * A throw out of `start` is swallowed by the stream machinery, and by
+       * then this handler is holding a concurrency slot and, past the
+       * subscription, a listener on the process-wide bus. Neither is collected
+       * by anything else — the abort listener that would eventually have run
+       * `close` is registered on the last line of this block, so a failure
+       * before that leaves no path to it at all. What that looks like from the
+       * outside is an account that can no longer open streams, for a reason
+       * nothing on the page or in the log connects to a database blip minutes
+       * earlier.
        */
-      const heartbeat = setInterval(() => {
+      try {
+        controller.enqueue(encoder.encode("retry: 5000\n\n"));
+        send(toView(initial));
         if (closed) return;
-        void (async () => {
-          const account = await resolveUser(user.handle).catch(() => undefined);
+
+        cleanups.push(subscribe(id, send));
+
+        // A verdict can land between the snapshot above and the subscription
+        // being active. Re-read once now that we are listening so that update
+        // is not lost. Duplicate frames are harmless — the client is idempotent.
+        const afterSubscribe = await submissionFor(id, viewer);
+        if (afterSubscribe) send(toView(afterSubscribe));
+        if (closed) return;
+
+        /**
+         * The one place a suspension can reach a connection that is already up.
+         *
+         * Everywhere else in the application re-resolves the account per
+         * request, so "the session dies on the next request" is true — but a
+         * stream makes no further requests. It was authorised once and then
+         * held open for as long as the submission takes, which is exactly the
+         * window somebody being suspended mid-contest is still inside. The
+         * heartbeat was already running, and the check costs one lookup by
+         * primary key.
+         *
+         * `resolveUser` rather than `getResolvedUser`, because this runs on a
+         * timer long after the request that created it: there is no request
+         * scope left to read a cookie from, and the handle was fixed when the
+         * stream opened anyway. What that gives up is the password-epoch half
+         * of `getResolvedUser` — a reset ends the session on the next request,
+         * not on this stream — and only suspension is in scope here.
+         *
+         * A failed lookup leaves the stream alone rather than closing it. Every
+         * client reconnects on close, so failing closed during a database blip
+         * would turn one outage into a reconnect storm, and one more heartbeat
+         * of a suspended account reading its own submission is the smaller
+         * harm.
+         *
+         * Judging is deliberately untouched: work already handed to a backend
+         * runs to completion, since cancelling it would leave an orphan task
+         * there and the verdict has nowhere to be shown anyway.
+         */
+        const heartbeat = setInterval(() => {
           if (closed) return;
-          if (account === null || account?.disabled) {
-            close();
-            return;
-          }
+          void (async () => {
+            const account = await resolveUser(user.handle).catch(
+              () => undefined,
+            );
+            if (closed) return;
+            if (account === null || account?.disabled) {
+              close();
+              return;
+            }
 
-          try {
-            controller.enqueue(encoder.encode(": ping\n\n"));
-          } catch {
-            close();
-          }
-        })();
-      }, HEARTBEAT_MS);
-      cleanups.push(() => clearInterval(heartbeat));
+            try {
+              controller.enqueue(encoder.encode(": ping\n\n"));
+            } catch {
+              close();
+            }
+          })();
+        }, HEARTBEAT_MS);
+        cleanups.push(() => clearInterval(heartbeat));
 
-      request.signal.addEventListener("abort", close);
+        request.signal.addEventListener("abort", close);
+      } catch (error) {
+        // Logged as well as reported, because the client sees only a dropped
+        // connection and will reconnect into the same failure: without this
+        // the only trace of a stream that cannot start is the reconnect rate.
+        console.error("[foi] 提交事件流启动失败", error);
+        finish(error);
+      }
     },
   });
 

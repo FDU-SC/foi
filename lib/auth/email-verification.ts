@@ -1,4 +1,4 @@
-import { createHash, randomInt, timingSafeEqual } from "node:crypto";
+import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
 import type { DbOrTx } from "@/lib/accounts/queries";
 import { db } from "@/lib/db";
@@ -59,12 +59,32 @@ const MAX_ATTEMPTS = 5;
 const CODE_DIGITS = 6;
 
 /**
+ * Read at call time, not at import, so the module loads in a process that has
+ * not been handed a secret yet — the same reason `lib/auth/registration-proof.ts`
+ * does it this way. `assertEnv` requires the variable, so a boot that got here
+ * without one is a boot that should not have happened.
+ */
+function pepper(): string {
+  const value = process.env.AUTH_SECRET;
+  if (!value) throw new Error("AUTH_SECRET is not set");
+  return value;
+}
+
+/**
  * The address is inside the digest, so a code mailed to one mailbox cannot be
  * replayed against another. Without it a person who can receive mail anywhere
  * could request a code for their own address and offer it for someone else's.
+ *
+ * Keyed rather than bare, which is what the six digits make necessary. The
+ * whole space is a million, so a plain hash of `address:code` is a preimage
+ * anybody holding a dump of this table can find in under a second — for every
+ * row at once, and the row also carries the address the code was mailed to.
+ * The neighbouring `lib/auth/tokens.ts` can afford `createHash` because 160
+ * bits of randomness has nothing to grind against; this cannot. With the
+ * secret mixed in, reading the table is no longer enough to recover a code.
  */
 function digest(email: string, code: string): string {
-  return createHash("sha256").update(`${email}:${code}`).digest("hex");
+  return createHmac("sha256", pepper()).update(`${email}:${code}`).digest("hex");
 }
 
 function matches(expected: string, actual: string): boolean {
@@ -149,8 +169,18 @@ export type VerifyCodeFailure =
   | "too-many-attempts"
   | "mismatch";
 
+/**
+ * `matched` says whether *this call* compared a code and found it right, as
+ * opposed to finding the address already proven by an earlier one.
+ *
+ * Both are `ok`, because both mean the address is proven and the caller can
+ * carry on. Only the first is evidence about whoever is asking, though, so
+ * only the first may be turned into a registration proof — see the note on
+ * the shortcut in `explainRefusal`, and `app/register/actions.ts` for the
+ * cookie that hangs off it.
+ */
 export type VerifyCodeResult =
-  | { ok: true }
+  | { ok: true; matched: boolean }
   | { ok: false; reason: VerifyCodeFailure; attemptsLeft: number };
 
 /**
@@ -203,7 +233,7 @@ export async function verifyCode(
     })
     .where(eq(emailVerifications.email, email));
 
-  return { ok: true };
+  return { ok: true, matched: true };
 }
 
 /**
@@ -228,7 +258,12 @@ async function explainRefusal(email: string): Promise<VerifyCodeResult> {
 
   // Already proven, and the proof has not lapsed. The row says what the caller
   // wanted to establish, so the second press of the button is not an error.
-  if (row.verifiedAt && live) return { ok: true };
+  //
+  // `matched: false` because nothing was compared: the update above declined
+  // the row on `verified_at is null`, so the code was never read and no
+  // attempt was spent. Whoever is asking could have typed anything, which is
+  // why this answer must not be worth a registration proof.
+  if (row.verifiedAt && live) return { ok: true, matched: false };
 
   if (!live) return { ok: false, reason: "expired", attemptsLeft: 0 };
   return { ok: false, reason: "too-many-attempts", attemptsLeft: 0 };

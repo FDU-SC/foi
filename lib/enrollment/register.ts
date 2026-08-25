@@ -68,6 +68,14 @@ export function domainAllowed(email: string): boolean {
  * administrator does would hand them the group the rule was written for. An
  * `email` rule gets no such protection because the set of addresses a pattern
  * covers cannot be reserved — hence it may confer nothing.
+ *
+ * The two rejections stay separate here and are the same sentence to the
+ * person filling in the form — see `REJECTIONS` in `app/register/actions.ts`.
+ * Which handles a rule names is exactly the list an attacker would want, and
+ * the reserved check runs first precisely so those names never reach the
+ * lookup; telling them apart outward would hand the list back a guess at a
+ * time. Inward they are worth distinguishing, because only one of them is
+ * something an operator wrote down.
  */
 async function handleAvailable(handle: string): Promise<RegisterRejection | null> {
   if (enrollmentPolicy.reservedHandles.some((r) => normalizeHandle(r) === handle)) {

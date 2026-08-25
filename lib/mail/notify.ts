@@ -1,6 +1,6 @@
 import { resetPassword, verificationCode } from "@/content/emails";
 import { issueCode } from "@/lib/auth/email-verification";
-import { issueToken, lastIssuedAt } from "@/lib/auth/tokens";
+import { issueToken, lastIssuedAt, revokeTokens } from "@/lib/auth/tokens";
 import type { TokenPurpose } from "@/lib/db/schema";
 import { deliver } from "./transport";
 
@@ -93,11 +93,24 @@ export async function sendVerificationCode(
   return { ok: true, expiresAt: issued.expiresAt };
 }
 
+/**
+ * The order here is the whole point: mint, send, and only then retire the
+ * older links.
+ *
+ * `issueToken` retires by default and used to be left to it, which meant a
+ * relay that refused the message had already killed whatever link was in the
+ * person's inbox. That is the worst moment to do it — the mail path being down
+ * is exactly when the old link is the only one they have — and it is a state
+ * nothing sweeps up: they are locked out until the relay comes back *and* the
+ * resend cooldown lapses, with a link they can see and cannot use.
+ */
 export async function sendPasswordReset(to: Recipient): Promise<NotifyResult> {
   const wait = await throttled(to.handle, "password_reset");
   if (wait > 0) return { ok: false, reason: "throttled", retryAfterMs: wait };
 
-  const { token, expiresAt } = await issueToken(to.handle, "password_reset");
+  const { token, expiresAt, id } = await issueToken(to.handle, "password_reset", {
+    revokePrior: false,
+  });
   await deliver({
     to: to.email,
     ...resetPassword({
@@ -106,6 +119,20 @@ export async function sendPasswordReset(to: Recipient): Promise<NotifyResult> {
       expiresAt,
     }),
   });
+
+  // The new link is really in the mail, so the old ones can go. Failing here
+  // is not worth reporting a failed send for: the message went out, and what
+  // it leaves behind is a second live link minted seconds ago for the same
+  // proven mailbox — which `issueToken` already documents as tolerable, and is
+  // in any case better than telling the person nothing was sent.
+  try {
+    await revokeTokens(to.handle, "password_reset", { exceptId: id });
+  } catch (error) {
+    console.error(
+      `[foi] 重置链接已发出，但作废 ${to.handle} 的旧链接失败`,
+      error,
+    );
+  }
 
   return { ok: true, expiresAt };
 }

@@ -1,5 +1,6 @@
+import { createHash } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import { emailVerifications } from "@/lib/db/schema";
 import {
@@ -19,6 +20,14 @@ import {
  */
 const EMAIL = "verify-test@example.test";
 const OTHER = "verify-other@example.test";
+
+/**
+ * The digest is keyed, so these cases need a key. Stubbed here rather than
+ * taken from the environment for the reason `vitest.config.mts` gives: CI
+ * hands the test step a `DATABASE_URL` and nothing else, so a suite that
+ * needs more of a deployment says so itself.
+ */
+const SECRET = "verification-suite-signing-key-32b";
 
 async function reachable(): Promise<boolean> {
   try {
@@ -70,14 +79,23 @@ async function cleanup(): Promise<void> {
 }
 
 describeDb("邮箱验证码", () => {
-  beforeEach(cleanup);
-  afterAll(cleanup);
+  beforeEach(() => {
+    vi.stubEnv("AUTH_SECRET", SECRET);
+    return cleanup();
+  });
+  afterAll(async () => {
+    await cleanup();
+    vi.unstubAllEnvs();
+  });
 
   it("正确的验证码通过，并让邮箱进入已验证状态", async () => {
     const code = await issueFresh(EMAIL);
 
     expect(await isEmailVerified(EMAIL)).toBe(false);
-    await expect(verifyCode(EMAIL, code)).resolves.toEqual({ ok: true });
+    await expect(verifyCode(EMAIL, code)).resolves.toEqual({
+      ok: true,
+      matched: true,
+    });
     expect(await isEmailVerified(EMAIL)).toBe(true);
   });
 
@@ -174,7 +192,10 @@ describeDb("邮箱验证码", () => {
       reason: "mismatch",
       attemptsLeft: maxAttempts - 1,
     });
-    await expect(verifyCode(EMAIL, second.code)).resolves.toEqual({ ok: true });
+    await expect(verifyCode(EMAIL, second.code)).resolves.toEqual({
+      ok: true,
+      matched: true,
+    });
   });
 
   it("发给一个邮箱的码不能用在另一个邮箱上", async () => {
@@ -188,11 +209,69 @@ describeDb("邮箱验证码", () => {
     expect(await isEmailVerified(OTHER)).toBe(false);
   });
 
+  it("库里存的不是裸摘要，光拿到这张表反推不出六位码", async () => {
+    const code = await issueFresh(EMAIL);
+
+    const [row] = await db
+      .select({ codeHash: emailVerifications.codeHash })
+      .from(emailVerifications)
+      .where(eq(emailVerifications.email, EMAIL));
+
+    // 六位码的空间只有一百万。裸摘要意味着谁读到这张表，谁就能在一秒内把
+    // 每一行的码都算回来——而行上正写着这个码发给了哪个邮箱。
+    expect(row.codeHash).not.toBe(
+      createHash("sha256").update(`${EMAIL}:${code}`).digest("hex"),
+    );
+  });
+
+  it("换一把 AUTH_SECRET，原先发出去的码就不再算数", async () => {
+    const code = await issueFresh(EMAIL);
+
+    // 密钥真的参与了摘要，而不只是被拼进去看着像参与了。
+    vi.stubEnv("AUTH_SECRET", "a-different-verification-key-32b");
+
+    await expect(verifyCode(EMAIL, code)).resolves.toMatchObject({
+      ok: false,
+      reason: "mismatch",
+    });
+  });
+
   it("重复验证是幂等的，不报错也不消耗次数", async () => {
     const code = await issueFresh(EMAIL);
 
-    await expect(verifyCode(EMAIL, code)).resolves.toEqual({ ok: true });
-    await expect(verifyCode(EMAIL, code)).resolves.toEqual({ ok: true });
+    await expect(verifyCode(EMAIL, code)).resolves.toEqual({
+      ok: true,
+      matched: true,
+    });
+    // 仍然是 ok——按第二下按钮不算错——但这一次走的是捷径，什么都没比对，
+    // 所以 matched 是 false。
+    await expect(verifyCode(EMAIL, code)).resolves.toEqual({
+      ok: true,
+      matched: false,
+    });
+    expect(await isEmailVerified(EMAIL)).toBe(true);
+  });
+
+  it("已验证的邮箱再拿错误的码来问，不会答「比对上了」", async () => {
+    const code = await issueFresh(EMAIL);
+    await verifyCode(EMAIL, code);
+
+    // 这是注册证明越权签发的第一环。已验证且未过期的行会让 verifyCode 走
+    // 捷径，根本不读验证码；它要是把这一路也答成「验证通过」，注册页就会
+    // 给发问的这个浏览器签发注册证明——而「已验证的行 + 本浏览器的证明」
+    // 正是 register 建号的全部条件。于是任何人只要撞上别人那 30 分钟的
+    // 窗口，随手一个错码就能把号注册到自己名下。
+    await expect(verifyCode(EMAIL, "000000")).resolves.toEqual({
+      ok: true,
+      matched: false,
+    });
+
+    // 走的是捷径，所以这一问既没有消耗次数，也没有动过那一行。
+    const [row] = await db
+      .select({ attempts: emailVerifications.attempts })
+      .from(emailVerifications)
+      .where(eq(emailVerifications.email, EMAIL));
+    expect(row.attempts).toBe(1);
     expect(await isEmailVerified(EMAIL)).toBe(true);
   });
 

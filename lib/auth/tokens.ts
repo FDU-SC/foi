@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import type { DbOrTx } from "@/lib/accounts/queries";
 import { normalizeHandle } from "@/lib/accounts/types";
@@ -44,6 +44,13 @@ function digest(token: string): string {
 export interface IssuedToken {
   token: string;
   expiresAt: Date;
+  /**
+   * The row just written. Only of interest to a caller that passed
+   * `revokePrior: false` and now has to retire the others without retiring
+   * this one — the token itself cannot say which row it is, because what the
+   * table stores is a digest and `digest` is not exported.
+   */
+  id: string;
 }
 
 /**
@@ -70,23 +77,35 @@ export interface IssuedToken {
  * seconds apart and both went to the same proven mailbox, so nothing stale is
  * being kept alive — which is the only thing "only one outstanding" was ever
  * protecting against.
+ *
+ * `revokePrior: false` moves the retirement out to the caller, and exists for
+ * the failure the transaction does not reach: minting succeeds and the mail
+ * never leaves. The insert is inside the transaction, so it can be unwound;
+ * `deliver` is not, and cannot. Retiring first therefore left exactly the
+ * state the paragraph above says nothing can get out of — every link dead, no
+ * new one in anyone's inbox — for the case that provokes it most often, a
+ * relay that is down. A caller that says `false` is promising to call
+ * `revokeTokens` with `exceptId` once the new link is really on its way.
  */
 export async function issueToken(
   handle: string,
   purpose: TokenPurpose,
-  options?: { ttlMs?: number },
+  options?: { ttlMs?: number; revokePrior?: boolean },
 ): Promise<IssuedToken> {
   const normalized = normalizeHandle(handle);
   const token = randomBytes(20).toString("base64url");
+  const id = `tok_${ulid()}`;
   const expiresAt = new Date(
     Date.now() + (options?.ttlMs ?? DEFAULT_TTL_MS[purpose]),
   );
 
   await db.transaction(async (tx) => {
-    await revokeTokens(normalized, purpose, tx);
+    if (options?.revokePrior !== false) {
+      await revokeTokens(normalized, purpose, { on: tx });
+    }
 
     await tx.insert(authTokens).values({
-      id: `tok_${ulid()}`,
+      id,
       handle: normalized,
       purpose,
       tokenHash: digest(token),
@@ -94,7 +113,7 @@ export async function issueToken(
     });
   });
 
-  return { token, expiresAt };
+  return { token, expiresAt, id };
 }
 
 export type RedeemResult =
@@ -170,17 +189,21 @@ export async function redeemToken(
 /**
  * Retires every outstanding token of a purpose.
  *
- * Takes a `DbOrTx` for `issueToken`, which has to do this and the insert as
- * one act — see the argument there. On its own it is still a caller-facing
- * operation: revoking without reissuing is what happens when a link should
- * simply stop working.
+ * Takes a `DbOrTx` for `issueToken`, which does this and the insert as one act
+ * when it is asked to — see the argument there. On its own it is still a
+ * caller-facing operation: revoking without reissuing is what happens when a
+ * link should simply stop working.
+ *
+ * `exceptId` is for the other half of `revokePrior: false`, where the point is
+ * to retire the old links now that a new one has actually been sent. Excluding
+ * by id rather than by age because two rows can share a `created_at`.
  */
 export async function revokeTokens(
   handle: string,
   purpose: TokenPurpose,
-  on: DbOrTx = db,
+  options?: { on?: DbOrTx; exceptId?: string },
 ): Promise<void> {
-  await on
+  await (options?.on ?? db)
     .update(authTokens)
     .set({ consumedAt: new Date() })
     .where(
@@ -188,6 +211,7 @@ export async function revokeTokens(
         eq(authTokens.handle, normalizeHandle(handle)),
         eq(authTokens.purpose, purpose),
         isNull(authTokens.consumedAt),
+        options?.exceptId ? ne(authTokens.id, options.exceptId) : undefined,
       ),
     );
 }

@@ -126,7 +126,6 @@ export const judgeLifeOscillator: InlineJudge = ({ payload, config }) => {
     .filter(Boolean);
 
   const perCase = 100 / cases.length;
-  let score = 0;
   const tests = cases.map((testCase, index) => {
     const name = testCase.name ?? `场景 ${index + 1}`;
     const fail = (message: string) => ({
@@ -167,7 +166,6 @@ export const judgeLifeOscillator: InlineJudge = ({ payload, config }) => {
       }
     }
 
-    score += perCase;
     return {
       name,
       status: "accepted" as const,
@@ -177,9 +175,17 @@ export const judgeLifeOscillator: InlineJudge = ({ payload, config }) => {
     };
   });
 
+  // Counted, not summed — see the same reasoning in `output-only.ts`. Summing
+  // `perCase` and comparing against 100 denies full marks at 12, 14 and 17
+  // scenes, and `accepted` is declared so that `isAccepted` does not repeat the
+  // comparison on the standings side.
+  const passed = tests.filter((test) => test.status === "accepted").length;
+  const allPassed = passed === cases.length;
+
   return {
-    status: score >= 100 ? "accepted" : score > 0 ? "partial" : "wrong_answer",
-    score,
+    status: allPassed ? "accepted" : passed > 0 ? "partial" : "wrong_answer",
+    accepted: allPassed,
+    score: allPassed ? 100 : passed * perCase,
     maxScore: 100,
     detail: { tests },
   };

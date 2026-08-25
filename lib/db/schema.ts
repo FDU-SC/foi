@@ -411,15 +411,22 @@ export const submissions = pgTable(
     backendVersion: text("backend_version"),
 
     /**
-     * Which backend this belongs to. The column keeps its original name:
-     * renaming the concept is a source change, and a migration that rewrites a
-     * column only to spell it differently is downtime bought for nothing.
+     * Which backend this belongs to.
      *
      * In the pull model it is the queue selector rather than an address book
      * entry — a runner signing as `traditional` is handed rows carrying
      * `traditional` here, and nothing else.
+     *
+     * It spent a while as `judge_id`, kept that way on the argument that a
+     * migration rewriting a column only to spell it differently is downtime
+     * bought for nothing. That argument is about a deployment with data worth
+     * preserving, and this one has never been released — so the initial
+     * migration was rebuilt from an empty history instead, and the old name is
+     * absent from it rather than recorded as something this column used to be
+     * called. `runners.backend_id` had already been spelling the same concept
+     * the same way.
      */
-    backendId: text("judge_id").notNull(),
+    backendId: text("backend_id").notNull(),
 
     /**
      * Who is holding this row, and their proof of it.

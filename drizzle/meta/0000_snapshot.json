@@ -1,5 +1,5 @@
 {
-  "id": "e89b1cff-02e0-4f3e-b03e-63d5343715c2",
+  "id": "c64f4ce5-3153-44aa-8a23-caf339ff89ac",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -534,8 +534,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "judge_id": {
-          "name": "judge_id",
+        "backend_id": {
+          "name": "backend_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -642,13 +642,13 @@
           "name": "submissions_queued_idx",
           "columns": [
             {
-              "expression": "judge_id",
+              "expression": "backend_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "created_at",
+              "expression": "queued_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

@@ -108,10 +108,15 @@ export async function POST(
   try {
     backend = resolveBackend(resolved.backendId);
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "题目后端配置错误" },
-      { status: 500 },
-    );
+    // The message is written for whoever configured the deployment: it names
+    // the environment variable that is missing, or `backends.config.ts`. That
+    // is the right text to have and the wrong audience to hand it to — the
+    // caller here is a player who pressed a button, and this route is reachable
+    // by anyone who can see the problem. Same split `/api/health` makes for an
+    // unreachable database: the diagnosis goes to the log, the caller gets a
+    // status code and a sentence.
+    console.error("[foi] 题目后端配置错误，无法发起交互动作", error);
+    return NextResponse.json({ error: "题目后端配置错误" }, { status: 500 });
   }
 
   const response = await callBackendAction(backend, {

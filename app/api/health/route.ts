@@ -3,13 +3,11 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { runners } from "@/lib/db/schema";
 import { guardRequest } from "@/lib/ratelimit/gate";
+import { RUNNER_ONLINE_MS } from "@/lib/runner/queue";
 import { reaperHealth } from "@/lib/runner/reaper";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-/** How recently a runner must have asked for work to be counted as here. */
-const RUNNER_ONLINE_MS = 60_000;
 
 /**
  * Liveness, database reachability, whether the reaper is running, and how many

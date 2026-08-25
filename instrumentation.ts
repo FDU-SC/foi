@@ -1,5 +1,11 @@
 declare global {
-  var __foiReaper: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * Not a timer handle. The reaper reschedules itself, so the only thing worth
+   * keeping across a hot reload is something that can stop whichever tick is
+   * pending — see `startReaping`, which used to return the first handle and
+   * left every reload stacking another loop on the last.
+   */
+  var __foiReaper: (() => void) | undefined;
   var __foiVerificationSweep: ReturnType<typeof setInterval> | undefined;
 }
 
@@ -8,7 +14,7 @@ declare global {
  *
  * Well under `HEARTBEAT_LAPSE_MS`, so the delay between a runner going quiet
  * and its work being handed to somebody else is dominated by the lapse itself
- * rather than by when this happens to fire. A pass is three indexed statements
+ * rather than by when this happens to fire. A pass is four indexed statements
  * over partial indexes that are empty in the healthy case, so there is no
  * reason to be stingier.
  */
@@ -113,7 +119,7 @@ export async function register() {
   // across a network, a fact the kernel now simply has. Neither had anything to
   // do once nobody was dispatching.
   //
-  // What is left touches no network at all: three indexed statements against
+  // What is left touches no network at all: four indexed statements against
   // columns this process owns. So there is no slow backend to isolate a loop
   // from, and nothing left worth splitting.
   //
@@ -122,8 +128,8 @@ export async function register() {
   // the original reconciler ended up with dozens of passes in flight.
   const { startReaping } = await import("@/lib/runner/reaper");
 
-  // Guarded so HMR reloads do not stack up timers during `next dev`.
-  clearTimeout(globalThis.__foiReaper);
+  // Guarded so HMR reloads do not stack up loops during `next dev`.
+  globalThis.__foiReaper?.();
   globalThis.__foiReaper = startReaping(REAP_INTERVAL_MS);
 
   // This slot used to release handles held by signups that never confirmed

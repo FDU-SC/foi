@@ -73,6 +73,28 @@ export const MAX_ATTEMPTS = 3;
 export const QUEUE_FUSE_MS = 6 * 60 * 60_000;
 
 /**
+ * How recently a runner must have asked for work to count as here.
+ *
+ * Not one of the three above, and deliberately placed after them: those decide
+ * what happens to a row, this decides nothing at all. It is the window the
+ * board and `/api/health` count `runners` over — the number that tells a
+ * backlog apart from an outage — so nothing is written or refused on the back
+ * of it.
+ *
+ * Several times the poll interval the protocol suggests, because a runner that
+ * misses one poll to a network hiccup has not gone anywhere and a board that
+ * flickers is one nobody reads. What it has to catch is a runner that has
+ * stopped, and that shows up within a minute.
+ *
+ * It lived as a literal in `lib/backend/client.ts` and another in the health
+ * route, which is how the two came to be able to disagree: an operator
+ * comparing "the board says nobody is out there" with "health says two" would
+ * have had no way to tell a stale board from a real disagreement about what
+ * "out there" means. One number, read by both.
+ */
+export const RUNNER_ONLINE_MS = 60_000;
+
+/**
  * A fresh holder token.
  *
  * 256 bits of randomness, stored and compared as-is. Not hashed, and the
@@ -122,6 +144,16 @@ async function markRunnerSeen(
  * behind another runner's row lock is a runner not doing anything, when there
  * are almost certainly other rows it could take.
  *
+ * Ordered by `queued_at` rather than `created_at`, which is the difference
+ * between "who has been waiting longest" and "who submitted longest ago". They
+ * are the same number for exactly one lap, and the two paths that start a
+ * second one — the reaper taking a job back, an administrator rejudging —
+ * deliberately leave `created_at` alone, for the reasons set out on both
+ * columns in `lib/db/schema.ts`. Ordering by it therefore put every rejudged
+ * submission at the head of the queue ahead of everything submitted since,
+ * which is the opposite of what a rejudge is: a rejudge is new work, and a
+ * batch of them mid-contest would have starved the people still competing.
+ *
  * Rows at the attempt cap are simply not selected. They are left `queued` for
  * the reaper to write off, rather than being disrupted from here, because
  * doing it here would mean a claim that finds one has to write, then look
@@ -146,7 +178,7 @@ export async function claimJob(
         lt(submissions.attempts, MAX_ATTEMPTS),
       ),
     )
-    .orderBy(asc(submissions.createdAt))
+    .orderBy(asc(submissions.queuedAt))
     .limit(1)
     .for("update", { skipLocked: true });
 

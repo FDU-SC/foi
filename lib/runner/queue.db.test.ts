@@ -113,9 +113,9 @@ describeDb("runner 领活与上报", () => {
     await db.insert(contests).values({ slug: CONTEST, title: "Runner Fixture" });
   });
 
-  // An empty queue at the start of every case. `claimJob` takes the oldest row
-  // on the backend, so a leftover from the case before would be handed out
-  // instead of the row the case is about.
+  // An empty queue at the start of every case. `claimJob` takes the row that
+  // has been queued longest on the backend, so a leftover from the case before
+  // would be handed out instead of the row the case is about.
   beforeEach(async () => {
     await db.delete(submissions).where(eq(submissions.handle, HANDLE));
   });
@@ -132,7 +132,7 @@ describeDb("runner 领活与上报", () => {
       const ids = ["sub_rq_race_1", "sub_rq_race_2", "sub_rq_race_3"];
       const base = Date.now() - 60_000;
       for (const [index, id] of ids.entries()) {
-        await enqueue(id, { createdAt: new Date(base + index * 1000) });
+        await enqueue(id, { queuedAt: new Date(base + index * 1000) });
       }
 
       const tickets = await Promise.all(
@@ -166,6 +166,33 @@ describeDb("runner 领活与上报", () => {
       for (const ticket of handed) {
         expect(ticket.lease).toBe(leaseById.get(ticket.id));
       }
+    });
+
+    /**
+     * The column the ordering is taken from, which is not the obvious one.
+     *
+     * `created_at` was, and it was wrong for the two paths that put a row back
+     * in `queued` without creating it — the reaper reclaiming a job from a
+     * holder that went quiet, and an administrator rejudging. Both deliberately
+     * leave `created_at` alone (see `queuedAt` in `lib/db/schema.ts`), so work
+     * that had already been judged once arrived at the *head* of the queue,
+     * ahead of everything submitted since. A batch rejudge during a round was
+     * therefore enough to stall everybody still competing.
+     */
+    it("按进队列的时间发活，而不是按提交的时间", async () => {
+      const requeued = await enqueue("sub_rq_order_requeued", {
+        createdAt: new Date(Date.now() - 7 * 86_400_000),
+        queuedAt: new Date(Date.now() - 30_000),
+      });
+      const fresh = await enqueue("sub_rq_order_fresh", {
+        createdAt: new Date(Date.now() - 60_000),
+        queuedAt: new Date(Date.now() - 60_000),
+      });
+
+      // A week older by `created_at`, and still second, because it joined the
+      // queue half a minute ago.
+      expect((await claimJob(BACKEND, "r-first"))?.id).toBe(fresh);
+      expect((await claimJob(BACKEND, "r-second"))?.id).toBe(requeued);
     });
 
     /**
@@ -217,12 +244,12 @@ describeDb("runner 领活与上报", () => {
      */
     it("拿自己的 lease 换别人那一条的 id，什么也读不到", async () => {
       // Ordered explicitly, because which of the two each runner is handed is
-      // decided by `created_at` and `now()` twice in a row is not a guarantee.
+      // decided by `queued_at` and `now()` twice in a row is not a guarantee.
       const mine = await enqueue("sub_rq_mine", {
-        createdAt: new Date(Date.now() - 60_000),
+        queuedAt: new Date(Date.now() - 60_000),
       });
       const theirs = await enqueue("sub_rq_theirs", {
-        createdAt: new Date(Date.now() - 30_000),
+        queuedAt: new Date(Date.now() - 30_000),
       });
 
       const first = await claimJob(BACKEND, "r-mine");
@@ -323,10 +350,12 @@ describeDb("runner 领活与上报", () => {
       const settled = await enqueue("sub_rq_scored", {
         contestSlug: CONTEST,
         createdAt: new Date(Date.now() - 60_000),
+        queuedAt: new Date(Date.now() - 60_000),
       });
       const broken = await enqueue("sub_rq_unscored", {
         contestSlug: CONTEST,
         createdAt: new Date(Date.now() - 30_000),
+        queuedAt: new Date(Date.now() - 30_000),
       });
 
       const first = await claimJob(BACKEND, "r-a");

@@ -1,6 +1,7 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, lt } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { submissions } from "@/lib/db/schema";
+import { MAX_ATTEMPTS } from "@/lib/runner/queue";
 
 export interface QueuePosition {
   backendId: string;
@@ -36,7 +37,7 @@ export async function locateInQueues(
       id: submissions.id,
       backendId: submissions.backendId,
       state: submissions.state,
-      createdAt: submissions.createdAt,
+      queuedAt: submissions.queuedAt,
     })
     .from(submissions)
     .where(
@@ -48,21 +49,36 @@ export async function locateInQueues(
 
   if (wanted.length === 0) return found;
 
+  // The same set `claimJob` picks from, predicate for predicate. Rows at the
+  // attempt cap are deliberately left `queued` for the reaper to write off, so
+  // for up to one tick they sit in the table looking like work — and counting
+  // them told whoever was behind them that somebody was in front who was never
+  // going to be handed to anybody. An exact position is the whole dividend of
+  // holding the queue here; a position that counts phantoms is the snapshot
+  // this replaced, with better latency.
   const queued = await db
     .select({
       backendId: submissions.backendId,
-      createdAt: submissions.createdAt,
+      queuedAt: submissions.queuedAt,
     })
     .from(submissions)
-    .where(eq(submissions.state, "queued"));
+    .where(
+      and(
+        eq(submissions.state, "queued"),
+        lt(submissions.attempts, MAX_ATTEMPTS),
+      ),
+    );
 
-  // How many rows are ahead of a given instant on a given backend. Oldest
-  // first, because that is the order `claimJob` hands work out in — the
-  // position is a fact about that ordering rather than a display convention.
-  const aheadOf = (backendId: string, createdAt: Date): number =>
+  // How many rows are ahead of a given instant on a given backend. By
+  // `queued_at` and not `created_at`, because that is the order `claimJob`
+  // hands work out in — the position is a fact about that ordering rather than
+  // a display convention, and the two columns disagree for exactly the rows a
+  // rejudge or a requeue has put back.
+  const aheadOf = (backendId: string, queuedAt: Date): number =>
     queued.filter(
       (row) =>
-        row.backendId === backendId && row.createdAt.getTime() < createdAt.getTime(),
+        row.backendId === backendId &&
+        row.queuedAt.getTime() < queuedAt.getTime(),
     ).length;
 
   for (const row of wanted) {
@@ -71,8 +87,7 @@ export async function locateInQueues(
       state: row.state === "judging" ? "judging" : "queued",
       // A row somebody is already holding has nothing ahead of it, whatever the
       // queue behind it looks like.
-      ahead:
-        row.state === "judging" ? 0 : aheadOf(row.backendId, row.createdAt),
+      ahead: row.state === "judging" ? 0 : aheadOf(row.backendId, row.queuedAt),
     });
   }
 

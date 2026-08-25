@@ -184,6 +184,10 @@ export const backends: Record<string, ProblemBackend> = {
     // ten-minute default has declared every one of them lost.
     abandonAfterMs: 30 * 60 * 1000,
   },
+  roulette: {
+    url: backendUrl("ROULETTE") ?? "http://localhost:4100",
+    secret: backendSecret("ROULETTE"),
+  },
   // Its own entry rather than a shared checker, because it also orchestrates
   // the containers whose flags it verifies. See its `problem.ts`.
   "leaky-bucket": {

@@ -166,6 +166,7 @@ export async function reapOnce(): Promise<{
 
 declare global {
   var __foiReaperRanAt: number | undefined;
+  var __foiReaperStartedAt: number | undefined;
 }
 
 /**
@@ -211,13 +212,28 @@ const REAPER_STALE_MS = 5 * 60 * 1000;
  * `judging` for good — while the site serves pages, accepts submissions and
  * answers `/api/health` with a reachable database.
  *
- * Null before the first pass, which is a freshly started process rather than a
- * fault; `register` runs one immediately, so the window is a few seconds.
+ * Measured from the last successful pass, or from when the loop was started
+ * when there has not been one. That fallback is not a detail: `tick` writes
+ * `__foiReaperRanAt` only after `reapOnce` returns, so a loop whose every pass
+ * throws never writes it at all, and reading "no timestamp" as "freshly
+ * started, give it a moment" made this answer `ok` for the lifetime of such a
+ * process. A signal that only reports faults it has already recovered from is
+ * exactly no signal on the one failure it exists for.
+ *
+ * `ranAt` still means what it says — the last pass that finished — so a reader
+ * can tell "started and never got through one" from "got through one and then
+ * stopped". Both are stale after the same window.
  */
 export function reaperHealth(): { ok: boolean; ranAt: Date | null } {
   const ranAt = reaperRanAt();
-  if (!ranAt) return { ok: true, ranAt: null };
-  return { ok: Date.now() - ranAt.getTime() < REAPER_STALE_MS, ranAt };
+  const since = ranAt?.getTime() ?? globalThis.__foiReaperStartedAt;
+
+  // Neither: nothing in this process ever started a loop. A build, a test, a
+  // script importing this module — there is no loop to be stale about, and
+  // `instrumentation.ts` is the only thing that would have created one.
+  if (since === undefined) return { ok: true, ranAt: null };
+
+  return { ok: Date.now() - since < REAPER_STALE_MS, ranAt };
 }
 
 /**
@@ -270,6 +286,11 @@ export async function recentDisruptions(windowMs: number): Promise<number> {
 export function startReaping(intervalMs: number): () => void {
   let timer: NodeJS.Timeout;
   let stopped = false;
+
+  // Written before the first tick is even booked, because it is what
+  // `reaperHealth` measures against until a pass succeeds — and a loop that
+  // never has one is the case that needs it.
+  globalThis.__foiReaperStartedAt = Date.now();
 
   const tick = async () => {
     try {

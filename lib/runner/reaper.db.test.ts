@@ -1,5 +1,14 @@
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import type { Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
 import { accounts, problems, runners, submissions } from "@/lib/db/schema";
@@ -14,7 +23,7 @@ import {
   reportDone,
   reportFailed,
 } from "./queue";
-import { reapOnce } from "./reaper";
+import { reaperHealth, reapOnce, startReaping } from "./reaper";
 
 /**
  * The only loop, and the only place the kernel concludes anything by itself.
@@ -297,5 +306,95 @@ describeDb("失联回收", () => {
       await reapOnce();
       expect((await rowOf(id)).state).toBe("queued");
     });
+  });
+});
+
+/**
+ * The loop's own health signal, which is the one thing here that touches no
+ * table.
+ *
+ * It lives in this file rather than a `reaper.test.ts` of its own because
+ * `reaper.ts` imports `lib/db`, and that module throws on import without a
+ * connection string — a unit-project test would take the whole DB-less run
+ * down with it. Ungated for the same reason the rest of the file is gated: by
+ * the time anything here executes, the import has already succeeded.
+ */
+describe("回收循环的存活信号", () => {
+  /** Longer than any plausible staleness window, and shorter than none. */
+  const AN_HOUR = 60 * 60_000;
+
+  const forget = () => {
+    globalThis.__foiReaperRanAt = undefined;
+    globalThis.__foiReaperStartedAt = undefined;
+  };
+
+  beforeEach(() => {
+    forget();
+    // Before `startReaping`, so the tick it books at zero never fires: this
+    // suite is about what the signal reports, not about what a pass does, and
+    // a real pass would write the success timestamp the cases below withhold.
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    forget();
+  });
+
+  it("没有循环被启动过时不报故障", () => {
+    expect(reaperHealth()).toEqual({ ok: true, ranAt: null });
+  });
+
+  it("刚启动、还没跑完一趟时是绿的", () => {
+    const stop = startReaping(15_000);
+    try {
+      expect(reaperHealth()).toEqual({ ok: true, ranAt: null });
+    } finally {
+      stop();
+    }
+  });
+
+  /**
+   * The failure this signal exists for, and the one it used to be blind to.
+   *
+   * `tick` writes the success timestamp only after `reapOnce` returns, so a
+   * loop whose every pass throws never writes one — and "no timestamp" was
+   * read as "freshly started". `/api/health` therefore answered
+   * `reaper: "up"` for the lifetime of a process whose reaper had never once
+   * completed a pass, which is precisely the silent fault it is watching for.
+   */
+  it("从来没有一趟跑成功过时，过了 stale 窗口就要报停摆", () => {
+    const stop = startReaping(15_000);
+    try {
+      vi.setSystemTime(Date.now() + AN_HOUR);
+
+      const health = reaperHealth();
+      expect(health.ok).toBe(false);
+      // Still null, and it has to stay null: the two readers of this print
+      // "本进程还没有跑过一轮" from it, which is the difference between a loop
+      // that stopped and a loop that never started working.
+      expect(health.ranAt).toBeNull();
+    } finally {
+      stop();
+    }
+  });
+
+  it("跑成功过之后，判据换成最后一次成功的时间", () => {
+    const stop = startReaping(15_000);
+    try {
+      // Long enough that the start time alone would already read as stalled.
+      vi.setSystemTime(Date.now() + AN_HOUR);
+      const ranAt = Date.now();
+      globalThis.__foiReaperRanAt = ranAt;
+
+      expect(reaperHealth()).toEqual({ ok: true, ranAt: new Date(ranAt) });
+
+      // And it goes stale in its turn, or the fallback above would have been
+      // bought by making the check unable to fail.
+      vi.setSystemTime(Date.now() + AN_HOUR);
+      expect(reaperHealth()).toEqual({ ok: false, ranAt: new Date(ranAt) });
+    } finally {
+      stop();
+    }
   });
 });

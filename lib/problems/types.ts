@@ -16,7 +16,7 @@ export const LANGUAGES: Record<string, string> = {
   javascript: "JavaScript",
 };
 
-export const DIFFICULTIES = ["入门", "普及", "提高", "省选", "NOI"] as const;
+const DIFFICULTIES = ["入门", "普及", "提高", "省选", "NOI"] as const;
 
 /**
  * How often one person may invoke one action.
@@ -62,6 +62,50 @@ export const DEFAULT_SUBMIT_RATE_LIMIT: ActionRateLimit = {
 };
 
 /**
+ * An inline judge's way of saying there is not going to be a result.
+ *
+ * The kernel has had a word for this on the other side of the line all along:
+ * a runner reports `state: "failed"`, the row lands in `disrupted`, and
+ * nothing is scored against anybody. `Verdict` deliberately cannot express it
+ * — the note on `verdictSchema` in `lib/backend/types.ts` argues that "the
+ * judging itself broke" is a state rather than a result, and that putting a
+ * field for it inside a verdict would file a machine fault under what the
+ * submission earned.
+ *
+ * Inline judges had no such channel, only a `Verdict` to return, and what they
+ * did with it is what that argument predicts: three of them answered
+ * `status: "system_error"` when their configuration was missing. It renders as
+ * a fault, which is why it looked like the right answer, but it is still a
+ * verdict — the row lands in `completed`, `scoredSubmissions` counts it, it
+ * shows on the board, and under ACM rules it buys the competitor a failed
+ * attempt with the penalty minutes attached. A setter forgetting one config
+ * key charged the next person to submit for it.
+ *
+ * `reason` is prose for whoever opens the submission, and lands in
+ * `submissions.error` exactly where a runner's would.
+ */
+export interface InlineUnavailable {
+  unavailable: true;
+  reason: string;
+}
+
+/** What an inline judge decided: a result, or that there cannot be one. */
+export type InlineJudgement = Verdict | InlineUnavailable;
+
+/**
+ * Which half of the judgement this is.
+ *
+ * A predicate for the same reason `isInlineBackend` below is one: the
+ * discriminant is a key `Verdict` merely happens not to have, and a call site
+ * that spells the check itself is a call site that can get it subtly wrong.
+ */
+export function isInlineUnavailable(
+  judgement: InlineJudgement,
+): judgement is InlineUnavailable {
+  return "unavailable" in judgement;
+}
+
+/**
  * A judgement the kernel reaches by itself, with no backend involved.
  *
  * Synchronous on purpose, and that is the one part of the bargain the type
@@ -75,13 +119,17 @@ export const DEFAULT_SUBMIT_RATE_LIMIT: ActionRateLimit = {
  * **Never inline a judgement that executes what the competitor submitted.**
  * Isolation is the entire reason external backends exist, and there is no
  * amount of "it is only a small script" that makes running one here safe.
+ *
+ * Returns an `InlineJudgement` rather than a `Verdict`, so that a judge which
+ * cannot judge can say so instead of inventing a score; the argument is on
+ * `InlineUnavailable`.
  */
 export type InlineJudge = (input: {
   payload: unknown;
   config: unknown;
   user: BackendUser;
   contestSlug: string | null;
-}) => Verdict;
+}) => InlineJudgement;
 
 /**
  * Judged here, in this process, at submit time.
@@ -100,9 +148,27 @@ export type InlineJudge = (input: {
 const inlineBackendSchema = z.strictObject({
   kind: z.literal("inline"),
   config: z.unknown().optional(),
-  judge: z.custom<InlineJudge>((value) => typeof value === "function", {
-    message: "内联判题的 judge 必须是一个函数",
-  }),
+
+  /**
+   * Rejecting `async` here is not pedantry about the declared type.
+   *
+   * `z.custom` is the only check this field gets, and it used to be nothing
+   * but `typeof value === "function"` — which an `async` judge passes while
+   * returning a Promise. The submit route would then write that Promise into
+   * the `verdict` jsonb column, where it serialises as `{}`, and read four
+   * nulls back out of it. Nothing throws, the row settles as `completed`, and
+   * the only evidence is a submission whose verdict is empty.
+   *
+   * It catches the declaration rather than every way to hand back a Promise —
+   * a plain function whose body returns one still gets through. That is the
+   * shape the mistake actually takes, and the alternative, inspecting what the
+   * judge returned, cannot happen until it has already been called.
+   */
+  judge: z.custom<InlineJudge>(
+    (value) =>
+      typeof value === "function" && value.constructor.name !== "AsyncFunction",
+    { message: "内联判题的 judge 必须是一个同步函数" },
+  ),
 });
 
 /**

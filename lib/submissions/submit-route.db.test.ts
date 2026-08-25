@@ -225,3 +225,77 @@ describeDb("内联判题的提交", () => {
     expect(fetchMock.mock.calls.length).toBe(before);
   });
 });
+
+/**
+ * The other thing an inline judge is allowed to say, and the reason the return
+ * type is a union rather than a `Verdict`.
+ *
+ * `judge.test.ts` covers a judge deciding it cannot judge. What it cannot see
+ * is where that lands, and landing is the entire point: a `system_error`
+ * verdict — which is what these branches used to return — settles the row as
+ * `completed`, which puts a platform misconfiguration on the scoreboard and,
+ * under ACM rules, charges the competitor penalty minutes for it.
+ *
+ * `roulette-daily` by name rather than by predicate, because this needs a judge
+ * whose refusal the suite can actually provoke, and its dependence on
+ * `AUTH_SECRET` is the one thing here that can be taken away from the outside.
+ */
+describeDb("内联判题说自己判不了", () => {
+  const ROULETTE = "roulette-daily";
+
+  beforeAll(async () => {
+    for (const [key, value] of Object.entries(TEST_ENV)) {
+      vi.stubEnv(key, value);
+    }
+    vi.stubGlobal("fetch", fetchMock);
+
+    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
+    await db.delete(accounts).where(eq(accounts.handle, HANDLE));
+    await db
+      .insert(accounts)
+      .values({ handle: HANDLE, displayName: HANDLE, source: "registration" });
+  });
+
+  afterAll(async () => {
+    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
+    await db.delete(accounts).where(eq(accounts.handle, HANDLE));
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("落 disrupted 带上原因，而不是一个零分的 completed", async () => {
+    vi.stubEnv("AUTH_SECRET", "");
+
+    const response = await POST(
+      new Request("http://localhost:3000/api/submissions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          problemSlug: ROULETTE,
+          payload: { text: "red" },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    // Answered with the settled row rather than the queued one it was a moment
+    // earlier: the insert and the settle are one transaction, and the reply is
+    // written after it commits.
+    expect((await response.json()).state).toBe("disrupted");
+
+    const [row] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.handle, HANDLE));
+
+    expect(row.state).toBe("disrupted");
+    expect(row.error).toContain("AUTH_SECRET");
+    // No result, and specifically not a zero — the same shape `reportFailed`
+    // leaves on the runner path, because it is the same statement being made.
+    expect(row.verdict).toBeNull();
+    expect(row.outcome).toBeNull();
+    expect(row.score).toBeNull();
+    expect(row.accepted).toBeNull();
+    expect(row.judgedAt).not.toBeNull();
+  });
+});

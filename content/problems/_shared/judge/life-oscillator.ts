@@ -112,13 +112,11 @@ export const judgeLifeOscillator: InlineJudge = ({ payload, config }) => {
     (config as LifeOscillatorConfig | undefined)?.cases ?? []
   ).filter((testCase) => testCase.k !== undefined && testCase.maxDim !== undefined);
 
+  // Nothing to check against is not the same as failing the check, and the
+  // argument for saying so rather than returning a verdict is on
+  // `InlineUnavailable`.
   if (cases.length === 0) {
-    return {
-      status: "system_error",
-      score: 0,
-      maxScore: 100,
-      detail: { message: "题目配置缺少 cases" },
-    };
+    return { unavailable: true, reason: "题目配置缺少 cases，无法判题" };
   }
 
   const text = String((payload as { text?: unknown })?.text ?? "");

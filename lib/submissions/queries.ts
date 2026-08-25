@@ -5,7 +5,39 @@ import { accounts, problems, submissions } from "@/lib/db/schema";
 import type { SubmissionRow } from "@/lib/db/schema";
 import type { SubmissionListItem, SubmissionView } from "./types";
 
-export function toView(row: SubmissionRow): SubmissionView {
+/**
+ * The columns a view is made of, spelled out instead of taken as a whole row.
+ *
+ * `error` is in the list for `failureReason` rather than for the view, which
+ * has no field of that name. What is deliberately *not* in it is `payload`:
+ * capped at 512 KiB, genuinely that big for an `output-only` problem, never
+ * sent to anybody by the function below, and fifty to a page in
+ * `listSubmissions`. Narrowing here is what lets that query stop asking for
+ * it, and keeping the two in step is the type checker's job from now on — a
+ * field added to `SubmissionView` and read off the row will not compile until
+ * both this list and that `select` know about it.
+ *
+ * Every other caller passes a full `SubmissionRow`, which still satisfies this
+ * structurally.
+ */
+export function toView(
+  row: Pick<
+    SubmissionRow,
+    | "id"
+    | "problemSlug"
+    | "contestSlug"
+    | "state"
+    | "verdict"
+    | "outcome"
+    | "score"
+    | "maxScore"
+    | "accepted"
+    | "error"
+    | "runnerStatus"
+    | "createdAt"
+    | "judgedAt"
+  >,
+): SubmissionView {
   return {
     id: row.id,
     problemSlug: row.problemSlug,
@@ -81,7 +113,22 @@ export async function listSubmissions(options: {
   // row is there.
   const rows = await db
     .select({
-      submission: submissions,
+      submission: {
+        id: submissions.id,
+        handle: submissions.handle,
+        problemSlug: submissions.problemSlug,
+        contestSlug: submissions.contestSlug,
+        state: submissions.state,
+        verdict: submissions.verdict,
+        outcome: submissions.outcome,
+        score: submissions.score,
+        maxScore: submissions.maxScore,
+        accepted: submissions.accepted,
+        error: submissions.error,
+        runnerStatus: submissions.runnerStatus,
+        createdAt: submissions.createdAt,
+        judgedAt: submissions.judgedAt,
+      },
       problemTitle: problems.title,
       displayName: accounts.displayName,
     })

@@ -35,6 +35,32 @@ const DEFAULT_REPLY_TIMEOUT_MS = 10_000;
  */
 const MAX_RESPONSE_BYTES = 256 * 1024;
 
+/**
+ * The kernel does not chase a backend's redirects.
+ *
+ * `fetch` defaults to `follow`, and Node will take up to twenty hops. That
+ * turns the one outbound call left into a fetcher somebody else aims: a
+ * compromised backend answers `302 Location: http://169.254.169.254/...` and
+ * the kernel makes that request from inside the deployment's network and
+ * relays the answer to whoever pressed the button. Nothing about the response
+ * is inspected — that is the bargain of these endpoints — so the body would go
+ * straight back to the player.
+ *
+ * `manual` rather than `error`, and the difference is only in what the kernel
+ * can say afterwards. Neither follows the hop; `error` rejects with the same
+ * `TypeError: fetch failed` that a DNS failure produces, so telling "the
+ * backend is down" (503, worth retrying) apart from "the backend answered with
+ * a redirect" (502, a misconfigured or hostile service) would come down to
+ * matching on undici's wording. `manual` hands back the 3xx itself, which is a
+ * fact this file can check and a test can reproduce.
+ */
+const NO_REDIRECT = "manual" as const;
+
+/** A hop, per the fetch spec's own definition of a redirect status. */
+function isRedirect(status: number): boolean {
+  return status >= 300 && status < 400;
+}
+
 export interface ResolvedBackend extends ProblemBackend {
   id: string;
   secret: string;
@@ -218,6 +244,7 @@ export async function callBackendAction(
       method: "POST",
       headers,
       body,
+      redirect: NO_REDIRECT,
       signal: AbortSignal.timeout(backend.replyTimeoutMs),
     });
   } catch (error) {
@@ -228,6 +255,17 @@ export async function callBackendAction(
       body: JSON.stringify({
         error: timedOut ? "题目后端响应超时" : "无法连接题目后端",
       }),
+    };
+  }
+
+  if (isRedirect(res.status)) {
+    // Nothing will read the hop's own body, so let go of the socket rather
+    // than leaving it to the collector.
+    await res.body?.cancel().catch(() => {});
+    return {
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "题目后端返回了重定向" }),
     };
   }
 

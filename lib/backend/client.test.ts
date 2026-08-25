@@ -233,6 +233,82 @@ describe("后端响应的字节上限", () => {
 });
 
 /**
+ * A backend answering `302` is aiming the kernel, not answering it. `fetch`
+ * follows redirects by default, so the one outbound call left would make the
+ * next request from inside the deployment's network and relay the body back to
+ * whoever pressed the button — an interactive endpoint turned into a fetcher
+ * for the link-local metadata address.
+ */
+describe("出站请求不跟随重定向", () => {
+  const backend = () => resolveBackend(Object.keys(backends)[0]);
+  const request = {
+    action: "spawn",
+    user: { handle: "alice", groups: [] },
+    problem: { slug: "leaky-bucket", config: {} },
+    contestSlug: null,
+    payload: null,
+  };
+
+  /** What Node hands back for a 3xx when it is told not to chase it. */
+  function redirectTo(status: number, location: string): Response {
+    return new Response("redirecting", {
+      status,
+      headers: { location, "content-type": "text/plain" },
+    });
+  }
+
+  it("302 变成 502，而不是照抄后端的状态码与 body", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      redirectTo(302, "http://169.254.169.254/latest/meta-data/"),
+    );
+
+    const response = await callBackendAction(backend(), request);
+
+    expect(response.status).toBe(502);
+    expect(response.contentType).toBe("application/json");
+    expect(response.body).not.toContain("169.254.169.254");
+  });
+
+  it("整个 3xx 段都算，不只是 302", async () => {
+    for (const status of [301, 303, 307, 308]) {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        redirectTo(status, "http://10.0.0.1/admin"),
+      );
+
+      await expect(
+        callBackendAction(backend(), request),
+      ).resolves.toMatchObject({ status: 502 });
+    }
+  });
+
+  /**
+   * The load-bearing half: the 502 above is only reachable because Node was
+   * told not to take the hop itself. Left at the default `follow`, the kernel
+   * would have made the second request before this file ever saw a status.
+   */
+  it("交给 fetch 的 redirect 模式不是跟随", async () => {
+    let mode: RequestInit["redirect"] | "unset" = "unset";
+    vi.spyOn(globalThis, "fetch").mockImplementation((_input, init) => {
+      mode = init?.redirect ?? "unset";
+      return Promise.resolve(jsonResponse({ ok: true }));
+    });
+
+    await callBackendAction(backend(), request);
+
+    expect(mode).not.toBe("unset");
+    expect(mode).not.toBe("follow");
+  });
+
+  it("正常的 2xx 不受影响", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ ok: true }));
+
+    await expect(callBackendAction(backend(), request)).resolves.toMatchObject({
+      status: 200,
+    });
+  });
+});
+
+/**
  * The signature covers the method and the path, so the one outbound call left
  * has to sign the request it actually makes. That pairing is the thing that can
  * come apart silently — change a path after signing it and the backend answers

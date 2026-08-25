@@ -5,7 +5,7 @@ import { readTextBody } from "@/lib/body-limit";
 import { db } from "@/lib/db";
 import { runners, submissions } from "@/lib/db/schema";
 import { RUNNER_ONLINE_MS } from "@/lib/runner/queue";
-import { backendsFor } from "./access";
+import { backendsFor, effectiveSecret } from "./access";
 import { signedHeaders } from "./signature";
 import { type BackendActionRequest } from "./types";
 
@@ -81,19 +81,11 @@ export function resolveBackend(id: string): ResolvedBackend {
     throw new Error(`未知的题目后端 "${id}"，请检查 backends.config.ts`);
   }
 
-  // Old name accepted as a fallback for the same reason the URLs are; see
-  // `backends.config.ts`.
-  //
-  // `||` and not `??`, because the test below is `!secret` and the two have to
-  // agree on what counts as a key. An `.env` carrying an unfilled
-  // `FOI_BACKEND_SECRET=` hands this `""`: a value, so `??` kept it, and then
-  // falsy, so the throw fired — naming the very variable that was set. Every
-  // reader of these now treats blank as absent, `backendSecret` in
-  // `backends.config.ts` included.
-  const secret =
-    entry.secret ||
-    process.env.FOI_BACKEND_SECRET ||
-    process.env.FOI_JUDGE_SECRET;
+  // The fallback chain itself lives in `access.ts`, because the shared-key
+  // check there has to reach the same answer this does: it reports on entries
+  // that sign with one value, and a second copy of "which value is that" is
+  // the way the two would come to disagree.
+  const secret = effectiveSecret(id);
   if (!secret) {
     throw new Error("缺少环境变量 FOI_BACKEND_SECRET");
   }

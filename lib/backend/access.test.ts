@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { backends, type ProblemBackend } from "@/backends.config";
 import { AS_PLAYER } from "@/lib/auth/test-support";
 import { viewerFor, type Viewer } from "@/lib/auth/viewer";
@@ -157,6 +157,7 @@ describe("共用签名密钥的题目后端", () => {
   afterEach(() => {
     for (const [id, entry] of saved) backends[id] = entry;
     saved.clear();
+    vi.unstubAllEnvs();
   });
 
   it("各自有密钥时什么都不报", () => {
@@ -211,6 +212,51 @@ describe("共用签名密钥的题目后端", () => {
     for (const id of orphanedBackends()) {
       expect(reported).not.toContain(id);
     }
+  });
+
+  /**
+   * The arrangement the message asks for, and the one it must not nag about:
+   * two entries really served by one runner say so by naming the same value
+   * twice. Nobody is borrowing, so nobody is surprised.
+   */
+  it("都写明了同一个值时不报——那是部署在说这几台确实是一台", () => {
+    if (inUse.length < 2) return;
+    vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
+    for (const id of inUse) patch(id, { secret: "one-runner-for-both" });
+
+    expect(backendsSharingSecret()).toEqual([]);
+  });
+
+  /**
+   * The gap between "has a key of its own" and "signs with its own value".
+   * Filling in `FOI_BACKEND_<NAME>_SECRET` by copying `FOI_BACKEND_SECRET` is
+   * the plausible way to arrive here, and the check used to read it as one
+   * backend on the shared key — which is not sharing, so it said nothing. Two
+   * backends are still signing with one value.
+   */
+  it("专属密钥的值恰好等于共享密钥时，照样算共用", () => {
+    if (inUse.length < 2) return;
+    vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
+    scatter();
+    patch(inUse[0], { secret: "shared-key" });
+    for (const id of inUse.slice(2)) patch(id, { secret: `secret-for-${id}` });
+
+    expect(backendsSharingSecret().sort()).toEqual([inUse[0], inUse[1]].sort());
+  });
+
+  /**
+   * Legacy `FOI_JUDGE_SECRET` is the same fallback under an older name, so a
+   * value copied out of it collides just as thoroughly.
+   */
+  it("回落到旧名 FOI_JUDGE_SECRET 时也一样比得出来", () => {
+    if (inUse.length < 2) return;
+    vi.stubEnv("FOI_BACKEND_SECRET", undefined);
+    vi.stubEnv("FOI_JUDGE_SECRET", "legacy-key");
+    scatter();
+    patch(inUse[0], { secret: "legacy-key" });
+    for (const id of inUse.slice(2)) patch(id, { secret: `secret-for-${id}` });
+
+    expect(backendsSharingSecret().sort()).toEqual([inUse[0], inUse[1]].sort());
   });
 });
 

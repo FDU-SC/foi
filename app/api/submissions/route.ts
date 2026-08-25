@@ -306,7 +306,12 @@ export async function POST(request: Request) {
       state: "completed",
       verdict,
       backendVersion: INLINE_BACKEND_VERSION,
-      ...verdictColumns(verdict, problem.slug),
+      // The same total the insert above already wrote. An inline judge is the
+      // registry's own code running against the registry's own config, so
+      // "what this submission was scored out of" and "what the problem says
+      // right now" cannot differ here — unlike on the runner path, where the
+      // row may have outlived an edit.
+      ...verdictColumns(verdict, problem.maxScore),
       judgedAt: new Date(),
     });
     if (contestSlug) invalidateStandings(contestSlug);

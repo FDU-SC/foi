@@ -26,6 +26,9 @@ const HANDLE = "queue-lookup-alice";
 /** This suite's own queue — `lib/runner/queue.db.test.ts` says why. */
 const BACKEND = "queue-lookup-fixture";
 
+/** A second one, for the cases about queues not bleeding into each other. */
+const OTHER_BACKEND = "queue-lookup-fixture-other";
+
 const PROBLEM = externallyJudged()[0]!;
 
 const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
@@ -80,6 +83,38 @@ describeDb("排队位次", () => {
 
     expect(found.get(first)).toMatchObject({ backendId: BACKEND, ahead: 0 });
     expect(found.get(third)).toMatchObject({ state: "queued", ahead: 2 });
+  });
+
+  /**
+   * A position is a fact about one queue, and the second statement now names
+   * the backends it reads instead of taking every queue in the table. Asking
+   * about two at once is the shape both halves of that narrowing fail in: name
+   * too few and the row on the omitted queue reports an empty queue in front
+   * of it, name too many — or filter nowhere at all — and each row inherits
+   * the other's backlog.
+   */
+  it("两个后端一起问，各数各的队列", async () => {
+    const here = await enqueue("sub_ql_here", { queuedAt: ago(30_000) });
+    await enqueue("sub_ql_here_ahead", { queuedAt: ago(90_000) });
+
+    const there = await enqueue("sub_ql_there", {
+      backendId: OTHER_BACKEND,
+      queuedAt: ago(30_000),
+    });
+    for (const [id, age] of [
+      ["sub_ql_there_ahead_early", 90_000],
+      ["sub_ql_there_ahead_late", 60_000],
+    ] as const) {
+      await enqueue(id, { backendId: OTHER_BACKEND, queuedAt: ago(age) });
+    }
+
+    const found = await locateInQueues([here, there]);
+
+    expect(found.get(here)).toMatchObject({ backendId: BACKEND, ahead: 1 });
+    expect(found.get(there)).toMatchObject({
+      backendId: OTHER_BACKEND,
+      ahead: 2,
+    });
   });
 
   /**

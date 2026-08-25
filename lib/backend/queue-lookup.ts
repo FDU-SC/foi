@@ -18,13 +18,21 @@ export interface QueuePosition {
  * as fresh as the last poll, silently absent for a backend that truncated its
  * listing, and wrong for the whole interval after a judge dequeued something.
  *
- * Two statements, and the second reads the entire queue rather than counting
- * per row. That is deliberate: the set of `queued` rows is small by
- * construction — a runner takes the oldest every second or two, so the queue is
- * work that has arrived and not yet started, not the history — and it is
- * exactly the set the partial index covers. Counting in the database instead
- * would mean a correlated subquery or a window function written in raw SQL, and
- * the column names in it would be a rename waiting to break silently.
+ * Two statements, and the second reads whole queues rather than counting per
+ * row. Counting in the database instead would mean a correlated subquery or a
+ * window function written in raw SQL, and the column names in it would be a
+ * rename waiting to break silently.
+ *
+ * Whole queues, but only the ones the first statement actually landed in. The
+ * set of `queued` rows being small by construction — a runner takes the oldest
+ * every second or two, so the queue is work that has arrived and not yet
+ * started, not the history — is true of a deployment where every backend has
+ * somebody serving it, and that is precisely the state in which nobody is
+ * asking this question. A queue goes deep when its runners are down, and the
+ * minutes it is deep are the minutes everyone whose submission is in it is
+ * reloading the list to find out why. Naming the backends puts the leading
+ * column of `submissions_queued_idx` in the predicate, so each queue is a seek
+ * into that index instead of a scan across every backend's share of it.
  */
 export async function locateInQueues(
   submissionIds: string[],
@@ -56,6 +64,8 @@ export async function locateInQueues(
   // going to be handed to anybody. An exact position is the whole dividend of
   // holding the queue here; a position that counts phantoms is the snapshot
   // this replaced, with better latency.
+  const backendIds = [...new Set(wanted.map((row) => row.backendId))];
+
   const queued = await db
     .select({
       backendId: submissions.backendId,
@@ -65,6 +75,7 @@ export async function locateInQueues(
     .where(
       and(
         eq(submissions.state, "queued"),
+        inArray(submissions.backendId, backendIds),
         lt(submissions.attempts, MAX_ATTEMPTS),
       ),
     );

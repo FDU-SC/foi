@@ -217,18 +217,31 @@ const schema = z
   });
 
 /**
+ * One sentence for both ways a handle can be unavailable, and the same
+ * constant rather than two copies of it, so they cannot drift back apart.
+ *
+ * Taken and reserved are different facts with very different audiences. A
+ * taken handle is public — it is on every standings page. A reserved one is
+ * either on `enrollmentPolicy.reservedHandles` or named by a `handles` rule in
+ * `content/enrollment/`, and that second list is the interesting one: a rule
+ * naming somebody is a membership waiting to be claimed, so it is a list of
+ * the accounts worth grabbing before their owner arrives. Two different
+ * sentences turn this form into a way to read that list one guess at a time.
+ */
+const HANDLE_UNAVAILABLE = "这个用户名不可用，换一个试试。";
+
+/**
  * Unlike the login and recovery forms, this one says exactly what went wrong.
  *
  * Being vague there is worth it because it stops the form being used to test
  * whether somebody has an account. A registration form cannot make the same
- * trade: "that username is taken" is the only thing that lets a person pick
- * another one. Handles are public anyway — they appear on every standings
- * page.
+ * trade: telling a person their username will not work is the only thing that
+ * lets them pick another one. What it does not have to say is *why*.
  */
 const REJECTIONS: Record<RegisterRejection, string> = {
   disabled: "当前未开放注册。",
-  "handle-taken": "这个用户名已经被占用了，换一个试试。",
-  "handle-reserved": "这个用户名已被保留，换一个试试。",
+  "handle-taken": HANDLE_UNAVAILABLE,
+  "handle-reserved": HANDLE_UNAVAILABLE,
   "email-domain": "这个邮箱域名不在允许注册的范围内。",
   "email-taken": "这个邮箱已经注册过了。如果是你本人，请用「找回密码」。",
   "email-unverified": "邮箱尚未验证，或验证已超时。请重新获取验证码。",

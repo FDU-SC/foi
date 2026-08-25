@@ -2,24 +2,64 @@ import { z } from "zod";
 import type { BadgeTone } from "@/components/ui/badge";
 
 /**
- * Lifecycle of a submission as tracked by the kernel. Distinct from the
- * judge's own verdict status, which is an opaque string.
+ * `submissions.backendId` for a problem the kernel judged itself.
  *
- * `failed` and `abandoned` are both "no verdict, and none is coming", and they
- * are two states because they are two different claims. `failed` is a backend
- * saying no — a 4xx on dispatch, or `accepted: false` — which is a decision
- * somebody made about this submission. `abandoned` is the reconciler guessing:
- * nothing has come back for long enough that the kernel stops waiting. A guess
- * can be wrong, so the write path treats them oppositely — see
- * `acceptsVerdict`. Players are shown the same thing either way; the
- * distinction answers a question only the callback handler asks.
+ * The column is `not null` because every other row has a real backend to name,
+ * and a sentinel keeps it that way rather than making every reader handle a
+ * null. Safe as a value because `backends.config.ts` keys double as
+ * environment-variable fragments: a real entry by this name would need
+ * `FOI_BACKEND_INLINE_SECRET`, which nothing sets.
+ *
+ * Rows carrying it are written to a terminal state in the same request that
+ * created them, so no runner ever sees one — `claimJob` selects by backend id
+ * and nothing signs as `inline`.
+ */
+export const INLINE_BACKEND_ID = "inline";
+
+/** `submissions.backendVersion` for an inline judgement. */
+export const INLINE_BACKEND_VERSION = "inline";
+
+/**
+ * The lifecycle of a submission, and the whole of what the kernel understands
+ * about judging.
+ *
+ * Four states, because each one corresponds to a decision the kernel makes on
+ * its own account:
+ *
+ *   queued     nobody is holding it — the queue fuse applies
+ *   judging    somebody is holding it and is still alive — the heartbeat rule
+ *              applies
+ *   completed  there is a verdict
+ *   disrupted  there is no verdict and there will not be one, **and it is not
+ *              the submitter's fault**
+ *
+ * There is deliberately no "claimed but not started yet". What the kernel needs
+ * to know is that somebody holds this and is alive; whether that somebody is
+ * cloning a repository, pulling an image or running the seventh test is a thing
+ * it has no business having an opinion about. GitLab's `waiting_for_runner_ack`
+ * exists because they had no uniform heartbeat at the time; we do, so the
+ * premise does not hold.
+ *
+ * `disrupted` is the Internal Error every mainstream judge has, and it covers
+ * two sources at once: a runner saying "I cannot evaluate this", and the kernel
+ * inferring that nobody is coming. They are one state because the handling is
+ * identical — no result, not counted against the submitter, an administrator
+ * can rejudge — and the difference is recorded in `error` rather than in the
+ * state. DOMjudge is the sharpest precedent: internal error is not in its
+ * verdict priority table at all, because it is not a verdict, it is a veto
+ * saying "this judging does not count".
+ *
+ * `rejected` used to be here and is gone with the push model. Its three sources
+ * were a 4xx on dispatch, an `accepted: false` acknowledgement, and an inline
+ * judge throwing. The first two do not exist when nobody dispatches, and the
+ * third was always misfiled: our code breaking is not the submission being
+ * unacceptable, so it lands in `disrupted` too.
  */
 export const SUBMISSION_STATES = [
-  "pending",
+  "queued",
   "judging",
   "completed",
-  "failed",
-  "abandoned",
+  "disrupted",
 ] as const;
 
 export type SubmissionState = (typeof SUBMISSION_STATES)[number];
@@ -27,59 +67,22 @@ export type SubmissionState = (typeof SUBMISSION_STATES)[number];
 /**
  * "Is there any point waiting for this?" — the client's question.
  *
- * Everything that polls, streams or renders a spinner asks this one: whether
- * to keep an EventSource open, whether to schedule another poll, whether to
- * look the row up in a judge's queue. `abandoned` is settled because the
- * kernel has stopped expecting a result, and a client that kept waiting would
- * wait on a row nothing is going to touch.
+ * Everything that polls, streams or renders a spinner asks this one. There used
+ * to be a second predicate beside it answering "may a late report still write
+ * here", because the push model had a state — `abandoned` — that was settled
+ * for the reader and still writable by the judge. A lease removes the need: a
+ * report is accepted when it holds the current lease and refused when it does
+ * not, which is a fact about the holder rather than a guess about the state.
  */
 export function isSettled(state: SubmissionState): boolean {
-  return (
-    state === "completed" || state === "failed" || state === "abandoned"
-  );
+  return state === "completed" || state === "disrupted";
 }
 
-/**
- * "May a callback still write to this?" — the server's question.
- *
- * Not the negation of `isSettled`, and that is the whole reason there are two
- * predicates rather than one. `abandoned` answers yes to both: the client
- * should stop waiting, *and* a late callback is still welcome, because
- * abandonment was a guess about a backend that had gone quiet and a verdict
- * arriving afterwards proves the guess wrong. Collapsing the two back into a
- * single "terminal" would force a choice between clients spinning forever on
- * abandoned rows and real verdicts being discarded on arrival.
- *
- * `completed` and `failed` are excluded for the usual idempotency reason:
- * whichever verdict landed first is the one that counts, and `failed` is a
- * refusal the backend itself issued rather than something the kernel inferred.
- */
-export function acceptsVerdict(state: SubmissionState): boolean {
-  return state === "pending" || state === "judging" || state === "abandoned";
-}
+/** Nobody has finished with this row yet. */
+export const NON_TERMINAL_STATES: SubmissionState[] = ["queued", "judging"];
 
-/**
- * The states a submission can still be moved out of *by the reconciler*.
- *
- * Every write that reaches a terminal state is guarded by this list in its
- * `where` clause rather than by a preceding read. The callback handler and the
- * reconciler can both be holding a row that was non-terminal a moment ago —
- * the reconciler in particular holds one across a network call to the judge —
- * so whichever writes second has to lose rather than overwrite a verdict that
- * already landed. Without the guard an accepted submission can be rewritten as
- * a timeout, silently and after the fact.
- *
- * Deliberately narrower than `acceptsVerdict`: `abandoned` is absent. The
- * sweep selects on this list too, and a row it has already given up on should
- * not come back round every fifteen seconds to be polled and given up on
- * again. A verdict may still land on it — but by callback, which is the
- * channel that has something new to say.
- */
-export const NON_TERMINAL_STATES: SubmissionState[] = ["pending", "judging"];
-
-/** The states a callback may still write over. See `acceptsVerdict`. */
-export const CALLBACK_WRITABLE_STATES: SubmissionState[] =
-  SUBMISSION_STATES.filter(acceptsVerdict);
+/** The rows a rejudge may pick up. */
+export const TERMINAL_STATES: SubmissionState[] = ["completed", "disrupted"];
 
 /**
  * What a backend may say when it has finished.
@@ -99,9 +102,15 @@ export const CALLBACK_WRITABLE_STATES: SubmissionState[] =
  *   detail     deliberately opaque; only a problem's own components and
  *              rulesets ever interpret it.
  *
- * The kernel reads these four exactly once, in the callback handler, and keeps
- * what it needs in columns on the submission. Nothing downstream reaches into
- * a verdict — see the note on `verdict` in `lib/db/schema.ts`.
+ * **Nothing here says "the judging itself broke".** That is a state, not a
+ * verdict — a runner that cannot evaluate reports `state: "failed"` and the row
+ * lands in `disrupted`. Adding a field for it would make the kernel read
+ * meaning out of a status string, and would put blame for a machine fault
+ * inside the object that records what the submission scored.
+ *
+ * The kernel reads these four exactly once, in `reportDone`, and keeps what it
+ * needs in columns on the submission. Nothing downstream reaches into a
+ * verdict — see the note on `verdict` in `lib/db/schema.ts`.
  */
 export const verdictSchema = z.object({
   status: z.string().min(1).max(64),
@@ -133,30 +142,16 @@ export interface BackendUser {
 }
 
 /**
- * Request body the kernel POSTs to a judge endpoint.
- *
- * `user` is here for problems whose answer differs per person. A container
- * handed out by `spawn` carries a flag only its creator should be able to
- * redeem, and the backend can only enforce that if it knows who submitted —
- * otherwise the first person to solve it can post the flag in a group chat.
- */
-export interface JudgeRequest {
-  submissionId: string;
-  user: BackendUser;
-  problem: { slug: string; config: unknown };
-  contestSlug: string | null;
-  payload: unknown;
-  callbackUrl: string;
-  callbackToken: string;
-}
-
-/**
  * Request body the kernel POSTs to an interactive endpoint.
  *
- * Deliberately the same shape as `JudgeRequest` minus the parts that only
- * judging needs. The kernel reads `action` to pick the path and nothing else:
- * `payload` and the response are as opaque here as a verdict's `detail` is
- * everywhere else.
+ * The one thing the kernel still initiates against a backend, and the reason
+ * `leaky-bucket` keeps an inbound address while the other three no longer need
+ * one: `spawn`/`poll`/`destroy` are synchronous requests a player set off, and
+ * there is no way to pull those. That is not a compromise — a player who is
+ * going to connect into a container needs that machine reachable anyway.
+ *
+ * The kernel reads `action` to pick the path and nothing else: `payload` and
+ * the response are as opaque here as a verdict's `detail` is everywhere else.
  */
 export interface BackendActionRequest {
   action: string;
@@ -177,11 +172,10 @@ export interface BackendActionRequest {
  * only blur "this backend never reports one" into "this judging did not record
  * one", and a provenance trail with holes in it is not a provenance trail.
  *
- * It rides on the envelope rather than inside the verdict because it answers
- * "who judged this", not "what did it decide" — the same layer as
- * `submissionId` and `callbackToken`. That also keeps it out of the archived
- * verdict blob, and lets `/status/<ref>` report a version while `done` is still
- * false and there is no verdict to attach it to.
+ * On the envelope rather than inside the verdict because it answers "who judged
+ * this", not "what did it decide" — which is also why a `failed` report carries
+ * one: there is no verdict there to attach it to, and knowing which version of
+ * a runner could not evaluate something is the first thing anybody asks.
  *
  * Self-reported and unverifiable, but it travels inside the HMAC-signed body,
  * so it is at least the backend's own claim rather than a third party's — the
@@ -189,77 +183,97 @@ export interface BackendActionRequest {
  */
 const backendVersionSchema = z.string().min(1).max(64);
 
-/** Body a judge PUTs back once it has finished. */
-export const judgeCallbackSchema = verdictSchema.extend({
-  submissionId: z.string().min(1),
-  callbackToken: z.string().min(1),
-  backendVersion: backendVersionSchema,
-});
-
-export type JudgeCallback = z.infer<typeof judgeCallbackSchema>;
-
-/** Shape returned when the kernel polls a judge for a stale submission. */
-export const judgeStatusSchema = z.object({
-  done: z.boolean(),
-  verdict: verdictSchema.optional(),
-  backendVersion: backendVersionSchema,
-});
-
-export type JudgeStatus = z.infer<typeof judgeStatusSchema>;
+/**
+ * A runner's opaque account of what it is doing, carried on a heartbeat.
+ *
+ * "拉取镜像", "测试点 3/10", "等待对手 bot" are all legal values. The kernel
+ * stores it, hands it to the browser and interprets not one character of it —
+ * the same treatment `verdict.detail` gets, and for the same reason. There is
+ * deliberately no separate notion of *progress*: a workflow problem with five
+ * phases cannot be described by a fraction, and any fixed vocabulary the kernel
+ * imposed here would be wrong for some problem it has not seen yet.
+ *
+ * Bounded only because it is a string arriving over the network that ends up in
+ * a column and on a page.
+ */
+const runnerStatusSchema = z.string().min(1).max(200);
 
 /**
- * Queueing is the judge's responsibility, not the kernel's.
+ * Body a runner POSTs to ask for work.
  *
- * FOI dispatches immediately and never holds submissions back, so a judge must
- * accept every request and queue internally rather than blocking or rejecting
- * when busy. `GET /queue` is how it reports that queue, and is a required part
- * of the judge protocol.
+ * `backendId` says which queue, and the signature has to verify against *that*
+ * backend's key — holding one backend's secret gets you that backend's work and
+ * nothing else. Naming it explicitly rather than inferring it from whichever
+ * configured key happens to verify: keys are allowed to be equal (several
+ * entries can be one runner deployment), and an inference that is ambiguous
+ * exactly when a deployment is under-configured is the wrong place to be clever.
+ *
+ * `runnerId` is self-reported and unverified. It exists so an operator can tell
+ * two machines apart on the board, not to authorise anything — authorisation is
+ * the signature, and the holder check on a job is the lease.
  */
-export const QUEUE_HEALTH = ["ok", "busy", "draining", "error"] as const;
-export type QueueHealth = (typeof QUEUE_HEALTH)[number];
-
-export const queueItemSchema = z.object({
-  submissionId: z.string().min(1),
-  /**
-   * Judges are expected to report this, but it is optional here because FOI
-   * strips it before serving the queue to non-admins: it would reveal which
-   * problem each player is working on.
-   */
-  problemSlug: z.string().min(1).optional(),
-  state: z.enum(["pending", "running"]),
-  enqueuedAt: z.string(),
-  startedAt: z.string().optional(),
+export const jobRequestSchema = z.object({
+  backendId: z.string().min(1).max(64),
+  runnerId: z.string().min(1).max(64),
 });
 
-export type QueueItem = z.infer<typeof queueItemSchema>;
+/**
+ * What a claim answers with.
+ *
+ * An id and a lease, and it will never need to be anything else. Everything a
+ * runner has to know in order to evaluate is behind the details endpoint, so a
+ * new field is added there rather than here — and a runner that prefetches
+ * claims N of these, fetches N sets of details and starts work, with the
+ * protocol needing nothing to express that.
+ */
+export interface JobTicket {
+  id: string;
+  lease: string;
+}
 
-export const judgeQueueSchema = z.object({
-  health: z.enum(QUEUE_HEALTH),
-  /** Number of submissions the judge can evaluate concurrently. */
-  capacity: z.number().int().nonnegative(),
-  running: z.number().int().nonnegative(),
-  pending: z.number().int().nonnegative(),
-  /** Submissions finished since the judge started, for a throughput read. */
-  completed: z.number().int().nonnegative().optional(),
-  /** Mean wall time per evaluation so far, in milliseconds. */
-  avgDurationMs: z.number().nonnegative().optional(),
-  /** Optional detail; judges may cap or omit this list. */
-  items: z.array(queueItemSchema).default([]),
-  version: z.string().optional(),
-  uptimeMs: z.number().nonnegative().optional(),
-});
+/** Everything a runner needs in order to evaluate one submission. */
+export interface JobDetails {
+  id: string;
+  user: BackendUser;
+  problem: { slug: string; config: unknown };
+  contestSlug: string | null;
+  payload: unknown;
+}
 
-export type JudgeQueue = z.infer<typeof judgeQueueSchema>;
+/**
+ * The three things a runner can say about a job it holds.
+ *
+ * One endpoint and one discriminant rather than three routes, because all three
+ * are the same act — the holder of a lease reporting on it — and the lease check
+ * is the same in each. `alive` is what stops the reaper taking the job back;
+ * `done` and `failed` are the two ways to give it up.
+ *
+ * `reason` on `failed` is prose for an operator and for the row's `error`. It is
+ * not a verdict and is never scored: the whole point of reporting `failed`
+ * rather than a `system_error` verdict is that the kernel records "no result"
+ * instead of "the submitter got zero".
+ */
+export const jobReportSchema = z.discriminatedUnion("state", [
+  z.object({
+    lease: z.string().min(1).max(128),
+    state: z.literal("alive"),
+    status: runnerStatusSchema.optional(),
+  }),
+  z.object({
+    lease: z.string().min(1).max(128),
+    state: z.literal("done"),
+    verdict: verdictSchema,
+    backendVersion: backendVersionSchema,
+  }),
+  z.object({
+    lease: z.string().min(1).max(128),
+    state: z.literal("failed"),
+    reason: z.string().min(1).max(500),
+    backendVersion: backendVersionSchema,
+  }),
+]);
 
-export const QUEUE_HEALTH_PRESETS: Record<
-  QueueHealth,
-  { label: string; tone: BadgeTone }
-> = {
-  ok: { label: "空闲", tone: "ok" },
-  busy: { label: "繁忙", tone: "warn" },
-  draining: { label: "停止接单", tone: "info" },
-  error: { label: "异常", tone: "err" },
-};
+export type JobReport = z.infer<typeof jobReportSchema>;
 
 interface VerdictPreset {
   label: string;
@@ -270,6 +284,11 @@ interface VerdictPreset {
 /**
  * Display metadata for verdict statuses FOI ships with. Judges are free to
  * return anything else; `describeVerdict` falls back to scoring the result.
+ *
+ * `system_error` stays as a rendering fallback for rows written before the pull
+ * model, and for a backend that insists on reporting one. It is not how an
+ * internal failure should be reported: `state: "failed"` is, and it is the only
+ * one of the two that keeps the submission out of the standings.
  */
 export const VERDICT_PRESETS: Record<string, VerdictPreset> = {
   accepted: { label: "通过", short: "AC", tone: "ok" },
@@ -321,58 +340,56 @@ export function describeVerdict(result: {
 }
 
 /**
- * `abandoned` reads as `failed` on purpose, down to the wording.
+ * `disrupted` is not spelled as a failure, and that is the point of it being a
+ * state of its own.
  *
- * Whether the kernel was told the submission would never be judged or merely
- * concluded as much is a question about the write path — it decides what a
- * late callback is allowed to do. The player asked a different question, "do I
- * have a result", and the answer is no either way. Two labels here would
- * publish an internal distinction as if it were something to act on. What does
- * differ is the reason text on the row, which `toView` surfaces for both.
+ * It used to read "评测失败" in red, alongside a genuine refusal of the
+ * submission, which told a player their work was rejected when what happened is
+ * that a machine fell over. Every mainstream judge is explicit about this —
+ * PEGWiki's wording for IE is literally "it is not your fault, an administrator
+ * will rejudge your submission" — so the label says the judging was
+ * interrupted, and the tone is a warning rather than an error, because the red
+ * one is reserved for outcomes the submitter can act on.
  */
 export const STATE_PRESETS: Record<
   SubmissionState,
   { label: string; tone: BadgeTone }
 > = {
-  pending: { label: "排队中", tone: "info" },
+  queued: { label: "排队中", tone: "info" },
   judging: { label: "评测中", tone: "info" },
   completed: { label: "已完成", tone: "neutral" },
-  failed: { label: "评测失败", tone: "err" },
-  abandoned: { label: "评测失败", tone: "err" },
+  disrupted: { label: "评测中断", tone: "warn" },
 };
 
 /**
  * What to say when nothing more specific was recorded.
  *
- * These are the only two sentences that tell `failed` and `abandoned` apart in
- * front of a player, and they are worth telling apart because they call for
- * opposite reactions: a refusal means the submission itself was unacceptable
- * and resubmitting the same thing will be refused again, while a timeout says
- * nothing about the submission at all and is worth retrying.
+ * One sentence where there used to be two, because there is now one state. The
+ * pair existed to tell a refusal apart from a timeout, which called for
+ * opposite reactions from the player; neither survives — a refusal cannot
+ * happen when nothing is dispatched, and a machine going quiet is not something
+ * the player can respond to at all. So the sentence says what is true and what
+ * to do about it, which is: nothing, ask for a rejudge.
  */
-const DEFAULT_FAILURE_REASONS: Record<"failed" | "abandoned", string> = {
-  failed: "题目后端拒绝了这次提交",
-  abandoned: "评测超时，未收到题目后端结果",
-};
+const DEFAULT_DISRUPTED_REASON =
+  "评测未能完成，这不是你这次提交的问题。请联系管理员重判。";
 
 /**
  * Why there is no verdict, or null when that is not the question.
  *
  * Gated on the state rather than simply exposing the `error` column, because
- * that column is also written on a dispatch whose outcome was *unknown* — a
- * row that is still `pending` and may yet be judged. Showing "无法连接题目后端"
- * next to a spinner would announce a failure that has not happened.
+ * that column also carries text on rows that are still in flight — a runner's
+ * last words before it was taken off a job, for instance. Showing those next to
+ * a spinner would announce a failure that has not happened.
  *
- * The row's own text wins where there is one: it names the status code or the
- * refusal the backend gave, which is more use to whoever has to fix it than
- * either sentence above.
+ * The row's own text wins where there is one: it names what the runner said, or
+ * which of the kernel's two conclusions was drawn, and that is more use to
+ * whoever has to fix it than the sentence above.
  */
 export function failureReason(submission: {
   state: SubmissionState;
   error: string | null;
 }): string | null {
-  if (submission.state !== "failed" && submission.state !== "abandoned") {
-    return null;
-  }
-  return submission.error ?? DEFAULT_FAILURE_REASONS[submission.state];
+  if (submission.state !== "disrupted") return null;
+  return submission.error ?? DEFAULT_DISRUPTED_REASON;
 }

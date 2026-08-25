@@ -77,7 +77,7 @@ describe("scoredSubmissions", () => {
             problemSlug: "a",
             minutes: 7,
             score: 0,
-            state: "failed",
+            state: "disrupted",
           }),
         ],
       }),
@@ -163,7 +163,7 @@ describe("isAccepted", () => {
           problemSlug: "a",
           minutes: 1,
           score: 100,
-          state: "pending",
+          state: "queued",
         }),
       ),
     ).toBe(false);

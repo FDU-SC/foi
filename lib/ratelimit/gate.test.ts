@@ -223,8 +223,8 @@ describe("guardRequest 的两道检查顺序", () => {
   /**
    * The flood cap runs first, and the ordering is load-bearing twice over: a
    * stream of refused cross-origin attempts still spends the source's budget,
-   * and `PUT /api/judge/callback` keeps the property that nothing reads a body
-   * before the bound it depends on.
+   * and the runner endpoints keep the property that nothing reads a body before
+   * the bound it depends on.
    */
   it("超出来源闸时先答 429，而不是先判来源", () => {
     const from = { "x-forwarded-for": "203.0.113.7" };
@@ -258,17 +258,17 @@ describe("guardRequest 的两道检查顺序", () => {
 
 describe("guardRequest 的豁免", () => {
   /**
-   * Machine-to-machine. A judge proves itself with an HMAC it had to be given;
+   * Machine-to-machine. A runner proves itself with an HMAC it had to be given;
    * requiring an `Origin` of it would refuse every legitimate caller and stop
    * nothing, because no browser can produce the signature in the first place.
    */
-  it("判题回调不要求 Origin", () => {
+  it("评测机上报不要求 Origin", () => {
     const gated = guardRequest(
-      new Request("http://foi.example.edu/api/judge/callback", {
+      new Request("http://foi.example.edu/api/runner/jobs/sub_1", {
         method: "PUT",
         headers: { "content-type": "text/plain" },
       }),
-      "PUT /api/judge/callback",
+      "PUT /api/runner/jobs/[id]",
     );
 
     expect(gated).toBeNull();

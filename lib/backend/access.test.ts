@@ -3,7 +3,8 @@ import { backends, type ProblemBackend } from "@/backends.config";
 import { AS_PLAYER, viewerFor, type Viewer } from "@/lib/auth/viewer";
 import { allContests } from "@/lib/contests/registry";
 import { problemFor } from "@/lib/problems/access";
-import { allProblems } from "@/lib/problems/registry";
+import { allProblems, externallyJudged } from "@/lib/problems/registry";
+import { isInlineBackend } from "@/lib/problems/types";
 import {
   backendSecretWarnings,
   backendsOnLoopback,
@@ -38,13 +39,13 @@ function before(date: Date): Date {
 
 describe("题目后端→题目 反向索引", () => {
   it("每道题都反查到它自己声明的题目后端", () => {
-    for (const problem of allProblems()) {
+    for (const problem of externallyJudged()) {
       expect(problemsServedBy(problem.backend.id)).toContain(problem.slug);
     }
   });
 
   it("索引覆盖题目声明的全部题目后端 id", () => {
-    const declared = new Set(allProblems().map((p) => p.backend.id));
+    const declared = new Set(externallyJudged().map((p) => p.backend.id));
     for (const id of declared) {
       expect(problemsServedBy(id).length).toBeGreaterThan(0);
     }
@@ -55,9 +56,25 @@ describe("题目后端→题目 反向索引", () => {
   });
 
   it("orphanedBackends 列出没有任何题目指向的题目后端", () => {
-    const referenced = new Set(allProblems().map((p) => p.backend.id));
+    const referenced = new Set(externallyJudged().map((p) => p.backend.id));
     for (const id of orphanedBackends()) {
       expect(referenced.has(id)).toBe(false);
+    }
+  });
+
+  /**
+   * An inline problem has no backend to name, and the index must not invent
+   * one for it — a placeholder key would make `orphanedBackends` miss a real
+   * orphan, and the audience gate would hand out a queue nobody serves.
+   */
+  it("内联判题的题目不进反向索引", () => {
+    const inline = allProblems().filter((p) => isInlineBackend(p.backend));
+    expect(inline.length).toBeGreaterThan(0);
+
+    for (const problem of inline) {
+      for (const id of Object.keys(backends)) {
+        expect(problemsServedBy(id)).not.toContain(problem.slug);
+      }
     }
   });
 });
@@ -87,7 +104,8 @@ describe("canSeeBackend", () => {
   it("只承载未开赛题目的题目后端，对选手隐藏、对出题人可见", () => {
     if (!demo) return;
     const slug = demo.problems[0].slug;
-    const backendId = allProblems().find((p) => p.slug === slug)?.backend.id;
+    const backendId = externallyJudged().find((p) => p.slug === slug)?.backend
+      .id;
     if (!backendId) return;
 
     // Pick a moment before the contest opens, and only assert when this backend
@@ -107,9 +125,9 @@ describe("canSeeBackend", () => {
 });
 
 /**
- * One key for every backend means one compromised backend can sign as all of
- * them, and the callback route re-checks a verdict against the key of the
- * backend it was dispatched to precisely so that distinct keys can stop that.
+ * One key for every backend means one compromised runner can claim from all of
+ * their queues, and the runner routes re-check every request against the key of
+ * the backend it names precisely so that distinct keys can stop that.
  *
  * `backends` is read at import, so these cases edit the entries rather than the
  * environment — the same reason `groups.test.ts` reaches into `IMPLIES`. Every
@@ -128,7 +146,7 @@ describe("共用签名密钥的题目后端", () => {
     backends[id] = { ...backends[id], ...changes };
   }
 
-  /** Distinct addresses, so the plural weakness this reports on is real. */
+  /** Every entry borrowing the shared key, which is what gets reported. */
   function scatter(): void {
     inUse.forEach((id, index) => {
       patch(id, { secret: undefined, url: `http://backend-${index}:4100` });
@@ -166,18 +184,20 @@ describe("共用签名密钥的题目后端", () => {
   });
 
   /**
-   * The default shape of this repository, and of any deployment that puts two
-   * kinds of problem on one judge: those entries are one process holding one
-   * key, so asking for a split asks for something impossible — and a warning
-   * that fires on every `pnpm dev` is one nobody reads by the time it matters.
+   * The grouping this used to do, and why it had to go. Two entries at one
+   * address were one process holding one key, so the check let them share; with
+   * judging pulled, an address says nothing about who evaluates a queue, and
+   * grouping on the `undefined` that most entries now carry would report
+   * nothing anywhere. A deployment really serving both from one runner says so
+   * by filling in the same secret twice, which the case above covers.
    */
-  it("指向同一地址的多个条目算一个服务，不报", () => {
+  it("同一地址的多个条目不再算一台，照样点出来", () => {
     if (inUse.length < 2) return;
     for (const id of inUse) {
       patch(id, { secret: undefined, url: "http://localhost:4100" });
     }
 
-    expect(backendsSharingSecret()).toEqual([]);
+    expect(backendsSharingSecret().sort()).toEqual([...inUse].sort());
   });
 
   it("没有题目指向的后端从不参与，哪怕它也没有密钥", () => {
@@ -258,9 +278,9 @@ describe("指向本机的题目后端", () => {
   });
 
   /**
-   * Same exclusion the shared-key check makes, for the same reason: nothing
-   * dispatches to a backend no problem names, so where it points cannot cost
-   * anybody a verdict.
+   * Same exclusion the shared-key check makes, for the same reason: no problem
+   * names this backend, so nothing ever calls an action on it and where it
+   * points cannot cost anybody anything.
    */
   it("没有题目指向的后端从不参与，哪怕它指向本机", () => {
     elsewhere();

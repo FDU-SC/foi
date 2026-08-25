@@ -4,15 +4,22 @@ import { POST } from "@/app/api/submissions/route";
 import { AS_PLAYER } from "@/lib/auth/viewer";
 import { db } from "@/lib/db";
 import { accounts, submissions } from "@/lib/db/schema";
+import {
+  INLINE_BACKEND_ID,
+  INLINE_BACKEND_VERSION,
+} from "@/lib/backend/types";
 import { problemsFor } from "@/lib/problems/access";
-import { DEFAULT_SUBMIT_RATE_LIMIT } from "@/lib/problems/types";
+import {
+  DEFAULT_SUBMIT_RATE_LIMIT,
+  isInlineBackend,
+} from "@/lib/problems/types";
 
 /**
  * The submission endpoint's throttle, exercised through the route handler
- * rather than against `rateLimit` alone: every accepted POST is a database
- * row plus an immediate dispatch, so the limit is what stands between one
- * account — stolen or malicious — and pressure on the judges. A regression
- * that drops the call would otherwise read as a one-line deletion.
+ * rather than against `rateLimit` alone: every accepted POST is a row a runner
+ * will come and take, so the limit is what stands between one account — stolen
+ * or malicious — and a queue nobody can drain. A regression that drops the call
+ * would otherwise read as a one-line deletion.
  *
  * Which number applies is decided by `submitRateLimit`, covered on its own in
  * `lib/problems/submit-rate-limit.test.ts`. What matters here is that the
@@ -57,14 +64,15 @@ const TEST_ENV = {
 } as const;
 
 /**
- * Dispatching really would call the judge over HTTP. The throttle question
- * is how many times the route gets that far, so the answer is stubbed to an
- * instant acknowledgement.
+ * Stubbed so that a route reaching for the network fails loudly rather than
+ * trying to open a socket. Submitting is not supposed to call anybody at all
+ * any more — the assertions below say so — but the stub is what makes the
+ * difference between a red test and a hung suite if that changes.
  */
 const fetchMock = vi.fn(async () => ({
   ok: true,
   status: 200,
-  json: async () => ({ accepted: true, judgeRef: "ref" }),
+  json: async () => ({}),
   text: async () => "",
 }));
 
@@ -102,7 +110,7 @@ describeDb("提交端点限流", () => {
     vi.unstubAllGlobals();
   });
 
-  it("窗口内的提交照常落地，超出上限的得到 429 且不再投递", async () => {
+  it("窗口内的提交照常落地，超出上限的得到 429 且不留行", async () => {
     const allowed = DEFAULT_SUBMIT_RATE_LIMIT.max;
 
     for (let i = 0; i < allowed; i += 1) {
@@ -114,9 +122,11 @@ describeDb("提交端点限流", () => {
     expect(rejected.status).toBe(429);
     expect(rejected.headers.get("retry-after")).not.toBeNull();
 
-    // The over-limit request must not have reached the judge.
-    expect(fetchMock.mock.calls.length).toBe(allowed);
+    // Nothing here talks to a judge, over the limit or under it: the row is the
+    // whole of what submitting does, and a runner picks it up on its own time.
+    expect(fetchMock).not.toHaveBeenCalled();
 
+    // Which makes the row count the only evidence the throttle worked.
     const rows = await db
       .select()
       .from(submissions)
@@ -135,5 +145,83 @@ describeDb("提交端点限流", () => {
 
     const response = await postSubmission(SECOND.slug);
     expect(response.status).toBe(201);
+  });
+});
+
+/**
+ * An inline problem's whole lifecycle happens inside one request: no queue to
+ * wait in, no runner to claim it and nothing for the reaper to notice missing.
+ * The row is created and settled before the response is written.
+ */
+describeDb("内联判题的提交", () => {
+  const INLINE = problemsFor(AS_PLAYER)
+    .map((view) => view.config)
+    .find((config) => isInlineBackend(config.backend));
+
+  beforeAll(async () => {
+    for (const [key, value] of Object.entries(TEST_ENV)) {
+      vi.stubEnv(key, value);
+    }
+    vi.stubEnv("AUTH_SECRET", "inline-suite-key-0123456789abcdef");
+    vi.stubGlobal("fetch", fetchMock);
+
+    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
+    await db.delete(accounts).where(eq(accounts.handle, HANDLE));
+    await db
+      .insert(accounts)
+      .values({ handle: HANDLE, displayName: HANDLE, source: "registration" });
+  });
+
+  afterAll(async () => {
+    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
+    await db.delete(accounts).where(eq(accounts.handle, HANDLE));
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("一次请求里判完，落库时已经是终态", async () => {
+    expect(INLINE).toBeDefined();
+
+    const response = await POST(
+      new Request("http://localhost:3000/api/submissions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          problemSlug: INLINE!.slug,
+          payload: { text: "definitely not the answer" },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+
+    const [row] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.handle, HANDLE));
+
+    expect(row.state).toBe("completed");
+    expect(row.outcome).not.toBeNull();
+    // The sentinel, so nothing tries to resolve a backend for it — and so no
+    // runner's claim can ever match the row.
+    expect(row.backendId).toBe(INLINE_BACKEND_ID);
+    expect(row.backendVersion).toBe(INLINE_BACKEND_VERSION);
+  });
+
+  it("完全不碰题目后端", async () => {
+    const before = fetchMock.mock.calls.length;
+
+    await POST(
+      new Request("http://localhost:3000/api/submissions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          problemSlug: INLINE!.slug,
+          payload: { text: "still not the answer" },
+        }),
+      }),
+    );
+
+    expect(fetchMock.mock.calls.length).toBe(before);
   });
 });

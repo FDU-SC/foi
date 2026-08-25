@@ -30,7 +30,7 @@ describe("verdictColumns", () => {
   });
 
   it("题目已从仓库删除时 maxScore 为空，而不是编一个出来", () => {
-    // Reachable through the reconciler: a submission outlives the problem it
+    // Reachable through a late report: a submission outlives the problem it
     // was made against. A wrong denominator would silently rescore it.
     const columns = verdictColumns({ status: "accepted", score: 1 }, "gone");
 

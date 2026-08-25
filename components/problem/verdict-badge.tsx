@@ -31,7 +31,7 @@ export function VerdictBadge({
     const { label, tone } = STATE_PRESETS[submission.state];
     return (
       <Badge tone={tone}>
-        {submission.state === "judging" || submission.state === "pending" ? (
+        {submission.state === "judging" || submission.state === "queued" ? (
           <span className="bg-info inline-block size-1.5 animate-pulse rounded-full" />
         ) : null}
         {label}

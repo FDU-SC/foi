@@ -88,7 +88,7 @@ describe("proxy matcher 覆盖面", () => {
   /**
    * The load-bearing exclusion. Proxy covering an API route makes Next buffer
    * a clone of the request body, which is exactly what `readTextBody` exists
-   * to avoid — `PUT /api/judge/callback` is unauthenticated and takes the
+   * to avoid — `PUT /api/runner/jobs/[id]` answers to no session and takes the
    * largest body of the three.
    */
   it("API 路由一律不进，否则请求体会被 Next 预先缓冲", () => {
@@ -96,7 +96,8 @@ describe("proxy matcher 覆盖面", () => {
       "/api/submissions",
       "/api/submissions/sub_01",
       "/api/submissions/stream",
-      "/api/judge/callback",
+      "/api/runner/jobs/request",
+      "/api/runner/jobs/sub_01",
       "/api/judges/status",
       "/api/health",
       "/api/problems/maze-runner/action/spawn",

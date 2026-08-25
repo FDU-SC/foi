@@ -241,14 +241,33 @@ export const ROUTE_LIMITS = {
     guard: "same-origin",
   },
   /**
-   * The one endpoint with no account behind it, so the source gate is the only
-   * per-caller bound there can be. Everything past it — the body read, the
-   * HMAC sweep, the row lookup — is work an unauthenticated caller can ask for,
-   * which is why that gate runs first rather than after the signature.
+   * The three endpoints runners use, and the only ones here with no account
+   * behind them — so the source gate is the only per-caller bound there can be.
+   * Everything past it (the body read, the HMAC, the row lookup) is work an
+   * unauthenticated caller can ask for, which is why that gate runs first
+   * rather than after the signature.
+   *
+   * The claim below is also the one legitimately high-rate caller in this
+   * table: a runner short-polls it, and `SOURCE_GATE` allows five runners
+   * polling once a second from behind one address before it starts refusing.
+   * That is the sizing the protocol assumes — poll every one to two seconds —
+   * and a deployment that outgrows it wants the runners on their own addresses
+   * rather than a looser cap, since the same number is what keeps an
+   * unauthenticated caller from occupying the process.
    */
-  "PUT /api/judge/callback": {
+  "POST /api/runner/jobs/request": {
     kind: "unlimited",
-    why: "无账号可计数；由 SOURCE_GATE 在读 body 与验签之前挡住",
+    why: "评测机无账号可计数；由 SOURCE_GATE 在读 body 与验签之前挡住",
+    guard: "signed",
+  },
+  "GET /api/runner/jobs/[id]": {
+    kind: "unlimited",
+    why: "同上；且必须持有该行当前的 lease 才拿得到内容",
+    guard: "signed",
+  },
+  "PUT /api/runner/jobs/[id]": {
+    kind: "unlimited",
+    why: "同上；每次上报都要比对 lease，陈旧的持有者写不进任何东西",
     guard: "signed",
   },
   /**
@@ -394,6 +413,20 @@ export const ACTION_LIMITS = {
   reinstateAccountAction: {
     kind: "unlimited",
     why: "同 suspendAccountAction",
+  },
+  /**
+   * Bounded, unlike the two above, because the cost does not stop at this
+   * deployment's own database: each one puts a job back on a queue that a
+   * runner will pick up and actually evaluate, which can mean a container, a
+   * compile and eight seconds of a timed machine. One row per press, so the
+   * number only has to sit above what an operator working through a bad round
+   * legitimately does.
+   */
+  rejudgeSubmissionAction: {
+    kind: "fixed",
+    max: 120,
+    windowSeconds: 3600,
+    subject: "handle",
   },
 } as const satisfies Record<string, RateLimitRule>;
 

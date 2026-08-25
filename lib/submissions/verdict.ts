@@ -10,10 +10,10 @@ import { problemBySlug } from "@/lib/problems/registry";
  * of it is four values, and it takes them here, on arrival. Everything
  * downstream reads the columns.
  *
- * Both landing paths go through this: the callback in
- * `app/api/judge/callback/route.ts` and the reconciler's poll for a callback
- * that never arrived. They used to hold two copies of the same destructuring,
- * which is the shape the next divergence would have taken.
+ * Both landing paths go through this: a runner reporting `done` through
+ * `lib/runner/queue.ts`, and an inline problem settling inside the submit
+ * request. They used to hold two copies of the same destructuring, which is the
+ * shape the next divergence would have taken.
  */
 export interface VerdictColumns {
   score: number | null;

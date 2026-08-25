@@ -2,11 +2,12 @@ import { Badge } from "@/components/ui/badge";
 import type { QueuePosition } from "@/lib/backend/queue-lookup";
 
 /**
- * Shows where a submission sits in its judge's queue.
+ * Shows where a submission sits in its backend's queue.
  *
- * Renders nothing when the position is unknown — a judge may truncate or omit
- * its queue listing, and in that case the plain state badge already says the
- * submission is waiting.
+ * Renders nothing when there is no position, which now means only one thing:
+ * the submission has finished. It used to also cover a judge that truncated or
+ * omitted its queue listing, and that case is gone — the queue is a table here,
+ * so a waiting submission always has an exact place in it.
  */
 export function QueueBadge({
   queue,
@@ -19,7 +20,7 @@ export function QueueBadge({
 
   return (
     <span className="inline-flex items-center gap-1.5">
-      {queue.state === "running" ? (
+      {queue.state === "judging" ? (
         <Badge tone="info">正在评测</Badge>
       ) : (
         <Badge tone="warn" mono>

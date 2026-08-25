@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { audienceSchema } from "@/lib/auth/audience";
+// Types only: this module is reachable from client components (`LANGUAGES` is
+// read by `components/problem/submit-panel.tsx`), so nothing here may pull a
+// runtime dependency on the backend layer into a browser chunk.
+import type { BackendUser, Verdict } from "@/lib/backend/types";
 
 /** Display names for the languages the built-in code submitter offers. */
 export const LANGUAGES: Record<string, string> = {
@@ -58,6 +62,91 @@ export const DEFAULT_SUBMIT_RATE_LIMIT: ActionRateLimit = {
 };
 
 /**
+ * A judgement the kernel reaches by itself, with no backend involved.
+ *
+ * Synchronous on purpose, and that is the one part of the bargain the type
+ * system can hold: an inline judge cannot await, so it cannot reach the
+ * network or the database. What no type can hold is that the work stays
+ * small — synchronous JavaScript cannot be preempted, so a judge that loops
+ * takes the whole process with it. Comparisons, lookups, a bounded simulation
+ * over a size the config already capped: anything that genuinely computes
+ * belongs on a backend.
+ *
+ * **Never inline a judgement that executes what the competitor submitted.**
+ * Isolation is the entire reason external backends exist, and there is no
+ * amount of "it is only a small script" that makes running one here safe.
+ */
+export type InlineJudge = (input: {
+  payload: unknown;
+  config: unknown;
+  user: BackendUser;
+  contestSlug: string | null;
+}) => Verdict;
+
+/**
+ * Judged here, in this process, at submit time.
+ *
+ * The test for whether a problem belongs on this side is whether everything
+ * the judgement needs is already in the kernel's hands: the submission, the
+ * problem's config, who submitted, and the kernel's own secrets. A per-player
+ * answer is still inline when it can be *derived* — `HMAC(secret, slug|handle)`
+ * needs no state and cannot be predicted by the player. What pushes a problem
+ * out is needing isolation (running submitted code), resources (a time or
+ * memory limit worth measuring), or state the kernel does not hold (a
+ * container, a flag minted at spawn).
+ *
+ * There are no `actions`: an inline judge has no service behind it to relay to.
+ */
+const inlineBackendSchema = z.strictObject({
+  kind: z.literal("inline"),
+  config: z.unknown().optional(),
+  judge: z.custom<InlineJudge>((value) => typeof value === "function", {
+    message: "内联判题的 judge 必须是一个函数",
+  }),
+});
+
+/**
+ * Which backend serves this problem and what to hand it. `config` is passed
+ * through verbatim; the kernel never looks inside.
+ *
+ * `actions` opens interactive endpoints on that backend to players who can
+ * already see the problem. Each key is forwarded as `POST /action/<key>` and
+ * is never interpreted here — spawning a container and asking whether it is
+ * ready are the same thing to the kernel, a declared string it may relay.
+ *
+ * Declared per problem rather than per backend because it is the problem
+ * that decides what its statement offers, and an undeclared key is a 404
+ * rather than a forwarded request: without the list, `[...path]` would relay
+ * anything, including `/judge` and `/status`.
+ */
+const externalBackendSchema = z.strictObject({
+  id: z.string().min(1),
+  config: z.unknown().optional(),
+  actions: z
+    .record(
+      z.string().regex(/^[a-z0-9-]+$/, "action 名只能包含小写字母、数字和连字符"),
+      z.object({ rateLimit: actionRateLimitSchema.optional() }).default({}),
+    )
+    .default({}),
+});
+
+export type InlineBackend = z.infer<typeof inlineBackendSchema>;
+export type ExternalBackend = z.infer<typeof externalBackendSchema>;
+
+/**
+ * Which half of the union this is.
+ *
+ * A predicate rather than a bare `"kind" in backend` at each call site, so
+ * that adding a third way to judge — if there ever is one — is a change to
+ * this file instead of a search for every place that guessed.
+ */
+export function isInlineBackend(
+  backend: InlineBackend | ExternalBackend,
+): backend is InlineBackend {
+  return "kind" in backend && backend.kind === "inline";
+}
+
+/**
  * Everything FOI needs to know about a problem. Authored as a TypeScript
  * module in `content/problems/<slug>/problem.ts` so mistakes surface as type
  * errors, and validated at load time so they also surface as clear runtime
@@ -72,29 +161,22 @@ export const problemConfigSchema = z.object({
   maxScore: z.number().positive().default(100),
 
   /**
-   * Which backend serves this problem and what to hand it. `config` is passed
-   * through verbatim; the kernel never looks inside.
+   * How this problem is judged: in the kernel, or by a backend.
    *
-   * `actions` opens interactive endpoints on that backend to players who can
-   * already see the problem. Each key is forwarded as `POST /action/<key>` and
-   * is never interpreted here — spawning a container and asking whether it is
-   * ready are the same thing to the kernel, a declared string it may relay.
+   * Both halves keep `config` opaque — the kernel never looks inside it, and
+   * an inline judge is the problem's own function reading the problem's own
+   * configuration. That the two are the same shape is the point: `backend.id`
+   * and `backend.judge` are both pointers the kernel relays to without
+   * understanding, one to a URL and one to a function.
    *
-   * Declared per problem rather than per backend because it is the problem
-   * that decides what its statement offers, and an undeclared key is a 404
-   * rather than a forwarded request: without the list, `[...path]` would relay
-   * anything, including `/judge` and `/status`.
+   * Both members are strict, and that matters more here than it usually does.
+   * TypeScript's excess-property check against a union accepts any key that
+   * appears in *some* member, so `{ kind, judge, id }` type-checks — and Zod
+   * would then match the inline half and silently drop the `id`, leaving a
+   * problem that reads as though it dispatches while judging locally. Strict
+   * turns that into a load-time error naming the stray key.
    */
-  backend: z.object({
-    id: z.string().min(1),
-    config: z.unknown().optional(),
-    actions: z
-      .record(
-        z.string().regex(/^[a-z0-9-]+$/, "action 名只能包含小写字母、数字和连字符"),
-        z.object({ rateLimit: actionRateLimitSchema.optional() }).default({}),
-      )
-      .default({}),
-  }),
+  backend: z.union([inlineBackendSchema, externalBackendSchema]),
 
   /** Drives the default `<SubmitPanel />`. Statements may ignore it entirely. */
   submit: z
@@ -160,6 +242,13 @@ export const problemConfigSchema = z.object({
 
 export type ProblemConfig = z.infer<typeof problemConfigSchema>;
 export type ProblemConfigInput = z.input<typeof problemConfigSchema>;
+
+/**
+ * A problem whose judging is dispatched, with the union already narrowed.
+ *
+ * `externallyJudged()` in `./registry` is how to get a list of them.
+ */
+export type ExternallyJudged = ProblemConfig & { backend: ExternalBackend };
 
 /**
  * The throttle in force for one person submitting to one problem.

@@ -2,6 +2,7 @@ import type { Viewer } from "@/lib/auth/viewer";
 import { problemFor } from "@/lib/problems/access";
 import {
   DEFAULT_ACTION_RATE_LIMIT,
+  isInlineBackend,
   type ActionRateLimit,
   type ProblemConfig,
 } from "@/lib/problems/types";
@@ -23,6 +24,14 @@ import {
 export interface ResolvedAction {
   problem: ProblemConfig;
   action: string;
+  /**
+   * The backend to relay to, already narrowed out of the union.
+   *
+   * Carried here so the route never has to ask again whether this problem is
+   * inline: reaching a `ResolvedAction` at all is proof that it is not, and
+   * handing back the id is cheaper than making every caller re-derive it.
+   */
+  backendId: string;
   /** The action's own limit, or the kernel default when it declared none. */
   rateLimit: ActionRateLimit;
 }
@@ -45,6 +54,11 @@ export function actionFor(
   const open = problemFor(slug, viewer, now);
   if (!open?.open) return undefined;
 
+  // An inline problem has no service to relay to, so every action on it is
+  // undeclared by construction — same 404, same reason as any other name that
+  // is not on the list.
+  if (isInlineBackend(open.config.backend)) return undefined;
+
   // Undeclared is indistinguishable from absent, and that is also what stops
   // this being a general proxy: without the whitelist the path segment would
   // relay anything the backend exposes, `/judge` included.
@@ -54,6 +68,7 @@ export function actionFor(
   return {
     problem: open.config,
     action,
+    backendId: open.config.backend.id,
     rateLimit: declared.rateLimit ?? DEFAULT_ACTION_RATE_LIMIT,
   };
 }

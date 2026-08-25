@@ -12,10 +12,10 @@ import { isResolvedSource, sourceFrom } from "./source";
  * already been paid for. Keeping them out preserves that defence and costs
  * them the global layer, so they take the equivalent bound here instead.
  *
- * Before anything, including reading the body and deciding who is calling.
- * `PUT /api/judge/callback` is why the ordering matters: it answers to nobody,
- * so its credentials are in the body and a header, and every byte of parsing
- * and every HMAC it computes is work an anonymous caller asked for.
+ * Before anything, including reading the body and deciding who is calling. The
+ * runner routes are why the ordering matters: they answer to no session, so
+ * their credentials are a signature over the body, and every byte of parsing
+ * and every HMAC computed is work an anonymous caller asked for.
  *
  * Two checks rather than one, and folded together rather than left as a line
  * each handler remembers. The cross-origin half was previously nowhere at all;
@@ -35,8 +35,8 @@ export function guardRequest(
 
   // After the bound rather than before it, so a stream of refused cross-origin
   // attempts still spends the source's budget. The order also keeps the
-  // property the callback route depends on: nothing above this line reads a
-  // body or computes anything an anonymous caller chose the size of.
+  // property the runner routes depend on: nothing above this line reads a body
+  // or computes anything an anonymous caller chose the size of.
   return originGate(request, route);
 }
 

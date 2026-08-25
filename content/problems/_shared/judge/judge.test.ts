@@ -1,0 +1,173 @@
+import { describe, expect, it, vi } from "vitest";
+import type { BackendUser } from "@/lib/backend/types";
+import { judgeLifeOscillator } from "./life-oscillator";
+import { judgeOutputOnly } from "./output-only";
+import { judgeRoulette } from "./roulette";
+
+/**
+ * The judges that run in the kernel rather than on a backend.
+ *
+ * Worth their own coverage precisely because there is no service between them
+ * and a submission: a backend that misbehaves is reported as unhealthy, while
+ * one of these misbehaving is the platform itself getting an answer wrong.
+ */
+const USER: BackendUser = { handle: "alice", groups: [] };
+
+function judge(
+  fn: typeof judgeOutputOnly,
+  config: unknown,
+  payload: unknown,
+  user: BackendUser = USER,
+) {
+  return fn({ payload, config, user, contestSlug: null });
+}
+
+describe("judgeOutputOnly", () => {
+  const config = {
+    cases: [
+      { name: "场景 1", expected: "8" },
+      { name: "场景 2", expected: "16" },
+    ],
+  };
+
+  it("逐行比对，全对满分", () => {
+    const verdict = judge(judgeOutputOnly, config, { text: "8\n16" });
+
+    expect(verdict.status).toBe("accepted");
+    expect(verdict.score).toBe(100);
+  });
+
+  it("对一半给一半，状态是 partial", () => {
+    const verdict = judge(judgeOutputOnly, config, { text: "8\n99" });
+
+    expect(verdict.status).toBe("partial");
+    expect(verdict.score).toBe(50);
+  });
+
+  it("空白不算答案的一部分", () => {
+    expect(judge(judgeOutputOnly, config, { text: " 8 \n 16 " }).score).toBe(100);
+  });
+
+  it("行数不够时缺的那些算错，而不是崩", () => {
+    expect(judge(judgeOutputOnly, config, { text: "8" }).score).toBe(50);
+  });
+
+  /**
+   * A setter's mistake, not a competitor's — so it must not read as a wrong
+   * answer, and must not cost anybody a score.
+   */
+  it("配置缺 cases 时报 system_error", () => {
+    expect(judge(judgeOutputOnly, {}, { text: "8" }).status).toBe("system_error");
+  });
+});
+
+describe("judgeLifeOscillator", () => {
+  /** A blinker: period 2. */
+  const BLINKER = "...\nOOO\n...";
+  const config = { cases: [{ name: "场景 1", maxDim: 16, k: 2 }] };
+
+  it("周期正好等于 k 的图案得分", () => {
+    expect(judge(judgeLifeOscillator, config, { text: BLINKER }).status).toBe(
+      "accepted",
+    );
+  });
+
+  it("周期不等于 k 的图案不得分", () => {
+    const stillLife = "OO\nOO"; // period 1, not 2
+    expect(judge(judgeLifeOscillator, config, { text: stillLife }).score).toBe(0);
+  });
+
+  /**
+   * The size check is what bounds the simulation, so it has to run before it —
+   * this is the only thing keeping an inline judge's cost tied to the setter's
+   * configuration rather than to whatever the submitter pasted.
+   */
+  it("超尺寸的图案在模拟之前就被拒", () => {
+    const huge = Array.from({ length: 40 }, () => "O".repeat(40)).join("\n");
+    const verdict = judge(
+      judgeLifeOscillator,
+      { cases: [{ name: "场景 1", maxDim: 8, k: 2 }] },
+      { text: huge },
+    );
+
+    expect(verdict.score).toBe(0);
+    const tests = (verdict.detail as { tests: { message: string }[] }).tests;
+    expect(tests[0].message).toContain("超过上限");
+  });
+
+  it("非法字符按格式错误处理", () => {
+    const verdict = judge(judgeLifeOscillator, config, { text: "XYZ" });
+    expect(verdict.score).toBe(0);
+  });
+});
+
+describe("judgeRoulette", () => {
+  const config = { scoreNumber: 100, scoreColor: 30, scoreSize: 10 };
+
+  function spin(user: BackendUser) {
+    const verdict = judge(judgeRoulette, config, { text: "" }, user);
+    return (verdict.detail as { number: number }).number;
+  }
+
+  it("没有 AUTH_SECRET 时报 system_error，而不是掷出一个可推算的数", () => {
+    vi.stubEnv("AUTH_SECRET", "");
+    expect(judge(judgeRoulette, config, { text: "red" }).status).toBe(
+      "system_error",
+    );
+    vi.unstubAllEnvs();
+  });
+
+  /**
+   * Per player, not per day for everybody. The verdict reveals the number, so
+   * a shared wheel meant the first person to submit could hand that day's
+   * answer to everyone else.
+   */
+  it("不同选手同一天拿到各自的轮盘", () => {
+    vi.stubEnv("AUTH_SECRET", "roulette-test-key-0123456789");
+
+    const spins = ["alice", "bob", "carol", "dave", "erin", "frank"].map(
+      (handle) => spin({ handle, groups: [] }),
+    );
+
+    expect(new Set(spins).size).toBeGreaterThan(1);
+    vi.unstubAllEnvs();
+  });
+
+  it("同一个人同一天重复算是同一个结果", () => {
+    vi.stubEnv("AUTH_SECRET", "roulette-test-key-0123456789");
+
+    expect(spin(USER)).toBe(spin(USER));
+    vi.unstubAllEnvs();
+  });
+
+  /**
+   * The reason the key exists. The old implementation hashed only the date, so
+   * anyone who could guess that one line could compute a month of results —
+   * while the statement claimed nobody could know them in advance.
+   */
+  it("换一把密钥，结果就完全不同——说明它不是只由日期决定的", () => {
+    vi.stubEnv("AUTH_SECRET", "key-one-0123456789abcdef");
+    const first = ["a", "b", "c", "d", "e", "f"].map((h) =>
+      spin({ handle: h, groups: [] }),
+    );
+
+    vi.stubEnv("AUTH_SECRET", "key-two-0123456789abcdef");
+    const second = ["a", "b", "c", "d", "e", "f"].map((h) =>
+      spin({ handle: h, groups: [] }),
+    );
+
+    expect(first).not.toEqual(second);
+    vi.unstubAllEnvs();
+  });
+
+  it("押中数字给满分，押错给零分", () => {
+    vi.stubEnv("AUTH_SECRET", "roulette-test-key-0123456789");
+    const number = spin(USER);
+
+    expect(judge(judgeRoulette, config, { text: String(number) }).score).toBe(100);
+    expect(
+      judge(judgeRoulette, config, { text: "not-a-bet" }).score,
+    ).toBe(0);
+    vi.unstubAllEnvs();
+  });
+});

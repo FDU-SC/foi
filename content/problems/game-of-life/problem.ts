@@ -1,11 +1,16 @@
 import type { ProblemConfigInput } from "@/lib/problems/types";
+import {
+  judgeOutputOnly,
+  type OutputOnlyConfig,
+} from "../_shared/judge/output-only";
 
 export const problem = {
   slug: "game-of-life",
   title: "生命游戏 · 第一百代",
   maxScore: 100,
   backend: {
-    id: "output-only",
+    kind: "inline",
+    judge: judgeOutputOnly,
     config: {
       // 第 100 代活细胞数（用程序模拟得到，手算不现实）。
       cases: [
@@ -13,7 +18,7 @@ export const problem = {
         { name: "场景 2", expected: "12" },
         { name: "场景 3", expected: "14" },
       ],
-    },
+    } satisfies OutputOnlyConfig,
   },
   submit: {
     kind: "text",

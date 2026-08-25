@@ -2,7 +2,7 @@
  * Small in-process cache for computed standings.
  *
  * Deliberately not Next's `revalidateTag`: that only works inside a request
- * scope, and the reconciler's background sweep resolves verdicts outside one.
+ * scope, and the reaper's background loop settles submissions outside one.
  * At internal-contest scale a full recompute is cheap, so a short TTL plus
  * explicit invalidation from both paths is simpler and more predictable.
  */

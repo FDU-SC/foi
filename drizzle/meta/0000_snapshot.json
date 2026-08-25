@@ -1,137 +1,210 @@
 {
-  "id": "463c3a7e-2cc8-455e-9c20-b5d4e536e237",
+  "id": "e89b1cff-02e0-4f3e-b03e-63d5343715c2",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.contest_participants": {
-      "name": "contest_participants",
+    "public.accounts": {
+      "name": "accounts",
       "schema": "",
       "columns": {
-        "contest_id": {
-          "name": "contest_id",
+        "handle": {
+          "name": "handle",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "user_id": {
-          "name": "user_id",
+        "email": {
+          "name": "email",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "unofficial": {
-          "name": "unofficial",
-          "type": "boolean",
+        "email_verified_at": {
+          "name": "email_verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": false
+          "default": "'registration'"
         },
-        "joined_at": {
-          "name": "joined_at",
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "suspended_at": {
+          "name": "suspended_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suspended_by": {
+          "name": "suspended_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suspended_reason": {
+          "name": "suspended_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reinstated_at": {
+          "name": "reinstated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         }
       },
-      "indexes": {},
-      "foreignKeys": {
-        "contest_participants_contest_id_contests_id_fk": {
-          "name": "contest_participants_contest_id_contests_id_fk",
-          "tableFrom": "contest_participants",
-          "tableTo": "contests",
-          "columnsFrom": [
-            "contest_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "contest_participants_user_id_users_id_fk": {
-          "name": "contest_participants_user_id_users_id_fk",
-          "tableFrom": "contest_participants",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "contest_participants_contest_id_user_id_pk": {
-          "name": "contest_participants_contest_id_user_id_pk",
+      "indexes": {
+        "accounts_email_key": {
+          "name": "accounts_email_key",
           "columns": [
-            "contest_id",
-            "user_id"
-          ]
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "accounts_status_idx": {
+          "name": "accounts_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.contest_problems": {
-      "name": "contest_problems",
+    "public.auth_tokens": {
+      "name": "auth_tokens",
       "schema": "",
       "columns": {
-        "contest_id": {
-          "name": "contest_id",
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "handle": {
+          "name": "handle",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "problem_slug": {
-          "name": "problem_slug",
+        "purpose": {
+          "name": "purpose",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "label": {
-          "name": "label",
+        "token_hash": {
+          "name": "token_hash",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "points": {
-          "name": "points",
-          "type": "double precision",
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
-        "config": {
-          "name": "config",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "order": {
-          "name": "order",
-          "type": "integer",
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
-          "default": 0
+          "default": "now()"
         }
       },
       "indexes": {
-        "contest_problems_contest_idx": {
-          "name": "contest_problems_contest_idx",
+        "auth_tokens_token_hash_key": {
+          "name": "auth_tokens_token_hash_key",
           "columns": [
             {
-              "expression": "contest_id",
+              "expression": "token_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "auth_tokens_handle_idx": {
+          "name": "auth_tokens_handle_idx",
+          "columns": [
+            {
+              "expression": "handle",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "order",
+              "expression": "purpose",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -144,42 +217,21 @@
         }
       },
       "foreignKeys": {
-        "contest_problems_contest_id_contests_id_fk": {
-          "name": "contest_problems_contest_id_contests_id_fk",
-          "tableFrom": "contest_problems",
-          "tableTo": "contests",
+        "auth_tokens_handle_accounts_handle_fk": {
+          "name": "auth_tokens_handle_accounts_handle_fk",
+          "tableFrom": "auth_tokens",
+          "tableTo": "accounts",
           "columnsFrom": [
-            "contest_id"
+            "handle"
           ],
           "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "contest_problems_problem_slug_problems_slug_fk": {
-          "name": "contest_problems_problem_slug_problems_slug_fk",
-          "tableFrom": "contest_problems",
-          "tableTo": "problems",
-          "columnsFrom": [
-            "problem_slug"
-          ],
-          "columnsTo": [
-            "slug"
+            "handle"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "contest_problems_contest_id_problem_slug_pk": {
-          "name": "contest_problems_contest_id_problem_slug_pk",
-          "columns": [
-            "contest_id",
-            "problem_slug"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -189,16 +241,10 @@
       "name": "contests",
       "schema": "",
       "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
         "slug": {
           "name": "slug",
           "type": "text",
-          "primaryKey": false,
+          "primaryKey": true,
           "notNull": true
         },
         "title": {
@@ -207,48 +253,109 @@
           "primaryKey": false,
           "notNull": true
         },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ruleset_id": {
-          "name": "ruleset_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ruleset_config": {
-          "name": "ruleset_config",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "starts_at": {
-          "name": "starts_at",
+        "synced_at": {
+          "name": "synced_at",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ends_at": {
-          "name": "ends_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "freeze_at": {
-          "name": "freeze_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "visible": {
-          "name": "visible",
-          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
-          "default": true
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.credentials": {
+      "name": "credentials",
+      "schema": "",
+      "columns": {
+        "handle": {
+          "name": "handle",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "credentials_handle_accounts_handle_fk": {
+          "name": "credentials_handle_accounts_handle_fk",
+          "tableFrom": "credentials",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "handle"
+          ],
+          "columnsTo": [
+            "handle"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.email_verifications": {
+      "name": "email_verifications",
+      "schema": "",
+      "columns": {
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "code_hash": {
+          "name": "code_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -258,23 +365,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "contests_slug_key": {
-          "name": "contests_slug_key",
-          "columns": [
-            {
-              "expression": "slug",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -298,12 +389,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "max_score": {
-          "name": "max_score",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
-        },
         "synced_at": {
           "name": "synced_at",
           "type": "timestamp with time zone",
@@ -320,6 +405,46 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.runners": {
+      "name": "runners",
+      "schema": "",
+      "columns": {
+        "backend_id": {
+          "name": "backend_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "runner_id": {
+          "name": "runner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "runners_backend_id_runner_id_pk": {
+          "name": "runners_backend_id_runner_id_pk",
+          "columns": [
+            "backend_id",
+            "runner_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.submissions": {
       "name": "submissions",
       "schema": "",
@@ -330,8 +455,8 @@
           "primaryKey": true,
           "notNull": true
         },
-        "user_id": {
-          "name": "user_id",
+        "handle": {
+          "name": "handle",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -342,8 +467,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "contest_id": {
-          "name": "contest_id",
+        "contest_slug": {
+          "name": "contest_slug",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -354,12 +479,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "client_nonce": {
+          "name": "client_nonce",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "state": {
           "name": "state",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'pending'"
+          "default": "'queued'"
         },
         "verdict": {
           "name": "verdict",
@@ -379,8 +510,26 @@
           "primaryKey": false,
           "notNull": false
         },
-        "judge_ref": {
-          "name": "judge_ref",
+        "accepted": {
+          "name": "accepted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "release_sha": {
+          "name": "release_sha",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "backend_version": {
+          "name": "backend_version",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -391,11 +540,36 @@
           "primaryKey": false,
           "notNull": true
         },
-        "callback_token_hash": {
-          "name": "callback_token_hash",
+        "runner_id": {
+          "name": "runner_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "lease": {
+          "name": "lease",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "runner_status": {
+          "name": "runner_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_heartbeat_at": {
+          "name": "last_heartbeat_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "error": {
           "name": "error",
@@ -410,8 +584,15 @@
           "notNull": true,
           "default": "now()"
         },
-        "dispatched_at": {
-          "name": "dispatched_at",
+        "queued_at": {
+          "name": "queued_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "claimed_at": {
+          "name": "claimed_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
@@ -428,7 +609,7 @@
           "name": "submissions_standings_idx",
           "columns": [
             {
-              "expression": "contest_id",
+              "expression": "contest_slug",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -440,7 +621,7 @@
               "nulls": "last"
             },
             {
-              "expression": "user_id",
+              "expression": "handle",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -457,11 +638,49 @@
           "method": "btree",
           "with": {}
         },
-        "submissions_pending_idx": {
-          "name": "submissions_pending_idx",
+        "submissions_queued_idx": {
+          "name": "submissions_queued_idx",
           "columns": [
             {
-              "expression": "state",
+              "expression": "judge_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "state = 'queued'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "submissions_lapsed_idx": {
+          "name": "submissions_lapsed_idx",
+          "columns": [
+            {
+              "expression": "last_heartbeat_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "state = 'judging'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "submissions_handle_idx": {
+          "name": "submissions_handle_idx",
+          "columns": [
+            {
+              "expression": "handle",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -478,40 +697,40 @@
           "method": "btree",
           "with": {}
         },
-        "submissions_user_idx": {
-          "name": "submissions_user_idx",
+        "submissions_client_nonce_key": {
+          "name": "submissions_client_nonce_key",
           "columns": [
             {
-              "expression": "user_id",
+              "expression": "handle",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "created_at",
+              "expression": "client_nonce",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
-          "isUnique": false,
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}
         }
       },
       "foreignKeys": {
-        "submissions_user_id_users_id_fk": {
-          "name": "submissions_user_id_users_id_fk",
+        "submissions_handle_accounts_handle_fk": {
+          "name": "submissions_handle_accounts_handle_fk",
           "tableFrom": "submissions",
-          "tableTo": "users",
+          "tableTo": "accounts",
           "columnsFrom": [
-            "user_id"
+            "handle"
           ],
           "columnsTo": [
-            "id"
+            "handle"
           ],
-          "onDelete": "cascade",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         },
         "submissions_problem_slug_problems_slug_fk": {
@@ -524,97 +743,23 @@
           "columnsTo": [
             "slug"
           ],
-          "onDelete": "cascade",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "submissions_contest_id_contests_id_fk": {
-          "name": "submissions_contest_id_contests_id_fk",
+        "submissions_contest_slug_contests_slug_fk": {
+          "name": "submissions_contest_slug_contests_slug_fk",
           "tableFrom": "submissions",
           "tableTo": "contests",
           "columnsFrom": [
-            "contest_id"
+            "contest_slug"
           ],
           "columnsTo": [
-            "id"
+            "slug"
           ],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.users": {
-      "name": "users",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "handle": {
-          "name": "handle",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "display_name": {
-          "name": "display_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "password_hash": {
-          "name": "password_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "role": {
-          "name": "role",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'user'"
-        },
-        "disabled": {
-          "name": "disabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "users_handle_key": {
-          "name": "users_handle_key",
-          "columns": [
-            {
-              "expression": "handle",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

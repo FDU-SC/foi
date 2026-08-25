@@ -11,12 +11,12 @@ import {
 } from "./signature";
 
 const SECRET = "0123456789abcdef0123456789abcdef";
-const BODY = JSON.stringify({ submissionId: "sub_1", score: 100 });
+const BODY = JSON.stringify({ lease: "lea_1", state: "done", score: 100 });
 const NOW = 1_800_000_000;
 
-const CALLBACK: SignedRequest = {
+const REPORT: SignedRequest = {
   method: "PUT",
-  path: "/api/judge/callback",
+  path: "/api/runner/jobs/sub_1",
   body: BODY,
 };
 
@@ -24,8 +24,8 @@ function verify(overrides: Partial<Parameters<typeof verifySignature>[0]> = {}) 
   return verifySignature({
     secret: SECRET,
     timestamp: String(NOW),
-    signature: sign(SECRET, NOW, CALLBACK),
-    request: CALLBACK,
+    signature: sign(SECRET, NOW, REPORT),
+    request: REPORT,
     now: NOW,
     ...overrides,
   });
@@ -41,30 +41,30 @@ function legacySign(secret: string, timestamp: number, body: string): string {
 
 describe("sign", () => {
   it("产出 sha256=<hex> 形状", () => {
-    expect(sign(SECRET, NOW, CALLBACK)).toMatch(/^sha256=[0-9a-f]{64}$/);
+    expect(sign(SECRET, NOW, REPORT)).toMatch(/^sha256=[0-9a-f]{64}$/);
   });
 
   it("时间戳参与签名", () => {
-    expect(sign(SECRET, NOW, CALLBACK)).not.toBe(
-      sign(SECRET, NOW + 1, CALLBACK),
+    expect(sign(SECRET, NOW, REPORT)).not.toBe(
+      sign(SECRET, NOW + 1, REPORT),
     );
   });
 
   it("body 参与签名", () => {
-    expect(sign(SECRET, NOW, CALLBACK)).not.toBe(
-      sign(SECRET, NOW, { ...CALLBACK, body: `${BODY} ` }),
+    expect(sign(SECRET, NOW, REPORT)).not.toBe(
+      sign(SECRET, NOW, { ...REPORT, body: `${BODY} ` }),
     );
   });
 
   it("method 参与签名", () => {
-    expect(sign(SECRET, NOW, { ...CALLBACK, method: "POST" })).not.toBe(
-      sign(SECRET, NOW, { ...CALLBACK, method: "PUT" }),
+    expect(sign(SECRET, NOW, { ...REPORT, method: "POST" })).not.toBe(
+      sign(SECRET, NOW, { ...REPORT, method: "PUT" }),
     );
   });
 
   it("method 不区分大小写，因为 HTTP 本身不区分", () => {
-    expect(sign(SECRET, NOW, { ...CALLBACK, method: "put" })).toBe(
-      sign(SECRET, NOW, { ...CALLBACK, method: "PUT" }),
+    expect(sign(SECRET, NOW, { ...REPORT, method: "put" })).toBe(
+      sign(SECRET, NOW, { ...REPORT, method: "PUT" }),
     );
   });
 
@@ -82,40 +82,25 @@ describe("sign", () => {
   });
 
   /**
-   * The sharper half of the same problem. `/queue` and `/status/<ref>` both
-   * send no body, so `<timestamp>.` was their entire signing input and every
-   * empty-bodied request sharing a second shared one signature — a pair of
-   * headers lifted off the queue poll was a valid credential for reading any
-   * submission's verdict straight off the backend.
+   * The sharper half of the same problem, and the half that matters most in the
+   * direction traffic runs now: fetching a job's contents is an empty-bodied
+   * GET, so `<timestamp>.` was once its entire signing input and every
+   * empty-bodied request sharing a second shared one signature. One captured
+   * pair of headers would then read any submission's payload.
    */
   it("两个空 body 的 GET 不再共用同一份签名", () => {
-    const queue = sign(SECRET, NOW, {
+    const claim = sign(SECRET, NOW, {
       method: "GET",
-      path: "/queue",
+      path: "/api/runner/jobs/sub_1",
       body: "",
     });
-    const status = sign(SECRET, NOW, {
+    const other = sign(SECRET, NOW, {
       method: "GET",
-      path: "/status/job-42",
-      body: "",
-    });
-
-    expect(queue).not.toBe(status);
-  });
-
-  it("空 body 的两个 status 查询也彼此不同", () => {
-    const one = sign(SECRET, NOW, {
-      method: "GET",
-      path: "/status/job-1",
-      body: "",
-    });
-    const two = sign(SECRET, NOW, {
-      method: "GET",
-      path: "/status/job-2",
+      path: "/api/runner/jobs/sub_2",
       body: "",
     });
 
-    expect(one).not.toBe(two);
+    expect(claim).not.toBe(other);
   });
 
   /**
@@ -147,9 +132,15 @@ describe("sign", () => {
     expect(url.pathname + url.search).toBe("/action/ab?x=12");
   });
 
+  /**
+   * Load-bearing rather than tidy: the lease a runner presents on a GET travels
+   * in the query string, because there is no body to put it in.
+   */
   it("search 参与签名", () => {
-    expect(sign(SECRET, NOW, { method: "GET", path: "/queue", body: "" })).not.toBe(
-      sign(SECRET, NOW, { method: "GET", path: "/queue?all=1", body: "" }),
+    const path = "/api/runner/jobs/sub_1";
+
+    expect(sign(SECRET, NOW, { method: "GET", path, body: "" })).not.toBe(
+      sign(SECRET, NOW, { method: "GET", path: `${path}?lease=lea_1`, body: "" }),
     );
   });
 });
@@ -161,25 +152,25 @@ describe("verifySignature", () => {
 
   it("拒绝被篡改的 body", () => {
     expect(
-      verify({ request: { ...CALLBACK, body: JSON.stringify({ score: 0 }) } }),
+      verify({ request: { ...REPORT, body: JSON.stringify({ score: 0 }) } }),
     ).toMatchObject({ ok: false });
   });
 
   it("拒绝被改写的 path", () => {
     expect(
-      verify({ request: { ...CALLBACK, path: "/api/judge/callback/../evil" } }),
+      verify({ request: { ...REPORT, path: "/api/runner/jobs/sub_1/../evil" } }),
     ).toMatchObject({ ok: false });
   });
 
   it("拒绝被改写的 method", () => {
-    expect(verify({ request: { ...CALLBACK, method: "POST" } })).toMatchObject({
+    expect(verify({ request: { ...REPORT, method: "POST" } })).toMatchObject({
       ok: false,
     });
   });
 
   it("拒绝换了密钥的签名", () => {
     expect(
-      verify({ signature: sign("another-secret", NOW, CALLBACK) }),
+      verify({ signature: sign("another-secret", NOW, REPORT) }),
     ).toMatchObject({ ok: false });
   });
 
@@ -219,7 +210,7 @@ describe("verifySignature 对旧签名格式", () => {
   });
 
   it("密钥配错时说的仍是签名不匹配，两种原因不混为一谈", () => {
-    const result = verify({ signature: sign("wrong-secret", NOW, CALLBACK) });
+    const result = verify({ signature: sign("wrong-secret", NOW, REPORT) });
 
     expect(result).toMatchObject({ ok: false, reason: "签名不匹配" });
   });
@@ -231,8 +222,8 @@ describe("verifySignature 重放窗口", () => {
     return verifySignature({
       secret: SECRET,
       timestamp: String(ts),
-      signature: sign(SECRET, ts, CALLBACK),
-      request: CALLBACK,
+      signature: sign(SECRET, ts, REPORT),
+      request: REPORT,
       now: NOW,
     });
   }
@@ -250,14 +241,14 @@ describe("verifySignature 重放窗口", () => {
 
 describe("signedHeaders", () => {
   it("产出的头能被 verifySignature 直接接受", () => {
-    const headers = signedHeaders(SECRET, CALLBACK);
+    const headers = signedHeaders(SECRET, REPORT);
 
     expect(
       verifySignature({
         secret: SECRET,
         timestamp: headers[TIMESTAMP_HEADER],
         signature: headers[SIGNATURE_HEADER],
-        request: CALLBACK,
+        request: REPORT,
       }),
     ).toEqual({ ok: true });
   });
@@ -265,7 +256,7 @@ describe("signedHeaders", () => {
   it("换一个 path 校验就不过，说明头确实绑在这个请求上", () => {
     const headers = signedHeaders(SECRET, {
       method: "GET",
-      path: "/queue",
+      path: "/api/runner/jobs/sub_1",
       body: "",
     });
 
@@ -274,13 +265,13 @@ describe("signedHeaders", () => {
         secret: SECRET,
         timestamp: headers[TIMESTAMP_HEADER],
         signature: headers[SIGNATURE_HEADER],
-        request: { method: "GET", path: "/status/job-42", body: "" },
+        request: { method: "GET", path: "/api/runner/jobs/sub_2", body: "" },
       }),
     ).toMatchObject({ ok: false });
   });
 
   it("带上 JSON content-type", () => {
-    expect(signedHeaders(SECRET, CALLBACK)["content-type"]).toBe(
+    expect(signedHeaders(SECRET, REPORT)["content-type"]).toBe(
       "application/json",
     );
   });

@@ -1,36 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { backends, type ProblemBackend } from "@/backends.config";
 import {
-  DispatchError,
   callBackendAction,
-  dispatchToJudge,
-  fetchAllJudgeQueues,
-  fetchJudgeQueue,
-  pollJudge,
   redactJudgeStatus,
   resolveBackend,
+  type BackendQueueStatus,
 } from "./client";
 import {
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
   verifySignature,
 } from "./signature";
-import type { JudgeRequest } from "./types";
-
-const QUEUE_BODY = {
-  health: "ok",
-  capacity: 4,
-  running: 1,
-  pending: 2,
-  items: [
-    {
-      submissionId: "sub_1",
-      problemSlug: "maze-runner",
-      state: "running",
-      enqueuedAt: "2026-08-22T01:46:24.000Z",
-    },
-  ],
-};
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -41,15 +21,11 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 beforeEach(() => {
   vi.stubEnv("FOI_BACKEND_SECRET", "test-secret");
-  // The snapshot is process-wide on purpose; clear it so cases do not inherit
-  // each other's sweep.
-  globalThis.__foiQueueSnapshot = undefined;
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
-  globalThis.__foiQueueSnapshot = undefined;
 });
 
 /**
@@ -93,180 +69,50 @@ describe("密钥优先级", () => {
   });
 });
 
-describe("fetchAllJudgeQueues 快照", () => {
-  it("一秒内的重复调用只打一轮评测机", async () => {
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(jsonResponse(QUEUE_BODY));
-
-    await fetchAllJudgeQueues();
-    const afterFirst = fetchMock.mock.calls.length;
-
-    await fetchAllJudgeQueues();
-    await fetchAllJudgeQueues();
-
-    expect(afterFirst).toBe(Object.keys(backends).length);
-    expect(fetchMock.mock.calls.length).toBe(afterFirst);
-  });
-
-  it("并发调用合流到同一轮，而不是各打一轮", async () => {
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(jsonResponse(QUEUE_BODY));
-
-    await Promise.all([
-      fetchAllJudgeQueues(),
-      fetchAllJudgeQueues(),
-      fetchAllJudgeQueues(),
-      fetchAllJudgeQueues(),
-    ]);
-
-    expect(fetchMock.mock.calls.length).toBe(Object.keys(backends).length);
-  });
-
-  it("快照过期后重新拉取", async () => {
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(jsonResponse(QUEUE_BODY));
-
-    await fetchAllJudgeQueues();
-    const afterFirst = fetchMock.mock.calls.length;
-
-    // Expire it rather than waiting a real second.
-    if (globalThis.__foiQueueSnapshot) {
-      globalThis.__foiQueueSnapshot.expiresAt = Date.now() - 1;
-    }
-    await fetchAllJudgeQueues();
-
-    expect(fetchMock.mock.calls.length).toBe(afterFirst * 2);
-  });
-
-  it("单台评测机不可达不影响其余，也不抛异常", async () => {
-    const ids = Object.keys(backends);
-    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
-      const url = String(input);
-      if (url.includes(new URL(backends[ids[0]].url).port)) {
-        return Promise.reject(new Error("connect ECONNREFUSED"));
-      }
-      return Promise.resolve(jsonResponse(QUEUE_BODY));
-    });
-
-    const statuses = await fetchAllJudgeQueues();
-
-    expect(statuses).toHaveLength(ids.length);
-    expect(statuses.some((status) => !status.online)).toBe(true);
-  });
-});
-
 describe("redactJudgeStatus", () => {
-  it("抹掉评测机地址与队列条目的题目", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(QUEUE_BODY));
-    const [status] = await fetchAllJudgeQueues();
+  const status = (): BackendQueueStatus => ({
+    id: "traditional",
+    url: "http://localhost:4100",
+    runners: 2,
+    queued: 1,
+    judging: 0,
+    items: [
+      {
+        submissionId: "sub_1",
+        problemSlug: "maze-runner",
+        state: "queued",
+        status: "测试点 3/10",
+        runnerId: "runner-a",
+        enqueuedAt: "2026-08-22T01:46:24.000Z",
+      },
+    ],
+  });
 
-    const redacted = redactJudgeStatus(status);
+  it("抹掉后端地址与队列条目的题目", () => {
+    const redacted = redactJudgeStatus(status());
 
     expect(redacted.url).toBeNull();
-    expect(redacted.queue?.items[0]).not.toHaveProperty("problemSlug");
+    expect(redacted.items[0]).not.toHaveProperty("problemSlug");
   });
 
-  it("保留 submissionId，选手要靠它找到自己的排队位次", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(QUEUE_BODY));
-    const [status] = await fetchAllJudgeQueues();
+  it("抹掉评测机自述与它的名字，那都是后端作者写的字符串", () => {
+    const redacted = redactJudgeStatus(status());
 
-    expect(redactJudgeStatus(status).queue?.items[0].submissionId).toBe("sub_1");
+    expect(redacted.items[0]).not.toHaveProperty("status");
+    expect(redacted.items[0]).not.toHaveProperty("runnerId");
   });
 
-  it("不改动原对象，因为它来自共享快照", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(QUEUE_BODY));
-    const [status] = await fetchAllJudgeQueues();
-
-    redactJudgeStatus(status);
-
-    expect(status.url).not.toBeNull();
-    expect(status.queue?.items[0].problemSlug).toBe("maze-runner");
-  });
-});
-
-describe("dispatchToJudge 失败语义", () => {
-  const judge = () => resolveBackend(Object.keys(backends)[0]);
-  const request: JudgeRequest = {
-    submissionId: "sub_1",
-    user: { handle: "alice", groups: [] },
-    problem: { slug: "maze-runner", config: {} },
-    contestSlug: null,
-    payload: {},
-    callbackUrl: "http://localhost:3000/api/judge/callback",
-    callbackToken: "token",
-  };
-
-  it("4xx 判为明确拒绝", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      jsonResponse({ error: "bad request" }, 400),
-    );
-
-    await expect(dispatchToJudge(judge(), request)).rejects.toMatchObject({
-      kind: "rejected",
-    });
+  it("保留 submissionId，选手要靠它找到自己的排队位次", () => {
+    expect(redactJudgeStatus(status()).items[0].submissionId).toBe("sub_1");
   });
 
-  it("5xx 判为结果未知，因为评测机可能已经入队", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      jsonResponse({ error: "boom" }, 503),
-    );
+  it("不改动原对象，因为读它的不止一个调用方", () => {
+    const original = status();
 
-    await expect(dispatchToJudge(judge(), request)).rejects.toMatchObject({
-      kind: "unknown",
-    });
-  });
+    redactJudgeStatus(original);
 
-  it("连接失败判为结果未知", async () => {
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(
-      new Error("connect ECONNREFUSED"),
-    );
-
-    await expect(dispatchToJudge(judge(), request)).rejects.toMatchObject({
-      kind: "unknown",
-    });
-  });
-
-  it("超时判为结果未知", async () => {
-    const timeout = new Error("timed out");
-    timeout.name = "TimeoutError";
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(timeout);
-
-    await expect(dispatchToJudge(judge(), request)).rejects.toMatchObject({
-      kind: "unknown",
-    });
-  });
-
-  it("accepted: false 判为明确拒绝，即便 HTTP 是 200", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      jsonResponse({ accepted: false }),
-    );
-
-    const error = await dispatchToJudge(judge(), request).catch((e) => e);
-    expect(error).toBeInstanceOf(DispatchError);
-    expect(error.kind).toBe("rejected");
-  });
-
-  it("正常受理时取回 judgeRef", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      jsonResponse({ accepted: true, judgeRef: "job-42" }),
-    );
-
-    await expect(dispatchToJudge(judge(), request)).resolves.toEqual({
-      judgeRef: "job-42",
-    });
-  });
-
-  it("没有 judgeRef 时返回 null 而不是报错", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      jsonResponse({ accepted: true }),
-    );
-
-    await expect(dispatchToJudge(judge(), request)).resolves.toEqual({
-      judgeRef: null,
-    });
+    expect(original.url).not.toBeNull();
+    expect(original.items[0].problemSlug).toBe("maze-runner");
   });
 });
 
@@ -352,8 +198,7 @@ describe("交互端点响应的 content-type 白名单", () => {
  * A backend is reached over the network and may be somebody else's service, so
  * how long it can keep the kernel waiting is bounded by a timeout and how much
  * it can make the kernel hold has to be bounded too. It was not: `res.text()`
- * and `res.json()` read to completion, and the reconciler polls every fifteen
- * seconds whether anybody is watching or not.
+ * and `res.json()` read to completion.
  */
 describe("后端响应的字节上限", () => {
   const backend = () => resolveBackend(Object.keys(backends)[0]);
@@ -385,87 +230,16 @@ describe("后端响应的字节上限", () => {
       contentType: "application/json",
     });
   });
-
-  it("队列响应过大时这台机器报错，其余照常", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(oversized());
-
-    await expect(fetchJudgeQueue(Object.keys(backends)[0])).resolves.toMatchObject(
-      { online: false, error: "队列响应过大" },
-    );
-  });
-
-  it("对账轮询响应过大时当作没拿到状态", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(oversized());
-
-    await expect(pollJudge(backend(), "job-42")).resolves.toBeNull();
-  });
-
-  /**
-   * The dispatch acknowledgement is the read every submission makes, and the
-   * one left out when the other four were bounded.
-   */
-  it("投递的受理响应过大时判为结果未知，而不是明确拒绝", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(oversized());
-
-    const error = await dispatchToJudge(backend(), {
-      submissionId: "sub_1",
-      user: { handle: "alice", groups: [] },
-      problem: { slug: "maze-runner", config: {} },
-      contestSlug: null,
-      payload: {},
-      callbackUrl: "http://localhost:3000/api/judge/callback",
-      callbackToken: "token",
-    }).catch((e) => e);
-
-    expect(error).toBeInstanceOf(DispatchError);
-    // `rejected` would mark the row terminal, and the backend may well have
-    // queued the submission — the callback still has to be able to land.
-    expect(error.kind).toBe("unknown");
-  });
-
-  it("空的 200 受理仍然算受理，只是没有 judgeRef", async () => {
-    // `judgeRef` is optional in the protocol and `res.json()` threw on an
-    // empty body too, so the parse stays lenient where the size check is not.
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("", { status: 200 }),
-    );
-
-    await expect(
-      dispatchToJudge(backend(), {
-        submissionId: "sub_1",
-        user: { handle: "alice", groups: [] },
-        problem: { slug: "maze-runner", config: {} },
-        contestSlug: null,
-        payload: {},
-        callbackUrl: "http://localhost:3000/api/judge/callback",
-        callbackToken: "token",
-      }),
-    ).resolves.toEqual({ judgeRef: null });
-  });
-
-  it("队列响应不是合法 JSON 时说的是格式，不是连不上", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("not json at all", {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
-
-    await expect(fetchJudgeQueue(Object.keys(backends)[0])).resolves.toMatchObject(
-      { error: "队列响应格式不合法" },
-    );
-  });
 });
 
 /**
- * The signature covers the method and the path, so every outbound call has to
- * sign the request it actually makes. That pairing is the thing that can come
- * apart silently — add a fifth endpoint, or change a path after signing it,
- * and the backend answers 401 for a reason nothing here would have caught.
+ * The signature covers the method and the path, so the one outbound call left
+ * has to sign the request it actually makes. That pairing is the thing that can
+ * come apart silently — change a path after signing it and the backend answers
+ * 401 for a reason nothing here would have caught.
  *
- * So rather than asserting a particular canonical string, each case takes the
- * URL and headers `fetch` was handed and verifies one against the other. A
- * call that signs anything other than what it sends fails.
+ * So rather than asserting a particular canonical string, the case takes the
+ * URL and headers `fetch` was handed and verifies one against the other.
  */
 describe("出站请求签的是它实际发出的 method 与 path", () => {
   const backendId = Object.keys(backends)[0];
@@ -509,23 +283,6 @@ describe("出站请求签的是它实际发出的 method 与 path", () => {
     });
   }
 
-  it("POST /judge", async () => {
-    const sent = captureFetch(jsonResponse({ accepted: true, judgeRef: "j1" }));
-
-    await dispatchToJudge(resolveBackend(backendId), {
-      submissionId: "sub_1",
-      user: { handle: "alice", groups: [] },
-      problem: { slug: "maze-runner", config: {} },
-      contestSlug: null,
-      payload: {},
-      callbackUrl: "http://localhost:3000/api/judge/callback",
-      callbackToken: "token",
-    });
-
-    expect(sent().path).toBe("/judge");
-    expect(verifyAsBackendWould(sent())).toEqual({ ok: true });
-  });
-
   it("POST /action/<action>，动作名进了签名", async () => {
     const sent = captureFetch(jsonResponse({ ok: true }));
 
@@ -554,53 +311,5 @@ describe("出站请求签的是它实际发出的 method 与 path", () => {
         },
       }),
     ).toMatchObject({ ok: false });
-  });
-
-  it("GET /queue，空 body 也绑在这个路径上", async () => {
-    const sent = captureFetch(
-      jsonResponse({ health: "ok", capacity: 1, running: 0, pending: 0 }),
-    );
-
-    await fetchJudgeQueue(backendId);
-
-    expect(sent().path).toBe("/queue");
-    expect(sent().body).toBe("");
-    expect(verifyAsBackendWould(sent())).toEqual({ ok: true });
-  });
-
-  it("GET /status/<ref>，与 /queue 的签名不通用", async () => {
-    const queue = captureFetch(
-      jsonResponse({ health: "ok", capacity: 1, running: 0, pending: 0 }),
-    );
-    await fetchJudgeQueue(backendId);
-    const queueSent = queue();
-
-    const status = captureFetch(jsonResponse({ done: false }));
-    await pollJudge(resolveBackend(backendId), "job-42");
-    const statusSent = status();
-
-    expect(statusSent.path).toBe("/status/job-42");
-    expect(verifyAsBackendWould(statusSent)).toEqual({ ok: true });
-
-    // Both have an empty body, which is exactly the pair that used to share
-    // one signature.
-    expect(queueSent.signature).not.toBe(statusSent.signature);
-    expect(
-      verifySignature({
-        secret: resolveBackend(backendId).secret,
-        timestamp: queueSent.timestamp,
-        signature: queueSent.signature,
-        request: { method: "GET", path: statusSent.path, body: "" },
-      }),
-    ).toMatchObject({ ok: false });
-  });
-
-  it("judgeRef 里的斜杠被编码，签的和发的仍然一致", async () => {
-    const sent = captureFetch(jsonResponse({ done: false }));
-
-    await pollJudge(resolveBackend(backendId), "queue/1?x=2");
-
-    expect(sent().path).toBe("/status/queue%2F1%3Fx%3D2");
-    expect(verifyAsBackendWould(sent())).toEqual({ ok: true });
   });
 });

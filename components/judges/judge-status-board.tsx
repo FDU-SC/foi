@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { QUEUE_HEALTH_PRESETS, type QueueItem } from "@/lib/backend/types";
-import type { JudgeQueueStatus } from "@/lib/backend/client";
+import type { BackendQueueStatus, QueueEntry } from "@/lib/backend/client";
 import { cn } from "@/lib/utils";
 
 const POLL_INTERVAL_MS = 4000;
-const MAX_SLOTS_DRAWN = 24;
 
 // Fixed locale and time zone so the server and client render the same string.
 const clock = new Intl.DateTimeFormat("zh-CN", {
@@ -18,33 +16,6 @@ const clock = new Intl.DateTimeFormat("zh-CN", {
   timeZone: "Asia/Shanghai",
 });
 
-function Slots({ capacity, running }: { capacity: number; running: number }) {
-  const drawn = Math.min(capacity, MAX_SLOTS_DRAWN);
-  return (
-    <div className="flex flex-wrap gap-1">
-      {Array.from({ length: drawn }, (_, index) => (
-        <span
-          key={index}
-          className={cn(
-            "size-2.5 rounded-sm",
-            index < running ? "bg-ok" : "bg-surface-3",
-          )}
-        />
-      ))}
-      {capacity > drawn ? (
-        <span className="text-fg-subtle text-[10px]">+{capacity - drawn}</span>
-      ) : null}
-      {capacity === 0 ? (
-        <span className="text-fg-subtle text-xs">未上报容量</span>
-      ) : null}
-    </div>
-  );
-}
-
-function formatMillis(ms: number): string {
-  return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`;
-}
-
 function Metric({
   label,
   value,
@@ -52,7 +23,7 @@ function Metric({
 }: {
   label: string;
   value: string | number;
-  tone?: "warn";
+  tone?: "warn" | "err";
 }) {
   return (
     <div>
@@ -62,7 +33,7 @@ function Metric({
       <div
         className={cn(
           "font-mono text-2xl leading-none font-semibold tabular-nums",
-          tone === "warn" ? "text-warn" : "text-fg",
+          tone === "warn" ? "text-warn" : tone === "err" ? "text-err" : "text-fg",
         )}
       >
         {value}
@@ -71,16 +42,23 @@ function Metric({
   );
 }
 
-function QueueRow({ item, index }: { item: QueueItem; index: number }) {
-  const running = item.state === "running";
+/**
+ * One row of the queue.
+ *
+ * The position is a real position now — the kernel orders the queue, so the
+ * number beside a waiting submission is exactly how many are ahead of it rather
+ * than an index into whatever a backend last reported.
+ */
+function QueueRow({ item, index }: { item: QueueEntry; index: number }) {
+  const judging = item.state === "judging";
   return (
-    <tr className="hover:bg-surface-2/60">
+    <tr className="hover:bg-surface-2/60 align-top">
       <td className="text-fg-subtle px-3 py-1.5 text-right font-mono text-[11px] tabular-nums">
-        {running ? "▶" : index}
+        {judging ? "▶" : index}
       </td>
       <td className="px-3 py-1.5">
-        <Badge tone={running ? "info" : "neutral"}>
-          {running ? "评测中" : "排队中"}
+        <Badge tone={judging ? "info" : "neutral"}>
+          {judging ? "评测中" : "排队中"}
         </Badge>
       </td>
       {/* Absent for non-admins: it would reveal who is working on what. */}
@@ -91,19 +69,43 @@ function QueueRow({ item, index }: { item: QueueItem; index: number }) {
       ) : null}
       <td className="text-fg-subtle px-3 py-1.5 font-mono text-[11px]">
         {item.submissionId}
+        {/*
+          The runner's own words, rendered and not read. A backend decides what
+          goes in here and the kernel forwards it — the same bargain as a
+          verdict's `detail`. Redacted alongside the problem slug, so a player
+          never sees another competitor's.
+        */}
+        {item.status ? (
+          <div className="text-fg-muted mt-0.5 font-sans text-[11px]">
+            {item.status}
+          </div>
+        ) : null}
       </td>
       <td className="text-fg-subtle px-3 py-1.5 text-right font-mono text-[11px] tabular-nums">
-        {clock.format(new Date(item.startedAt ?? item.enqueuedAt))}
+        {item.runnerId ? (
+          <div className="text-fg-subtle mb-0.5">{item.runnerId}</div>
+        ) : null}
+        {clock.format(new Date(item.claimedAt ?? item.enqueuedAt))}
       </td>
     </tr>
   );
 }
 
-function JudgeCard({ status }: { status: JudgeQueueStatus }) {
-  const { queue } = status;
-  const preset = queue ? QUEUE_HEALTH_PRESETS[queue.health] : null;
-  const pendingItems = queue?.items.filter((i) => i.state === "pending") ?? [];
-  const runningItems = queue?.items.filter((i) => i.state === "running") ?? [];
+/**
+ * One backend.
+ *
+ * There is no online flag and no latency, because there is nothing to dial:
+ * judging is pulled, so a backend has no inbound address and being "reachable"
+ * is not a property it has. What replaced both is the runner count — processes
+ * that have actually asked for work in the last minute — which is the fact the
+ * old health badge was a proxy for and a worse one.
+ */
+function JudgeCard({ status }: { status: BackendQueueStatus }) {
+  const queued = status.items.filter((item) => item.state === "queued");
+  const judging = status.items.filter((item) => item.state === "judging");
+
+  // A queue with nobody to work it is the failure this board exists to show.
+  const stranded = status.runners === 0 && status.queued > 0;
 
   return (
     <div className="border-border bg-surface overflow-hidden rounded-lg border">
@@ -111,19 +113,11 @@ function JudgeCard({ status }: { status: JudgeQueueStatus }) {
         <span className="text-fg font-mono text-sm font-semibold">
           {status.id}
         </span>
-        {status.online && preset ? (
-          <Badge tone={preset.tone}>{preset.label}</Badge>
+        {status.runners > 0 ? (
+          <Badge tone="ok">{status.runners} 台在线</Badge>
         ) : (
-          <Badge tone="err">离线</Badge>
+          <Badge tone={status.queued > 0 ? "err" : "neutral"}>无评测机</Badge>
         )}
-        {queue?.version ? (
-          <span className="text-fg-subtle font-mono text-[11px]">
-            v{queue.version}
-          </span>
-        ) : null}
-        <span className="text-fg-subtle ml-auto font-mono text-[11px] tabular-nums">
-          {status.latencyMs !== null ? `${status.latencyMs}ms` : "—"}
-        </span>
       </div>
 
       <div className="space-y-3 px-4 py-3">
@@ -133,60 +127,39 @@ function JudgeCard({ status }: { status: JudgeQueueStatus }) {
           </div>
         ) : null}
 
-        {status.error ? (
+        {stranded ? (
           <p className="text-err bg-err-subtle rounded px-2.5 py-1.5 text-xs">
-            {status.error}
+            队列里有等待评测的提交，但最近一分钟没有任何评测机来领活。
           </p>
         ) : null}
 
-        {queue ? (
-          <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div>
-                <div className="text-fg-subtle mb-1.5 text-[11px] tracking-wide uppercase">
-                  并发槽位
-                </div>
-                <Slots capacity={queue.capacity} running={queue.running} />
-                <div className="text-fg mt-1.5 font-mono text-xs tabular-nums">
-                  {queue.running} / {queue.capacity}
-                </div>
-              </div>
+        <div className="grid grid-cols-3 gap-3">
+          <Metric label="在线评测机" value={status.runners} />
+          <Metric label="评测中" value={status.judging} />
+          <Metric
+            label="排队等待"
+            value={status.queued}
+            tone={stranded ? "err" : status.queued > 0 ? "warn" : undefined}
+          />
+        </div>
 
-              <Metric
-                label="排队等待"
-                value={queue.pending}
-                tone={queue.pending > 0 ? "warn" : undefined}
-              />
-              <Metric label="已完成" value={queue.completed ?? "—"} />
-              <Metric
-                label="平均耗时"
-                value={
-                  queue.avgDurationMs !== undefined
-                    ? formatMillis(queue.avgDurationMs)
-                    : "—"
-                }
-              />
-            </div>
-
-            {queue.items.length > 0 ? (
-              <div className="border-border overflow-hidden rounded border">
-                <table className="w-full">
-                  <tbody className="divide-border divide-y">
-                    {runningItems.map((item) => (
-                      <QueueRow key={item.submissionId} item={item} index={0} />
-                    ))}
-                    {pendingItems.map((item, index) => (
-                      <QueueRow
-                        key={item.submissionId}
-                        item={item}
-                        index={index + 1}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-          </>
+        {status.items.length > 0 ? (
+          <div className="border-border overflow-hidden rounded border">
+            <table className="w-full">
+              <tbody className="divide-border divide-y">
+                {judging.map((item) => (
+                  <QueueRow key={item.submissionId} item={item} index={0} />
+                ))}
+                {queued.map((item, index) => (
+                  <QueueRow
+                    key={item.submissionId}
+                    item={item}
+                    index={index + 1}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : null}
       </div>
     </div>
@@ -196,7 +169,7 @@ function JudgeCard({ status }: { status: JudgeQueueStatus }) {
 export function JudgeStatusBoard({
   initial,
 }: {
-  initial: JudgeQueueStatus[];
+  initial: BackendQueueStatus[];
 }) {
   const [statuses, setStatuses] = useState(initial);
   const [stale, setStale] = useState(false);
@@ -208,7 +181,7 @@ export function JudgeStatusBoard({
       try {
         const res = await fetch("/api/judges/status", { cache: "no-store" });
         if (!res.ok) throw new Error(String(res.status));
-        const next = (await res.json()) as JudgeQueueStatus[];
+        const next = (await res.json()) as BackendQueueStatus[];
         if (cancelled) return;
         setStatuses(next);
         setStale(false);
@@ -224,26 +197,29 @@ export function JudgeStatusBoard({
     };
   }, []);
 
-  const totalPending = statuses.reduce(
-    (sum, status) => sum + (status.queue?.pending ?? 0),
-    0,
-  );
-  const totalRunning = statuses.reduce(
-    (sum, status) => sum + (status.queue?.running ?? 0),
-    0,
+  const totals = statuses.reduce(
+    (sum, status) => ({
+      queued: sum.queued + status.queued,
+      judging: sum.judging + status.judging,
+      runners: sum.runners + status.runners,
+    }),
+    { queued: 0, judging: 0, runners: 0 },
   );
 
   return (
     <div className="space-y-4">
       <div className="text-fg-subtle flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
         <span>
-          共 <span className="text-fg font-mono">{statuses.length}</span> 台评测机
+          共 <span className="text-fg font-mono">{statuses.length}</span> 个题目后端
         </span>
         <span>
-          评测中 <span className="text-fg font-mono">{totalRunning}</span>
+          在线评测机 <span className="text-fg font-mono">{totals.runners}</span>
         </span>
         <span>
-          排队 <span className="text-fg font-mono">{totalPending}</span>
+          评测中 <span className="text-fg font-mono">{totals.judging}</span>
+        </span>
+        <span>
+          排队 <span className="text-fg font-mono">{totals.queued}</span>
         </span>
         <span className="ml-auto flex items-center gap-1.5">
           <span

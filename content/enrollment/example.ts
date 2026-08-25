@@ -74,6 +74,7 @@ export const groups: GroupInput[] = [
       "contest.viewAll",
       "standings.viewFrozen",
       "submission.readAny",
+      "submission.rejudge",
       "backend.inspect",
       "account.read",
       "credential.manage",

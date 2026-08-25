@@ -100,13 +100,22 @@ describeDb("运维台偏差：题目后端签名密钥", () => {
   });
 
   /**
-   * The state a fresh checkout is in: every entry points at the one mock
-   * backend. One process cannot hold two keys, so there is nothing here to
-   * fix and nothing to say.
+   * The state a fresh checkout is in, and it reports now. Every entry falls
+   * back to the mock's key, and under the pull model that key is what lets a
+   * runner claim work — so the finding is true even in development, and saying
+   * so is the point: production refuses the same boot outright, and somebody
+   * should have met this on their own machine first. The copy carries that
+   * reassurance rather than the check suppressing it.
    */
-  it("仓库默认配置——全部指向同一个 mock——不报", async () => {
-    expect(
-      findingAbout((await loadAdminOverview()).findings, "签名密钥"),
-    ).toBeUndefined();
+  it("仓库默认配置——全部回落到共享密钥——照样报", async () => {
+    if (inUse.length < 2) return;
+
+    const finding = findingAbout(
+      (await loadAdminOverview()).findings,
+      "签名密钥",
+    );
+
+    expect(finding?.severity).toBe("warn");
+    expect(finding?.items.sort()).toEqual([...inUse].sort());
   });
 });

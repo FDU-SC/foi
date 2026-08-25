@@ -1,4 +1,8 @@
 import type { ProblemConfigInput } from "@/lib/problems/types";
+import {
+  judgeOutputOnly,
+  type OutputOnlyConfig,
+} from "../_shared/judge/output-only";
 
 /**
  * 下架题目的示例。
@@ -19,17 +23,18 @@ export const problem = {
   title: "2025 热身赛 · 二进制中 1 的个数（已下架）",
   maxScore: 100,
   retired: true,
+  // 当年它还挂在 output-only 后端上，并用一个 `inputs` action 下发输入数据。
+  // 那个后端被收回成内联判题之后，这里就没有服务可以转发了——内联判题没有
+  // action。这不改变任何行为：`retired` 早就把 action 和提交一起关掉了。
   backend: {
-    id: "output-only",
+    kind: "inline",
+    judge: judgeOutputOnly,
     config: {
       cases: [
         { name: "场景 1", expected: "8" },
         { name: "场景 2", expected: "1" },
       ],
-    },
-    // 当年用它下发输入数据。下架之后这个接口和提交一起关掉——预览一道题不该
-    // 启动它的容器，回看一道下架的题同样不该。两者走的是同一个判断。
-    actions: { inputs: {} },
+    } satisfies OutputOnlyConfig,
   },
   submit: { kind: "text", placeholder: "每行一个答案，按场景顺序" },
   tags: ["提交答案", "示例"],

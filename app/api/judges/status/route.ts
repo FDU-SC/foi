@@ -18,9 +18,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
 
-  // The outbound sweep is already collapsed to once a second per process by
-  // the snapshot in `fetchAllJudgeQueues`; what this bounds is the work on
-  // this side of it — a session read and a render per poll.
+  // Nothing goes outbound here any more: the queue is the kernel's, so this is
+  // two indexed reads against our own database rather than a fan-out to every
+  // backend. What the bound is for is the work per poll on this side — a
+  // session read, those queries and a render — since the board polls.
   const rule = fixedRule(ROUTE_LIMITS["GET /api/judges/status"]);
   const limited = rateLimit(
     `judges:${user.handle}`,

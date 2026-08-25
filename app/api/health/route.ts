@@ -1,13 +1,19 @@
-import { sql } from "drizzle-orm";
+import { gte, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { runners } from "@/lib/db/schema";
 import { guardRequest } from "@/lib/ratelimit/gate";
+import { reaperHealth } from "@/lib/runner/reaper";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** How recently a runner must have asked for work to be counted as here. */
+const RUNNER_ONLINE_MS = 60_000;
+
 /**
- * Liveness plus database reachability.
+ * Liveness, database reachability, whether the reaper is running, and how many
+ * runners are out there.
  *
  * Used by the compose healthcheck and by the deploy workflow to decide whether
  * a release came up cleanly, so it must not require authentication.
@@ -25,8 +31,32 @@ export async function GET(request: Request) {
 
   try {
     await db.execute(sql`select 1`);
+
+    // Reported, not failed on. A stopped reaper means a runner that dies takes
+    // its jobs with it — serious, but not a reason to restart a container that
+    // is otherwise serving a contest, and a healthcheck that takes the site
+    // down to fix a background loop has made things worse. The status code
+    // stays with "can this process serve requests".
+    const reaper = reaperHealth();
+
+    // Zero is not a fault and is deliberately not reported as one: a deployment
+    // between rounds legitimately has nobody running a runner, and a probe that
+    // failed on it would restart a perfectly healthy container. It is here
+    // because it is the number an operator wants when submissions are not
+    // moving, and the one thing no other check can infer.
+    const [online] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(runners)
+      .where(gte(runners.lastSeenAt, new Date(Date.now() - RUNNER_ONLINE_MS)));
+
     return NextResponse.json(
-      { ok: true, database: "up" },
+      {
+        ok: true,
+        database: "up",
+        reaper: reaper.ok ? "up" : "stalled",
+        reapedAt: reaper.ranAt?.toISOString() ?? null,
+        runners: online?.count ?? 0,
+      },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (error) {

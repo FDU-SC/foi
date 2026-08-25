@@ -1,9 +1,18 @@
 declare global {
-  var __foiReconciler: ReturnType<typeof setInterval> | undefined;
+  var __foiReaper: ReturnType<typeof setTimeout> | undefined;
   var __foiVerificationSweep: ReturnType<typeof setInterval> | undefined;
 }
 
-const RECONCILE_INTERVAL_MS = 15_000;
+/**
+ * How often the queue is swept for jobs nobody is looking after.
+ *
+ * Well under `HEARTBEAT_LAPSE_MS`, so the delay between a runner going quiet
+ * and its work being handed to somebody else is dominated by the lapse itself
+ * rather than by when this happens to fire. A pass is three indexed statements
+ * over partial indexes that are empty in the healthy case, so there is no
+ * reason to be stingier.
+ */
+const REAP_INTERVAL_MS = 15_000;
 const VERIFICATION_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 
 export async function register() {
@@ -25,6 +34,31 @@ export async function register() {
   // telling people the mail is on its way.
   const { assertMailDelivery } = await import("@/lib/mail/transport");
   assertMailDelivery();
+
+  // Third refusal, and the newest. A backend's signing key used to authenticate
+  // us *to* it — outbound, from a server we control. It now authenticates a
+  // runner *to us*, from whatever machine happens to be running one, and it
+  // buys its holder the whole of that backend's queue: every competitor's
+  // source, a free hand with verdicts, and the ability to burn attempts until
+  // submissions read as disrupted. Two backends on one key means compromising
+  // the softer of them yields all of that for both.
+  //
+  // This was a warning for as long as the exposure was ours. Now that it is not,
+  // production says no — the fix is one environment variable per service, and a
+  // deployment that has not done it should find out before a contest rather
+  // than after one. Beside `assertEnv` rather than inside it because knowing
+  // which backends carry traffic means reading the problem registry, and
+  // `lib/env.ts` deliberately knows nothing about content.
+  //
+  // Its neighbour is the half of the old address check that survived. Judging
+  // needs no address, so `lib/env.ts` no longer demands one for every entry;
+  // what still cannot work without one is a backend some problem declares an
+  // interactive action on, because those the kernel does have to dial.
+  const { assertBackendActionUrls, assertBackendSecrets } = await import(
+    "@/lib/backend/access"
+  );
+  assertBackendSecrets();
+  assertBackendActionUrls();
 
   // Runs before anything touches the schema. Drizzle records applied
   // migrations in its own table, so this is a no-op once up to date. A failure
@@ -73,19 +107,24 @@ export async function register() {
     console.warn(`[foi] ${warning}`);
   }
 
-  const { reconcileStaleSubmissions } = await import("@/lib/backend/reconciler");
+  // One loop where there were two, and the two were a consequence of the queue
+  // living somewhere else. A poller asked every backend what it was holding and
+  // a verifier reasoned about what that answer left out; both existed to infer,
+  // across a network, a fact the kernel now simply has. Neither had anything to
+  // do once nobody was dispatching.
+  //
+  // What is left touches no network at all: three indexed statements against
+  // columns this process owns. So there is no slow backend to isolate a loop
+  // from, and nothing left worth splitting.
+  //
+  // Self-scheduling rather than `setInterval`, because a pass can outrun its
+  // own interval and nothing stops the next one starting anyway — which is how
+  // the original reconciler ended up with dozens of passes in flight.
+  const { startReaping } = await import("@/lib/runner/reaper");
 
   // Guarded so HMR reloads do not stack up timers during `next dev`.
-  clearInterval(globalThis.__foiReconciler);
-  globalThis.__foiReconciler = setInterval(() => {
-    void reconcileStaleSubmissions()
-      .then(({ resolved, abandoned }) => {
-        if (resolved || abandoned) {
-          console.log(`[foi] 对账: 补齐 ${resolved} 条，超时 ${abandoned} 条`);
-        }
-      })
-      .catch((error) => console.error("[foi] 对账失败", error));
-  }, RECONCILE_INTERVAL_MS);
+  clearTimeout(globalThis.__foiReaper);
+  globalThis.__foiReaper = startReaping(REAP_INTERVAL_MS);
 
   // This slot used to release handles held by signups that never confirmed
   // their address. There are no such signups any more — an account is not

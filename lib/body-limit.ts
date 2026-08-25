@@ -8,10 +8,10 @@
  * do — reports the right status code from a process that has already paid the
  * whole cost.
  *
- * `/api/judge/callback` is the sharp case, because it is the one endpoint here
- * that answers to nobody: its credentials live in the body and in a header, so
- * the read happens before there is anything to authenticate against. An
- * anonymous PUT of 96 MiB moved that server's RSS by roughly half a gigabyte
+ * `PUT /api/runner/jobs/[id]` is the sharp case, because it is the one endpoint
+ * here that answers to no session: its credentials are a signature over the
+ * body, so the read happens before there is anything to authenticate against.
+ * An anonymous PUT of 96 MiB moved that server's RSS by roughly half a gigabyte
  * and came back `400 请求体不是合法 JSON`, which is the server saying it
  * inspected the body it should never have accepted.
  *
@@ -24,8 +24,8 @@
  * than a `Request`. A problem backend is not a browser and not the kernel's to
  * trust: it is reached over the network, it may be somebody else's service,
  * and `lib/backend/client.ts` used to hand whatever it returned straight to
- * `res.text()` — an unbounded read on every dispatch, every action, and every
- * queue poll the reconciler makes.
+ * `res.text()` — an unbounded read on every interactive action a player
+ * triggers.
  */
 
 /**

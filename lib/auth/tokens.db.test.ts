@@ -96,24 +96,6 @@ describeDb("auth tokens", () => {
     ).resolves.toEqual({ ok: false, reason: "invalid" });
   });
 
-  it("expectHandle 与 token 归属不符时拒绝", async () => {
-    const { token } = await issueToken(HANDLE, "password_reset");
-
-    await expect(
-      redeemToken(token, "password_reset", { expectHandle: "someone-else" }),
-    ).resolves.toEqual({ ok: false, reason: "invalid" });
-  });
-
-  it("expectHandle 大小写不敏感", async () => {
-    const { token } = await issueToken(HANDLE, "password_reset");
-
-    await expect(
-      redeemToken(token, "password_reset", {
-        expectHandle: HANDLE.toUpperCase(),
-      }),
-    ).resolves.toEqual({ ok: true, handle: HANDLE });
-  });
-
   it("重新签发会作废上一个未消费的 token", async () => {
     const first = await issueToken(HANDLE, "password_reset");
     const second = await issueToken(HANDLE, "password_reset");
@@ -151,7 +133,7 @@ describeDb("auth tokens", () => {
     let redeemed;
     await expect(
       db.transaction(async (tx) => {
-        redeemed = await redeemToken(token, "password_reset", undefined, tx);
+        redeemed = await redeemToken(token, "password_reset", tx);
         // 站在 setPassword 的位置上失败。
         throw new Error("写密码故意失败");
       }),

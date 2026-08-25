@@ -116,8 +116,13 @@ export async function createAccount(
  * nothing un-verifies one. A type that describes writes no caller makes is an
  * invitation to make them here, bypassing the proof each of those fields is
  * supposed to rest on.
+ *
+ * Not exported, for the same reason narrowed rather than deleted: the two
+ * functions below are the whole surface, and each names an act. A general
+ * patch reachable from outside would be a way to move `status` without
+ * recording who did it or why, which is the one thing this column is for.
  */
-export async function updateAccount(
+async function updateAccount(
   handle: string,
   patch: Partial<
     Pick<

@@ -43,6 +43,16 @@ export type RateLimitSubject =
   /**
    * The address the outermost trusted proxy observed. Raises cost rather than
    * being a boundary — see `./source.ts` on why it can only ever be inferred.
+   *
+   * Which is also why every bound with this subject is conditional on there
+   * being a source at all. A deployment with `FOI_TRUSTED_PROXY_HOPS=0` has
+   * none — nothing trusted is in front, so both headers could only have come
+   * from the peer — and `rateLimitBySource` then lets the request past rather
+   * than counting everybody into one bucket, which would be a different
+   * control and a much worse one. So an entry below saying `source` means
+   * "bounded per source where a source exists", and on such a deployment it
+   * means nothing at all. The entries keyed on `handle` are unaffected, and
+   * they are the ones that stop a particular person doing a particular thing.
    */
   | "source";
 

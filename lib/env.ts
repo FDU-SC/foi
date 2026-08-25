@@ -78,13 +78,21 @@ const schema = z.object({
  * Normalised here rather than in the schema so that everything downstream sees
  * one name, and so the fallback is a single line to delete once the deployed
  * environments have been updated. `resolveBackend` reads the same pair.
+ *
+ * `||` rather than `??`, so that an empty value reads as absent — the same
+ * rule `resolveBackend` and `backends.config.ts` already apply, and the reason
+ * they give for it holds here twice over. A `.env` carrying an unfilled
+ * `FOI_BACKEND_SECRET=` next to a filled `FOI_JUDGE_SECRET` is a mid-rename
+ * deployment, which is precisely the case this fallback exists for; `??` kept
+ * the `""`, skipped the fallback, and refused the boot naming the variable the
+ * operator had *not* left blank.
  */
 function withLegacyNames(
   env: Record<string, string | undefined>,
 ): Record<string, string | undefined> {
   return {
     ...env,
-    FOI_BACKEND_SECRET: env.FOI_BACKEND_SECRET ?? env.FOI_JUDGE_SECRET,
+    FOI_BACKEND_SECRET: env.FOI_BACKEND_SECRET || env.FOI_JUDGE_SECRET,
   };
 }
 

@@ -6,7 +6,7 @@ import { resolveFromRow } from "@/lib/accounts/resolve";
 import { setPassword } from "@/lib/auth/credentials";
 import { redeemToken } from "@/lib/auth/tokens";
 import { db } from "@/lib/db";
-import { clientIp, rateLimit } from "@/lib/ratelimit";
+import { rateLimitByCaller } from "@/lib/ratelimit";
 import { ACTION_LIMITS, fixedRule } from "@/lib/ratelimit/policy";
 
 export interface ResetState {
@@ -47,15 +47,18 @@ export async function resetPasswordAction(
 
   // A 160-bit token is not guessable, so this is not about protecting the
   // link — it caps how much database and argon2 work one source can demand
-  // from an endpoint that needs no session to reach.
+  // from an endpoint that needs no session to reach. Which is also why it is
+  // the least costly of the six to lose when no source can be established:
+  // nothing is sent, nothing is created, and the work it meters is this
+  // deployment's own.
   //
   // Read off the table rather than written here, for the reason
   // `app/forgot-password/actions.ts` gives: `policy.test.ts` can check that an
   // entry exists, not that anyone enforces its numbers, so a bound written
   // twice becomes a table describing a limit nothing applies.
   const rule = fixedRule(ACTION_LIMITS.resetPasswordAction);
-  const limit = rateLimit(
-    `reset:${await clientIp()}`,
+  const limit = await rateLimitByCaller(
+    "reset",
     rule.max,
     rule.windowSeconds * 1000,
   );
@@ -73,12 +76,7 @@ export async function resetPasswordAction(
   // take a second connection out of the pool while this one holds a
   // transaction open. `resolveFromRow` is the same merge `resolveUser` does.
   return db.transaction<ResetState>(async (tx) => {
-    const result = await redeemToken(
-      parsed.data.token,
-      "password_reset",
-      undefined,
-      tx,
-    );
+    const result = await redeemToken(parsed.data.token, "password_reset", tx);
     if (!result.ok) {
       return {
         error:

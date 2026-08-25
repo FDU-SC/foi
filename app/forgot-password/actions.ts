@@ -6,7 +6,7 @@ import { resolveFromRow } from "@/lib/accounts/resolve";
 import { normalizeEmail } from "@/lib/accounts/types";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import { sendPasswordReset, type Recipient } from "@/lib/mail/notify";
-import { clientIp, rateLimit } from "@/lib/ratelimit";
+import { rateLimitByCaller } from "@/lib/ratelimit";
 import { ACTION_LIMITS, fixedRule } from "@/lib/ratelimit/policy";
 
 export interface ForgotState {
@@ -45,9 +45,16 @@ export async function requestPasswordReset(
   // places drifts into a table documenting a limit that is not applied, which
   // is worse than no table at all. This is the entry point the table was built
   // around: the public form that sends mail to an address a stranger typed.
+  //
+  // With no trusted proxy in front there is no source to count and this stands
+  // aside entirely — see `rateLimitBySource`. What still holds on a deployment
+  // configured that way is the durable per-recipient cooldown in
+  // `lib/auth/tokens.ts`: one link per account per minute, which bounds what
+  // any single mailbox can be made to receive but not how many mailboxes can
+  // be aimed at in an hour.
   const rule = fixedRule(ACTION_LIMITS.requestPasswordReset);
-  const limit = rateLimit(
-    `forgot:${await clientIp()}`,
+  const limit = await rateLimitByCaller(
+    "forgot",
     rule.max,
     rule.windowSeconds * 1000,
   );

@@ -172,6 +172,80 @@ describeDb("失联回收", () => {
   });
 
   /**
+   * The negative space, and it needs cases of its own because every recovery
+   * case above calls `goSilent` first.
+   *
+   * Delete `last_heartbeat_at < lapsedBefore` from both of the first two
+   * statements — turning the reaper into something that takes every `judging`
+   * row away from its holder once per tick — and all of them still pass. The
+   * predicate deciding *who* gets reaped is the one thing the suite was not
+   * asserting on, and it is the whole difference between a queue that recovers
+   * from a dead runner and one that never finishes anything.
+   */
+  it("心跳还新鲜的行不会被收走，lease 也不动", async () => {
+    const id = await enqueue("sub_rr_fresh");
+    const ticket = await claimJob(BACKEND, "r-working");
+    expect(ticket?.id).toBe(id);
+
+    await reapOnce();
+
+    const row = await rowOf(id);
+    expect(row.state).toBe("judging");
+    // The lease is the load-bearing one again, from the other side: a reaper
+    // that nulls it here has silently fired a runner that was doing its job,
+    // and the report it is about to send will be refused.
+    expect(row.lease).toBe(ticket?.lease);
+    expect(row.runnerId).toBe("r-working");
+    expect(row.claimedAt).not.toBeNull();
+    expect(row.attempts).toBe(1);
+    expect(row.error).toBeNull();
+  });
+
+  /**
+   * The same row a tick later, once the runner has spoken. This is the only
+   * thing `reportAlive` is for, so if the reaper reads anything other than the
+   * column that heartbeat writes, a slow-but-healthy evaluation is taken away
+   * from its holder no matter how loudly it says otherwise.
+   */
+  it("失联之后又报了心跳的行，同样不会被收走", async () => {
+    const id = await enqueue("sub_rr_revived");
+    const ticket = await claimJob(BACKEND, "r-slow");
+    await goSilent(id);
+    await expect(
+      reportAlive(id, ticket!.lease, "测试点 7/10"),
+    ).resolves.toBe(true);
+
+    await reapOnce();
+
+    const row = await rowOf(id);
+    expect(row.state).toBe("judging");
+    expect(row.lease).toBe(ticket?.lease);
+    expect(row.runnerStatus).toBe("测试点 7/10");
+  });
+
+  /**
+   * The last lap, where the predicate matters most. `claimJob` hands out a row
+   * sitting at `MAX_ATTEMPTS - 1` and leaves it at the cap, so a runner
+   * partway through its third and final attempt matches everything the
+   * write-off statement asks for except the lapsed heartbeat — and this row
+   * has no fourth attempt to be given.
+   */
+  it("最后一次尝试正在跑、心跳正常的行不会被直接写掉", async () => {
+    const id = await enqueue("sub_rr_last_lap", {
+      attempts: MAX_ATTEMPTS - 1,
+    });
+    const ticket = await claimJob(BACKEND, "r-final");
+    expect((await rowOf(id)).attempts).toBe(MAX_ATTEMPTS);
+
+    await reapOnce();
+
+    const row = await rowOf(id);
+    expect(row.state).toBe("judging");
+    expect(row.lease).toBe(ticket?.lease);
+    expect(row.judgedAt).toBeNull();
+  });
+
+  /**
    * The sequence a lease exists for, end to end: A goes quiet, the row is taken
    * back and handed to B, and then A wakes up. Checking the runner's identity
    * could not refuse this — A does not stop being A, it stops holding the lease

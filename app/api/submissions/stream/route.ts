@@ -66,47 +66,70 @@ export async function GET(request: Request) {
 
   const encoder = new TextEncoder();
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      let closed = false;
-      const cleanups: (() => void)[] = [];
+  /**
+   * Teardown, outside `start` rather than closed over by it.
+   *
+   * `start`'s scope was the natural home for these until the question was put
+   * to `cancel` — the callback the runtime invokes when the *reader* goes
+   * away, which is what a closed tab or a proxy dropping the socket looks like
+   * from in here. That path does not go anywhere near `request.signal`, so a
+   * teardown armed only on abort is one an entire class of disconnects routes
+   * around: the slot stays taken, the bus keeps a listener, and the heartbeat
+   * keeps firing, until the process restarts. What that looks like from the
+   * outside is the same thing the `start`-throws case looked like before it
+   * was fixed — an account that can no longer open streams, five tabs later,
+   * for a reason nothing on the page connects to a tab it closed yesterday.
+   *
+   * Out here both paths reach them. `finish` is idempotent, so a disconnect
+   * that raises the abort and the cancel releases once.
+   */
+  let closed = false;
+  let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
+  const cleanups: (() => void)[] = [];
 
-      // Registered before anything that could close the stream, which is not
-      // hypothetical: a submission that is already terminal closes inside the
-      // first `send` below, before the subscription is ever added. Anything
-      // pushed after that point would never run, and a slot that is taken and
-      // not returned is a leak that only shows up as an account mysteriously
-      // unable to open streams.
-      cleanups.push(release);
+  // Registered before `start` can run at all, never mind before anything in it
+  // that could close the stream — and that part is not hypothetical: a
+  // submission that is already terminal closes inside the first `send` below,
+  // before the subscription is ever added. Anything pushed after that point
+  // would never run, and a slot that is taken and not returned is a leak that
+  // only shows up as an account mysteriously unable to open streams.
+  cleanups.push(release);
 
-      /**
-       * The single exit. `error` is the difference between the connection
-       * ending because there is nothing more to say and it ending because
-       * something broke — the client reconnects either way, but a stream that
-       * closes cleanly on a failure claims the submission is settled when it
-       * is not.
-       */
-      const finish = (error?: unknown) => {
-        if (closed) return;
-        closed = true;
-        for (const cleanup of cleanups) cleanup();
-        try {
-          if (error === undefined) controller.close();
-          else controller.error(error);
-        } catch {
-          // Already closed by the runtime.
-        }
-      };
+  /**
+   * The single exit. `error` is the difference between the connection ending
+   * because there is nothing more to say and it ending because something broke
+   * — the client reconnects either way, but a stream that closes cleanly on a
+   * failure claims the submission is settled when it is not.
+   */
+  const finish = (error?: unknown) => {
+    if (closed) return;
+    closed = true;
+    for (const cleanup of cleanups) cleanup();
+    try {
+      if (error === undefined) controller?.close();
+      else controller?.error(error);
+    } catch {
+      // Already closed by the runtime, which is the ordinary case on the
+      // cancel path: the reader is gone and the controller went with it before
+      // we were told.
+    }
+  };
 
-      // Takes no arguments of its own, which is what lets it be handed
-      // straight to `addEventListener` below without the abort event arriving
-      // as a failure.
-      const close = () => finish();
+  // Takes no arguments of its own, which is what lets it be handed straight to
+  // `addEventListener` and to `cancel` below without an abort event or a
+  // cancellation reason arriving as a failure.
+  const close = () => finish();
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(streamController) {
+      controller = streamController;
 
       const send = (view: SubmissionView) => {
         if (closed) return;
         try {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(view)}\n\n`));
+          streamController.enqueue(
+            encoder.encode(`data: ${JSON.stringify(view)}\n\n`),
+          );
         } catch {
           close();
           return;
@@ -130,7 +153,7 @@ export async function GET(request: Request) {
        * earlier.
        */
       try {
-        controller.enqueue(encoder.encode("retry: 5000\n\n"));
+        streamController.enqueue(encoder.encode("retry: 5000\n\n"));
         send(toView(initial));
         if (closed) return;
 
@@ -184,7 +207,7 @@ export async function GET(request: Request) {
             }
 
             try {
-              controller.enqueue(encoder.encode(": ping\n\n"));
+              streamController.enqueue(encoder.encode(": ping\n\n"));
             } catch {
               close();
             }
@@ -200,6 +223,20 @@ export async function GET(request: Request) {
         console.error("[foi] 提交事件流启动失败", error);
         finish(error);
       }
+    },
+
+    /**
+     * The reader letting go, which is how an ordinary client disconnect
+     * arrives when nothing aborts the request that opened this. Same `close`
+     * as everywhere else, so the two ends of the connection dying in either
+     * order costs one release.
+     *
+     * The cancellation reason is deliberately dropped rather than forwarded to
+     * `finish`: it describes why the reader left, not a failure to report back
+     * to it, and there is nobody left to report to in any case.
+     */
+    cancel() {
+      close();
     },
   });
 

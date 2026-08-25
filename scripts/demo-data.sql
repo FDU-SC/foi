@@ -23,10 +23,18 @@ WITH plan(handle, slug, minute, ok) AS (
 -- from the database because the mirror table holds no schedule any more.
 window_start(at) AS (
   VALUES (timestamptz '2026-08-01T13:00:00+08:00')
+),
+-- And the same for the total, mirroring content/problems/maze-runner. This
+-- used to read `problems.max_score`, which stopped existing when that table
+-- became a foreign key anchor holding a slug, a title and a sync timestamp:
+-- scoring is read from content/, so a submission's denominator is written onto
+-- the submission when it is filed rather than looked up.
+scoring(max_score) AS (
+  VALUES (double precision '100')
 )
 INSERT INTO submissions (
   id, handle, problem_slug, contest_slug, payload, state,
-  verdict, score, max_score, judge_id, callback_token_hash,
+  verdict, score, max_score, backend_id,
   created_at, judged_at
 )
 SELECT
@@ -38,17 +46,20 @@ SELECT
   'completed',
   jsonb_build_object(
     'status', CASE WHEN plan.ok THEN 'accepted' ELSE 'wrong_answer' END,
-    'score', CASE WHEN plan.ok THEN p.max_score ELSE 0 END,
-    'maxScore', p.max_score
+    'score', CASE WHEN plan.ok THEN s.max_score ELSE 0 END,
+    'maxScore', s.max_score
   ),
-  CASE WHEN plan.ok THEN p.max_score ELSE 0 END,
-  p.max_score,
+  CASE WHEN plan.ok THEN s.max_score ELSE 0 END,
+  s.max_score,
   'traditional',
-  'seeded',
   w.at + (plan.minute || ' minutes')::interval,
   w.at + (plan.minute || ' minutes')::interval
 FROM plan
 JOIN credentials c ON c.handle = plan.handle
+-- Still joined, and only for the foreign key: the row has to be there before a
+-- submission may reference it, which is what the header asks the operator to
+-- arrange by running the app once.
 JOIN problems p ON p.slug = plan.slug
 CROSS JOIN window_start w
+CROSS JOIN scoring s
 ON CONFLICT (id) DO NOTHING;

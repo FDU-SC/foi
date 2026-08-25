@@ -1,5 +1,5 @@
 {
-  "id": "e89b1cff-02e0-4f3e-b03e-63d5343715c2",
+  "id": "5a8cc135-1ecd-410f-a377-e2b7d79a097f",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -534,8 +534,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "judge_id": {
-          "name": "judge_id",
+        "backend_id": {
+          "name": "backend_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -642,13 +642,13 @@
           "name": "submissions_queued_idx",
           "columns": [
             {
-              "expression": "judge_id",
+              "expression": "backend_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "created_at",
+              "expression": "queued_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -672,6 +672,22 @@
           ],
           "isUnique": false,
           "where": "state = 'judging'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "submissions_disrupted_idx": {
+          "name": "submissions_disrupted_idx",
+          "columns": [
+            {
+              "expression": "judged_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "state = 'disrupted'",
           "concurrently": false,
           "method": "btree",
           "with": {}

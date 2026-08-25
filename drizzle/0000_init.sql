@@ -73,7 +73,7 @@ CREATE TABLE "submissions" (
 	"outcome" text,
 	"release_sha" text,
 	"backend_version" text,
-	"judge_id" text NOT NULL,
+	"backend_id" text NOT NULL,
 	"runner_id" text,
 	"lease" text,
 	"runner_status" text,
@@ -96,7 +96,8 @@ CREATE INDEX "accounts_status_idx" ON "accounts" USING btree ("status");--> stat
 CREATE UNIQUE INDEX "auth_tokens_token_hash_key" ON "auth_tokens" USING btree ("token_hash");--> statement-breakpoint
 CREATE INDEX "auth_tokens_handle_idx" ON "auth_tokens" USING btree ("handle","purpose","created_at");--> statement-breakpoint
 CREATE INDEX "submissions_standings_idx" ON "submissions" USING btree ("contest_slug","problem_slug","handle","created_at");--> statement-breakpoint
-CREATE INDEX "submissions_queued_idx" ON "submissions" USING btree ("judge_id","created_at") WHERE state = 'queued';--> statement-breakpoint
+CREATE INDEX "submissions_queued_idx" ON "submissions" USING btree ("backend_id","queued_at") WHERE state = 'queued';--> statement-breakpoint
 CREATE INDEX "submissions_lapsed_idx" ON "submissions" USING btree ("last_heartbeat_at") WHERE state = 'judging';--> statement-breakpoint
+CREATE INDEX "submissions_disrupted_idx" ON "submissions" USING btree ("judged_at") WHERE state = 'disrupted';--> statement-breakpoint
 CREATE INDEX "submissions_handle_idx" ON "submissions" USING btree ("handle","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "submissions_client_nonce_key" ON "submissions" USING btree ("handle","client_nonce");

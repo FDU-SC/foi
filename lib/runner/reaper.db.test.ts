@@ -19,7 +19,7 @@ import { reapOnce } from "./reaper";
 /**
  * The only loop, and the only place the kernel concludes anything by itself.
  *
- * A pass sweeps the whole table — it is three unscoped `update ... where`
+ * A pass sweeps the whole table — it is four unscoped `update ... where`
  * statements — so the evidence in every case below is the fixture row's own
  * state rather than the counts `reapOnce` hands back: a shared development
  * database may well hold rows this suite did not write, and an exact count
@@ -262,9 +262,8 @@ describeDb("失联回收", () => {
       expect(row.error).toBeNull();
       // And the row is still as old as it was. Advancing `created_at` would
       // silence the fuse too, and is the fix not taken: it is what a submission
-      // list shows, what the contest window is compared against and what
-      // `claimJob` orders by, so a rejudge would move the submission inside the
-      // round it was made during.
+      // list shows and what the contest window is compared against, so a
+      // rejudge would move the submission inside the round it was made during.
       expect(row.createdAt.getTime()).toBeLessThan(Date.now() - QUEUE_FUSE_MS);
       expect(row.queuedAt.getTime()).toBeGreaterThan(Date.now() - 60_000);
     });

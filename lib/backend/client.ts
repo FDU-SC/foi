@@ -4,6 +4,7 @@ import type { Viewer } from "@/lib/auth/viewer";
 import { readTextBody } from "@/lib/body-limit";
 import { db } from "@/lib/db";
 import { runners, submissions } from "@/lib/db/schema";
+import { RUNNER_ONLINE_MS } from "@/lib/runner/queue";
 import { backendsFor } from "./access";
 import { signedHeaders } from "./signature";
 import { type BackendActionRequest } from "./types";
@@ -253,16 +254,6 @@ export function listBackendIds(): string[] {
   return Object.keys(backends);
 }
 
-/**
- * How recently a runner must have asked for work to count as here.
- *
- * Several times the poll interval the protocol suggests, because a runner that
- * misses one poll to a network hiccup has not gone anywhere and a board that
- * flickers is one nobody reads. What it has to catch is a runner that has
- * stopped, and that shows up within a minute.
- */
-const RUNNER_ONLINE_MS = 60_000;
-
 /** One entry in a backend's queue, as the board draws it. */
 export interface QueueEntry {
   submissionId: string;
@@ -279,6 +270,12 @@ export interface QueueEntry {
    */
   status?: string | null;
   runnerId?: string | null;
+  /**
+   * When this row last entered the queue — `queued_at`, not `created_at`, so a
+   * rejudged submission is drawn as the new arrival it is. It is also the key
+   * the list is ordered on, which is what makes the board's order the order
+   * work will actually be handed out in.
+   */
   enqueuedAt: string;
   claimedAt?: string;
 }
@@ -322,14 +319,44 @@ const BOARD_LIMIT = 50;
  * Driven by the configuration rather than by what happens to be in the table,
  * so a backend with nothing queued still appears — as an idle one, which is
  * information.
+ *
+ * The depths and the listing are two statements because they are two
+ * questions, and answering both from one truncated read got the more important
+ * one wrong. It used to take `BOARD_LIMIT * ids.length` rows ordered globally
+ * and group them here, which works right up until one backend is having the
+ * bad day the board exists to show: its backlog fills the window, every other
+ * backend's rows fall off the end, and their `queued` and `judging` come back
+ * zero. The page then says nobody is waiting anywhere — the single reading an
+ * operator must never be handed wrongly, since it is the one that ends the
+ * investigation.
+ *
+ * So the counts are a `group by` over the whole in-flight set and are exact.
+ * The listing keeps its cap and is honestly a window: a backend behind a deep
+ * backlog may show a truncated list, or none of its own rows at all, while its
+ * depth beside it stays right. That is the correct half to compromise — the
+ * number is the diagnosis and the rows are the illustration.
  */
 async function allBackendQueues(): Promise<BackendQueueStatus[]> {
   const ids = listBackendIds();
   if (ids.length === 0) return [];
 
+  const inFlight = and(
+    inArray(submissions.backendId, ids),
+    inArray(submissions.state, ["queued", "judging"]),
+  );
+
   const since = new Date(Date.now() - RUNNER_ONLINE_MS);
 
-  const [rows, online] = await Promise.all([
+  const [depths, rows, online] = await Promise.all([
+    db
+      .select({
+        backendId: submissions.backendId,
+        state: submissions.state,
+        count: count(),
+      })
+      .from(submissions)
+      .where(inFlight)
+      .groupBy(submissions.backendId, submissions.state),
     db
       .select({
         id: submissions.id,
@@ -338,51 +365,50 @@ async function allBackendQueues(): Promise<BackendQueueStatus[]> {
         state: submissions.state,
         runnerId: submissions.runnerId,
         runnerStatus: submissions.runnerStatus,
-        createdAt: submissions.createdAt,
+        queuedAt: submissions.queuedAt,
         claimedAt: submissions.claimedAt,
       })
       .from(submissions)
-      .where(
-        and(
-          inArray(submissions.backendId, ids),
-          inArray(submissions.state, ["queued", "judging"]),
-        ),
-      )
-      .orderBy(asc(submissions.createdAt))
+      .where(inFlight)
+      // The order work is handed out in, so the board reads top to bottom as
+      // the queue will drain. `queued_at` and not `created_at` for the reason
+      // `claimJob` uses it: a rejudged submission is at the back, where it
+      // joined, rather than at the front where it was first submitted.
+      .orderBy(asc(submissions.queuedAt))
       .limit(BOARD_LIMIT * ids.length),
     db
       .select({ backendId: runners.backendId, count: count() })
       .from(runners)
       .where(
-        and(
-          inArray(runners.backendId, ids),
-          gte(runners.lastSeenAt, since),
-        ),
+        and(inArray(runners.backendId, ids), gte(runners.lastSeenAt, since)),
       )
       .groupBy(runners.backendId),
   ]);
 
+  const depthOf = new Map(
+    depths.map((row) => [`${row.backendId}:${row.state}`, row.count]),
+  );
   const runnersById = new Map(online.map((row) => [row.backendId, row.count]));
 
-  return ids.map((id) => {
-    const mine = rows.filter((row) => row.backendId === id);
-    return {
-      id,
-      url: backends[id]?.url ?? null,
-      runners: runnersById.get(id) ?? 0,
-      queued: mine.filter((row) => row.state === "queued").length,
-      judging: mine.filter((row) => row.state === "judging").length,
-      items: mine.slice(0, BOARD_LIMIT).map((row) => ({
+  return ids.map((id) => ({
+    id,
+    url: backends[id]?.url ?? null,
+    runners: runnersById.get(id) ?? 0,
+    queued: depthOf.get(`${id}:queued`) ?? 0,
+    judging: depthOf.get(`${id}:judging`) ?? 0,
+    items: rows
+      .filter((row) => row.backendId === id)
+      .slice(0, BOARD_LIMIT)
+      .map((row) => ({
         submissionId: row.id,
         problemSlug: row.problemSlug,
         state: row.state === "judging" ? "judging" : "queued",
         status: row.runnerStatus,
         runnerId: row.runnerId,
-        enqueuedAt: row.createdAt.toISOString(),
+        enqueuedAt: row.queuedAt.toISOString(),
         claimedAt: row.claimedAt?.toISOString(),
       })),
-    };
-  });
+  }));
 }
 
 /**

@@ -13,7 +13,7 @@ import { HEARTBEAT_LAPSE_MS, MAX_ATTEMPTS, QUEUE_FUSE_MS } from "./queue";
  * kernel's own in-flight set. Both existed because the queue lived somewhere
  * else and had to be inferred across a network. It does not any more, so there
  * is nothing to reconcile — every fact this needs is a column, and a pass is
- * three indexed statements that normally affect zero rows.
+ * four indexed statements that normally affect zero rows.
  *
  * What it decides, in order:
  *
@@ -21,10 +21,23 @@ import { HEARTBEAT_LAPSE_MS, MAX_ATTEMPTS, QUEUE_FUSE_MS } from "./queue";
  *   2. a holder went quiet → back to `queued`
  *   3. nothing has come for it since it was queued and the fuse has burned
  *      through → `disrupted`
+ *   4. nobody is holding it and it has no attempts left → `disrupted`
  *
  * One and two are one condition split by the attempt count, and they run in
  * that order on purpose: writing off first means the requeue statement cannot
- * hand a doomed row back to the pool for one more lap.
+ * hand a doomed row back to the pool for one more lap. Four is the same
+ * conclusion as one, reached about a row that is sitting in `queued` instead:
+ * `claimJob` refuses to hand those out, so no heartbeat will ever lapse on
+ * them and nothing else would ever conclude.
+ *
+ * Three and four read `submissions_queued_idx` without its leading column, so
+ * both are a scan of that index rather than a seek — and four filters on
+ * `attempts`, which is not in it at all. Deliberately not given an index of its
+ * own: the set it scans is the queue, which is small by construction, and the
+ * subset it is looking for is a submission that has killed three runners in a
+ * row, which in a working deployment is empty and stays empty. A second index
+ * would be maintained on every insert and every claim in order to find nothing
+ * faster.
  */
 
 /**
@@ -120,9 +133,11 @@ export async function reapOnce(): Promise<{
   // Rows past the attempt cap that are sitting in `queued` rather than
   // `judging`. `claimJob` refuses to hand these out, so without this they would
   // wait out the fuse before being written off — six hours of a spinner for a
-  // submission the kernel already knows it will never resolve. Folded in here
-  // rather than given a statement of its own because it is the same conclusion
-  // as the first block, reached one tick later.
+  // submission the kernel already knows it will never resolve. Counted as
+  // `exhausted` below rather than reported separately, because it is the same
+  // conclusion as the first block reached one tick later, and an operator
+  // reading the log is being told how many submissions the kernel gave up on
+  // rather than which statement got there first.
   const stuck = await db
     .update(submissions)
     .set({
@@ -171,7 +186,7 @@ declare global {
  * The day the reaper moves to a process of its own, this needs a heartbeat
  * table. Until then a table would be machinery for a deployment nobody runs.
  */
-export function reaperRanAt(): Date | null {
+function reaperRanAt(): Date | null {
   return globalThis.__foiReaperRanAt
     ? new Date(globalThis.__foiReaperRanAt)
     : null;
@@ -230,16 +245,31 @@ export async function recentDisruptions(windowMs: number): Promise<number> {
 }
 
 /**
- * One self-scheduling loop.
+ * One self-scheduling loop, and the handle that stops it.
  *
  * Self-scheduling rather than `setInterval` so a slow pass cannot overlap
  * itself: the next tick is booked when the previous one finishes. The old
  * reconciler used a fixed timer over a sweep that could outlast its own
  * interval, and ended up with dozens of passes in flight against a backend that
  * had stopped answering.
+ *
+ * Which is exactly why a timer handle is the wrong thing to hand back, and
+ * this used to hand back one: the first `setTimeout`, which by the time anybody
+ * could have cleared it had already fired. Each tick booked its successor into
+ * a local nobody outside could read, so `instrumentation.ts` cancelling the
+ * value it was given cancelled a timer that no longer existed and every hot
+ * reload during `next dev` left another loop running against the same tables.
+ * Silent, because the extra passes are correct — they simply do the same work
+ * several times a second and keep a stopped reaper looking alive.
+ *
+ * A closure instead, and it carries a flag as well as a `clearTimeout`.
+ * Cancelling the pending timer is not enough on its own: a pass may be in
+ * flight, and its `finally` would book the next one after the caller believed
+ * the loop had stopped.
  */
-export function startReaping(intervalMs: number): NodeJS.Timeout {
+export function startReaping(intervalMs: number): () => void {
   let timer: NodeJS.Timeout;
+  let stopped = false;
 
   const tick = async () => {
     try {
@@ -253,10 +283,14 @@ export function startReaping(intervalMs: number): NodeJS.Timeout {
     } catch (error) {
       console.error("[foi] 回收失败", error);
     } finally {
-      timer = setTimeout(tick, intervalMs);
+      if (!stopped) timer = setTimeout(tick, intervalMs);
     }
   };
 
   timer = setTimeout(tick, 0);
-  return timer;
+
+  return () => {
+    stopped = true;
+    clearTimeout(timer);
+  };
 }

@@ -56,12 +56,15 @@ import type { SubmissionState, Verdict } from "@/lib/backend/types";
  * filling in the registration form and clicking the link that arrived
  * afterwards — a gap that no longer exists now that the address is proved
  * before the row is written. An account is either able to act or stopped.
+ *
+ * Both of these, and `TokenPurpose` below, are unions rather than `const`
+ * arrays indexed into. The arrays were exported and nothing imported them —
+ * every use is a `$type` annotation, which wants the type — so what they
+ * bought was three runtime lists no caller iterates.
  */
-export const accountStatuses = ["active", "suspended"] as const;
-export type AccountStatus = (typeof accountStatuses)[number];
+export type AccountStatus = "active" | "suspended";
 
-export const accountSources = ["bootstrap", "registration"] as const;
-export type AccountSource = (typeof accountSources)[number];
+export type AccountSource = "bootstrap" | "registration";
 
 export const accounts = pgTable(
   "accounts",
@@ -162,8 +165,7 @@ export const credentials = pgTable("credentials", {
  * never existed", and so that a recently issued token can throttle the next
  * request for one without a separate rate-limit store.
  */
-export const tokenPurposes = ["password_reset"] as const;
-export type TokenPurpose = (typeof tokenPurposes)[number];
+export type TokenPurpose = "password_reset";
 
 export const authTokens = pgTable(
   "auth_tokens",
@@ -485,7 +487,7 @@ export const submissions = pgTable(
     /**
      * When this row last entered the queue, which is not when it was created.
      *
-     * The queue fuse is the only reader, and the distinction is the bug it
+     * It arrived for the queue fuse, and the distinction is the bug the fuse
      * shipped with. `created_at` answers "when did somebody submit this"; the
      * fuse asks "how long has this been sitting here with nobody coming for
      * it", and the two are the same number for exactly one lap. Two paths put a
@@ -498,15 +500,25 @@ export const submissions = pgTable(
      * queue is deep or no runner is online, which is when a rejudge is most
      * likely to be what somebody just asked for.
      *
+     * `claimJob` orders by it now, and the queue positions under
+     * `lib/backend/queue-lookup.ts` count against it. That is the same argument
+     * one layer up: handing work out by `created_at` meant those same two paths
+     * put a requeued submission in front of everything submitted since, so a
+     * batch rejudge mid-round jumped the entire queue — backwards, because a
+     * rejudge is work that has just arrived. Every reader that means "who has
+     * been waiting longest" now names this column, and the ones that mean "when
+     * did this happen" still name `created_at`.
+     *
      * `created_at` could not be moved instead. It is what a submission list
-     * shows, what the contest window is compared against and what `claimJob`
-     * orders by, so advancing it on a rejudge would relocate the submission
-     * inside the round it was made during.
+     * shows and what the contest window is compared against, so advancing it on
+     * a rejudge would relocate the submission inside the round it was made
+     * during.
      *
      * `not null` with a default, and written explicitly at all three places a
-     * row becomes `queued`, so that a fourth cannot leave behind a row the fuse
-     * quietly declines to consider: a fuse that never fires fails the same way
-     * as one that fires early, only later and with a spinner.
+     * row becomes `queued`, so that a fourth cannot leave behind a row those
+     * readers silently mis-order or decline to consider: a fuse that never
+     * fires fails the same way as one that fires early, only later and with a
+     * spinner.
      */
     queuedAt: timestamp("queued_at", { withTimezone: true })
       .notNull()
@@ -524,7 +536,7 @@ export const submissions = pgTable(
       table.createdAt,
     ),
     /**
-     * Handing out work, and the queue fuse.
+     * Handing out work, and the two sweeps that conclude on a queued row.
      *
      * Backend first because a claim is always for one backend's queue; the
      * timestamp after it, because oldest-first is the whole ordering policy.
@@ -532,18 +544,23 @@ export const submissions = pgTable(
      * all: a row nobody is holding is the only kind that can be handed out, and
      * the set of them is small and short-lived even when the table is not.
      *
-     * The fuse sweep reads it too, without the leading column — it wants every
-     * backend's stale queue entries. That is a scan of this index rather than a
-     * seek, which is the right trade against a second index over a set that is
-     * usually empty. It filters on `queued_at` rather than the column indexed
-     * here, so those rows are checked against the heap; deliberately not
-     * indexed, because the two clocks disagree only for rows that have been
-     * requeued and the alternative is a second index, or losing the ordering
-     * `claimJob` needs on the one statement every runner in the deployment
-     * runs.
+     * `queued_at` and not `created_at`, for the reason given on the column. The
+     * index had the other one while the fuse already filtered on this one, so
+     * the sweep walked this index and then rechecked every row it matched
+     * against the heap — the ordering `claimJob` needed and the predicate the
+     * fuse needed were two different clocks. They are one clock now, and the
+     * index is the same size it was.
+     *
+     * Both sweeps read it without the leading column, because they want every
+     * backend's stale entries rather than one queue's: a scan of this index
+     * rather than a seek, which is the right trade against a second index over
+     * a set that is usually empty. The second of them narrows on `attempts`,
+     * which is not in here at all, so those rows are rechecked against the
+     * heap — see `reapOnce` for why a submission that has killed three runners
+     * in a row does not earn an index of its own either.
      */
     index("submissions_queued_idx")
-      .on(table.backendId, table.createdAt)
+      .on(table.backendId, table.queuedAt)
       .where(sql`state = 'queued'`),
     /**
      * Taking work back. Partial for the same reason and more sharply: a healthy

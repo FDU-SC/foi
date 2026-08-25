@@ -54,15 +54,14 @@ export const INLINE_BACKEND_VERSION = "inline";
  * judge throwing. The first two do not exist when nobody dispatches, and the
  * third was always misfiled: our code breaking is not the submission being
  * unacceptable, so it lands in `disrupted` too.
+ *
+ * A union rather than a `const` array indexed into. The array was exported and
+ * nothing imported it: no caller iterates the states, and the two places that
+ * enumerate them — `STATE_PRESETS` below and the state column's `$type` — are
+ * both keyed by the type, so a missing case is a compile error either way.
+ * What the value bought was a runtime list nobody asked for.
  */
-export const SUBMISSION_STATES = [
-  "queued",
-  "judging",
-  "completed",
-  "disrupted",
-] as const;
-
-export type SubmissionState = (typeof SUBMISSION_STATES)[number];
+export type SubmissionState = "queued" | "judging" | "completed" | "disrupted";
 
 /**
  * "Is there any point waiting for this?" — the client's question.

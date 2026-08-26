@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import type { BackendQueueStatus, QueueEntry } from "@/lib/backend/board";
 import { cn } from "@/lib/utils";
 
@@ -43,11 +44,9 @@ function Metric({
 }
 
 /**
- * One row of the queue.
- *
- * The position is a real position now — the kernel orders the queue, so the
- * number beside a waiting submission is exactly how many are ahead of it rather
- * than an index into whatever a backend last reported.
+ * One row of the queue. The position beside a waiting submission is exactly
+ * how many are ahead of it: the kernel owns the ordering, so this is a fact
+ * rather than an index into what a backend last reported.
  */
 function QueueRow({ item, index }: { item: QueueEntry; index: number }) {
   const judging = item.state === "judging";
@@ -94,11 +93,10 @@ function QueueRow({ item, index }: { item: QueueEntry; index: number }) {
 /**
  * One backend.
  *
- * There is no online flag and no latency, because there is nothing to dial:
- * judging is pulled, so a backend has no inbound address and being "reachable"
- * is not a property it has. What replaced both is the runner count — processes
- * that have actually asked for work in the last minute — which is the fact the
- * old health badge was a proxy for and a worse one.
+ * No online flag and no latency, because there is nothing to dial: judging is
+ * pulled, so a backend has no inbound address and being "reachable" is not a
+ * property it has. The runner count answers the question those were a proxy
+ * for — processes that actually asked for work in the last minute.
  */
 function JudgeCard({ status }: { status: BackendQueueStatus }) {
   const queued = status.items.filter((item) => item.state === "queued");
@@ -108,19 +106,20 @@ function JudgeCard({ status }: { status: BackendQueueStatus }) {
   const stranded = status.runners === 0 && status.queued > 0;
 
   return (
-    <div className="border-border bg-surface overflow-hidden rounded-lg border">
-      <div className="border-border bg-surface-2/50 flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
-        <span className="text-fg font-mono text-sm font-semibold">
-          {status.id}
-        </span>
-        {status.runners > 0 ? (
-          <Badge tone="ok">{status.runners} 台在线</Badge>
-        ) : (
-          <Badge tone={status.queued > 0 ? "err" : "neutral"}>无评测机</Badge>
-        )}
-      </div>
+    <Card>
+      <CardHeader
+        className="flex-wrap justify-start gap-2"
+        title={<span className="font-mono">{status.id}</span>}
+        actions={
+          status.runners > 0 ? (
+            <Badge tone="ok">{status.runners} 台在线</Badge>
+          ) : (
+            <Badge tone={status.queued > 0 ? "err" : "neutral"}>无评测机</Badge>
+          )
+        }
+      />
 
-      <div className="space-y-3 px-4 py-3">
+      <CardBody className="space-y-3">
         {status.url ? (
           <div className="text-fg-subtle font-mono text-[11px]">
             {status.url}
@@ -161,8 +160,8 @@ function JudgeCard({ status }: { status: BackendQueueStatus }) {
             </table>
           </div>
         ) : null}
-      </div>
-    </div>
+      </CardBody>
+    </Card>
   );
 }
 

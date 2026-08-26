@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { useFormStatus } from "react-dom";
+import { FormMessage, PendingSubmit } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import {
@@ -12,20 +12,6 @@ import {
   type RegisterState,
 } from "./actions";
 
-function SubmitButton({ disabled }: { disabled: boolean }) {
-  const { pending } = useFormStatus();
-  return (
-    <Button
-      type="submit"
-      variant="primary"
-      className="w-full"
-      disabled={pending || disabled}
-    >
-      {pending ? "注册中…" : "注册"}
-    </Button>
-  );
-}
-
 /**
  * The account was created but the session was not. Registration succeeded, so
  * this must not look like a failure — the only thing left is a login the
@@ -34,9 +20,9 @@ function SubmitButton({ disabled }: { disabled: boolean }) {
 function NeedsLogin() {
   return (
     <div className="space-y-4">
-      <p className="text-ok bg-ok-subtle rounded-md px-3 py-2 text-sm leading-6">
+      <FormMessage tone="ok">
         账号已创建。自动登录没有成功，请手动登录一次。
-      </p>
+      </FormMessage>
       <Link
         href="/login"
         className="bg-primary text-primary-fg hover:bg-primary-hover block rounded-md px-3 py-2 text-center text-sm font-medium transition-colors"
@@ -206,9 +192,7 @@ export function RegisterForm({
       </div>
 
       {verified ? (
-        <p className="text-ok bg-ok-subtle rounded-md px-3 py-2 text-sm leading-6">
-          邮箱已验证，可以完成注册了。
-        </p>
+        <FormMessage tone="ok">邮箱已验证，可以完成注册了。</FormMessage>
       ) : null}
 
       {!verified && phase === "sent" ? (
@@ -278,13 +262,16 @@ export function RegisterForm({
         />
       </Field>
 
-      {state.error ? (
-        <p className="text-err bg-err-subtle rounded-md px-3 py-2 text-sm leading-6">
-          {state.error}
-        </p>
-      ) : null}
+      {state.error ? <FormMessage tone="err">{state.error}</FormMessage> : null}
 
-      <SubmitButton disabled={!verified} />
+      <PendingSubmit
+        variant="primary"
+        className="w-full"
+        pendingLabel="注册中…"
+        disabled={!verified}
+      >
+        注册
+      </PendingSubmit>
     </form>
   );
 }

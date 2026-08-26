@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getViewer } from "@/auth";
-import { ProblemBadges } from "@/components/problem/problem-badges";
+import { ProblemBadgesSlot } from "@/components/problem/badges-slot";
 import { Badge } from "@/components/ui/badge";
 import { problemsFor } from "@/lib/problems/access";
 
@@ -59,7 +59,7 @@ export default async function ProblemsPage() {
                 </td>
                 <td className="px-4 py-2.5">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <ProblemBadges config={problem} />
+                    <ProblemBadgesSlot config={problem} />
                   </div>
                 </td>
               </tr>

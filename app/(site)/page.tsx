@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getViewer } from "@/auth";
-import { ProblemBadges } from "@/components/problem/problem-badges";
+import { ProblemBadgesSlot } from "@/components/problem/badges-slot";
 import { Badge } from "@/components/ui/badge";
 import { problemsFor } from "@/lib/problems/access";
 
@@ -79,7 +79,7 @@ export default async function HomePage() {
                   {problem.title}
                 </span>
                 {gate.visible ? null : <Badge tone="warn">未公开</Badge>}
-                <ProblemBadges config={problem} />
+                <ProblemBadgesSlot config={problem} />
               </Link>
             </li>
           ))}

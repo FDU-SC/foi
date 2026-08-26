@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { VerdictBody } from "@/components/opaque/verdict-body";
+import { VerdictBody } from "@/components/opaque";
 import { useProblem } from "@/components/problem/problem-context";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
@@ -158,11 +158,10 @@ export function SubmitPanel({ kind: kindOverride }: { kind?: SubmitKind }) {
         )}
 
         {/*
-          The badge above says 评测失败 for both `failed` and `abandoned`, on
-          purpose — see `STATE_PRESETS`. This line is the only place the two
-          differ in front of a player, and it is the difference that decides
-          what to do next: a refusal will refuse the same submission again, a
-          timeout says nothing about the submission and is worth retrying.
+          The badge above says only 评测中断. This line is the one place a
+          runner's "I cannot judge this" is told apart from the kernel deciding
+          nobody is coming, because that difference lives in the text rather
+          than in the state — see `failureReason`.
         */}
         {submission?.reason ? (
           <p className="text-err bg-err-subtle mt-4 rounded-md px-3 py-2 text-sm">

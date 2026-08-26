@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useProblem } from "@/components/problem/problem-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CopyButton } from "@/components/ui/copy-button";
+import { CopyButton } from "@/content/components/copy-button";
 
 /** What `spawn` and `poll` both answer with. See this problem's backend. */
 type InstanceView =

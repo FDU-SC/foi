@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CopyButton } from "@/components/ui/copy-button";
+import { CopyButton } from "./copy-button";
 
 function Pane({ label, content }: { label: string; content: string }) {
   return (

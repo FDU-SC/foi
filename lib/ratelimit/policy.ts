@@ -1,12 +1,9 @@
 /**
  * Every way into this application, and what bounds it.
  *
- * Until this existed, "which endpoints are rate limited" could only be
- * answered by `rg 'rateLimit\('`, and the answer was "the ones somebody
- * remembered" — eight of seventeen, with one privileged path looser than the
- * public form it mirrors. That is the shape `lib/auth/policy.ts` refuses for
- * authorisation, and for the same reason: the value of listing every decision
- * in one place is not the array, it is that the list can be read to the end.
+ * The same shape `lib/auth/policy.ts` uses for authorisation, and for the same
+ * reason: the value of listing every decision in one place is not the array,
+ * it is that the list can be read to the end.
  *
  * So every route handler and every Server Action appears below, and the ones
  * with no bound say so out loud with a reason. `policy.test.ts` walks the
@@ -172,13 +169,9 @@ export type RouteRule = RateLimitRule & { guard: OriginGuard };
  *
  * Every one of these takes a coarse per-source bound before it does anything
  * else — see `SOURCE_GATE` below. The rules here are what comes after that,
- * once there is an identity to count.
- *
- * That sentence is universal again. `/api/auth/[...nextauth]` was the
- * exception for as long as its handlers were re-exported whole, which left no
- * first line to put `guardRequest` on; it is now wrapped, and the wrapper adds
- * only the flood cap because `originGate` reads the guard from here and both
- * of its entries decline the origin check.
+ * once there is an identity to count. No exceptions, including
+ * `/api/auth/[...nextauth]`, whose Auth.js handlers are wrapped for exactly
+ * that reason.
  */
 export const ROUTE_LIMITS = {
   /**
@@ -296,30 +289,25 @@ export const ROUTE_LIMITS = {
   /**
    * Auth.js's handlers, wrapped in `guardRequest` like every other route here.
    *
-   * The wrapper was argued against once, and the argument was wrong in a way
-   * worth leaving written down: it assumed adding the guard meant adding the
-   * origin check, and that a `same-origin` declaration would refuse every
-   * sign-in through the form content-type rule. Both halves of that are true.
-   * What it missed is that `originGate` reads the guard off this table and
-   * returns immediately for anything that is not `same-origin` — so the two
-   * entries below already say "not ours to check", and wrapping adds the flood
-   * cap alone. The choice was never between all of the guard and none of it.
+   * Wrapping is not the same as declaring `same-origin`, and conflating the
+   * two is the mistake to avoid: a `same-origin` declaration here would refuse
+   * every sign-in through the form content-type rule. `originGate` reads the
+   * guard off this table and returns immediately for anything that is not
+   * `same-origin`, so these two entries say "not ours to check" and the
+   * wrapper contributes the flood cap alone.
    *
-   * The other half of that argument was that the per-source budget is
-   * collective, so a lab behind one campus address would lock each other out.
-   * It does not apply here, and the reason is specific rather than a matter of
-   * sizing: nothing in this application reaches this route. `signIn` and
-   * `signOut` in a Server Action call `Auth(req, { raw, skipCSRFCheck })`
-   * in-process, there is no `useSession` and no `SessionProvider` polling
-   * `/api/auth/session`, and no page links here. Legitimate traffic is
-   * whatever posts straight to `/callback/credentials`, which is a real path
-   * — `authorize` is deliberately where `login` is counted so that it stays
-   * bounded — but it is not one a browser reaches by using the site.
+   * Nor does the usual objection to a collective per-source budget apply —
+   * a lab behind one campus address locking each other out — because nothing
+   * in this application reaches this route. `signIn` and `signOut` in a Server
+   * Action call `Auth(req, { raw, skipCSRFCheck })` in-process, there is no
+   * `useSession` and no `SessionProvider` polling `/api/auth/session`, and no
+   * page links here. Legitimate traffic is whatever posts straight to
+   * `/callback/credentials`, which is a real path — `authorize` is
+   * deliberately where `login` is counted so that it stays bounded — but not
+   * one a browser reaches by using the site.
    *
-   * So `kind` stays `unlimited` and means what it says: no bound keyed on an
-   * identity, because there is no identity here to key on. `login` below
-   * bounds the only action that costs anything, from inside `authorize`, for
-   * this route and the Server Action alike. `SOURCE_GATE` now covers the rest.
+   * So `kind` is `unlimited` in the literal sense: no bound keyed on an
+   * identity, because there is no identity here to key on.
    */
   "POST /api/auth/[...nextauth]": {
     kind: "unlimited",
@@ -399,16 +387,13 @@ export const ACTION_LIMITS = {
     subject: "source",
   },
   /**
-   * Mail somebody did not ask for, sent by an operator.
+   * Mail somebody did not ask for, sent by an operator, so it must stay at
+   * least as tight as the public `requestPasswordReset` it mirrors.
    *
-   * This was the gap that made the table worth building: the public
-   * `requestPasswordReset` above is bounded per source, and this — the
-   * privileged path that does the same thing — had nothing. The per-recipient
-   * cooldown in `lib/mail/notify.ts` only stops the *same* account being mailed
-   * twice a minute, so a stolen `credential.manage` session could send one
-   * message per account per minute, indefinitely, from this deployment's
-   * domain. Sending mail has a cost that lands on somebody else's inbox and on
-   * this domain's reputation.
+   * The per-recipient cooldown in `lib/mail/notify.ts` is not a substitute: it
+   * only stops the *same* account being mailed twice a minute, so without a
+   * bound here a stolen `credential.manage` session sends one message per
+   * account per minute, indefinitely, from this deployment's domain.
    */
   resendPasswordResetAction: {
     kind: "fixed",

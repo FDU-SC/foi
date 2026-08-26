@@ -15,8 +15,8 @@ import { viewsFor } from "./views";
  * for a kernel test, which is the arrangement `test/content-shapes.ts` exists
  * to keep narrow.
  *
- * That an *unfilled* slot renders as JSON is `components/opaque/`'s business;
- * this only pins what those components are handed.
+ * That an *unfilled* slot renders as JSON is `components/opaque.tsx`'s
+ * business; this only pins what those components are handed.
  */
 describe("viewsFor 对没有登记渲染的题目", () => {
   const ABSENT = "kernel-probe-no-such-problem";

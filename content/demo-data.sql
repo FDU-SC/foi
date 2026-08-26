@@ -2,9 +2,12 @@
 -- standings have something to rank. Judging itself is verified end-to-end
 -- elsewhere; these rows stand in for already-judged results.
 --
--- The contest and its problem set are no longer inserted here: they live in
--- content/contests/demo-acm/contest.ts and reach the mirror table through the
--- startup sync. Run the app once (or press 同步 on /admin) before this script.
+-- The contest and its problem set are not inserted here: they live in
+-- content/contests/demo-acm/contest.ts, and the mirror rows they need are
+-- written by ensureProblem/ensureContest on the submission path. Nothing else
+-- writes them — the startup sync that used to is gone — so submit to
+-- maze-runner once before running this, or the JOIN below matches nothing and
+-- inserts nothing, silently.
 
 \set contest_slug 'demo-acm'
 
@@ -24,11 +27,10 @@ WITH plan(handle, slug, minute, ok) AS (
 window_start(at) AS (
   VALUES (timestamptz '2026-08-01T13:00:00+08:00')
 ),
--- And the same for the total, mirroring content/problems/maze-runner. This
--- used to read `problems.max_score`, which stopped existing when that table
--- became a foreign key anchor holding a slug, a title and a sync timestamp:
--- scoring is read from content/, so a submission's denominator is written onto
--- the submission when it is filed rather than looked up.
+-- And the same for the total, mirroring content/problems/maze-runner. Not read
+-- from `problems`: that table is a foreign key anchor holding a slug and a
+-- title, and a submission's denominator is written onto the row when it is
+-- judged rather than looked up.
 scoring(max_score) AS (
   VALUES (double precision '100')
 )
@@ -56,9 +58,8 @@ SELECT
   w.at + (plan.minute || ' minutes')::interval
 FROM plan
 JOIN credentials c ON c.handle = plan.handle
--- Still joined, and only for the foreign key: the row has to be there before a
--- submission may reference it, which is what the header asks the operator to
--- arrange by running the app once.
+-- Only for the foreign key: the row has to be there before a submission may
+-- reference it. See the header.
 JOIN problems p ON p.slug = plan.slug
 CROSS JOIN window_start w
 CROSS JOIN scoring s

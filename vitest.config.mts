@@ -19,12 +19,12 @@ if (existsSync(".env.local")) process.loadEnvFile(".env.local");
  * itself, which is a different question from anything the kernel asks.
  *
  * The first two collect from the whole tree rather than from a list of
- * directories. They used to name `lib/` and `content/`, which meant a test
- * written beside a server action or a route handler was collected by nothing
- * and reported by nothing: `vitest run` says how many files passed, never
- * which ones it declined to look for. A directory list is only correct until
- * somebody puts a test somewhere sensible that is not on it, and the cost of
- * being wrong is a green run.
+ * directories. Naming `lib/` and `content/` leaves a test written beside a
+ * server action or a route handler collected by nothing and reported by
+ * nothing: `vitest run` says how many files passed, never which ones it
+ * declined to look for. A directory list is only correct until somebody puts a
+ * test somewhere sensible that is not on it, and the cost of being wrong is a
+ * green run.
  *
  * That is not an invitation to test pages. Most of what a route handler or an
  * action does is worth testing one layer down, where it can be reached without

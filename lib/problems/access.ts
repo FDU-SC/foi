@@ -18,11 +18,10 @@ import type { ProblemConfig } from "./types";
  * next week's contest leaks next week's problems.
  *
  * The gate lives at the point of retrieval rather than at each call site, and
- * that placement is the whole design. It was tried the other way first: the
- * registry handed out problems and each page filtered afterwards. `/problems`
- * remembered and the home page did not, because nothing about asking the
- * registry for problems suggested a second step existed. A rule you have to
- * remember is a rule that gets missed on the seventh page.
+ * that placement is the whole design. Filtering after the registry hands a
+ * problem out is a rule somebody has to remember, and nothing about asking a
+ * registry for problems suggests a second step exists — so it gets missed on
+ * the seventh page.
  *
  * So there is no way to ask this module for a problem without saying who is
  * asking. The raw accessors still exist in `./registry` for the callers that
@@ -268,13 +267,13 @@ function viewOf(config: ProblemConfig, viewer: Viewer, now: Date): ProblemView {
  * submit to and were never given.
  *
  * Which is also why the override is resolved after the filter rather than
- * during the mapping. `reachableViaContest` walks every round a problem
- * appears in and puts each of them through the contest gate, and it used to
- * run once per gate-refused problem on a list that then dropped every one of
- * them. Nothing that survives the filter needs the expensive answer anyway: an
- * `open` entry has a gate that said yes, so there is no override to look for,
- * and a refused one is only here because the viewer holds `problem.viewAll`,
- * which `overrideFor` checks first.
+ * during the mapping: `reachableViaContest` walks every round a problem
+ * appears in and puts each through the contest gate, and during the mapping it
+ * would run once per gate-refused problem on a list that then drops every one
+ * of them. Nothing surviving the filter needs the expensive answer anyway — an
+ * `open` entry has a gate that said yes, and a refused one is only here
+ * because the viewer holds `problem.viewAll`, which `overrideFor` checks
+ * first.
  */
 export function problemsFor(viewer: Viewer, now = new Date()): ProblemView[] {
   const override = viewer.can("problem.viewAll");
@@ -297,8 +296,7 @@ export function problemsFor(viewer: Viewer, now = new Date()): ProblemView[] {
  *
  * Two overrides get past a gate that said no, and `reachedVia` says which.
  * Neither touches `gate` or `open`, so both read the statement and neither may
- * submit or start a container — the treatment `problem.viewAll` has always
- * had, now shared.
+ * submit or start a container.
  */
 export function problemFor(
   slug: string,
@@ -319,10 +317,10 @@ export function problemFor(
 /**
  * How a submission record should name the problem it points at.
  *
- * Three states, and the two pages that show submissions used to disagree about
- * them: the list joined the mirror table and printed a stale title, the detail
- * page read the registry and fell back to the raw slug. Same problem, two
- * answers, both linking to a page that 404s.
+ * Three states, computed here so that every page showing submissions gives the
+ * same answer: joining the mirror table prints a stale title, reading the
+ * registry alone falls back to the raw slug, and both link to a page that
+ * 404s.
  *
  * `fallbackTitle` is the snapshot in `problems`, which is all that is left once
  * a directory is deleted for real.

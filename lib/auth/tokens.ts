@@ -22,15 +22,11 @@ import type { TokenPurpose } from "@/lib/db/schema";
  * on the digest means redemption is a primary-key lookup rather than a scan
  * plus a constant-time compare.
  *
- * Nothing here reads a token without spending it. There was an `inspectToken`
- * for one case that no longer exists — refreshing the page an address
- * verification link had landed on, where "invalid link" would have been both
- * wrong and alarming to somebody whose address had just been proven. Addresses
- * are proven by a typed code now, and `password_reset` is the only purpose
- * left: its page is handed the token in a query string and never asks the
- * database anything until the POST that consumes it. So a lookup that turns a
- * digest into a handle has no caller, and is not a question worth leaving
- * answerable.
+ * Nothing here reads a token without spending it, and no lookup turning a
+ * digest into a handle is offered. `password_reset` is the only purpose left,
+ * and its page is handed the token in a query string and asks the database
+ * nothing until the POST that consumes it — so that question has no caller,
+ * and is not one worth leaving answerable.
  */
 
 const DEFAULT_TTL_MS = {
@@ -133,14 +129,13 @@ export type RedeemResult =
  * commit, and if the first rolls back it was never spent at all — which is the
  * point, since a link burnt on a write that failed cannot be got back.
  *
- * There was an `expectHandle` option, for a caller that already knew whose
- * token it should be. Nothing ever passed one, and the implementation could
- * not have served such a caller anyway: the single statement below is what
- * makes this atomic, so the row is already consumed by the time there is a
- * handle to compare against. A mismatch would have answered "invalid" having
- * spent the link — burning somebody's only way back into their account in
- * order to tell its holder they were the wrong person. A check that can only
- * be made after the irreversible step is not a check.
+ * There is deliberately no `expectHandle` for a caller that already knows
+ * whose token this should be. The single statement below is what makes this
+ * atomic, so the row is consumed by the time there is a handle to compare
+ * against: a mismatch would answer "invalid" having already spent the link,
+ * burning somebody's only way back into their account in order to tell its
+ * holder they were the wrong person. A check that can only be made after the
+ * irreversible step is not a check.
  */
 export async function redeemToken(
   token: string,

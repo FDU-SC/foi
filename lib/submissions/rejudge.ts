@@ -17,16 +17,11 @@ import { toView } from "@/lib/submissions/queries";
  * The one transition an administrator may make by hand: a finished row back
  * into the queue.
  *
- * One, and no history table behind it. DOMjudge keeps the old judging around
- * marked invalid, and both of its open rejudge bugs come from exactly that —
- * one submission ending up with two judgings both looking valid, which
- * miscounts the scoreboard ([#2883]) and leaves a rejudge unapplied ([#2163]).
- * A row here has one verdict, the current one, and the previous one is gone.
- * When there is a real reason to archive old verdicts, that is a table to add
- * deliberately rather than a side effect to inherit.
- *
- * [#2883]: https://github.com/DOMjudge/domjudge/issues/2883
- * [#2163]: https://github.com/DOMjudge/domjudge/issues/2163
+ * One, and deliberately no history table behind it. A row has one verdict, the
+ * current one; keeping the superseded judging alongside it is how a submission
+ * comes to have two that both look valid, which miscounts the scoreboard and
+ * can leave a rejudge unapplied. When there is a real reason to archive old
+ * verdicts, that is a table to add deliberately.
  */
 
 export interface RejudgeResult {
@@ -60,11 +55,11 @@ function stillDispatched(problemSlug: string): boolean {
 /**
  * Puts finished submissions back in the queue.
  *
- * `includeAccepted` defaults to off, which is DOMjudge's default and worth
- * copying: the expensive mistake is rejudging a whole contest with a fixed
- * checker and turning somebody's accepted submission into a wrong answer,
- * during the round, with no record of what it used to say. Overwriting a pass
- * has to be something an operator asked for in as many words.
+ * `includeAccepted` defaults to off: the expensive mistake is rejudging a whole
+ * contest with a fixed checker and turning somebody's accepted submission into
+ * a wrong answer, during the round, with no record of what it used to say.
+ * Overwriting a pass has to be something an operator asked for in as many
+ * words.
  *
  * Everything the last judging left is cleared, not just the state. A row
  * carrying an old `outcome` would sit in the queue rendering a stale AC badge,
@@ -74,11 +69,7 @@ function stillDispatched(problemSlug: string): boolean {
  * it back: the denominator a verdict falls back to when the backend named none
  * is this column, and clearing it here would send that fallback to the registry
  * and rescore the submission out of whatever total the problem has since been
- * edited to. The exemption predates the mechanism that gives it effect —
- * `verdictColumns` used to resolve the fallback from the registry itself, so
- * the column survived the rejudge only to be overwritten by the verdict that
- * followed it — and it started meaning something when the fallback became the
- * caller's to name.
+ * edited to.
  *
  * Inline rows are refused rather than requeued. Nothing signs as `inline`, so
  * no runner will ever claim one — putting it in the queue would leave it

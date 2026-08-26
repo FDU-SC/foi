@@ -1,45 +1,38 @@
 import "server-only";
 
 /**
- * Not content. This declares where the server/client boundary runs.
+ * Not content: a boundary declaration. The other seven
+ * `content-*-modules.ts` point here rather than restate why all eight sit at
+ * the repository root. Two reasons, each sufficient on its own.
  *
- * Everything under `content/` is a deployment's to edit; the eight
- * `content-*-modules.ts` files at the repository root are the kernel's, and
- * editing one moves a boundary rather than changing a round. They sit at the
- * root, beside `instrumentation.ts` and `mdx-components.tsx`, for two reasons
- * that pull in the same direction.
+ * `import.meta.glob` only scans downward from the calling file, and it fails
+ * *silently*: `../`, the `@/` alias and a leading `/` each yield `{}` with no
+ * error and no warning, at build time or at run time. Verified against Next
+ * 16.3.1 by build probe: the root-relative pattern below returns all 11
+ * problem modules, the same pattern behind any of those three prefixes returns
+ * nothing, and every registry downstream reads that as a deployment that ships
+ * no problems. Relocating one of these files, or tidying a pattern into an
+ * alias, is therefore not a refactor that fails loudly.
  *
- * The first is mechanical: `import.meta.glob` only scans downward from the
- * calling file — `../`, the `@/` alias and a leading `/` all resolve to
- * nothing — so a glob has to sit at or above what it scans. The root is the
- * nearest place that qualifies.
- *
- * The second is the point of the exercise. These files used to live *inside*
- * `content/`, which made the claim "the platform is a thin kernel and content
- * is replaceable" untestable at its strongest form: `rm -rf content` took the
- * boundary declarations with it and the build failed at module resolution,
- * long before anything interesting could be learned. From the root they
- * survive the directory they scan, so a deployment can delete `content/`
- * outright and the kernel still compiles, boots and serves — see the
- * `content-absent` job in `.github/workflows/check.yml`, which is that
- * sentence as a check rather than as a comment.
- *
- * A glob whose directory does not exist yields `{}` rather than an error, and
- * every registry under `lib/` treats an empty result as a legal deployment.
+ * Second, a glob must outlive the directory it scans: `rm -rf content` has to
+ * leave a kernel that still compiles, boots and serves, which the
+ * `content-absent` job in `.github/workflows/check.yml` enforces. A glob over
+ * a missing directory yields `{}`, and every registry under `lib/` treats an
+ * empty result as a legal deployment. The root is the nearest position that
+ * satisfies both constraints.
  *
  * `server-only` is what makes the boundary hold. A problem's `backend.config`
  * routinely holds testdata locations, checker settings, or literal answers,
  * and `toPublicConfig` strips it from the *data* handed to a client component
- * — but that says nothing about the *module*. One glob file exporting all of
- * this at once meant any client component that reached for any of it pulled
- * every problem, every statement, every enrolment rule into a browser chunk.
- * One did: `components/site/user-menu.tsx` wanted `groupName`. Splitting the
- * globs limits the blast radius; the marker below is what turns a repeat into
- * a failed build instead of a shipped answer key.
+ * — which says nothing about the *module*. A single glob over all of
+ * `content/` lets any client component that reaches for any one thing pull
+ * every problem, every statement and every enrolment rule into a browser
+ * chunk; eight globs bound the blast radius, and the marker above turns that
+ * mistake into a failed build rather than a shipped answer key.
  *
  * Configs load eagerly since listing pages need all of them at once;
  * statements load lazily so a problem page pulls in only the MDX it is about
- * to render. Both graphs stay on the server.
+ * to render.
  */
 export const problemConfigModules = import.meta.glob(
   "./content/problems/*/problem.ts",

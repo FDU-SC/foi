@@ -13,20 +13,16 @@ import {
  * How anything obtains permission to queue work on a judge.
  *
  * The same shape as the problem, contest, action and backend gates, and here
- * for the reason all of them exist. This sequence — the problem gate, then the
- * round the client named — was spelled out twice more: once inside
- * `POST /api/submissions`, and once as `resolveContest` in the action route.
- * `lib/backend/actions.ts` had meanwhile collected the problem half of it into
- * a gate, so the submission path was the one place still carrying the rule as
- * loose statements in a handler.
+ * for the reason all of them exist: this sequence — the problem gate, then the
+ * round the client named — must not be spelled out as loose statements in a
+ * handler.
  *
- * The round half is now `contestEntryFor` in `lib/contests/access.ts`, shared
- * with the statement page and the action route. What stays here is the problem
- * gate in front of it and the last line behind it. An action wants a contest it
+ * The round half is `contestEntryFor` in `lib/contests/access.ts`, shared with
+ * the statement page and the action route. What stays here is the problem gate
+ * in front of it and the last line behind it. An action wants a contest it
  * cannot honour to become no contest at all, because a backend keying quotas on
  * a round must not be told a round the player is not in; a submission wants to
- * be refused and told why. Same four facts, different last line — so the facts
- * moved and the last line did not.
+ * be refused and told why. Same four facts, different last line.
  *
  * Unlike `actionFor`, refusals are not collapsed into `undefined`. That gate
  * answers 404 to everything because the distinctions themselves are the leak —
@@ -69,12 +65,11 @@ export type SubmitGate =
 /**
  * The user rather than the user and a viewer.
  *
- * `viewerFor` is called here instead of being passed in, even though the route
- * used to have one to hand. Two parameters carrying one identity can be handed
- * arguments that disagree — a viewer built for one account beside another
- * account's groups typechecks perfectly and authorises the wrong person — and
- * nothing about the call site would show it. Deriving it costs one Set, and
- * the route has no other use for a viewer once this rule moves out of it.
+ * `viewerFor` is called here rather than passed in. Two parameters carrying one
+ * identity can be handed arguments that disagree — a viewer built for one
+ * account beside another account's groups typechecks perfectly and authorises
+ * the wrong person — and nothing about the call site would show it. Deriving it
+ * costs one Set.
  *
  * `Pick` rather than `ResolvedUser`, because a handle and a group list is
  * genuinely all that either `viewerFor` or `canEnterContest` reads, and asking
@@ -106,8 +101,8 @@ export function submitFor(
   // any round, which is a legitimate thing to want; `""` is a client naming a
   // contest and naming it wrong, and it falls through to the same
   // `contest-mismatch` any other slug that resolves to nothing gets. Accepting
-  // it as "no contest" made the empty string the one malformed value that
-  // silently succeeded, as practice.
+  // it as "no contest" would make the empty string the one malformed value
+  // that silently succeeds, as practice.
   if (contestSlug === null || contestSlug === undefined) {
     return { ok: true, problem, contest: null, rateLimit: submitRateLimit(problem) };
   }

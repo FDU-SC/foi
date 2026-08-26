@@ -110,17 +110,16 @@ export async function createAccount(
 /**
  * Moderation, and only moderation.
  *
- * The patch used to admit `displayName`, `email` and `emailVerifiedAt` as
- * well, none of which anything ever passed: a handle is fixed at registration,
- * an address is changed by proving the new one rather than by an update, and
- * nothing un-verifies one. A type that describes writes no caller makes is an
- * invitation to make them here, bypassing the proof each of those fields is
- * supposed to rest on.
+ * The patch deliberately admits no `displayName`, `email` or `emailVerifiedAt`:
+ * a handle is fixed at registration, an address is changed by proving the new
+ * one rather than by an update, and nothing un-verifies one. A type that
+ * describes writes no caller makes is an invitation to make them here,
+ * bypassing the proof each of those fields rests on.
  *
- * Not exported, for the same reason narrowed rather than deleted: the two
- * functions below are the whole surface, and each names an act. A general
- * patch reachable from outside would be a way to move `status` without
- * recording who did it or why, which is the one thing this column is for.
+ * Not exported either. The two functions below are the whole surface and each
+ * names an act; a general patch reachable from outside would be a way to move
+ * `status` without recording who did it or why, which is the one thing these
+ * columns are for.
  */
 async function updateAccount(
   handle: string,
@@ -171,13 +170,11 @@ export async function suspendAccount(
  * keep what the last suspension put there, so all four describe the most
  * recent episode rather than the current state.
  *
- * They used to be cleared, on the reasoning that keeping them would read as
- * "currently suspended" to a query that checked `suspendedAt`. No such query
- * exists — `status` is the only thing anything asks, from `resolveFromRow`'s
- * `disabled` down to the badge on `/admin/accounts`. So the columns were not
- * load-bearing; they were the entire record of a moderation decision, and a
- * reinstatement erased it. Somebody suspended and let back in twice left no
- * trace of either.
+ * Safe to keep because `status` is the only thing anything asks, from
+ * `resolveFromRow`'s `disabled` down to the badge on `/admin/accounts` —
+ * nothing reads `suspendedAt` as "currently suspended". Clearing them instead
+ * would erase the entire record of a moderation decision the moment it was
+ * reversed.
  *
  * Four columns rather than an events table, and that is a ceiling worth
  * naming: this records the *last* episode, not a history. A second suspension

@@ -103,22 +103,15 @@ export interface Ruleset<Cell = unknown> {
    * to decide what a submission made after the cutoff looks like, and a
    * "pending" cell on a solve-count board has no counterpart on a score-based
    * one — so `lib/contests/registry.ts` refuses to load a contest that sets
-   * `freezeAt` against a format that would quietly ignore it. That is how the
-   * mistake used to surface: not at all, until the board failed to freeze
-   * during a live round.
+   * `freezeAt` against a format that would quietly ignore it. Without that
+   * refusal the mistake surfaces only when a board fails to freeze during a
+   * live round.
    *
-   * Optional, where it used to be required so that writing a new format forced
-   * an answer. The trouble with forcing it is what the answer is a question
-   * about: freezing the scoreboard for the last hour is one competition
-   * tradition's ritual, and requiring the field made every format that has
-   * never heard of it open by declining to implement it. Both templates that
-   * do not freeze wrote `supportsFreeze: false` above a paragraph explaining
-   * why a format nobody asked to freeze does not freeze. Silence says the same
-   * thing, and says it without conscripting the next format into the argument.
-   *
-   * What is *not* softened is the check: a contest naming `freezeAt` against a
-   * format that says nothing still fails to load. Only the direction of the
-   * default moved.
+   * Optional rather than required, because freezing the scoreboard for the
+   * last hour is one competition tradition's ritual and a format that has never
+   * heard of it should not have to open by declining to implement it. The check
+   * is not softened along with it: a contest naming `freezeAt` against a format
+   * that says nothing still fails to load.
    */
   supportsFreeze?: boolean;
   computeStandings(input: StandingsInput): Standings<Cell>;

@@ -43,10 +43,9 @@ const contestProblemSchema = z.object({
 /**
  * Who appears on the standings.
  *
- * `open` reproduces the historical behaviour of deriving the roster from
- * whoever submitted, which keeps casual contests usable with no setup.
- * `group` is the one to reach for otherwise: the cohort is described once in
- * roster and referenced here.
+ * `open` derives the roster from whoever submitted, which keeps casual
+ * contests usable with no setup. `group` is the one to reach for otherwise:
+ * the cohort is described once in the enrolment rules and referenced here.
  */
 const participantsSchema = z
   .discriminatedUnion("mode", [
@@ -206,11 +205,11 @@ export function contestPhase(
 /**
  * The mechanical safeguard the predicates below are built on.
  *
- * Adding `frozen` to the union broke nothing that the compiler could see,
- * because every caller compared the phase to a string literal — `!== "running"`
- * kept typechecking and quietly closed submissions for the last hour of every
- * frozen round. Routing each question through an exhaustive switch is what
- * turns the next added phase into a build failure instead of an outage.
+ * Adding a phase to the union breaks nothing the compiler can see when callers
+ * compare against a string literal: `!== "running"` keeps typechecking and
+ * quietly closes submissions for the last hour of every frozen round. Routing
+ * each question through an exhaustive switch is what turns the next added
+ * phase into a build failure instead of an outage.
  */
 function assertNever(phase: never): never {
   throw new Error(`未处理的比赛相位: ${String(phase)}`);

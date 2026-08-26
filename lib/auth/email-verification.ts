@@ -42,9 +42,8 @@ const VERIFIED_TTL_MS = 30 * 60 * 1000;
  * single resend policy, which is an assertion somebody would have to own, not
  * a duplicate somebody forgot to remove.
  *
- * Exported as `resendCooldownMs` all the same, for the one place that really
- * was a copy: the register form used to count down from a hardcoded 60 with
- * nothing tying it to the interval it was counting.
+ * Exported as `resendCooldownMs` all the same, so the register form's countdown
+ * is tied to the interval it is counting rather than to a literal 60.
  */
 const RESEND_COOLDOWN_MS = 60_000;
 

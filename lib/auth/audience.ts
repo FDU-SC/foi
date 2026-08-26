@@ -15,8 +15,7 @@ import type { Viewer } from "./viewer";
  *   omitted   everyone. The default, because most things are public.
  *   ["校队"]  members of any listed group.
  *   []        nobody. What a staged-but-unreleased problem or contest looks
- *             like; it replaced the `hidden` and `visible` booleans, which
- *             were the same idea with less reach.
+ *             like, and the reason there is no separate `hidden` boolean.
  *
  * A capability can override this — see `CAPABILITIES` — but nothing else can.
  * In particular a contest's `participants` does not: who competes and who may

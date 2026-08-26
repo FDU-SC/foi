@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 
 /**
  * The frame around every page that is reached while signed out — logging in,
- * registering, verifying an address, recovering a password. There are five of
- * them now, and they only differ in the form in the middle.
+ * registering, asking for a password reset, setting the new one. There are
+ * four of them, and they only differ in the form in the middle.
  */
 export function AuthShell({
   children,

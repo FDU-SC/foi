@@ -8,12 +8,8 @@ import { HEARTBEAT_LAPSE_MS, MAX_ATTEMPTS, QUEUE_FUSE_MS } from "./queue";
 /**
  * The only loop, and the only place the kernel concludes anything on its own.
  *
- * It replaces two: a poller that asked every backend what it was holding, and a
- * verifier that reasoned about the difference between that answer and the
- * kernel's own in-flight set. Both existed because the queue lived somewhere
- * else and had to be inferred across a network. It does not any more, so there
- * is nothing to reconcile — every fact this needs is a column, and a pass is
- * four indexed statements that normally affect zero rows.
+ * Nothing is reconciled across a network: every fact it needs is a column, and
+ * a pass is four indexed statements that normally affect zero rows.
  *
  * What it decides, in order:
  *
@@ -88,10 +84,9 @@ export async function reapOnce(): Promise<{
       runnerStatus: null,
       claimedAt: null,
       lastHeartbeatAt: null,
-      // A fresh lap starts here, and the fuse below measures from it. Leaving
-      // this at the creation time is what used to make the next tick write the
-      // row off as never claimed, moments after taking it away from the runner
-      // that had claimed it.
+      // A fresh lap starts here, and the fuse below measures from it. Left at
+      // the creation time, the next tick writes the row off as never claimed,
+      // moments after taking it away from the runner that had claimed it.
       queuedAt: new Date(),
       error: "评测机失去联系，已重新排队",
     })
@@ -108,13 +103,13 @@ export async function reapOnce(): Promise<{
   // its backend at all. Distinguishable from a backlog on the board, where the
   // runner count is beside the queue depth for exactly this reason.
   //
-  // Measured from `queued_at`, and it is worth being explicit about why, since
-  // `created_at` is the obvious column and was the wrong one. The question is
-  // about this lap, not about the submission: a row put back in the queue by the
-  // block above, or by an administrator rejudging, starts its wait again. Timed
-  // from creation instead, every submission older than the fuse came back into
-  // the queue already expired and was written off on the following tick — with
-  // an `error` blaming an absent runner, on a row a runner had just been holding.
+  // Measured from `queued_at`, not from `created_at`, which is the obvious
+  // column and the wrong one. The question is about this lap, not about the
+  // submission: a row put back in the queue by the block above, or by an
+  // administrator rejudging, starts its wait again. Timed from creation, every
+  // submission older than the fuse re-enters the queue already expired and is
+  // written off on the following tick, with an `error` blaming an absent
+  // runner on a row a runner had just been holding.
   const fused = await db
     .update(submissions)
     .set({
@@ -172,20 +167,15 @@ declare global {
 /**
  * When a pass last finished, in this process.
  *
- * Deliberately not a row in the database, and the reasoning has changed since
- * the same question was asked of the old verifier. Back then the objection to a
- * process-local timestamp was that it only works while the loop runs in the web
- * process — true, and the whole point of splitting the poller from the verifier
- * had been to keep moving them out cheap. There is one loop now, it runs in the
- * web process, and both readers of this — `/api/health` and `/admin` — are
- * served by that same process. So a local timestamp answers precisely the
- * question each of them is asking: *is the reaper on the instance you are
- * talking to alive?* A shared row would answer a blurrier one, and would go
- * green for an instance whose own loop had wedged as long as some other
- * instance's had not.
+ * Deliberately not a row in the database. The loop runs in the web process and
+ * both readers — `/api/health` and `/admin` — are served by that same process,
+ * so a local timestamp answers precisely the question each is asking: *is the
+ * reaper on the instance you are talking to alive?* A shared row answers a
+ * blurrier one, and goes green for an instance whose own loop has wedged as
+ * long as some other instance's has not.
  *
  * The day the reaper moves to a process of its own, this needs a heartbeat
- * table. Until then a table would be machinery for a deployment nobody runs.
+ * table.
  */
 function reaperRanAt(): Date | null {
   return globalThis.__foiReaperRanAt
@@ -216,9 +206,8 @@ const REAPER_STALE_MS = 5 * 60 * 1000;
  * when there has not been one. That fallback is not a detail: `tick` writes
  * `__foiReaperRanAt` only after `reapOnce` returns, so a loop whose every pass
  * throws never writes it at all, and reading "no timestamp" as "freshly
- * started, give it a moment" made this answer `ok` for the lifetime of such a
- * process. A signal that only reports faults it has already recovered from is
- * exactly no signal on the one failure it exists for.
+ * started, give it a moment" answers `ok` for the lifetime of such a process —
+ * no signal at all on the one failure this exists for.
  *
  * `ranAt` still means what it says — the last pass that finished — so a reader
  * can tell "started and never got through one" from "got through one and then
@@ -239,11 +228,8 @@ export function reaperHealth(): { ok: boolean; ranAt: Date | null } {
 /**
  * Recently disrupted rows, as a number an operator can watch.
  *
- * The cheapest thing standing in for an internal-error console. DMOJ mails an
- * administrator on every one and DOMjudge makes them first-class objects with a
- * resolved flag; both are more than this deployment needs, and both need
- * columns or integrations that do not exist. What is genuinely bad without any
- * of it is not that a single disruption goes unnoticed — the row says so and an
+ * The cheapest thing standing in for an internal-error console. What matters
+ * is not that a single disruption goes unnoticed — the row says so and an
  * administrator can rejudge it — but that a runner failing *every* job looks
  * exactly like a quiet afternoon. A count over a window separates those two.
  */
@@ -264,24 +250,21 @@ export async function recentDisruptions(windowMs: number): Promise<number> {
  * One self-scheduling loop, and the handle that stops it.
  *
  * Self-scheduling rather than `setInterval` so a slow pass cannot overlap
- * itself: the next tick is booked when the previous one finishes. The old
- * reconciler used a fixed timer over a sweep that could outlast its own
- * interval, and ended up with dozens of passes in flight against a backend that
- * had stopped answering.
+ * itself: the next tick is booked when the previous one finishes.
  *
- * Which is exactly why a timer handle is the wrong thing to hand back, and
- * this used to hand back one: the first `setTimeout`, which by the time anybody
- * could have cleared it had already fired. Each tick booked its successor into
- * a local nobody outside could read, so `instrumentation.ts` cancelling the
- * value it was given cancelled a timer that no longer existed and every hot
- * reload during `next dev` left another loop running against the same tables.
- * Silent, because the extra passes are correct — they simply do the same work
- * several times a second and keep a stopped reaper looking alive.
+ * Which is exactly why a timer handle is the wrong thing to hand back. Each
+ * tick books its successor into a local nobody outside can read, so the first
+ * `setTimeout` has already fired by the time a caller could clear it —
+ * `instrumentation.ts` would cancel a timer that no longer exists and every
+ * hot reload during `next dev` would leave another loop running against the
+ * same tables. Silently, because the extra passes are correct; they simply do
+ * the same work several times a second and keep a stopped reaper looking
+ * alive.
  *
- * A closure instead, and it carries a flag as well as a `clearTimeout`.
- * Cancelling the pending timer is not enough on its own: a pass may be in
- * flight, and its `finally` would book the next one after the caller believed
- * the loop had stopped.
+ * The closure carries a flag as well as a `clearTimeout`, because cancelling
+ * the pending timer is not enough on its own: a pass may be in flight, and its
+ * `finally` would book the next one after the caller believed the loop had
+ * stopped.
  */
 export function startReaping(intervalMs: number): () => void {
   let timer: NodeJS.Timeout;

@@ -12,11 +12,10 @@ import type { SubmissionListItem, SubmissionView } from "./types";
  * has no field of that name. What is deliberately *not* in it is `payload`:
  * capped at 512 KiB, genuinely that big when the submission is a file of
  * answers rather than a program, never sent to anybody by the function below,
- * and fifty to a page in
- * `listSubmissions`. Narrowing here is what lets that query stop asking for
- * it, and keeping the two in step is the type checker's job from now on — a
- * field added to `SubmissionView` and read off the row will not compile until
- * both this list and that `select` know about it.
+ * and fifty to a page in `listSubmissions`. Narrowing here is what lets that
+ * query stop asking for it, and keeping the two in step is the type checker's
+ * job — a field added to `SubmissionView` and read off the row will not
+ * compile until both this list and that `select` know about it.
  *
  * Every other caller passes a full `SubmissionRow`, which still satisfies this
  * structurally.
@@ -108,10 +107,9 @@ export async function listSubmissions(options: {
       : undefined,
   ].filter((clause) => clause !== undefined);
 
-  // The display name is a join again. It was a roster lookup for as long as
-  // identity lived in the repository; now that people supply their own, the
-  // authoritative copy is one table over and the foreign key guarantees the
-  // row is there.
+  // The display name is a join rather than a lookup: people supply their own,
+  // so the authoritative copy is one table over and the foreign key guarantees
+  // the row is there.
   const rows = await db
     .select({
       submission: {

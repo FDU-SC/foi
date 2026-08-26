@@ -69,16 +69,15 @@ export async function GET(request: Request) {
   /**
    * Teardown, outside `start` rather than closed over by it.
    *
-   * `start`'s scope was the natural home for these until the question was put
-   * to `cancel` — the callback the runtime invokes when the *reader* goes
-   * away, which is what a closed tab or a proxy dropping the socket looks like
-   * from in here. That path does not go anywhere near `request.signal`, so a
+   * `start`'s scope is the natural home for these until you account for
+   * `cancel` — the callback the runtime invokes when the *reader* goes away,
+   * which is what a closed tab or a proxy dropping the socket looks like from
+   * in here. That path does not go anywhere near `request.signal`, so a
    * teardown armed only on abort is one an entire class of disconnects routes
    * around: the slot stays taken, the bus keeps a listener, and the heartbeat
-   * keeps firing, until the process restarts. What that looks like from the
-   * outside is the same thing the `start`-throws case looked like before it
-   * was fixed — an account that can no longer open streams, five tabs later,
-   * for a reason nothing on the page connects to a tab it closed yesterday.
+   * keeps firing, until the process restarts. From the outside that is an
+   * account which can no longer open streams, five tabs later, for a reason
+   * nothing on the page connects to a tab it closed yesterday.
    *
    * Out here both paths reach them. `finish` is idempotent, so a disconnect
    * that raises the abort and the cancel releases once.
@@ -145,12 +144,11 @@ export async function GET(request: Request) {
        * A throw out of `start` is swallowed by the stream machinery, and by
        * then this handler is holding a concurrency slot and, past the
        * subscription, a listener on the process-wide bus. Neither is collected
-       * by anything else — the abort listener that would eventually have run
+       * by anything else — the abort listener that would eventually run
        * `close` is registered on the last line of this block, so a failure
-       * before that leaves no path to it at all. What that looks like from the
-       * outside is an account that can no longer open streams, for a reason
-       * nothing on the page or in the log connects to a database blip minutes
-       * earlier.
+       * before that leaves no path to it at all, and the account can no longer
+       * open streams for a reason nothing on the page or in the log connects
+       * to a database blip minutes earlier.
        */
       try {
         streamController.enqueue(encoder.encode("retry: 5000\n\n"));

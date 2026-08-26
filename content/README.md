@@ -17,9 +17,10 @@ content](../README.md#换掉-content)」：CI 每个 PR 把这个目录整个删
 
 | 路径 | 是什么 |
 | --- | --- |
-| `problems/<slug>/` | 一道题：`problem.ts` 配置、`statement.mdx` 题面、`views.tsx` 渲染 |
+| `problems/<slug>/` | 一道题：`problem.ts` 配置、`statement.mdx` 题面，外加可选的 `views.tsx` |
 | `problems/_shared/judge/` | 内联判题的实现，多道题共用 |
 | `problems/_shared/views/` | 提交内容与评测详情的共用渲染 |
+| `problems/views.ts` | 哪道题用哪套共用渲染 |
 | `contests/demo-acm/` | 演示赛：时间、题单、参赛范围 |
 | `rulesets/*.tsx` | 共享赛制模板 |
 | `backends.ts` | 题目后端名册 |
@@ -45,7 +46,7 @@ content](../README.md#换掉-content)」：CI 每个 PR 把这个目录整个删
 | --- | --- |
 | `contests/` | 题目就是散题，没有榜 |
 | `rulesets/` | 同上，赛制是比赛才用得到的 |
-| `problems/<slug>/views.tsx` | 提交内容与评测详情回落成格式化 JSON |
+| `problems/views.ts` 与 `problems/<slug>/views.tsx` | 提交内容与评测详情回落成格式化 JSON |
 | `components/index.tsx` | 题面只能用 `mdx-components.tsx` 给的那些元素 |
 | `verdicts.ts` | 评测结论显示原字符串，颜色按分数推 |
 | `enrollment/` | 注册不分流、不限域名，没有人能进 `/admin` |
@@ -86,6 +87,16 @@ content](../README.md#换掉-content)」：CI 每个 PR 把这个目录整个删
 题目的标签与难度写在 `problem.ts` 的 `ui` 里，不是内核字段；画成徽章的是
 `components/problem-badges.tsx`，经 `Presentation.ProblemBadges` 登记。
 
+提交内容与 `verdict.detail` 怎么画，`problems/views.ts` 一张表列完——十道题分两
+种，用的都是 `_shared/views/` 里那两个共用件。要写自己的，就在题目目录里放一份
+`views.tsx`，它整份盖过表里那一行（不是逐槽合并）。两边都没有的，两个字段都回落
+成格式化 JSON：`warmup-2025` 就是这样，它退役了，没人再维护它的渲染，历史提交长
+成那样是诚实的。
+
+这份表不能由内核按 `problem.ts` 推出来：`ui.submit`、`backend.kind` 都在带
+`server-only` 的那份 glob 后面，而渲染这条路要进浏览器，读一下就会把答案和
+testdata 路径一起拖进客户端包。
+
 ## 赛制
 
 - `acm.tsx` — ICPC 罚时，支持封榜
@@ -125,8 +136,10 @@ pnpm db:seed                                  # 建号
 psql "$DATABASE_URL" -f content/demo-data.sql # 给演示赛填一批判完的提交
 ```
 
-`demo-data.sql` 要在应用至少跑过一次之后再执行：比赛与题目是通过启动时的同步进
-镜像表的，不由这个脚本插入。
+`demo-data.sql` 只插提交，不插它引用的题目行，而 `submissions.problem_slug` 有外
+键。镜像表现在只在提交那一刻 upsert（启动时的全量同步已经去掉了），所以要先真的
+往 `maze-runner` 交一次，那一行才存在；否则脚本的 `JOIN problems` 落空，一条也插
+不进去而且不会报错。
 
 内核自己的建号方式是 `scripts/create-account.cjs`，它只问用户名和密码，不认识任
 何分流规则。

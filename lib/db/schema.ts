@@ -24,10 +24,6 @@ import type { SubmissionState, Verdict } from "@/lib/backend/types";
  *      `problems` and `contests` rows written when a submission first
  *      referenced them
  *
- * There used to be a third kind, mirrors of the filesystem registries pushed
- * in at startup. They turned out to be the second kind all along: nothing read
- * a row for a problem nobody had submitted to.
- *
  * What is deliberately absent is any column an administrator would want to
  * edit in order to change what somebody may do. Groups are not stored:
  * `content/enrollment/` declares the rules that produce them and
@@ -39,28 +35,15 @@ import type { SubmissionState, Verdict } from "@/lib/backend/types";
 /**
  * Who exists.
  *
- * Almost every row here is created by the registration form, which is why the
- * table holds no authority of its own: `handle`, `displayName` and `email` say
- * who someone claims to be, and `status` says whether they may act at all. The
- * answer to "what may they do" is computed in `lib/accounts/resolve.ts` from
- * the email address and the rules in `content/enrollment/`, and is never
+ * The table holds no authority of its own: `handle`, `displayName` and `email`
+ * say who someone claims to be, and `status` says whether they may act at all.
+ * The answer to "what may they do" is computed in `lib/accounts/resolve.ts`
+ * from the email address and the rules in `content/enrollment/`, and is never
  * written back — see the note on tags there.
  *
- * `email` is nullable only because accounts predating the current
- * registration flow may have none. Both ways in supply one now: the form
- * proves it with a code, and `scripts/create-account.cjs` requires it and
- * records it verified. The unique index tolerates the nulls that remain
- * because Postgres does not consider two of them equal.
- *
- * There is no `pending` status. There used to be, covering the gap between
- * filling in the registration form and clicking the link that arrived
- * afterwards — a gap that no longer exists now that the address is proved
- * before the row is written. An account is either able to act or stopped.
- *
- * Both of these, and `TokenPurpose` below, are unions rather than `const`
- * arrays indexed into. The arrays were exported and nothing imported them —
- * every use is a `$type` annotation, which wants the type — so what they
- * bought was three runtime lists no caller iterates.
+ * `email` is nullable only for accounts predating the current registration
+ * flow; both ways in supply one now. The unique index tolerates the nulls that
+ * remain because Postgres does not consider two of them equal.
  */
 export type AccountStatus = "active" | "suspended";
 
@@ -88,24 +71,16 @@ export const accounts = pgTable(
     status: text("status").$type<AccountStatus>().notNull().default("active"),
 
     /**
-     * Suspension is data rather than a line in the repository: banning a spam
-     * signup should not require a pull request. It is still an accountable
-     * act, hence the audit columns.
+     * Suspension is data rather than a line in the repository — the one
+     * exception to the note above — so the audit columns are what keep it an
+     * accountable act.
      *
-     * All four describe the *most recent* suspension, not the current state —
-     * `status` is the only thing that answers whether somebody may act, and it
-     * is what every caller asks. Reinstating used to clear the three columns
-     * above, which meant a moderation decision survived exactly until it was
-     * reversed; someone suspended and let back in twice left no trace of
-     * either. Keeping them costs nothing because nothing reads them as a
-     * predicate.
-     *
-     * `reinstatedAt` is the other end of that record. Without it a row with
-     * `suspendedAt` set and `status = "active"` says a suspension happened and
-     * ended, but not when — and "when" is the half an operator asks for, since
-     * the reason and the moderator are already on the row. Cleared by
-     * `suspendAccount`, so the pair always describes one episode rather than
-     * two halves of different ones.
+     * All four describe the *most recent* suspension, not the current state.
+     * `status` is the only thing that answers whether somebody may act; none
+     * of these four may be read as a predicate, and they survive a
+     * reinstatement precisely so that a reversed decision still leaves a
+     * trace. `reinstatedAt` is cleared by `suspendAccount`, so the pair always
+     * describes one episode rather than two halves of different ones.
      */
     suspendedAt: timestamp("suspended_at", { withTimezone: true }),
     suspendedBy: text("suspended_by"),
@@ -133,8 +108,8 @@ export const accounts = pgTable(
  * for — which is why the module in `lib/auth/credentials.ts` deals only in
  * handles and hashes.
  *
- * `passwordHash` is nullable because an account can exist, and a setup code be
- * issued against it, before anyone has chosen a password.
+ * `passwordHash` is nullable because an account can exist before anyone has
+ * chosen a password.
  */
 export const credentials = pgTable("credentials", {
   handle: text("handle")
@@ -153,11 +128,7 @@ export const credentials = pgTable("credentials", {
 /**
  * Single-use, hashed, expiring secrets mailed to the owner of an account.
  *
- * Down to one purpose, and kept as a `purpose` column anyway. Two have been
- * retired: `setup_code`, a credential an administrator handed over in person,
- * and `email_verify`, whose link has been replaced by a code checked before
- * the account exists — which is precisely why it could not stay here, since
- * `handle` below presumes an account to point at. The column costs a text
+ * Down to one purpose, and kept as a `purpose` column anyway: it costs a text
  * field and is what makes the next one an insert rather than a migration.
  *
  * Only the digest is stored. A row is consumed rather than deleted so that
@@ -245,13 +216,11 @@ export const emailVerifications = pgTable("email_verifications", {
 /**
  * The problems somebody has submitted to.
  *
- * Not a mirror of `content/problems`, though it was one for a while: startup
- * pushed the whole registry in, and the only thing that consumed the result
- * was a console finding reporting that the push had not happened yet. Rows are
- * written by `ensureProblem` at the moment a submission first needs the
- * foreign key, so what accumulates here is a normalised index of every problem
- * this deployment has ever judged — including ones since deleted from the
- * repository, which is what keeps their submissions attributable.
+ * Not a mirror of `content/problems`. Rows are written by `ensureProblem` at
+ * the moment a submission first needs the foreign key, so what accumulates
+ * here is a normalised index of every problem this deployment has ever judged
+ * — including ones since deleted from the repository, which is what keeps
+ * their submissions attributable.
  *
  * `title` is a snapshot that tracks the registry, kept so a submission list can
  * name a problem that no longer exists. Everything else about a problem —
@@ -301,8 +270,8 @@ export const submissions = pgTable(
      * Restrict for the same reason `handle` is: the row it points at is what
      * makes this submission attributable, and `/admin` lists problems deleted
      * from the repository precisely because their submissions are still here.
-     * It was `cascade`, which meant tidying up one such row would have taken
-     * every submission to that problem with it.
+     * Under `cascade`, tidying up one such row takes every submission to that
+     * problem with it.
      */
     problemSlug: text("problem_slug")
       .notNull()
@@ -318,14 +287,13 @@ export const submissions = pgTable(
      * What the browser called this attempt, so that repeating it does not
      * repeat the submission.
      *
-     * Every other step of the judging loop is already idempotent — a report
+     * Every other step of the judging loop is idempotent on its own — a report
      * has to hold the current lease, the state guards make the first verdict
-     * win, `ensureProblem` upserts — and the entrance was the one place a
-     * retry cost something real: a second row and a second slot in the queue,
-     * for one thing the player did once. The client mints one of these per
-     * attempt and reuses it when a submit has to be retried, so a request
-     * whose reply was lost can be re-asked and answered from the row it
-     * already made.
+     * win, `ensureProblem` upserts — and the entrance is the one place a retry
+     * would otherwise cost a second row and a second slot in the queue, for
+     * one thing the player did once. The client mints one of these per attempt
+     * and reuses it when a submit has to be retried, so a request whose reply
+     * was lost can be re-asked and answered from the row it already made.
      *
      * Nullable, and the unique index below is what makes that work: Postgres
      * does not consider two nulls equal, so submissions from anything that
@@ -344,14 +312,12 @@ export const submissions = pgTable(
     /**
      * Whatever the backend returned, verbatim.
      *
-     * The mirror image of `payload`, and it took a while to become one. It
-     * carried a schema the kernel read fields out of at every call site, which
-     * made a message from an extension point into a domain object: the same
-     * number was reachable as `verdict.score` and as the column below, with
-     * nothing saying which was authoritative. Now `reportDone` parses it once
-     * and the columns below are what the kernel kept; this is the audit copy,
-     * and only a problem's own components look inside it — see `detail` in
-     * `lib/backend/types.ts`.
+     * The mirror image of `payload`. `reportDone` parses it once and the
+     * columns below are what the kernel kept, so this is the audit copy and
+     * nothing in the kernel may read a field out of it — the same number
+     * reachable both here and as a column, with nothing saying which is
+     * authoritative, is the failure mode being avoided. Only a problem's own
+     * components look inside it; see `detail` in `lib/backend/types.ts`.
      */
     verdict: jsonb("verdict").$type<Verdict>(),
 
@@ -382,9 +348,8 @@ export const submissions = pgTable(
 
     /**
      * The backend's own status string, for the badge. An opaque label:
-     * `presentation.verdicts` translates the ones a deployment names and
-     * anything else
-     * renders as itself.
+     * `presentation.verdicts` translates the ones a deployment names, and
+     * anything else renders as itself.
      */
     outcome: text("outcome"),
 
@@ -393,10 +358,10 @@ export const submissions = pgTable(
      *
      * A verdict is only reproducible if both ends are pinned. `releaseSha` is
      * the commit this kernel was built from, which fixes the problem's entire
-     * definition because `content/` lives in the same repository — Polygon had
-     * to build per-problem revisions to get the same guarantee. `backendVersion`
-     * is what the backend said about itself, and it covers the half that is not
-     * in this repository at all: the testdata, the checker, the judging code.
+     * definition because `content/` lives in the same repository.
+     * `backendVersion` is what the backend said about itself, and it covers
+     * the half that is not in this repository at all: the testdata, the
+     * checker, the judging code.
      *
      * Both are snapshots rather than references. A row here says what was true
      * at the moment of judging, so pointing them at a lookup table would let a
@@ -417,15 +382,6 @@ export const submissions = pgTable(
      * In the pull model it is the queue selector rather than an address book
      * entry — a runner signing as `traditional` is handed rows carrying
      * `traditional` here, and nothing else.
-     *
-     * It spent a while as `judge_id`, kept that way on the argument that a
-     * migration rewriting a column only to spell it differently is downtime
-     * bought for nothing. That argument is about a deployment with data worth
-     * preserving, and this one has never been released — so the initial
-     * migration was rebuilt from an empty history instead, and the old name is
-     * absent from it rather than recorded as something this column used to be
-     * called. `runners.backend_id` had already been spelling the same concept
-     * the same way.
      */
     backendId: text("backend_id").notNull(),
 
@@ -465,11 +421,10 @@ export const submissions = pgTable(
     /**
      * When the holder last said it was alive.
      *
-     * The one clock the reaper reads, and the reason `abandonAfterMs` could
-     * never be placed: the old question was "how long should this problem take
-     * on this backend behind this queue", which is three numbers with three
-     * owners. This one is "how long since anybody said anything", which is a
-     * property of neither the problem nor the backend.
+     * The one clock the reaper reads. It answers "how long since anybody said
+     * anything", which is a property of neither the problem nor the backend —
+     * which is why there is no per-problem or per-backend abandonment
+     * deadline to configure alongside it.
      */
     lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
 
@@ -493,40 +448,26 @@ export const submissions = pgTable(
       .defaultNow(),
 
     /**
-     * When this row last entered the queue, which is not when it was created.
+     * When this row last entered the queue, which is not when it was created,
+     * and the difference is load-bearing in both directions.
      *
-     * It arrived for the queue fuse, and the distinction is the bug the fuse
-     * shipped with. `created_at` answers "when did somebody submit this"; the
-     * fuse asks "how long has this been sitting here with nobody coming for
-     * it", and the two are the same number for exactly one lap. Two paths put a
-     * row back in `queued` without touching `created_at` — the reaper taking a
-     * job back from a holder that went quiet, and an administrator rejudging —
-     * so any submission older than the fuse was written off on the next tick,
-     * fifteen seconds later, with `error` saying no runner had ever come for it
-     * while one demonstrably had. A race in a healthy deployment, where
-     * something claims the row within a second or two; a certainty when the
-     * queue is deep or no runner is online, which is when a rejudge is most
-     * likely to be what somebody just asked for.
+     * Two paths put a row back in `queued` without touching `created_at`: the
+     * reaper taking a job back from a holder that went quiet, and an
+     * administrator rejudging. So every reader that means "who has been
+     * waiting longest" must name this column — the queue fuse, `claimJob`'s
+     * ordering, and the positions computed in
+     * `lib/submissions/queue-position.ts`. On `created_at` the fuse writes off
+     * any submission older than its window on the next tick, and `claimJob`
+     * puts a requeued row in front of everything submitted since, so a batch
+     * rejudge mid-round jumps the entire queue backwards.
      *
-     * `claimJob` orders by it now, and the queue positions under
-     * `lib/backend/queue-lookup.ts` count against it. That is the same argument
-     * one layer up: handing work out by `created_at` meant those same two paths
-     * put a requeued submission in front of everything submitted since, so a
-     * batch rejudge mid-round jumped the entire queue — backwards, because a
-     * rejudge is work that has just arrived. Every reader that means "who has
-     * been waiting longest" now names this column, and the ones that mean "when
-     * did this happen" still name `created_at`.
-     *
-     * `created_at` could not be moved instead. It is what a submission list
-     * shows and what the contest window is compared against, so advancing it on
-     * a rejudge would relocate the submission inside the round it was made
-     * during.
+     * `created_at` cannot be advanced instead: it is what a submission list
+     * shows and what the contest window is compared against, so moving it on a
+     * rejudge relocates the submission inside the round it was made during.
      *
      * `not null` with a default, and written explicitly at all three places a
      * row becomes `queued`, so that a fourth cannot leave behind a row those
-     * readers silently mis-order or decline to consider: a fuse that never
-     * fires fails the same way as one that fires early, only later and with a
-     * spinner.
+     * readers silently mis-order or decline to consider.
      */
     queuedAt: timestamp("queued_at", { withTimezone: true })
       .notNull()
@@ -548,16 +489,13 @@ export const submissions = pgTable(
      *
      * Backend first because a claim is always for one backend's queue; the
      * timestamp after it, because oldest-first is the whole ordering policy.
-     * Partial on `queued` for the reason the states are worth separating at
-     * all: a row nobody is holding is the only kind that can be handed out, and
-     * the set of them is small and short-lived even when the table is not.
+     * Partial on `queued` because a row nobody is holding is the only kind
+     * that can be handed out, and the set of them is small and short-lived
+     * even when the table is not.
      *
-     * `queued_at` and not `created_at`, for the reason given on the column. The
-     * index had the other one while the fuse already filtered on this one, so
-     * the sweep walked this index and then rechecked every row it matched
-     * against the heap — the ordering `claimJob` needed and the predicate the
-     * fuse needed were two different clocks. They are one clock now, and the
-     * index is the same size it was.
+     * `queued_at` and not `created_at`, for the reason given on the column,
+     * and it has to stay the same clock the fuse filters on or the sweep walks
+     * this index only to recheck every row it matches against the heap.
      *
      * Both sweeps read it without the leading column, because they want every
      * backend's stale entries rather than one queue's: a scan of this index
@@ -584,10 +522,9 @@ export const submissions = pgTable(
      *
      * `recentDisruptions` asks for `state = 'disrupted' and judged_at >= ?`,
      * and nothing above covers it: `submissions_standings_idx` leads on the
-     * contest and the two partial ones select other states. So the console was
-     * a sequential scan of every submission ever made, on every page load, at a
-     * cost that grows without bound while the answer it returns is normally
-     * zero.
+     * contest and the two partial ones select other states. Without this, the
+     * console is a sequential scan of every submission ever made, on every
+     * page load, to return an answer that is normally zero.
      *
      * Partial for the same reason as the two above, and more sharply than
      * either: a deployment where `disrupted` is anything but rare has a problem
@@ -620,21 +557,17 @@ export const submissions = pgTable(
  * holding the backend's key is a runner for that backend, so a compromised
  * machine is dealt with by rotating that key, not by deleting a row here.
  *
- * Not a registry, for the same reason `backend_snapshots` was not one: there is
- * deliberately no address column, because a runner has no inbound address and
- * inventing one would be a second place to look up something already declared
- * in `content/backends.ts`.
+ * Not a registry: there is deliberately no address column, because a runner
+ * has no inbound address and inventing one would be a second place to look up
+ * something already declared in `content/backends.ts`.
  *
- * It earns its place by answering one question nothing else can: **is anybody
- * out there?** A deep queue with runners on it means work is arriving faster
- * than it is finished; the same queue with no runners means nobody is
- * evaluating at all, and those two call for opposite responses from an
- * operator. Without this table the board could only show the queue and leave
- * the reader to guess which of the two they were looking at.
+ * It exists to answer one question nothing else can: **is anybody out there?**
+ * A deep queue with runners on it means work is arriving faster than it is
+ * finished; the same queue with no runners means nobody is evaluating at all,
+ * and those two call for opposite responses from an operator.
  *
- * Nothing prunes it. A row is a few dozen bytes and a runner that never comes
- * back is a fact worth being able to see; the board filters on `lastSeenAt`
- * rather than on the row existing.
+ * Nothing prunes it, and the board filters on `lastSeenAt` rather than on the
+ * row existing — a runner that never comes back is a fact worth seeing.
  */
 export const runners = pgTable(
   "runners",

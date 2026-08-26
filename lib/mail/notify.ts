@@ -34,11 +34,10 @@ const RESEND_COOLDOWN_MS = 60_000;
  * opposite ways — `/admin` tells the operator to wait a minute, while
  * `requestPasswordReset` answers with the same sentence it gives every other
  * outcome, so the public form cannot be used to test whether an account
- * exists. That uniform sentence is a decision about what to *disclose*, and it
- * used to be taken as licence to drop the result on the floor: throttled and
- * delivered then became one event in the server log too, which is the one
- * place they were still allowed to differ. An operator reading that log could
- * not tell a broken relay from somebody asking twice.
+ * exists. That uniform sentence is a decision about what to *disclose* and not
+ * licence to drop the result: the server log is the one place throttled and
+ * delivered are still allowed to differ, and an operator who cannot tell them
+ * apart there cannot tell a broken relay from somebody asking twice.
  *
  * A relay that refuses the message is the third outcome and deliberately not a
  * variant here. It is not a state a caller can reason about, only report, and
@@ -100,12 +99,12 @@ export async function sendVerificationCode(
  * The order here is the whole point: mint, send, and only then retire the
  * older links.
  *
- * `issueToken` retires by default and used to be left to it, which meant a
- * relay that refused the message had already killed whatever link was in the
- * person's inbox. That is the worst moment to do it — the mail path being down
- * is exactly when the old link is the only one they have — and it is a state
- * nothing sweeps up: they are locked out until the relay comes back *and* the
- * resend cooldown lapses, with a link they can see and cannot use.
+ * `issueToken` retires by default, and leaving it to do so means a relay that
+ * refuses the message has already killed whatever link was in the person's
+ * inbox. That is the worst moment to do it — the mail path being down is
+ * exactly when the old link is the only one they have — and nothing sweeps the
+ * state up: they are locked out until the relay comes back *and* the resend
+ * cooldown lapses, with a link they can see and cannot use.
  */
 export async function sendPasswordReset(to: Recipient): Promise<NotifyResult> {
   const wait = await throttled(to.handle, "password_reset");

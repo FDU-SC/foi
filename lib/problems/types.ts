@@ -50,22 +50,16 @@ export const DEFAULT_SUBMIT_RATE_LIMIT: ActionRateLimit = {
 /**
  * An inline judge's way of saying there is not going to be a result.
  *
- * The kernel has had a word for this on the other side of the line all along:
- * a runner reports `state: "failed"`, the row lands in `disrupted`, and
- * nothing is scored against anybody. `Verdict` deliberately cannot express it
- * — the note on `verdictSchema` in `lib/backend/types.ts` argues that "the
- * judging itself broke" is a state rather than a result, and that putting a
- * field for it inside a verdict would file a machine fault under what the
- * submission earned.
+ * The equivalent of a runner reporting `state: "failed"`: the row lands in
+ * `disrupted` and nothing is scored against anybody. `Verdict` deliberately
+ * cannot express it — see `verdictSchema` in `lib/backend/types.ts`.
  *
- * Inline judges had no such channel, only a `Verdict` to return, and what they
- * did with it is what that argument predicts: three of them answered
- * `status: "system_error"` when their configuration was missing. It renders as
- * a fault, which is why it looked like the right answer, but it is still a
- * verdict — the row lands in `completed`, `scoredSubmissions` counts it, it
+ * Returning `status: "system_error"` instead is the trap. It renders as a
+ * fault, which is why it looks like the right answer, but it is still a
+ * verdict: the row lands in `completed`, `scoredSubmissions` counts it, it
  * shows on the board, and any format that charges for a rejected attempt
- * charges for this one. A setter forgetting one config key billed the next
- * person to submit for it.
+ * charges for this one — so a setter's missing config key bills the next
+ * person to submit.
  *
  * `reason` is prose for whoever opens the submission, and lands in
  * `submissions.error` exactly where a runner's would.
@@ -138,12 +132,12 @@ const inlineBackendSchema = z.strictObject({
   /**
    * Rejecting `async` here is not pedantry about the declared type.
    *
-   * `z.custom` is the only check this field gets, and it used to be nothing
-   * but `typeof value === "function"` — which an `async` judge passes while
-   * returning a Promise. The submit route would then write that Promise into
-   * the `verdict` jsonb column, where it serialises as `{}`, and read four
-   * nulls back out of it. Nothing throws, the row settles as `completed`, and
-   * the only evidence is a submission whose verdict is empty.
+   * `z.custom` is the only check this field gets, and a bare
+   * `typeof value === "function"` passes an `async` judge that returns a
+   * Promise. The submit route then writes that Promise into the `verdict`
+   * jsonb column, where it serialises as `{}`, and reads four nulls back out
+   * of it. Nothing throws, the row settles as `completed`, and the only
+   * evidence is a submission whose verdict is empty.
    *
    * It catches the declaration rather than every way to hand back a Promise —
    * a plain function whose body returns one still gets through. That is the
@@ -232,12 +226,8 @@ export const problemConfigSchema = z.object({
 
   /**
    * What submitting to this problem costs the deployment. Nothing about what
-   * it looks like — see `ui`.
-   *
-   * This used to carry `kind`, `languages` and `placeholder` as well, which
-   * made the kernel's problem schema the place a competition declared that its
-   * submissions are source files in one of seven named languages, or a flag.
-   * Those are facts about a submitter widget, and the widget is a template.
+   * it looks like — anything describing the submitter widget is a fact about
+   * a template and belongs in `ui`.
    */
   submit: z
     .object({
@@ -259,21 +249,11 @@ export const problemConfigSchema = z.object({
    *
    * The third opaque field, and deliberately the same bargain as
    * `backend.config` and `verdict.detail`: the kernel carries it from the
-   * problem file to `useProblem()` and never looks inside. What the built-in
-   * submitter used to read off `submit` lives here now, which is what lets a
-   * deployment ship a submitter that takes something else entirely without
-   * asking for a schema change.
-   *
-   * `tags` and `difficulty` were the last two fields to move in here, and they
-   * went for the reason the others did. Nothing in the kernel ever read them —
-   * no gate, no queue, no board — they were only drawn as badges on three
-   * pages, which is to say they were a taxonomy this deployment happens to
-   * sort its problems by. `difficulty` had already been walked halfway: it was
-   * a closed enum holding the five rungs of one country's olympiad ladder,
-   * and softening it to free text left the kernel still asserting that
-   * problems have exactly one difficulty and that it is a string. A deployment
-   * that grades on two axes, or on none, now says so without a schema change,
-   * and draws whatever it means through `Presentation.ProblemBadges`.
+   * problem file to `useProblem()` and never looks inside. Everything a
+   * deployment's own taxonomy needs — tags, difficulty, whatever the submitter
+   * widget takes — goes here, so that describing it differently is a
+   * `content/` edit rather than a schema change, and it is drawn through
+   * `Presentation.ProblemBadges`.
    *
    * Reaches the browser, unlike `backend.config` — `toPublicConfig` strips
    * that one and not this one. Nothing secret goes here.
@@ -304,11 +284,8 @@ export const problemConfigSchema = z.object({
    *
    * The third row is the point. Someone who competed on a problem should still
    * be able to open it afterwards, and the contest it belonged to should still
-   * render its standings — hiding the problem takes both of those away.
-   * DOMjudge's `allow_submit` conflates the two ("disabling this also makes the
-   * problem invisible to teams and public") and HydroOJ has a changelog entry
-   * for the bug that follows: after a contest ends, a hidden problem made its
-   * submissions unreadable.
+   * render its standings — collapsing the two axes takes both of those away
+   * once the round is over.
    *
    * The directory stays in the repository. That is what stops the slug from
    * being reused — the filesystem refuses a second directory by the same name,

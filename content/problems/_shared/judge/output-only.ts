@@ -38,11 +38,10 @@ export const judgeOutputOnly: InlineJudge = ({ payload, config }) => {
 
   if (cases.length === 0) {
     // A problem that reached production with no cases is a setter's mistake,
-    // not a competitor's, so there is nothing here to score them on. This used
-    // to answer `status: "system_error"`, which reads as a fault and is still a
-    // verdict: the row settles as `completed`, counts on the board, and in ACM
-    // costs a penalised attempt. Declining to judge is the honest answer and
-    // the only one that lands in `disrupted`.
+    // not a competitor's. Declining to judge is the only answer that lands in
+    // `disrupted`; a `status: "system_error"` verdict reads as a fault but is
+    // still a verdict, so the row would settle as `completed`, count on the
+    // board, and cost a penalised attempt in ACM.
     return { unavailable: true, reason: "题目配置缺少 cases，无法判题" };
   }
 

@@ -8,9 +8,8 @@ import type { AnyRuleset } from "./types";
  * Scoring formats, discovered the same way problems and contests are.
  *
  * Every format is a template rather than a built-in — the kernel knows only
- * the `Ruleset` interface — and they used to need a line in a hand-written
- * array here to exist. Now a file under `content/rulesets/` is enough, which
- * makes adding a format cost exactly what adding a problem costs.
+ * the `Ruleset` interface — and a file under `content/rulesets/` is the whole
+ * of declaring one, so adding a format costs what adding a problem costs.
  *
  * A contest may also carry its own beside its `contest.ts`, which
  * `lib/contests/registry.ts` prefers over anything named here. Those are

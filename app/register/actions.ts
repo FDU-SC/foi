@@ -27,11 +27,9 @@ import { sendVerificationCode } from "@/lib/mail/notify";
 import { rateLimitByCaller } from "@/lib/ratelimit";
 
 /**
- * Registration in three steps, because proving the address now comes first.
- *
- * The account is created last and created active. Nothing exists until the
- * code has been typed back, which is what removes the half-made account the
- * old link flow left behind whenever somebody never clicked.
+ * Registration in three steps, because proving the address comes first. The
+ * account is created last and created active: nothing exists until the code
+ * has been typed back.
  *
  * Sending and checking the code are separate calls rather than fields on the
  * final submit. Folding them in would mean a username collision — discovered
@@ -282,10 +280,8 @@ export async function registerAction(
   // skip proving a different address that happened to be verified.
   jar.delete(REGISTRATION_PROOF_COOKIE);
 
-  // Straight into the session rather than onto a page announcing success. The
-  // person just typed the password; asking for it again to prove something
-  // that was true a moment ago is a step that exists only because the account
-  // used to be unusable at this point. It no longer is.
+  // Straight into the session rather than onto a page announcing success: the
+  // account is usable and the person just typed the password.
   try {
     await signIn("credentials", {
       handle: result.handle,
@@ -304,9 +300,9 @@ export async function registerAction(
     return { createdNeedsLogin: true };
   }
 
-  // As on the login form, `signIn` leaves by throwing, so there is no path
-  // through here. The `return {}` that used to sit here would have shown a
-  // blank form to somebody whose account had just been created, sending them
-  // to retry and collide with their own handle.
+  // `signIn` leaves by throwing, so there is no path through here. Returning
+  // an empty state instead would show a blank form to somebody whose account
+  // had just been created, sending them to retry and collide with their own
+  // handle.
   throw new Error("signIn 没有重定向，注册后的登录结果未知");
 }

@@ -24,12 +24,10 @@ import { backends } from "./backends";
  * opinions about a deployment's problem set — and deleting `content/` would
  * leave a runner behind with nothing to run.
  *
- * The shape changed with the direction. This used to be a server: FOI posted a
- * submission to `/judge`, it queued the work itself, and it posted the verdict
- * back. Now it is mostly a client — it asks FOI for work, fetches what it
- * needs, says it is still alive while it evaluates, and reports a result. There
- * is no queue in here any more and no `/queue` endpoint to describe one,
- * because the queue is FOI's.
+ * It is mostly a client: it asks FOI for work, fetches what it needs, says it
+ * is still alive while it evaluates, and reports a result. No queue lives in
+ * here and there is no `/queue` endpoint to describe one, because the queue is
+ * FOI's.
  *
  * The HTTP server that remains exists for one reason: `leaky-bucket` hands out
  * containers, and `spawn`/`poll`/`destroy` are requests a player sets off
@@ -71,12 +69,9 @@ const KERNEL_URL =
  * demonstrates the thing worth demonstrating: a runner picks its queues, and
  * the platform's only say in the matter is which keys it holds.
  *
- * Read off `./backends.ts` rather than written out. The list used to be four
- * names in a string literal, which meant this file and the backend roster
- * beside it could disagree — add a fifth backend and the queue nobody serves
- * is discovered by a submission sitting in it. It is also the sort of thing
- * that made this script content in the first place: a platform script does not
- * get to know that a deployment happens to run a queue called `performance`.
+ * Read off `./backends.ts` rather than written out, so this file and the
+ * roster beside it cannot disagree: a fifth backend added to one and not the
+ * other is a queue nobody serves, discovered by a submission sitting in it.
  */
 const BACKEND_IDS = (
   process.env.MOCK_BACKEND_IDS ?? Object.keys(backends).join(",")
@@ -134,13 +129,9 @@ const VERSION = "2.0.0";
  * `--go-silent` claims work and then says nothing at all — no heartbeat, no
  * result.
  *
- * The replacement for `--drop-callbacks`, and it tests something better. That
- * flag exercised the verifier's ability to *discover* a lost verdict by
- * interrogating a backend, which needed a queue snapshot and a status endpoint
- * to compare against. This exercises the whole of the new recovery story: the
- * heartbeat stops, the reaper takes the job back, and the next claim — from
- * this process or another — picks it up. Run one of these alongside a normal
- * one to watch a job move between them.
+ * Exercises the whole recovery path: the heartbeat stops, the reaper takes the
+ * job back, and the next claim — from this process or another — picks it up.
+ * Run one of these alongside a normal one to watch a job move between them.
  */
 const GO_SILENT = process.argv.includes("--go-silent");
 

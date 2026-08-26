@@ -49,13 +49,7 @@ export async function resetPasswordAction(
   // link — it caps how much database and argon2 work one source can demand
   // from an endpoint that needs no session to reach. Which is also why it is
   // the least costly of the six to lose when no source can be established:
-  // nothing is sent, nothing is created, and the work it meters is this
-  // deployment's own.
-  //
-  // Read off the table rather than written here, for the reason
-  // `app/forgot-password/actions.ts` gives: `policy.test.ts` can check that an
-  // entry exists, not that anyone enforces its numbers, so a bound written
-  // twice becomes a table describing a limit nothing applies.
+  // nothing is sent, nothing is created, and the work it meters is our own.
   const rule = fixedRule(ACTION_LIMITS.resetPasswordAction);
   const limit = await rateLimitByCaller(
     "reset",

@@ -116,10 +116,9 @@ export default auth((req) => {
 /**
  * Everything except API routes and static assets.
  *
- * Widened from three page prefixes so the bound above covers pages and Server
- * Actions rather than the three areas that happened to need a redirect. The
- * path checks in the function do their own `startsWith`, so nothing else
- * changes by matching more.
+ * Wide so that the bound above covers every page and Server Action rather than
+ * only the areas that need a redirect. The path checks in the function do
+ * their own `startsWith`, so nothing else changes by matching more.
  *
  * **`api` is excluded on purpose, and it is not an oversight to fix later.**
  * When proxy runs for a route, Next clones the request body and buffers it in
@@ -127,12 +126,11 @@ export default auth((req) => {
  * counts bytes off the stream and cancels the read when a body goes over —
  * against a buffered clone that cancellation frees nothing, because the
  * memory has already been spent. `PUT /api/runner/jobs/[id]` is the endpoint
- * that matters here: it answers to no session, and it is where a 96 MiB body
- * was measured moving RSS by half a gigabyte before this was fixed — the
- * predecessor it replaced had the same shape. API routes take an
- * equivalent per-source bound on their own first line instead — see
- * `guardRequest` in `lib/ratelimit/gate.ts`, and the table that keeps track of
- * which ones have it.
+ * that matters here: it answers to no session, and a 96 MiB body was measured
+ * moving RSS by half a gigabyte. API routes take an equivalent per-source
+ * bound on their own first line instead — see `guardRequest` in
+ * `lib/ratelimit/gate.ts`, and the table that keeps track of which ones have
+ * it.
  *
  * Two things deliberately *not* done:
  *

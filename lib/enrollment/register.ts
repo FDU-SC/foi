@@ -121,12 +121,8 @@ export async function register(input: {
   // Both halves, and unconditionally. The row says the address was proven, the
   // proof says it was this browser. Either one alone is "email-unverified" —
   // naming the cookie would tell a probe that the address is currently proven.
-  //
-  // This used to sit behind `enrollmentPolicy.requireEmailVerification`. That
-  // switch turned off more than its name suggested: not the code alone but the
-  // browser binding with it, while `emailVerifiedAt` below went on recording
-  // that the address had been proven. See `lib/enrollment/types.ts` for why it
-  // was not a deployment's decision to make.
+  // Not behind a policy flag: see `RETIRED_POLICY_KEYS` in
+  // `lib/enrollment/types.ts` for why this is not a deployment's call.
   const verified = await isEmailVerified(email);
   if (!verified || !checkRegistrationProof(email, input.proof)) {
     return { ok: false, reason: "email-unverified" };
@@ -134,12 +130,12 @@ export async function register(input: {
 
   // The three writes are one act, so they commit or they do not.
   //
-  // Run separately they had two ways to come apart, and both left the person
-  // worse off than a plain failure would have: a crash after the insert gives
-  // an account with no credentials row — it exists, it cannot log in, and the
-  // form now says the handle is taken by somebody who turns out to be them —
-  // and a crash before the last statement leaves a proof standing for an
-  // address that has already been spent. Neither is swept up by anything.
+  // Run separately they have two ways to come apart, and both leave the person
+  // worse off than a plain failure would: a crash after the insert gives an
+  // account with no credentials row — it exists, it cannot log in, and the form
+  // now says the handle is taken by somebody who turns out to be them — and a
+  // crash before the last statement leaves a proof standing for an address that
+  // has already been spent. Neither is swept up by anything.
   //
   // The read inside goes through `tx` too. A statement issued on the pool
   // while a transaction is open takes a second connection out of a pool of

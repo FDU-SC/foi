@@ -62,20 +62,17 @@ export { sourceFrom };
  * is nowhere to key it on.
  *
  * The skip is the whole reason this exists rather than each caller writing
- * `rateLimit(\`x:${source}\`, …)`, which is what they all used to do. When
- * nothing trusted sits in front, `sourceFrom` reports a sentinel rather than
- * inventing an address, and a counter keyed on a sentinel is not a weaker
- * per-source bound — it is one budget shared by everybody who reaches the
- * deployment. On a tailnet box with `FOI_TRUSTED_PROXY_HOPS=0` that turned the
- * registration form into ten signups an hour *in total* and password recovery
- * into ten links an hour *in total*, which two people setting up on the same
- * afternoon would exhaust between them. A flood cap that becomes an outage
- * under ordinary use is worse than no flood cap.
+ * `rateLimit(\`x:${source}\`, …)`. When nothing trusted sits in front,
+ * `sourceFrom` reports a sentinel rather than inventing an address, and a
+ * counter keyed on a sentinel is not a weaker per-source bound — it is one
+ * budget shared by everybody who reaches the deployment. On a tailnet box with
+ * `FOI_TRUSTED_PROXY_HOPS=0` that makes the registration form ten signups an
+ * hour *in total* and password recovery ten links an hour *in total*, which two
+ * people setting up on the same afternoon exhaust between them. A flood cap
+ * that becomes an outage under ordinary use is worse than no flood cap.
  *
- * `proxy.ts` and `./gate.ts` had already reasoned their way to this and
- * skipped; the six call sites that build a key from the sentinel had not, so
- * the same misconfiguration meant two different things depending on which
- * layer you asked. They now ask this, and `isResolvedSource` is the one place
+ * Every layer has to skip the same way or one misconfiguration means two
+ * things depending on which you ask, so `isResolvedSource` is the one place
  * that decides.
  *
  * Failing open is also the right direction for what a source-keyed bound *is*.
@@ -98,11 +95,10 @@ export function rateLimitBySource(
 /**
  * The same bound, for a caller that can ask the framework who is on the line.
  *
- * This is what `clientIp()` became. That function handed back a source string
- * and left every Server Action to build a key out of it, which meant the
- * sentinel case had to be remembered five times and was remembered nowhere —
- * the reason the argument above is written on the function that takes the
- * source rather than here.
+ * Deliberately not a bare "who is on the line" helper handing back a source
+ * string: that leaves every Server Action to build a key out of it, and the
+ * sentinel case then has to be remembered at each one. The argument above is
+ * written on the function that takes the source for the same reason.
  *
  * `authorize` in `auth.ts` cannot use this one and calls `rateLimitBySource`
  * directly: it is handed the `Request` and must work wherever Auth.js invokes

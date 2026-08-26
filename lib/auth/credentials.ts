@@ -14,10 +14,7 @@ import ARGON2_OPTIONS from "@/scripts/argon2-options.cjs";
  * answers "has this handle been given a way to log in on this deployment",
  * which is why the module deals in handles and never in identities.
  *
- * Single-use codes used to live here too. They are in `lib/auth/tokens.ts`
- * now: once a person can be sent an email, verifying an address and resetting
- * a password are the same mechanism as the setup code, and there can be more
- * than one of them outstanding at a time.
+ * Single-use codes are `lib/auth/tokens.ts`, not here.
  *
  * The argon2 parameters are imported from `scripts/argon2-options.cjs` rather
  * than declared here, even though this is the module that owns the decision.
@@ -108,8 +105,7 @@ export function sessionMatchesPassword(
  * Writes a password for a handle that already has an account.
  *
  * The foreign key enforces that: a password with nobody behind it could never
- * be used, and letting one exist is how the old schema ended up with orphan
- * rows nobody could account for.
+ * be used, and letting one exist leaves orphan rows nobody can account for.
  *
  * Takes an optional `DbOrTx` so registration and password reset can commit the
  * account row and its password together. The hash is computed before the

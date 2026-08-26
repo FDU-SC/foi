@@ -16,7 +16,8 @@ export const MAX_CLOCK_SKEW_SECONDS = 300;
  * The action a problem invokes travels in the path (`/action/spawn`), so
  * anything on the wire could rewrite it and the signature still verified. A
  * backend routing on the path rather than on `body.action` — which is what
- * `scripts/mock-backend.ts` does, and therefore what a backend author is
+ * this repository's reference runner does, and therefore what a backend author
+ * is
  * likely to copy — would then run `destroy` for a request signed as `poll`.
  *
  * Worse, a GET carries no body at all, so `<timestamp>.` was its entire

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getViewer } from "@/auth";
+import { ProblemBadges } from "@/components/problem/problem-badges";
 import { Badge } from "@/components/ui/badge";
 import { problemsFor } from "@/lib/problems/access";
 
@@ -29,15 +30,12 @@ export default async function ProblemsPage() {
               <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
                 题目
               </th>
-              <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
-                难度
-              </th>
-              <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
-                标签
-              </th>
-              <th className="border-border border-b px-4 py-2.5 text-right font-semibold">
-                满分
-              </th>
+              {/* Deliberately unnamed. What goes under it is whatever
+                  `Presentation.ProblemBadges` draws, and the kernel does not
+                  know whether that is a difficulty, a tag set or nothing —
+                  three columns headed 难度 / 标签 / 满分 were the platform
+                  asserting a taxonomy on a deployment's behalf. */}
+              <th className="border-border border-b px-4 py-2.5 text-left font-semibold" />
             </tr>
           </thead>
           <tbody className="divide-border divide-y">
@@ -60,21 +58,9 @@ export default async function ProblemsPage() {
                   )}
                 </td>
                 <td className="px-4 py-2.5">
-                  {problem.difficulty ? (
-                    <Badge tone="primary">{problem.difficulty}</Badge>
-                  ) : (
-                    <span className="text-fg-subtle">—</span>
-                  )}
-                </td>
-                <td className="px-4 py-2.5">
-                  <div className="flex flex-wrap gap-1">
-                    {problem.tags.map((tag) => (
-                      <Badge key={tag}>{tag}</Badge>
-                    ))}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <ProblemBadges config={problem} />
                   </div>
-                </td>
-                <td className="text-fg-muted px-4 py-2.5 text-right font-mono tabular-nums">
-                  {problem.maxScore}
                 </td>
               </tr>
             ))}

@@ -2,8 +2,8 @@ import "server-only";
 
 /**
  * Not content. This declares where the server/client boundary runs — see
- * `./problem-modules.ts` for why these `*-modules.ts` files exist and why they
- * live under `content/`.
+ * `./content-problem-modules.ts` for why these files exist and why they live
+ * at the repository root rather than inside `content/`.
  *
  * Which problem backends this deployment runs. See `lib/backend/registry.ts`.
  *
@@ -17,6 +17,6 @@ import "server-only";
  * `server-only` because the entries hold signing keys. A key reaching a
  * browser chunk is the whole queue: see `verifyRunner`.
  */
-export const backendModules = import.meta.glob("./backends.ts", {
+export const backendModules = import.meta.glob("./content/backends.ts", {
   eager: true,
 });

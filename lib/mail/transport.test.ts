@@ -168,6 +168,30 @@ describe("声明的投递方式与环境不一致时", () => {
   });
 
   /**
+   * The same environment, one deployment that never said anything.
+   *
+   * `smtp` is the schema's default, so a deployment with no
+   * `content/enrollment/` at all arrives here carrying a value the kernel
+   * picked for it — and the complaint above opens with 「注册策略声明了」,
+   * which in that case is simply untrue. Refusing that boot is the platform
+   * enforcing its own default against a deployment that shipped no content,
+   * and it is what stopped an empty `content/` from starting at all.
+   *
+   * Still says something, and says the right thing: nobody can be mailed. What
+   * it does not do is turn that into an outage for a deployment with no
+   * cohorts to register into.
+   */
+  it("完全没有 content/enrollment/ 时不拒绝启动，但会说出来", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    withEnv({});
+    vi.stubEnv("NODE_ENV", "production");
+
+    expect(() => assertMailDelivery("smtp", false)).not.toThrow();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toMatch(/content\/enrollment\//);
+  });
+
+  /**
    * The fresh-checkout bargain. `content/enrollment/example.ts` names no
    * `mailDelivery` and so inherits `smtp`, so enforcing everywhere would stop
    * the one setup the README points a newcomer at from starting at all. What

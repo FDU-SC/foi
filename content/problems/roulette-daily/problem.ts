@@ -23,11 +23,11 @@ export const problem = {
   ui: {
     submit: "text",
     placeholder: "red / black / green / 0-36 / big / small",
+    tags: ["签到", "运气"],
   } satisfies ProblemUi,
   submit: {
     // 签到：约 24 小时可以来一次。
     rateLimit: { max: 1, windowSeconds: 86400 },
   },
-  tags: ["签到", "运气"],
   order: 6,
 } satisfies ProblemConfigInput;

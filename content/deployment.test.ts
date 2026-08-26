@@ -3,7 +3,6 @@ import { listGroups } from "@/lib/auth/groups";
 import { allContests, contestBySlug } from "@/lib/contests/registry";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
-import { listRulesets } from "@/lib/standings/registry";
 import { backends } from "@/lib/backend/registry";
 import { undeclaredBackends } from "@/lib/backend/access";
 import { isInlineBackend } from "@/lib/problems/types";
@@ -52,18 +51,10 @@ describe("内核测试需要的形状", () => {
     expect(inline.length, "提交当次同步判完这条路径靠它").toBeGreaterThan(0);
   });
 
-  it("有一道声明了 actions 的在役题目", () => {
-    const withActions = externallyJudged().filter(
-      (problem) =>
-        !problem.retired && Object.keys(problem.backend.actions).length > 0,
-    );
-    expect(withActions.length, "交互端点的白名单与转发靠它").toBeGreaterThan(0);
-  });
-
-  it("有一种支持封榜的赛制", () => {
-    const freezing = listRulesets().filter((ruleset) => ruleset.supportsFreeze);
-    expect(freezing.length, "封榜窗口与穿透封榜的用例靠它").toBeGreaterThan(0);
-  });
+  // 封榜赛制与声明了 actions 的题目不在这份清单上，尽管这套 content 两样都有。
+  // 用到它们的两组用例各自开头就断言了自己遍历的集合非空——`freeze.test.ts` 与
+  // `actions.test.ts`——那句话说得出「空在哪里」，这里再抄一遍只会多一处要跟着
+  // 改的地方。这一节列的是内核用例向 content **索取样本**的那几样。
 
   it("有带能力的组", () => {
     const privileged = listGroups().filter(
@@ -95,7 +86,7 @@ describe("这套 content 自身自洽", () => {
 describe("演示赛", () => {
   const demo = contestBySlug("demo-acm");
 
-  it("存在，并且 scripts/demo-data.sql 的种子提交挂得上", () => {
+  it("存在，并且 content/demo-data.sql 的种子提交挂得上", () => {
     expect(demo).toBeDefined();
   });
 

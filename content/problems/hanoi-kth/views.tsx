@@ -1,6 +1,6 @@
 /**
  * How this problem draws its own results, found by
- * `content/problem-view-modules.ts`.
+ * `content-problem-view-modules.ts`.
  *
  * Both implementations are shared, because what they read is shared: the stock
  * panel posts the payload and the backend behind this problem reports

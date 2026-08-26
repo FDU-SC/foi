@@ -24,6 +24,22 @@ const problemUiSchema = z.object({
   /** Offered in the language picker, in order. Only read when `submit` is `code`. */
   languages: z.array(z.string()).optional(),
   placeholder: z.string().optional(),
+
+  /**
+   * How this deployment sorts its problems, drawn by `ProblemBadges`.
+   *
+   * Both were fields on `problemConfigSchema` until the kernel was asked what
+   * it did with them, and the answer was: rendered them as badges on three
+   * pages. Which is to say they are this competition's taxonomy — the rungs of
+   * one syllabus and the vocabulary of one problem set — and a platform that
+   * declares every problem has a `difficulty: string` has already decided
+   * something for a deployment that grades on two axes, or on none.
+   *
+   * `maxScore` did not come with them. Scoring genuinely reads it, so it stays
+   * on the problem; what moved is only the decision to *show* it.
+   */
+  difficulty: z.string().min(1).optional(),
+  tags: z.array(z.string()).default([]),
 });
 
 export type ProblemUi = z.input<typeof problemUiSchema>;

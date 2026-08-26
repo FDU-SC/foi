@@ -3,10 +3,18 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import { Pool } from "pg";
 import { accounts, credentials } from "../lib/db/schema";
-import ARGON2_OPTIONS from "./argon2-options.cjs";
+import ARGON2_OPTIONS from "../scripts/argon2-options.cjs";
 
 /**
  * Creates the development accounts and gives them all one password.
+ *
+ * Content, not platform. Which four people exist on a fresh checkout, what
+ * their addresses look like, and which cohort those addresses sort them into
+ * are facts about this deployment — the shapes below are chosen to match
+ * `content/enrollment/example.ts` and to populate `content/contests/demo-acm/`,
+ * and none of that survives swapping the directory. The kernel's own way to
+ * create an account is `scripts/create-account.cjs`, which asks for a handle
+ * and a password and knows nothing about cohorts.
  *
  * This used to hand a password to everybody in the roster, because the roster
  * was who existed. Now people exist by registering, so a seed has to actually

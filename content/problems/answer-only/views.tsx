@@ -1,6 +1,6 @@
 /**
  * How this problem draws its own results, found by
- * `content/problem-view-modules.ts`.
+ * `content-problem-view-modules.ts`.
  *
  * No `VerdictDetail`: an inline judge reports a status and a score and puts
  * nothing in `detail`, so there is nothing here that would draw it better than

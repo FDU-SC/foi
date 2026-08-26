@@ -1,4 +1,4 @@
-import { emailModules } from "@/content/email-modules";
+import { emailModules } from "@/content-email-modules";
 import type {
   EmailTemplates,
   MailBody,
@@ -18,11 +18,28 @@ import type {
  * floor, not a default worth keeping — and startup says so.
  */
 
-const formatter = new Intl.DateTimeFormat("zh-CN", {
-  dateStyle: "long",
-  timeStyle: "short",
-  timeZone: "Asia/Shanghai",
-});
+/**
+ * Where the fallback's timestamps are read from, when a deployment says.
+ *
+ * `Asia/Shanghai` was written in here, which put one competition's wall clock
+ * inside the platform: a deployment elsewhere would have told its users an
+ * expiry time in a city they do not live in, and the only way out was to stop
+ * using the fallback. `FOI_TIMEZONE` names an IANA zone; unset falls through
+ * to whatever the process runs on, which is the honest answer for a
+ * deployment that has not said.
+ *
+ * Built per call rather than once at module load, because the variable is read
+ * at boot and a formatter cached above it would be pinned to whatever the
+ * environment looked like when this module was first imported. Two mails a
+ * minute is not a rate worth caching against.
+ */
+function formatExpiry(at: Date): string {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "long",
+    timeStyle: "short",
+    timeZone: process.env.FOI_TIMEZONE || undefined,
+  }).format(at);
+}
 
 function escapeHtml(value: string): string {
   return value
@@ -50,7 +67,7 @@ const FALLBACK: EmailTemplates = {
     return plain("验证你的注册邮箱", [
       "有人正在用这个邮箱注册账号。请回到注册页面填入下面的验证码。",
       input.code,
-      `验证码在 ${formatter.format(input.expiresAt)} 前有效。`,
+      `验证码在 ${formatExpiry(input.expiresAt)} 前有效。`,
       "如果不是你本人操作，忽略这封邮件即可。",
     ]);
   },
@@ -59,7 +76,7 @@ const FALLBACK: EmailTemplates = {
       `${input.displayName}，你好：`,
       "我们收到了重置密码的请求。打开下面的地址设置一个新密码。",
       input.url,
-      `此链接在 ${formatter.format(input.expiresAt)} 前有效，只能使用一次。`,
+      `此链接在 ${formatExpiry(input.expiresAt)} 前有效，只能使用一次。`,
       "如果不是你本人操作，忽略这封邮件即可。",
     ]);
   },

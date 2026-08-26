@@ -9,8 +9,24 @@ import type { ProblemBackend } from "./types";
  * type costs nothing to put there; an environment read cannot go there at all.
  */
 
-/** The mock in `scripts/mock-backend.ts`, which `pnpm backend:mock` starts. */
-const DEVELOPMENT_MOCK_URL = "http://localhost:4100";
+/**
+ * Where an unconfigured backend points outside production, when a deployment
+ * says where that is.
+ *
+ * The kernel used to hold the address itself — `http://localhost:4100`, with a
+ * comment naming the script that listens there. That is one repository's
+ * development mock written into the platform: a checkout whose reference
+ * runner is a container on another port, or which has none, got an address for
+ * a service that was never going to answer, and no way to say so short of
+ * setting `FOI_BACKEND_<每一个>_URL` by hand.
+ *
+ * Unset means unset. `backendUrl` then answers `undefined` outside production
+ * exactly as it does inside it, which is the honest reading of a deployment
+ * that has not said where its backends are.
+ */
+function developmentFallbackUrl(): string | undefined {
+  return process.env.FOI_DEV_BACKEND_URL || undefined;
+}
 
 /**
  * A backend id as it appears in an environment variable: hyphens become
@@ -25,38 +41,31 @@ export function envFragment(id: string): string {
 }
 
 /**
- * Reads the new name, then the old one, then decides what silence means.
+ * Reads the variable, then decides what silence means.
  *
- * The legacy fallback exists so that renaming these variables did not have to
- * be synchronised with a deploy: a running environment still set only
- * `FOI_JUDGE_*` and would otherwise have lost every backend address at once.
- * Drop it once the deployed environments have been updated.
- *
- * Silence is `undefined` rather than an unroutable placeholder. It existed
- * because every backend needed an address and a missing one had to fail loudly
- * at the point of use; almost none of them need one any more, so "not
- * configured" and "not needed" are the same state and there is nothing to
+ * Silence is `undefined` rather than an unroutable placeholder. A placeholder
+ * existed because every backend needed an address and a missing one had to
+ * fail loudly at the point of use; almost none of them need one any more, so
+ * "not configured" and "not needed" are the same state and there is nothing to
  * distinguish. Which backends genuinely require an address is a question about
  * the problem registry — see `backendsMissingActionUrl` in `./access.ts`.
  *
- * The development fallback stays, and only for development: it is what lets a
- * fresh checkout run a problem's actions against `pnpm backend:mock` without
- * configuring anything.
+ * There used to be a second name read here, `FOI_JUDGE_<NAME>_URL`, kept so
+ * that renaming these variables did not have to be synchronised with a deploy.
+ * It has outlived that: the environments were updated, and what remained was
+ * the kernel carrying one deployment's rename history and offering every
+ * reader two spellings to check.
  */
 export function backendUrl(id: string): string | undefined {
-  const name = envFragment(id);
-
   // Empty reads as absent: a line left as `FOI_BACKEND_X_URL=` is somebody who
   // has not filled it in yet, and taking it for an address is the one way past
   // the boot check.
-  const configured =
-    process.env[`FOI_BACKEND_${name}_URL`] ||
-    process.env[`FOI_JUDGE_${name}_URL`];
+  const configured = process.env[`FOI_BACKEND_${envFragment(id)}_URL`];
   if (configured) return configured;
 
   return process.env.NODE_ENV === "production"
     ? undefined
-    : DEVELOPMENT_MOCK_URL;
+    : developmentFallbackUrl();
 }
 
 /**

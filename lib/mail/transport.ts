@@ -1,6 +1,9 @@
 import { createTransport, type Transporter } from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
-import { enrollmentPolicy } from "@/lib/enrollment/registry";
+import {
+  enrollmentDeclared,
+  enrollmentPolicy,
+} from "@/lib/enrollment/registry";
 import type { EnrollmentPolicy } from "@/lib/enrollment/types";
 import type { MailBody } from "./types";
 
@@ -17,7 +20,7 @@ import type { MailBody } from "./types";
  * declared decision rather than a side effect of the environment — see
  * `policy.mailDelivery` in `lib/enrollment/types.ts`. A fresh checkout should
  * be able to run the whole registration flow without a mail server standing
- * by, which is the same bargain `scripts/mock-backend.ts` offers for judging;
+ * by, which is the same bargain a reference runner offers for judging;
  * what changed is that a production box has to say it means that.
  */
 export interface MailMessage extends MailBody {
@@ -131,17 +134,44 @@ const COMPLAINT =
  * with no relay refuse to start — the exact setup the README tells a newcomer
  * to use. Elsewhere this is a warning and `deliver` falls back to the console.
  *
- * The delivery is a parameter defaulting to the policy, the way `assertEnv`
+ * And fatal only for a deployment that shipped enrolment content at all. The
+ * refusal rests on `smtp` being what somebody *chose*, whether by writing it
+ * or by writing a policy and leaving the default in place — the complaint even
+ * says "注册策略声明了". With no `content/enrollment/` there is no policy and
+ * nothing was declared: the value comes from `enrollmentPolicySchema`, which
+ * is to say from the kernel, and refusing the boot means refusing over a
+ * decision the platform made on the deployment's behalf. That is what stopped
+ * an empty `content/` from starting — see the `content-absent` job — and the
+ * failure it prevented was hypothetical, because a deployment with no
+ * enrolment rules has no cohorts to register into.
+ *
+ * Not softened to a warning everywhere: a deployment that ships rules and
+ * forgets its relay is the case this exists for, and it keeps the refusal.
+ *
+ * Both inputs are parameters defaulting to the registry, the way `assertEnv`
  * takes `process.env`: what is being checked is a *combination* of a declared
  * delivery and an environment, and a test cannot edit `content/enrollment/`
  * to reach one half of it.
  */
 export function assertMailDelivery(
   delivery: MailDelivery = enrollmentPolicy.mailDelivery,
+  declared: boolean = enrollmentDeclared,
 ): void {
   if (delivery === "console" || mailIsConfigured()) return;
 
-  if (process.env.NODE_ENV === "production") throw new Error(COMPLAINT);
+  if (process.env.NODE_ENV === "production" && declared) {
+    throw new Error(COMPLAINT);
+  }
+
+  if (!declared) {
+    console.warn(
+      "[foi] 没有找到 content/enrollment/，注册策略全部取的是内核默认值，" +
+        'mailDelivery 因此是 "smtp"，而 FOI_SMTP_HOST 没有设置——' +
+        "验证码与重置链接都发不出去。这套部署一旦要接待用户，" +
+        "就该补一个 content/enrollment/，在它的 policy 里把这件事说清楚。",
+    );
+    return;
+  }
 
   console.warn(
     "[foi] 未设置 FOI_SMTP_HOST，邮件只会打印到控制台。" +

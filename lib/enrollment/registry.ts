@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { enrollmentModules } from "@/content/enrollment-modules";
+import { enrollmentModules } from "@/content-enrollment-modules";
 import { normalizeHandle } from "@/lib/accounts/types";
 import { declaredGroupIds, isPrivileged, privilegedGroupIds } from "@/lib/auth/groups";
 import {
@@ -30,6 +30,18 @@ interface Registry {
   rules: EnrollmentRule[];
   /** Every rule that names a given handle, keyed by its canonical spelling. */
   handleIndex: Map<string, EnrollmentRule[]>;
+  /**
+   * Whether any file under `content/enrollment/` was found at all.
+   *
+   * Not the same question as whether `policy` holds defaults. A deployment can
+   * ship rules and no policy block and still mean every default it inherits;
+   * one that ships nothing has not inherited them, it has said nothing, and
+   * the difference matters to anything that would otherwise treat a default as
+   * a declaration — see `assertMailDelivery`, which refuses a production boot
+   * over `mailDelivery` and used to refuse it over a value the kernel had
+   * picked on behalf of a deployment with no content.
+   */
+  declared: boolean;
 }
 
 function fail(path: string, what: string, error: z.ZodError): never {
@@ -114,12 +126,16 @@ function buildRegistry(): Registry {
     policy: policy ?? enrollmentPolicySchema.parse({}),
     rules,
     handleIndex,
+    declared: paths.length > 0,
   };
 }
 
 const registry = buildRegistry();
 
 export const enrollmentPolicy = registry.policy;
+
+/** Whether this deployment ships any enrolment content. See `Registry`. */
+export const enrollmentDeclared: boolean = registry.declared;
 
 export function listRules(): EnrollmentRule[] {
   return registry.rules;

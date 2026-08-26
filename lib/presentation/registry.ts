@@ -1,4 +1,4 @@
-import { presentationModules } from "@/content/presentation-modules";
+import { presentationModules } from "@/content-presentation-modules";
 import type { Presentation } from "./types";
 
 /**

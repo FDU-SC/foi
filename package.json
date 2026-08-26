@@ -13,8 +13,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "node --env-file=.env.local --import tsx scripts/seed.ts",
-    "backend:mock": "node --env-file=.env.local --import tsx scripts/mock-backend.ts"
+    "db:seed": "node --env-file=.env.local --import tsx content/seed.ts",
+    "backend:mock": "node --env-file=.env.local --import tsx content/mock-runner.ts"
   },
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",

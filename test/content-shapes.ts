@@ -3,14 +3,14 @@ import type { Capability } from "@/lib/auth/policy";
 import { viewerFor, type Viewer } from "@/lib/auth/viewer";
 import { allContests } from "@/lib/contests/registry";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
-import { listRulesets } from "@/lib/standings/registry";
 import type { ContestConfig, ContestProblemConfig } from "@/lib/contests/types";
 import { problemsFor } from "@/lib/problems/access";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
 import type { ExternallyJudged, ProblemConfig } from "@/lib/problems/types";
 
 /**
- * What the kernel's own suites need `content/` to contain, found by shape.
+ * What the kernel's own suites need their mounted content to contain, found by
+ * shape.
  *
  * The gates, the action whitelist and the submission path are all written
  * against the live registries, and deliberately: a fixture registry would
@@ -21,21 +21,43 @@ import type { ExternallyJudged, ProblemConfig } from "@/lib/problems/types";
  * platform's test suite. Swap `content/` and the kernel stopped compiling.
  *
  * So the dependency stays and the names go. Each finder below describes a
- * *shape*, throws a message naming that shape when nothing matches, and points
- * at `test/content-skeleton/`, which is the reference content that satisfies
- * all of them. A deployment whose content is missing one gets told which
- * mechanism is going untested rather than which slug is missing.
+ * *shape* and throws a message naming that shape when nothing matches, so a
+ * deployment whose content is missing one is told which mechanism is going
+ * untested rather than which slug it should have written.
+ *
+ * There is no fixture behind any of this, deliberately. A tree with no
+ * `content/` does not run these suites at all — it typechecks, builds and
+ * boots, which is what `content-absent` checks — because the alternative was
+ * a fixture registry for the kernel to test itself against, and a fixture
+ * registry agrees with whatever it was written next to.
+ *
+ * That makes the list below a standing obligation on `content/`, and the whole
+ * of it, so adding an entry costs a deployment something. Two tests before
+ * adding one:
+ *
+ * Does a suite actually take material from it? A finder nothing calls is an
+ * obligation nobody collects on. Two entries were removed for failing this —
+ * `freezingRuleset` and `problemWithAction` asserted that a shape existed, and
+ * the suites that would have wanted it already open with their own
+ * `expect(…length).toBeGreaterThan(0)`, which says where the emptiness would
+ * bite. A suite that iterates a filtered registry guards its own filter; this
+ * file is for suites that need one specimen and would otherwise name a slug.
+ *
+ * And would the shipped example plausibly contain it anyway? If not, the
+ * requirement is the kernel wanting a particular deployment rather than a
+ * mechanism wanting exercise.
  *
  * Facts about one deployment's own content — that its demo round charges
  * twenty penalty minutes, that its warmup is retired — belong in
- * `content/deployment.test.ts` instead.
+ * `content/deployment.test.ts` instead, which the `deployment` project runs
+ * separately.
  */
 
 function required<T>(value: T | undefined, shape: string): T {
   if (value === undefined) {
     throw new Error(
       `内核测试需要 content/ 里有${shape}。` +
-        `参考 test/content-skeleton/，那份骨架满足所有这类要求。`,
+        `完整清单见 test/content-shapes.ts，上游那套示例 content 每一条都满足。`,
     );
   }
   return value;
@@ -87,14 +109,6 @@ export function contestWithGroupEntry(): {
   };
 }
 
-/** A scoring format that implements the freeze window. */
-export function freezingRuleset() {
-  return required(
-    listRulesets().find((ruleset) => ruleset.supportsFreeze),
-    "一种 supportsFreeze 的赛制",
-  );
-}
-
 /**
  * A handle registration will not hand out.
  *
@@ -130,18 +144,6 @@ export function inlineProblem(): ProblemConfig {
     ),
     "一道内联判题的题目",
   );
-}
-
-/** A problem declaring at least one interactive action, with the action's name. */
-export function problemWithAction(): { problem: ExternallyJudged; action: string } {
-  const problem = required(
-    externallyJudged().find(
-      (candidate) =>
-        !candidate.retired && Object.keys(candidate.backend.actions).length > 0,
-    ),
-    "一道声明了 actions 的在役题目",
-  );
-  return { problem, action: Object.keys(problem.backend.actions)[0]! };
 }
 
 /**

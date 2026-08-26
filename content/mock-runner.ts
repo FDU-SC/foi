@@ -11,9 +11,18 @@ import {
   verifySignature,
 } from "../lib/backend/signature";
 import type { JobDetails, JobTicket, Verdict } from "../lib/backend/types";
+import { backends } from "./backends";
 
 /**
  * A reference runner, and half a backend.
+ *
+ * Content, not platform, and it lives here rather than in `scripts/` for the
+ * reason the whole directory exists: this file knows what a `config.mode` of
+ * `interactive` means, that a `config.image` is a container to hand out, and
+ * which queues to sign as. Every one of those is a fact about the problems
+ * beside it. A kernel script that knew them would be the platform having
+ * opinions about a deployment's problem set — and deleting `content/` would
+ * leave a runner behind with nothing to run.
  *
  * The shape changed with the direction. This used to be a server: FOI posted a
  * submission to `/judge`, it queued the work itself, and it posted the verdict
@@ -54,16 +63,23 @@ const KERNEL_URL =
   "http://localhost:3000";
 
 /**
- * Which queues this process serves.
+ * Which queues this process serves. Every backend this deployment declares,
+ * unless told otherwise.
  *
- * One runner for all four backends, which a real deployment would not do — but
- * it is what makes a fresh checkout able to submit anything at all, and it
+ * One runner for all of them, which a real deployment would not do — but it is
+ * what makes a fresh checkout able to submit anything at all, and it
  * demonstrates the thing worth demonstrating: a runner picks its queues, and
  * the platform's only say in the matter is which keys it holds.
+ *
+ * Read off `./backends.ts` rather than written out. The list used to be four
+ * names in a string literal, which meant this file and the backend roster
+ * beside it could disagree — add a fifth backend and the queue nobody serves
+ * is discovered by a submission sitting in it. It is also the sort of thing
+ * that made this script content in the first place: a platform script does not
+ * get to know that a deployment happens to run a queue called `performance`.
  */
 const BACKEND_IDS = (
-  process.env.MOCK_BACKEND_IDS ??
-  "traditional,interactive,performance,leaky-bucket"
+  process.env.MOCK_BACKEND_IDS ?? Object.keys(backends).join(",")
 )
   .split(",")
   .map((id) => id.trim())

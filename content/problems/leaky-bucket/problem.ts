@@ -35,7 +35,10 @@ export const problem = {
       destroy: {},
     },
   },
-  ui: { submit: "flag", placeholder: "FOI{...}" } satisfies ProblemUi,
-  tags: ["Web", "Rate Limit"],
+  ui: {
+    submit: "flag",
+    placeholder: "FOI{...}",
+    tags: ["Web", "Rate Limit"],
+  } satisfies ProblemUi,
   order: 2,
 } satisfies ProblemConfigInput;

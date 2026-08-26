@@ -5,20 +5,16 @@ import { getResolvedUser, getSessionUser } from "@/auth";
 import type { DbOrTx } from "@/lib/accounts/queries";
 import { viewerFor } from "@/lib/auth/viewer";
 import { readTextBody } from "@/lib/body-limit";
-import { ensureContest } from "@/lib/contests/queries";
 import { db } from "@/lib/db";
+import { ensureContest, ensureProblem } from "@/lib/db/mirror";
 import { submissions } from "@/lib/db/schema";
-import {
-  releaseSha,
-  resolveBackend,
-  type ResolvedBackend,
-} from "@/lib/backend/client";
+import { releaseSha } from "@/lib/backend/env";
+import { resolveBackend, type ResolvedBackend } from "@/lib/backend/resolve";
 import {
   INLINE_BACKEND_ID,
   INLINE_BACKEND_VERSION,
   NON_TERMINAL_STATES,
 } from "@/lib/backend/types";
-import { ensureProblem } from "@/lib/problems/sync";
 import {
   isInlineBackend,
   isInlineUnavailable,

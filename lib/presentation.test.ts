@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeVerdict } from "./verdict";
+import { describeVerdict } from "./presentation";
 
 /**
  * The half of `describeVerdict` that belongs to the kernel: what to do with a

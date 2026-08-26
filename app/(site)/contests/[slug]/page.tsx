@@ -7,7 +7,7 @@ import {
   contestFor,
   isContestProblemSetVisibleTo,
 } from "@/lib/contests/access";
-import { resolveContestProblems } from "@/lib/contests/queries";
+import { resolveContestProblems } from "@/lib/contests/resolve";
 import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
 import { rulesetFor } from "@/lib/standings/registry";
 

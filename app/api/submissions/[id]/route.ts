@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/auth";
 import { viewerFor } from "@/lib/auth/viewer";
 import { isSettled } from "@/lib/backend/types";
-import { locateOne } from "@/lib/backend/queue-lookup";
 import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest, tooManyRequests } from "@/lib/ratelimit/gate";
 import { fixedRule, ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { submissionFor } from "@/lib/submissions/access";
 import { toView } from "@/lib/submissions/queries";
+import { locateOne } from "@/lib/submissions/queue-position";
 
 export const runtime = "nodejs";
 

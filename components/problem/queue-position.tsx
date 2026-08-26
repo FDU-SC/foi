@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import type { QueuePosition } from "@/lib/backend/queue-lookup";
+import type { QueuePosition } from "@/lib/submissions/queue-position";
 
 /**
  * Shows where a submission sits in its backend's queue.

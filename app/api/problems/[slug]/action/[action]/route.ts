@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { getResolvedUser } from "@/auth";
 import { viewerFor } from "@/lib/auth/viewer";
-import { actionFor } from "@/lib/backend/actions";
-import { callBackendAction, resolveBackend } from "@/lib/backend/client";
+import { callBackendAction } from "@/lib/backend/client";
+import { resolveBackend } from "@/lib/backend/resolve";
 import { readTextBody } from "@/lib/body-limit";
 import { contestEntryFor } from "@/lib/contests/access";
+import { actionFor } from "@/lib/problems/actions";
 import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest } from "@/lib/ratelimit/gate";
 

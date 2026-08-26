@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { GET, PUT } from "@/app/api/runner/jobs/[id]/route";
-import { resolveBackend } from "@/lib/backend/client";
+import { resolveBackend } from "@/lib/backend/resolve";
 import {
   MAX_CLOCK_SKEW_SECONDS,
   sign,

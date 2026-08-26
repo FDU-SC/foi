@@ -1,4 +1,5 @@
 import { backendModules } from "@/content-backend-modules";
+import { loadSingletonModule, requiredExport } from "@/lib/singleton-module";
 import { INLINE_BACKEND_ID, type ProblemBackend } from "./types";
 
 /**
@@ -21,23 +22,16 @@ function buildRegistry(): {
   backends: Record<string, ProblemBackend>;
   source: string | null;
 } {
-  const paths = Object.keys(backendModules).sort();
-  if (paths.length === 0) return { backends: {}, source: null };
+  const found = loadSingletonModule(backendModules, "题目后端");
+  if (!found) return { backends: {}, source: null };
 
-  // The glob matches one path by construction, so a second would mean somebody
-  // widened it without deciding which file wins.
-  if (paths.length > 1) {
-    throw new Error(`题目后端只能声明一处，却找到了 ${paths.join("、")}`);
-  }
+  const path = found.path;
+  const exported = requiredExport(
+    found,
+    "backends",
+    "见 lib/backend/types.ts 的 ProblemBackend",
+  );
 
-  const path = paths[0]!;
-  const exported = (backendModules[path] as { backends?: unknown }).backends;
-
-  if (exported === undefined) {
-    throw new Error(
-      `${path} 必须导出名为 backends 的常量，见 lib/backend/types.ts 的 ProblemBackend`,
-    );
-  }
   if (
     typeof exported !== "object" ||
     exported === null ||
@@ -62,9 +56,8 @@ function buildRegistry(): {
     // a declared backend sharing it would make the two indistinguishable: the
     // queue board would count settled inline rows as work waiting for a
     // runner, and a runner signing as `inline` would be handed rows it must
-    // never see. Refused here rather than documented, because the previous
-    // argument for why this could not happen — that nobody would set
-    // `FOI_BACKEND_INLINE_SECRET` — described a habit rather than a rule.
+    // never see. Refused rather than documented: "nobody would set
+    // `FOI_BACKEND_INLINE_SECRET`" is a habit, not a rule.
     if (id === INLINE_BACKEND_ID) {
       throw new Error(
         `${path} 声明了名为 "${INLINE_BACKEND_ID}" 的后端，这个名字被内核占用了：` +

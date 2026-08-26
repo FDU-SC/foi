@@ -8,7 +8,7 @@ import { normalizeHandle } from "@/lib/accounts/types";
 import { declaredGroupIds } from "@/lib/auth/groups";
 import { allContests } from "@/lib/contests/registry";
 import type { ContestConfig } from "@/lib/contests/types";
-import { resolveParticipants } from "@/lib/contests/queries";
+import { resolveParticipants } from "@/lib/contests/resolve";
 import {
   enrollmentPolicy,
   groupsFor,

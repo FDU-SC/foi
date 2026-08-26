@@ -33,7 +33,7 @@ import type { Capability } from "@/lib/auth/policy";
  * convention is `lib/<resource>/access.ts` and it holds for six of them, but
  * two gates are genuinely elsewhere and neither is misplaced:
  * `lib/standings/compute.ts#standingsFor` and
- * `lib/backend/client.ts#judgeQueuesFor`. In both, the capability is an
+ * `lib/backend/board.ts#judgeQueuesFor`. In both, the capability is an
  * argument to how the answer is *built* rather than a filter over an answer
  * that already exists — there is no unfrozen board waiting to be withheld,
  * because the freeze picks which board gets computed. A separate `access.ts`
@@ -252,6 +252,24 @@ export const READ_GATES = {
     grants: ["problem.visibleTo", "contest-phase", "contest.visibleTo"],
     denied: "undefined",
   },
+  /**
+   * Undefined for every refusal, so the route answers 404 to all of them. The
+   * distinctions are the leak here: saying `spawn` exists on a problem you
+   * cannot see confirms the problem, and saying `poll` is not declared
+   * enumerates what is.
+   *
+   * Filed under 题目 rather than 题目后端 because that is what it decides. It
+   * lived in `lib/backend/` while the directory was also holding the problem
+   * gates; what it asks is whether this viewer may act on this *problem*, and
+   * the backend is only where the answer gets relayed to.
+   */
+  "lib/problems/actions.ts#actionFor": {
+    what: "这个人能不能对这道题调用某个交互动作",
+    capabilities: [],
+    noOverride: "同 `submitFor`：`problem.viewAll` 能读题，不能起容器",
+    grants: ["problem.visibleTo", "contest-phase"],
+    denied: "undefined",
+  },
 
   // ── 比赛 ────────────────────────────────────────────────────────────────
   "lib/contests/access.ts#contestVisibility": {
@@ -397,24 +415,11 @@ export const READ_GATES = {
    * address and other people's problem choices blanked, because queue depth is
    * fine to show and who is working on what mid-contest is not.
    */
-  "lib/backend/client.ts#judgeQueuesFor": {
+  "lib/backend/board.ts#judgeQueuesFor": {
     what: "取评测队列，且只取这个人该看到的那部分",
     capabilities: ["backend.inspect"],
     grants: ["served-problems"],
     denied: "redacted",
-  },
-  /**
-   * Undefined for every refusal, so the route answers 404 to all of them. The
-   * distinctions are the leak here: saying `spawn` exists on a problem you
-   * cannot see confirms the problem, and saying `poll` is not declared
-   * enumerates what is.
-   */
-  "lib/backend/actions.ts#actionFor": {
-    what: "这个人能不能对这道题调用某个交互动作",
-    capabilities: [],
-    noOverride: "同 `submitFor`：`problem.viewAll` 能读题，不能起容器",
-    grants: ["problem.visibleTo", "contest-phase"],
-    denied: "undefined",
   },
 
   // ── 排行榜 ──────────────────────────────────────────────────────────────

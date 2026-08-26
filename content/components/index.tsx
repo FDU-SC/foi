@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { Presentation } from "@/lib/presentation/types";
+import type { Presentation } from "@/lib/presentation";
 import { verdicts } from "../verdicts";
 import { Callout } from "./callout";
 import { Constraints } from "./constraints";

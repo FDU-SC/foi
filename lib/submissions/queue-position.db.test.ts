@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { accounts, problems, submissions } from "@/lib/db/schema";
 import { externallyJudged } from "@/lib/problems/registry";
 import { MAX_ATTEMPTS } from "@/lib/runner/queue";
-import { locateInQueues, locateOne } from "./queue-lookup";
+import { locateInQueues, locateOne } from "./queue-position";
 
 /**
  * Where a submission sits in its backend's queue.

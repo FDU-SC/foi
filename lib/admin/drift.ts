@@ -4,12 +4,12 @@ import { allContests } from "@/lib/contests/registry";
 import { db } from "@/lib/db";
 import { contests, problems, submissions } from "@/lib/db/schema";
 import { enumeratedHandles, groupsFor } from "@/lib/enrollment/registry";
+import { orphanedBackends } from "@/lib/backend/access";
 import {
   backendsMissingActionUrl,
   backendsOnLoopback,
   backendsSharingSecret,
-  orphanedBackends,
-} from "@/lib/backend/access";
+} from "@/lib/backend/boot";
 import { reaperHealth, recentDisruptions } from "@/lib/runner/reaper";
 import { mailDeliveryUnmet } from "@/lib/mail/transport";
 import { allProblems } from "@/lib/problems/registry";

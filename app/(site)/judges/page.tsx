@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
 import { viewerFor } from "@/lib/auth/viewer";
 import { JudgeStatusBoard } from "@/components/judges/judge-status-board";
-import { judgeQueuesFor } from "@/lib/backend/client";
+import { judgeQueuesFor } from "@/lib/backend/board";
 
 export const metadata: Metadata = { title: "评测机" };
 export const dynamic = "force-dynamic";

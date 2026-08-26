@@ -3,7 +3,7 @@ import { contestBySlug } from "@/lib/contests/registry";
 import {
   resolveContestProblems,
   resolveParticipants,
-} from "@/lib/contests/queries";
+} from "@/lib/contests/resolve";
 import { contestPhase, type ContestConfig } from "@/lib/contests/types";
 import { db } from "@/lib/db";
 import { accounts, submissions } from "@/lib/db/schema";
@@ -33,10 +33,9 @@ export interface ContestStandings {
 }
 
 /**
- * The contest, its problem set and its roster all come from the registry now;
- * the database is queried only for the submissions. That removes three joins
- * and, more usefully, means the standings reflect the repository rather than
- * whatever a past administrator clicked.
+ * The contest, its problem set and its roster all come from the registry; the
+ * database is queried only for the submissions, so the standings reflect the
+ * repository rather than whatever a past administrator clicked.
  */
 async function loadAndCompute(
   slug: string,
@@ -103,12 +102,12 @@ async function loadAndCompute(
     submissions: submissionRows satisfies SubmissionRecord[],
   };
 
-  // The window is the kernel's, so this asks the kernel for it. It used to
-  // spell out the same comparison inline, justified by the observation that a
-  // shipped ruleset writes the right edge as `<=` — which had the dependency
-  // exactly backwards. `[freezeAt, endsAt]` is defined on `ContestPhase`, the
-  // loader refuses a `freezeAt` outside `[startsAt, endsAt)`, and a format
-  // applying a different interval would be the thing that is wrong.
+  // The window is the kernel's, so this asks the kernel for it rather than
+  // spelling the comparison out inline to match what a shipped ruleset does —
+  // that has the dependency backwards. `[freezeAt, endsAt]` is defined on
+  // `ContestPhase`, the loader refuses a `freezeAt` outside `[startsAt,
+  // endsAt)`, and a format applying a different interval is the thing that is
+  // wrong.
   const wouldFreeze = contestPhase(contest) === "frozen";
 
   return {

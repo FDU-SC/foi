@@ -2,15 +2,33 @@ import { capabilitiesOf } from "./groups";
 import type { Capability } from "./policy";
 
 /**
+ * The identity the kernel carries around.
+ *
+ * `handle` is the primary key everywhere — in the account row, in the
+ * credentials row that lets them log in, and on their submissions. There is no
+ * separate opaque id, for the same reason a problem is keyed by its slug: one
+ * name, derivable from the URL and from the source file, with no lookup table
+ * in between.
+ *
+ * `groups` is every group this person is in, privileged or not.
+ *
+ * This describes who somebody is, not what they may do. That question has one
+ * spelling — `viewer.can(capability)` — and is the `Viewer` below.
+ */
+export interface SessionUser {
+  handle: string;
+  displayName: string;
+  groups: string[];
+}
+
+/**
  * Who is asking, and the one way to ask what they may do.
  *
- * There were three mechanisms for a while: `can(user, cap)` at some call
- * sites, `userCan(user, cap)` at others, and a `Viewer` that carried the
- * answers as named booleans — `preview`, `inspectJudges`, `readAnySubmission`.
- * That last one was the worst of the three, because it copied the capability
- * list into a second shape: adding a capability meant editing the policy, then
- * this interface, then the function below, and forgetting the third step
- * produced a viewer that silently answered `undefined`.
+ * A viewer deliberately carries no named booleans — `preview`,
+ * `inspectJudges`, `readAnySubmission` — because that copies the capability
+ * list into a second shape: adding one then means editing the policy, this
+ * interface and the function below, and forgetting the third step produces a
+ * viewer that silently answers `undefined`.
  *
  * So a viewer carries identity and defers everything else. The capability list
  * has one definition in `./policy`, the mapping from group to capability has
@@ -40,12 +58,9 @@ export interface Viewer {
  * Takes the user rather than a capability so that no call site has to remember
  * which capability governs which resource.
  *
- * There was a `makeViewer` under this for a while, because there was a second
- * producer above it — an `AS_PLAYER` constant for callers that wanted to ask
- * with no groups. Nothing outside a test ever wanted that, and the two gates
- * it was written for say in their own comments why they do not; it now lives
- * in `./test-support`, which left this function as the sole producer and the
- * helper as an indirection with one caller.
+ * The sole producer. A groupless `AS_PLAYER` viewer is a test fixture and
+ * lives in `test/auth-support.ts`; the gates it would be aimed at say in their
+ * own comments why they must not use one.
  */
 export function viewerFor(
   user: { handle: string; groups: readonly string[] } | null | undefined,

@@ -1,4 +1,4 @@
-import { presentation } from "@/lib/presentation/registry";
+import { presentation } from "@/lib/presentation";
 import { toPublicConfig, type ProblemConfig } from "@/lib/problems/types";
 
 /**

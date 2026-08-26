@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import type { BackendQueueStatus, QueueEntry } from "@/lib/backend/client";
+import type { BackendQueueStatus, QueueEntry } from "@/lib/backend/board";
 import { cn } from "@/lib/utils";
 
 const POLL_INTERVAL_MS = 4000;

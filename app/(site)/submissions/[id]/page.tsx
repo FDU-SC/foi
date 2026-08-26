@@ -9,10 +9,10 @@ import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { PayloadBody } from "@/components/opaque/payload-body";
 import { VerdictBody } from "@/components/opaque/verdict-body";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { locateOne } from "@/lib/backend/queue-lookup";
 import { failureReason, isSettled } from "@/lib/backend/types";
 import { problemBySlug } from "@/lib/problems/registry";
 import { submissionFor } from "@/lib/submissions/access";
+import { locateOne } from "@/lib/submissions/queue-position";
 import { isRejudgeable } from "@/lib/submissions/rejudge";
 import { RejudgeForm } from "./rejudge-form";
 
@@ -114,7 +114,7 @@ export default async function SubmissionPage({
 
       {/*
         Both of these are opaque to the kernel, so both go through a slot a
-        deployment may fill — see `lib/presentation/types.ts`. Unfilled, they
+        deployment may fill — see `lib/presentation.ts`. Unfilled, they
         render as the JSON they are.
       */}
       <Card>

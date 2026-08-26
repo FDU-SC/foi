@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { SubmissionState, Verdict } from "@/lib/backend/types";
-import type { QueuePosition } from "@/lib/backend/queue-lookup";
+import type { QueuePosition } from "./queue-position";
 
 /** What the client sees about a submission. */
 export interface SubmissionView {

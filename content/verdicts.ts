@@ -1,4 +1,4 @@
-import type { VerdictPreset } from "@/lib/presentation/types";
+import type { VerdictPreset } from "@/lib/presentation";
 
 /**
  * What this deployment calls the verdict statuses its backends report.

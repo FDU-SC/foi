@@ -1,6 +1,6 @@
 /**
- * Not content: a boundary declaration. See `./content-problem-modules.ts` for
- * why all eight live at the repository root.
+ * Not content: a boundary declaration. See `./problem-modules.ts` for why
+ * all eight live at the top of `content/`.
  *
  * One of the two globs **without** `import "server-only"`, and that exception
  * is the whole reason it is a separate file. Statement components render in
@@ -10,7 +10,6 @@
  *
  * See `lib/presentation.ts`.
  */
-export const presentationModules = import.meta.glob(
-  "./content/components/index.tsx",
-  { eager: true },
-);
+export const presentationModules = import.meta.glob("./components/index.tsx", {
+  eager: true,
+});

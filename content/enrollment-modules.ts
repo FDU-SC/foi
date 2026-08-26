@@ -1,8 +1,8 @@
 import "server-only";
 
 /**
- * Not content: a boundary declaration. See `./content-problem-modules.ts` for
- * why all eight live at the repository root.
+ * Not content: a boundary declaration. See `./problem-modules.ts` for why
+ * all eight live at the top of `content/`.
  *
  * Who may register, which cohort an address belongs to, and who holds a
  * capability. Not who exists — that is the `accounts` table. See
@@ -14,6 +14,6 @@ import "server-only";
  * supposed to send it. `lib/auth/groups.ts` reads this, so a client component
  * reaching for something as innocuous as `groupName` ships the whole set.
  */
-export const enrollmentModules = import.meta.glob("./content/enrollment/*.ts", {
+export const enrollmentModules = import.meta.glob("./enrollment/*.ts", {
   eager: true,
 });

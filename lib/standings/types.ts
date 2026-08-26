@@ -85,7 +85,7 @@ export interface Standings<Cell> {
  * knows this interface, and has no built-in notion of penalty time, subtask
  * totals or dynamic scoring. A new format is a new file in `content/rulesets/`,
  * or a `ruleset.tsx` beside one contest's own definition; see
- * `content-ruleset-modules.ts` for when each is the right choice.
+ * `content/ruleset-modules.ts` for when each is the right choice.
  *
  * `computeStandings` is a pure function over every submission in the contest,
  * which keeps formats where one solve changes everyone's score expressible

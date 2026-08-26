@@ -1,8 +1,8 @@
 import "server-only";
 
 /**
- * Not content: a boundary declaration. See `./content-problem-modules.ts` for
- * why all eight live at the repository root.
+ * Not content: a boundary declaration. See `./problem-modules.ts` for why
+ * all eight live at the top of `content/`.
  *
  * The copy of every message the kernel sends. See `lib/mail/registry.ts`.
  *
@@ -11,6 +11,6 @@ import "server-only";
  * Splitting the copy across several files is still fine, they just have to
  * meet at this export.
  */
-export const emailModules = import.meta.glob("./content/emails/index.ts", {
+export const emailModules = import.meta.glob("./emails/index.ts", {
   eager: true,
 });

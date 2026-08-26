@@ -72,7 +72,7 @@ export const contestConfigSchema = z
      *
      * `id` names one of the shared templates in `content/rulesets/`. Omit it
      * and the contest's own `ruleset.tsx` is used instead — see the note in
-     * `content-ruleset-modules.ts` on when each is the right choice. Naming both, or
+     * `content/ruleset-modules.ts` on when each is the right choice. Naming both, or
      * neither, is an error `lib/contests/registry.ts` refuses at load.
      */
     ruleset: z.object({

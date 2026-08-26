@@ -1,7 +1,7 @@
 import {
   contestRulesetModules,
   rulesetModules,
-} from "@/content-ruleset-modules";
+} from "@/content/ruleset-modules";
 import type { AnyRuleset } from "./types";
 
 /**

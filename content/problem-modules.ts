@@ -1,25 +1,23 @@
 import "server-only";
 
 /**
- * Not content: a boundary declaration. The other seven
- * `content-*-modules.ts` point here rather than restate why all eight sit at
- * the repository root. Two reasons, each sufficient on its own.
+ * Not content: a boundary declaration. The other seven `*-modules.ts` point
+ * here rather than restate why all eight sit at the top of `content/`.
  *
  * `import.meta.glob` only scans downward from the calling file, and it fails
  * *silently*: `../`, the `@/` alias and a leading `/` each yield `{}` with no
  * error and no warning, at build time or at run time. Verified against Next
- * 16.3.1 by build probe: the root-relative pattern below returns all 11
- * problem modules, the same pattern behind any of those three prefixes returns
+ * 16.3.1 by build probe: the content-relative patterns below return every
+ * problem module, the same pattern behind any of those three prefixes returns
  * nothing, and every registry downstream reads that as a deployment that ships
- * no problems. Relocating one of these files, or tidying a pattern into an
- * alias, is therefore not a refactor that fails loudly.
+ * no problems. These files therefore cannot live in `lib/` — that would need
+ * `../content/...`, which is one of the silent-empty cases.
  *
- * Second, a glob must outlive the directory it scans: `rm -rf content` has to
- * leave a kernel that still compiles, boots and serves, which the
- * `content-absent` job in `.github/workflows/check.yml` enforces. A glob over
- * a missing directory yields `{}`, and every registry under `lib/` treats an
- * empty result as a legal deployment. The root is the nearest position that
- * satisfies both constraints.
+ * They are the *structure* of a deployment, not its substance. The
+ * `content-absent` job in `.github/workflows/check.yml` deletes everything
+ * else under `content/` and keeps these eight. A glob over a missing directory
+ * yields `{}`, and every registry under `lib/` treats an empty result as a
+ * legal deployment.
  *
  * `server-only` is what makes the boundary hold. A problem's `backend.config`
  * routinely holds testdata locations, checker settings, or literal answers,
@@ -35,10 +33,10 @@ import "server-only";
  * to render.
  */
 export const problemConfigModules = import.meta.glob(
-  "./content/problems/*/problem.ts",
+  "./problems/*/problem.ts",
   { eager: true },
 );
 
 export const problemStatementModules = import.meta.glob(
-  "./content/problems/*/statement.mdx",
+  "./problems/*/statement.mdx",
 );

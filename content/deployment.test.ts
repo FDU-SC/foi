@@ -84,7 +84,7 @@ describe("这套 content 自身自洽", () => {
    * 回落成 JSON——那正是「没登记」的合法形态。以前这条路径要十份文件同时消失才
    * 走得到，现在一处 glob 漂移就够，所以在这里钉一下。
    */
-  it("problems/views.ts 真的被 content-problem-view-modules 找到了", () => {
+  it("problems/views.ts 真的被 content/problem-view-modules 找到了", () => {
     const declared = allProblems().filter(
       (problem) => viewsFor(problem.slug).PayloadView !== undefined,
     );

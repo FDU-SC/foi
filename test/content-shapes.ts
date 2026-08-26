@@ -25,9 +25,10 @@ import type { ExternallyJudged, ProblemConfig } from "@/lib/problems/types";
  * deployment whose content is missing one is told which mechanism is going
  * untested rather than which slug it should have written.
  *
- * There is no fixture behind any of this, deliberately. A tree with no
- * `content/` does not run these suites at all — it typechecks, builds and
- * boots, which is what `content-absent` checks — because the alternative was
+ * There is no fixture behind any of this, deliberately. A tree whose
+ * `content/` holds only the eight globs does not run these suites at all —
+ * it typechecks, builds and boots, which is what `content-absent` checks —
+ * because the alternative was
  * a fixture registry for the kernel to test itself against, and a fixture
  * registry agrees with whatever it was written next to.
  *

@@ -1,8 +1,8 @@
 import "server-only";
 
 /**
- * Not content: a boundary declaration. See `./content-problem-modules.ts` for
- * why all eight live at the repository root.
+ * Not content: a boundary declaration. See `./problem-modules.ts` for why
+ * all eight live at the top of `content/`.
  *
  * Schedules, problem sets and entry rules. See `lib/contests/registry.ts`.
  *
@@ -11,7 +11,6 @@ import "server-only";
  * and a browser chunk carrying its title, its start time and its problem list
  * would announce it anyway.
  */
-export const contestModules = import.meta.glob(
-  "./content/contests/*/contest.ts",
-  { eager: true },
-);
+export const contestModules = import.meta.glob("./contests/*/contest.ts", {
+  eager: true,
+});

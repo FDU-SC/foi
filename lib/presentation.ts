@@ -1,6 +1,6 @@
 import type { MDXComponents } from "mdx/types";
 import type { ComponentType } from "react";
-import { presentationModules } from "@/content-presentation-modules";
+import { presentationModules } from "@/content/presentation-modules";
 import type { PublicProblemConfig } from "@/lib/problems/types";
 import { loadSingletonModule, requiredExport } from "@/lib/singleton-module";
 

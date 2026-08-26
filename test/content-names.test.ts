@@ -31,15 +31,17 @@ import { listRulesets } from "@/lib/standings/registry";
  * `contestBySlug("demo-acm")`, a leak probe spelling out one problem's answer,
  * a backend roster copied into six files — was a literal.
  *
- * With no `content/` mounted there are no names, and this passes vacuously.
- * That is correct: the claim is about the kernel's relationship to content it
- * has, and `content-absent` is where the no-content claim is checked.
+ * With no substance under `content/` there are no names, and this passes
+ * vacuously. That is correct: the claim is about the kernel's relationship to
+ * content it has, and `content-absent` is where the no-content claim is
+ * checked.
  */
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 /**
- * `content/` is excluded because naming its own problems is its job.
+ * `content/` is excluded because naming its own problems is its job — except
+ * the eight globs at its top, which are kernel structure and are scanned.
  * `drizzle/` holds generated SQL, `public/` is not source.
  */
 const SKIP = new Set([
@@ -74,9 +76,16 @@ const COMMENT = /^\s*(?:\/\/|\/\*|\*)/;
 function sourceFiles(dir: string, found: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (entry.name.startsWith(".") && entry.name !== ".github") continue;
-    if (SKIP.has(entry.name)) continue;
 
     const path = join(dir, entry.name);
+    if (entry.name === "content") {
+      for (const file of readdirSync(path)) {
+        if (file.endsWith("-modules.ts")) found.push(join(path, file));
+      }
+      continue;
+    }
+    if (SKIP.has(entry.name)) continue;
+
     if (entry.isDirectory()) sourceFiles(path, found);
     else if (SOURCE.test(entry.name)) found.push(path);
   }
@@ -127,8 +136,9 @@ describe("内核不认识 content 的名字", () => {
 
   it("确实拿到了一批名字，否则上一条是空真", () => {
     // The check above is a search for a needle, so it passes trivially when
-    // there are no needles. A tree with no `content/` trips `content-shapes`
-    // as well, and that failure explains itself better than this one.
+    // there are no needles. A tree whose `content/` holds only the eight
+    // globs trips `content-shapes` as well, and that failure explains itself
+    // better than this one.
     expect(contentNames().size).toBeGreaterThan(0);
   });
 });

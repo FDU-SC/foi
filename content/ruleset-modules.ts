@@ -1,8 +1,8 @@
 import "server-only";
 
 /**
- * Not content: a boundary declaration. See `./content-problem-modules.ts` for
- * why all eight live at the repository root.
+ * Not content: a boundary declaration. See `./problem-modules.ts` for why
+ * all eight live at the top of `content/`.
  *
  * Scoring formats, in two flavours: shared templates a contest picks by id,
  * and the one-off a contest brings itself in `ruleset.tsx` beside its
@@ -17,11 +17,11 @@ import "server-only";
  * in the browser: `computeStandings` sees every submission in the contest,
  * including the ones a freeze is meant to withhold.
  */
-export const rulesetModules = import.meta.glob("./content/rulesets/*.tsx", {
+export const rulesetModules = import.meta.glob("./rulesets/*.tsx", {
   eager: true,
 });
 
 export const contestRulesetModules = import.meta.glob(
-  "./content/contests/*/ruleset.tsx",
+  "./contests/*/ruleset.tsx",
   { eager: true },
 );

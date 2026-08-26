@@ -1,4 +1,4 @@
-import { contestModules } from "@/content-contest-modules";
+import { contestModules } from "@/content/contest-modules";
 import { handleSchema, normalizeHandle } from "@/lib/accounts/types";
 import { knownGroups } from "@/lib/enrollment/registry";
 import { audienceCovers, describeAudience } from "@/lib/auth/audience";

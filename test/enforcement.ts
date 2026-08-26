@@ -357,12 +357,11 @@ export const READ_GATES = {
   },
 
   // ── 提交 ────────────────────────────────────────────────────────────────
-  "lib/submissions/access.ts#canReadSubmission": {
-    what: "这条提交是不是这个人能读的",
-    capabilities: ["submission.readAny"],
-    grants: ["owner"],
-    denied: "false",
-  },
+  /**
+   * 「这条提交是不是这个人能读的」曾经是这里的一条独立门禁
+   * （`canReadSubmission`），现在是下面这个取函数里的一行：生产代码从来只有
+   * `submissionFor` 调它。
+   */
   "lib/submissions/access.ts#submissionFor": {
     what: "取一条提交的详情",
     capabilities: ["submission.readAny"],

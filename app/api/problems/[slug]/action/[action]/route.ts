@@ -7,7 +7,7 @@ import { readTextBody } from "@/lib/body-limit";
 import { contestEntryFor } from "@/lib/contests/access";
 import { actionFor } from "@/lib/problems/actions";
 import { rateLimit } from "@/lib/ratelimit";
-import { guardRequest } from "@/lib/ratelimit/gate";
+import { guardRequest, tooManyRequests } from "@/lib/ratelimit/gate";
 
 // Signing uses node:crypto, so this must not run on Edge.
 export const runtime = "nodejs";
@@ -60,15 +60,7 @@ export async function POST(
     resolved.rateLimit.windowSeconds * 1000,
   );
   if (!verdict.ok) {
-    return NextResponse.json(
-      { error: "操作过于频繁，请稍后再试" },
-      {
-        status: 429,
-        headers: {
-          "retry-after": String(Math.ceil(verdict.retryAfterMs / 1000)),
-        },
-      },
-    );
+    return tooManyRequests(verdict.retryAfterMs, "操作过于频繁，请稍后再试");
   }
 
   const read = await readTextBody(request, MAX_PAYLOAD_BYTES);

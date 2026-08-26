@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { contestPhase } from "@/lib/contests/types";
 import { formatDuration } from "@/lib/utils";
 import {
   assignRanks,
@@ -23,11 +24,9 @@ export interface AcmCell {
    *
    * The two are one number because they are one thing to the person reading
    * the board — something was sent and the result is not in — and because the
-   * ICPC convention this cell imitates has always covered both. It used to
-   * count only the first, which meant a submission still in the queue showed
-   * as nothing at all and then appeared as a solve or a rejection out of
-   * nowhere; during a freeze, the state the freeze exists for, that is the
-   * whole population of the cell.
+   * ICPC convention this cell imitates has always covered both. Counting only
+   * the post-freeze half leaves a queued submission showing as nothing at all
+   * and then appearing as a solve out of nowhere.
    */
   pending: number;
 }
@@ -37,10 +36,9 @@ function AcmCellView({ cell }: { cell: AcmCell | undefined }) {
     return <span className="text-fg-subtle">·</span>;
   }
 
-  // The rejected count is dropped rather than printed as `−0`, because a cell
-  // holding nothing but pending attempts is now the ordinary case: any
-  // submission still in the queue produces one, not just a freeze with nothing
-  // before it.
+  // A cell holding nothing but pending attempts is the ordinary case — any
+  // queued submission produces one — so the rejected count is dropped rather
+  // than printed as `−0`.
   if (cell.solvedAt === null) {
     return (
       <span className="font-mono text-xs tabular-nums">
@@ -77,20 +75,27 @@ export const ruleset: Ruleset<AcmCell> = {
   computeStandings(input: StandingsInput) {
     const { penaltyMinutes } = configSchema.parse(input.config ?? {});
     const start = input.contest.startsAt.getTime();
-    const now = Date.now();
     const freezeAt = input.contest.freezeAt;
-    // `[freezeAt, endsAt]`, closed at both ends — the same window
-    // `contestPhase` calls `frozen`, written out again because a ruleset in
-    // `content/` computes its own. The right edge used to be exclusive here and
-    // inclusive there, so at the millisecond a round ended the badge said
-    // frozen and the board it sat above was not. Nothing leaks either way, but
-    // `content/` gets none of the exhaustive-switch safety the kernel's phase
-    // callers have, so the two agreeing is a thing this line has to do on
-    // purpose.
+    // Asked rather than recomputed. `content/` gets none of the
+    // exhaustive-switch safety the kernel's phase callers have, so a ruleset
+    // spelling out `[freezeAt, endsAt]` for itself is a second definition of
+    // the window that can disagree with `contestPhase` by a millisecond — the
+    // badge saying frozen above a board that is not.
+    //
+    // Rebuilt rather than passed straight through because `ContestWindow`
+    // spells an absent freeze as `null` and `ContestClock` as `undefined`. The
+    // instant is `new Date(Date.now())` rather than `new Date()` because
+    // `Date.now` is what a test moves to place the board inside a window — see
+    // `lib/standings/freeze.test.ts`.
     const frozen =
-      freezeAt !== null &&
-      now >= freezeAt.getTime() &&
-      now <= input.contest.endsAt.getTime();
+      contestPhase(
+        {
+          startsAt: input.contest.startsAt,
+          endsAt: input.contest.endsAt,
+          freezeAt: freezeAt ?? undefined,
+        },
+        new Date(Date.now()),
+      ) === "frozen";
 
     const byUser = new Map<string, Map<string, AcmCell>>();
     for (const participant of input.participants) {

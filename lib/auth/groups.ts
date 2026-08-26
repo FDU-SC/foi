@@ -1,21 +1,15 @@
 import { z } from "zod";
-import { enrollmentModules } from "@/content-enrollment-modules";
+import { enrollmentSources } from "@/lib/enrollment/modules";
 import { CAPABILITIES, IMPLIES, type Capability } from "./policy";
 
 /**
  * What a group is allowed to do.
  *
- * There used to be two parallel ways to sort people, and they could not be
- * used for each other's job. `role` came from `lib/auth/policy.ts`, carried
- * capabilities, and could only be handed out by naming somebody — one role per
- * person. `tags` came from an address regex, cost nothing to add, covered a
- * whole intake at once, and conferred no privilege whatsoever. So the thing
- * that could classify had no power, and the thing that had power could not
- * classify.
- *
- * There is now one concept. A group is a name; a group *declared here* also
+ * One concept, not two. A group is a name; a group *declared here* also
  * carries capabilities. Everything else about it is the same either way, and a
- * person belongs to as many as apply.
+ * person belongs to as many as apply — so the thing that classifies and the
+ * thing that carries power are not separate mechanisms that cannot do each
+ * other's job.
  *
  * The kernel still owns the vocabulary: `CAPABILITIES` in `./policy` is the
  * list of decisions this codebase knows how to make, because those names are
@@ -33,9 +27,7 @@ const groupSchema = z.object({
    * What members may do. Omitted means nothing — an ordinary cohort.
    *
    * A group with capabilities can only be joined by a rule that names handles;
-   * `lib/enrollment/registry.ts` refuses to let a pattern confer one. That is
-   * the safety property the old role/tag split existed to provide, kept as a
-   * check rather than as a structural accident.
+   * `lib/enrollment/registry.ts` refuses to let a pattern confer one.
    */
   capabilities: z.array(z.enum(CAPABILITIES)).default([]),
 });
@@ -47,8 +39,7 @@ function buildRegistry(): Map<string, Group> {
   const registry = new Map<string, Group>();
   const sources = new Map<string, string>();
 
-  for (const path of Object.keys(enrollmentModules).sort()) {
-    const exported = (enrollmentModules[path] as { groups?: unknown }).groups;
+  for (const { path, groups: exported } of enrollmentSources()) {
     if (exported === undefined) continue;
 
     if (!Array.isArray(exported)) {
@@ -99,14 +90,12 @@ export function isPrivileged(id: string): boolean {
 /**
  * The same question about a whole membership, and the only way to ask it.
  *
- * There were two spellings of this and they were the same invariant written
- * twice: `lib/enrollment/registry.ts` asked `groups.filter(isPrivileged)` at
- * load, while the suspension guard asked `capabilitiesOf(groups).size > 0`.
- * They agree — the closure over `IMPLIES` only ever adds to a set that already
- * had something in it, so it cannot turn an unprivileged membership into a
- * privileged one — but that agreement is a small proof rather than something
- * you can see, and it is the kind that stops holding the moment somebody makes
- * a capability implied by nothing.
+ * `capabilitiesOf(groups).size > 0` is the other way to spell it, and it must
+ * not be spelled that way anywhere. The two agree only because the closure
+ * over `IMPLIES` adds to a set that already had something in it, so it cannot
+ * turn an unprivileged membership into a privileged one — a small proof rather
+ * than something you can see, and one that stops holding the moment somebody
+ * makes a capability implied by nothing.
  *
  * Defined over `isPrivileged` rather than beside it, so there is one place
  * that knows what "privileged" means and this only decides how many groups to
@@ -130,19 +119,13 @@ export function privilegedGroupIds(): string[] {
 /**
  * `capabilitiesOf` walks `IMPLIES` one hop, so `IMPLIES` has to be flat.
  *
- * Checked over the whole table, once, at load. It used to be checked inside
- * the loop below, which had two things wrong with it that a reader would not
- * notice: the branch could only be reached by somebody who *held* the
- * offending capability, so a two-hop entry could ship and sit silent until the
- * first administrator signed in; and it excused itself under
- * `NODE_ENV === "production"`, which is every deployed environment there is,
- * so the check that was meant to catch it ran only on a laptop.
- *
- * Both are the same mistake — asking a question about a constant at the moment
- * somebody happens to touch it — and the answer is the one `content/` gets
- * everywhere else in this codebase: refuse at load. A build whose capability
- * table has stopped closing now fails to boot, which is the loudest and
- * earliest this can be said.
+ * Checked over the whole table, once, at load, and deliberately not inside
+ * `capabilitiesOf`'s loop. Checked there, the branch is only reachable by
+ * somebody who *holds* the offending capability, so a two-hop entry ships and
+ * sits silent until the first administrator signs in — asking a question about
+ * a constant at the moment somebody happens to touch it. A build whose
+ * capability table has stopped closing fails to boot instead, which is the
+ * loudest and earliest this can be said.
  *
  * Exported for `./groups.test.ts`, which has to reach into `IMPLIES` to see it
  * fire at all: the repository's own table is flat, and a guard nothing can

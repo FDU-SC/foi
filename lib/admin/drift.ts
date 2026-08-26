@@ -3,7 +3,7 @@ import { listAccounts } from "@/lib/accounts/queries";
 import { allContests } from "@/lib/contests/registry";
 import { db } from "@/lib/db";
 import { contests, problems, submissions } from "@/lib/db/schema";
-import { enumeratedHandles, groupsFor } from "@/lib/enrollment/registry";
+import { enumeratedHandles, tallyCohorts } from "@/lib/enrollment/registry";
 import { orphanedBackends } from "@/lib/backend/access";
 import {
   backendsMissingActionUrl,
@@ -21,12 +21,10 @@ import { allProblems } from "@/lib/problems/registry";
  * reality drifted from what the repository says". Each finding names a
  * specific divergence and how to resolve it.
  *
- * Two of these used to read the other way round. A credential with no roster
- * entry was once a warning; it is now simply what an ordinary competitor looks
- * like. What replaced it is the mirror image — an address that no cohort rule
- * recognises — because that is the failure this design can actually have: the
- * rules are code and the addresses are data, so a rule that has fallen behind
- * its intake shows up as people quietly belonging to nothing.
+ * A credential with no roster entry is not one of them — that is what an
+ * ordinary competitor looks like. The mirror image is: the rules are code and
+ * the addresses are data, so a rule that has fallen behind its intake shows up
+ * as people quietly belonging to nothing.
  */
 export type DriftSeverity = "info" | "warn";
 
@@ -109,18 +107,15 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
   //
   // Asked of the mail module rather than of `FOI_SMTP_HOST`, which is the
   // whole reason `policy.mailDelivery` exists: where mail goes is a
-  // declaration now, not an inference from an absent variable. Reading the
-  // variable meant a deployment that had written `mailDelivery: "console"` on
-  // purpose — the value `content/enrollment/example.ts` ships — was told at
-  // every visit to fix a decision it had made, and a list whose first entry
-  // can never be resolved is a list that gets skimmed past.
+  // declaration, not an inference from an absent variable. Reading the
+  // variable tells a deployment that wrote `mailDelivery: "console"` on
+  // purpose to fix a decision it made, at every visit, and a list whose first
+  // entry can never be resolved is a list that gets skimmed past.
   //
-  // What is left is barely reachable in production, because
-  // `assertMailDelivery` refuses that boot: short of a process started some
-  // other way, such a deployment either has its relay or never came up. So
-  // this mostly repeats a warning that was printed at startup, for the reason
-  // the shared-key finding below repeats one — it scrolled past in a log that
-  // has since rotated.
+  // Barely reachable in production, because `assertMailDelivery` refuses that
+  // boot. So this mostly repeats a startup warning, for the reason the
+  // shared-key finding below does: a startup warning scrolled past weeks ago,
+  // in a log that has since rotated.
   if (mailDeliveryUnmet()) {
     findings.push({
       severity: "warn",
@@ -134,10 +129,12 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
   // The rules are code and the addresses are data, so this is where the two
   // fall out of step: a new intake whose address format nobody added a rule
   // for lands here, silently in no cohort, entered in no contest.
-  const untagged = accountRows
-    .filter((row) => row.status === "active" && row.email)
-    .filter((row) => groupsFor(row.handle, row.email).length === 0)
-    .map((row) => row.handle);
+  //
+  // The same pass the console's enrolment page runs, which is what keeps the
+  // handles listed here and the number shown there from being two answers.
+  const { untagged } = tallyCohorts(
+    accountRows.filter((row) => row.status === "active"),
+  );
 
   if (untagged.length > 0) {
     findings.push({

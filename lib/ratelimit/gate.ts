@@ -6,22 +6,18 @@ import { sourceFrom } from "./source";
 /**
  * The first line of every route handler under `/api`.
  *
- * These routes sit outside the `proxy.ts` matcher on purpose — proxy running
- * for a route makes Next clone and buffer the request body, which would turn
- * `readTextBody`'s streaming count into a cancel against a copy that has
- * already been paid for. Keeping them out preserves that defence and costs
- * them the global layer, so they take the equivalent bound here instead.
+ * These routes sit outside the `proxy.ts` matcher on purpose, so they take the
+ * equivalent bound here instead — see `SOURCE_GATE` for why.
  *
  * Before anything, including reading the body and deciding who is calling. The
  * runner routes are why the ordering matters: they answer to no session, so
  * their credentials are a signature over the body, and every byte of parsing
  * and every HMAC computed is work an anonymous caller asked for.
  *
- * Two checks rather than one, and folded together rather than left as a line
- * each handler remembers. The cross-origin half was previously nowhere at all;
- * putting it beside the bound that is already unforgettable — because
- * `policy.test.ts` fails when a route is missing from the table — is what makes
- * it apply to the fourth route as reliably as to the first.
+ * Two checks folded together rather than left as a line each handler
+ * remembers, so that the cross-origin half rides on the bound that is already
+ * unforgettable — `policy.test.ts` fails when a route is missing from the
+ * table.
  *
  * Returns a response to send, or null to carry on — so a call site that
  * forgets to return is a type error rather than a silently open endpoint.
@@ -43,13 +39,10 @@ export function guardRequest(
 function floodGate(request: Request, route: RouteKey): NextResponse | null {
   /**
    * Stands aside when no source can be established, and that decision is
-   * `rateLimitBySource`'s rather than one taken again here.
-   *
-   * It used to be taken here, in a paragraph this file kept and the six Server
-   * Actions did not — so the same `FOI_TRUSTED_PROXY_HOPS=0` meant "no gate"
-   * on an API route and "one shared bucket for the whole deployment" on the
-   * registration form. Two answers to one question is how a rule ends up
-   * enforced in the place that happened to argue it.
+   * `rateLimitBySource`'s rather than one taken again here — deciding it twice
+   * is how the same `FOI_TRUSTED_PROXY_HOPS=0` comes to mean "no gate" on an
+   * API route and "one shared bucket for the whole deployment" on a Server
+   * Action.
    *
    * What is specific to this gate, and the reason it is the loss worth
    * accepting rather than a hole: these are the only bounds the three runner
@@ -68,15 +61,7 @@ function floodGate(request: Request, route: RouteKey): NextResponse | null {
   );
   if (verdict.ok) return null;
 
-  return NextResponse.json(
-    { error: "请求过于频繁，请稍后再试" },
-    {
-      status: 429,
-      headers: {
-        "retry-after": String(Math.ceil(verdict.retryAfterMs / 1000)),
-      },
-    },
-  );
+  return tooManyRequests(verdict.retryAfterMs);
 }
 
 /**
@@ -98,13 +83,12 @@ const FORM_CONTENT_TYPES = [
 /**
  * The authority this request was actually addressed to.
  *
- * Compared against the `Origin` header instead of against `FOI_PUBLIC_URL`,
- * and that choice is the fix for a real regression: an earlier attempt used
- * exact equality with the configured URL, so reaching a dev server on
- * `127.0.0.1:3000` when it was configured as `localhost:3000` answered 403.
- * The question worth asking is not "is this the URL we published" but "did the
- * page that made this request come from the same place it is talking to", and
- * only the request can answer that.
+ * Compared against the `Origin` header rather than against `FOI_PUBLIC_URL`,
+ * which is the tempting alternative and the wrong one: exact equality with the
+ * configured URL answers 403 for a dev server reached on `127.0.0.1:3000` when
+ * it is configured as `localhost:3000`. The question worth asking is not "is
+ * this the URL we published" but "did the page that made this request come
+ * from the same place it is talking to", and only the request can answer that.
  *
  * Believing the `Host` header is safe *for this question* even though it is
  * not safe for building links. An attacker who sets it picks the host their
@@ -190,10 +174,20 @@ function originGate(request: Request, route: RouteKey): NextResponse | null {
   );
 }
 
-/** The same refusal, for a bound taken after the caller is known. */
-export function tooManyRequests(retryAfterMs: number): NextResponse {
+/**
+ * The one 429 in the codebase: same status, same body shape, same
+ * `retry-after` arithmetic everywhere.
+ *
+ * The wording is the only part a handler legitimately owns, which is why it is
+ * the only argument. The submission route passes one sentence for both of its
+ * bounds on purpose, so that a client cannot tell which of the two it hit.
+ */
+export function tooManyRequests(
+  retryAfterMs: number,
+  error = "请求过于频繁，请稍后再试",
+): NextResponse {
   return NextResponse.json(
-    { error: "请求过于频繁，请稍后再试" },
+    { error },
     {
       status: 429,
       headers: { "retry-after": String(Math.ceil(retryAfterMs / 1000)) },

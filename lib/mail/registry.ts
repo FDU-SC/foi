@@ -1,4 +1,6 @@
 import { emailModules } from "@/content-email-modules";
+import { loadSingletonModule } from "@/lib/singleton-module";
+import { escapeHtml } from "./html";
 import type {
   EmailTemplates,
   MailBody,
@@ -21,12 +23,11 @@ import type {
 /**
  * Where the fallback's timestamps are read from, when a deployment says.
  *
- * `Asia/Shanghai` was written in here, which put one competition's wall clock
- * inside the platform: a deployment elsewhere would have told its users an
- * expiry time in a city they do not live in, and the only way out was to stop
- * using the fallback. `FOI_TIMEZONE` names an IANA zone; unset falls through
- * to whatever the process runs on, which is the honest answer for a
- * deployment that has not said.
+ * No zone is written in here: naming one puts a single competition's wall
+ * clock inside the platform, and a deployment elsewhere would then be telling
+ * its users an expiry time in a city they do not live in, with no way out but
+ * to stop using the fallback. `FOI_TIMEZONE` names an IANA zone; unset falls
+ * through to whatever the process runs on.
  *
  * Built per call rather than once at module load, because the variable is read
  * at boot and a formatter cached above it would be pinned to whatever the
@@ -39,14 +40,6 @@ function formatExpiry(at: Date): string {
     timeStyle: "short",
     timeZone: process.env.FOI_TIMEZONE || undefined,
   }).format(at);
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 /**
@@ -85,30 +78,27 @@ const FALLBACK: EmailTemplates = {
 const METHODS = ["verificationCode", "resetPassword"] as const;
 
 function buildRegistry(): { templates: EmailTemplates; source: string | null } {
-  const paths = Object.keys(emailModules).sort();
-  if (paths.length === 0) return { templates: FALLBACK, source: null };
+  const found = loadSingletonModule(emailModules, "邮件文案");
+  if (!found) return { templates: FALLBACK, source: null };
 
-  // The glob matches one path by construction, so a second would mean somebody
-  // widened it without deciding which file wins.
-  if (paths.length > 1) {
-    throw new Error(`邮件文案只能声明一处，却找到了 ${paths.join("、")}`);
-  }
-
-  const path = paths[0]!;
-  const mod = emailModules[path] as Partial<Record<string, unknown>>;
-
-  // Checked rather than trusted, because the failure this catches is silent:
-  // a module that exports one of the two leaves the other `undefined`, and
-  // nothing notices until somebody asks for a reset link and gets a crash
-  // inside `deliver`.
-  const missing = METHODS.filter((name) => typeof mod[name] !== "function");
+  // Its own check rather than `requiredExport`, because there are two of them
+  // and both have to be callable. The failure this catches is silent: a module
+  // that exports one of the two leaves the other `undefined`, and nothing
+  // notices until somebody asks for a reset link and gets a crash inside
+  // `deliver`.
+  const missing = METHODS.filter(
+    (name) => typeof found.exports[name] !== "function",
+  );
   if (missing.length > 0) {
     throw new Error(
-      `${path} 必须导出 ${missing.join(" 与 ")}，见 lib/mail/types.ts 的 EmailTemplates`,
+      `${found.path} 必须导出 ${missing.join(" 与 ")}，见 lib/mail/types.ts 的 EmailTemplates`,
     );
   }
 
-  return { templates: mod as unknown as EmailTemplates, source: path };
+  return {
+    templates: found.exports as unknown as EmailTemplates,
+    source: found.path,
+  };
 }
 
 const registry = buildRegistry();

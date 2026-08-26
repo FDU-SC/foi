@@ -1,3 +1,5 @@
+import { makeRoom } from "@/lib/bounded-map";
+
 /**
  * A fixed-window counter, with the storage left to the caller.
  *
@@ -53,22 +55,6 @@ export interface FixedWindowOptions {
 export function createFixedWindow(options: FixedWindowOptions): FixedWindow {
   const buckets = new Map<string, Window>();
 
-  function evict(now: number): void {
-    for (const [key, window] of buckets) {
-      if (window.resetAt <= now) buckets.delete(key);
-    }
-
-    if (buckets.size < options.maxKeys) return;
-
-    // Still full after dropping the expired ones, which is what a flood of
-    // distinct keys looks like. Shed the ones nearest their own expiry.
-    const byExpiry = [...buckets.entries()].sort(
-      (a, b) => a[1].resetAt - b[1].resetAt,
-    );
-    const excess = buckets.size - options.maxKeys + 1;
-    for (let i = 0; i < excess; i += 1) buckets.delete(byExpiry[i][0]);
-  }
-
   return {
     take(key, limit, windowMs) {
       const now = Date.now();
@@ -85,7 +71,9 @@ export function createFixedWindow(options: FixedWindowOptions): FixedWindow {
       // A new key, or one whose window has passed. Only now is it worth
       // walking the map: an existing key in an open window is the common case
       // and costs one lookup.
-      if (buckets.size >= options.maxKeys) evict(now);
+      if (buckets.size >= options.maxKeys) {
+        makeRoom(buckets, (bucket) => bucket.resetAt, now, options.maxKeys);
+      }
       buckets.set(key, { count: 1, resetAt: now + windowMs });
       return { ok: true };
     },

@@ -5,15 +5,14 @@ import {
   type AccountDirectory,
 } from "@/lib/accounts/access";
 import { normalizeHandle } from "@/lib/accounts/types";
-import { declaredGroupIds } from "@/lib/auth/groups";
 import { allContests } from "@/lib/contests/registry";
-import type { ContestConfig } from "@/lib/contests/types";
 import { resolveParticipants } from "@/lib/contests/resolve";
+import type { ContestConfig } from "@/lib/contests/types";
 import {
   enrollmentPolicy,
-  groupsFor,
   knownGroups,
   listRules,
+  tallyCohorts,
 } from "@/lib/enrollment/registry";
 import {
   isHandlesRule,
@@ -25,17 +24,12 @@ import { loadAdminOverview, type AdminOverview } from "./drift";
 /**
  * How the operations console obtains anything.
  *
- * The other five access layers exist because of a rule this codebase keeps
- * relearning — see `lib/problems/access.ts` on gating at the point of retrieval
- * rather than at each call site, and `lib/submissions/access.ts` on what
- * happens when the same rule is written out three times and missed the fourth.
- * The console was the one part with no such layer, so `admin.access` was a
- * thing each page had to remember, and two of the four did: `/admin` and
- * `/admin/contests` checked it, `/admin/accounts` and `/admin/enrollment` did
- * not. The second of those was the one that mattered, because its data was not
- * gated by anything else — a suspended administrator holding a live JWT gets
- * past `proxy.ts`, which reads the token and never the accounts table, and
- * would have been handed the registration policy, every cohort regex, and the
+ * Gated at the point of retrieval, like the other five access layers — see
+ * `lib/problems/access.ts`. Left to each page to remember, `admin.access` is a
+ * check somebody misses, and `/admin/enrollment` is the page where that costs
+ * most: its data is gated by nothing else, and a suspended administrator
+ * holding a live JWT gets past `proxy.ts`, which reads the token and never the
+ * accounts table, to the registration policy, every cohort regex, and the
  * rules naming everybody who holds privilege.
  *
  * So there is no way to ask this module for console data without saying who is
@@ -66,10 +60,6 @@ export async function adminOverviewFor(
  * wrong: gate the addresses on `admin.access` and the one page here that shows
  * personal data stops answering to the capability that names it; gate the page
  * on `account.read` and somebody entitled to the console gets a 404.
- *
- * The page checked `admin.access` inline before this existed — the last of the
- * four still doing so, which is exactly the arrangement the note above says
- * the console lost two pages to.
  */
 export async function adminAccountsFor(
   viewer: Viewer,
@@ -150,21 +140,9 @@ export async function enrollmentViewFor(
 
   const active = await accountsFor(viewer, { status: "active" });
 
-  // Declared groups start at zero so they are listed even when empty. That is
-  // the value of the card right after somebody adds a group: a count of 0 next
-  // to a name you just wrote is how a mistyped group announces itself, and
-  // absence from the list would not.
-  const groupCounts = new Map<string, number>(
-    declaredGroupIds().map((id) => [id, 0]),
-  );
-  let untagged = 0;
-  for (const row of active) {
-    const resolved = groupsFor(row.handle, row.email);
-    if (resolved.length === 0 && row.email) untagged += 1;
-    for (const id of resolved) {
-      groupCounts.set(id, (groupCounts.get(id) ?? 0) + 1);
-    }
-  }
+  // One pass for both readings, and the same one `lib/admin/drift.ts` runs to
+  // list the untagged handles this page only counts.
+  const { counts: groupCounts, untagged } = tallyCohorts(active);
 
   const activeHandles = new Set(active.map((row) => row.handle));
 
@@ -178,6 +156,6 @@ export async function enrollmentViewFor(
         : active.filter((row) => row.email && rule.email.test(row.email)).length,
     ),
     groupCounts,
-    untagged,
+    untagged: untagged.length,
   };
 }

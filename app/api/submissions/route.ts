@@ -38,13 +38,12 @@ const MAX_PAYLOAD_BYTES = 512 * 1024;
 /**
  * The floor under every account, whatever the round says.
  *
- * Read out of the table rather than written here, and that is the whole point
- * of the change: `lib/auth/enforcement.ts` cites `ratelimit/policy.ts` as a
- * load-bearing declaration rather than a document precisely because handlers
- * take their numbers from it, and a bound recorded there and separately spelled
- * out here is a bound that can drift while both copies still look maintained.
- * Why this floor exists at all, and why it sits where a real person never
- * reaches it, is argued with the entry.
+ * Read out of the table rather than written here. `test/enforcement.ts` cites
+ * `ratelimit/policy.ts` as a load-bearing declaration rather than a document
+ * precisely because handlers take their numbers from it, and a bound recorded
+ * there and separately spelled out here is one that can drift while both
+ * copies still look maintained. Why this floor exists at all, and why it sits
+ * where a real person never reaches it, is argued with the entry.
  *
  * `alsoRule` throws when an entry has no second bound, and it is called at
  * import so that losing one is a startup failure rather than an endpoint
@@ -52,16 +51,12 @@ const MAX_PAYLOAD_BYTES = 512 * 1024;
  */
 const FLOOD_CAP = alsoRule(ROUTE_LIMITS["POST /api/submissions"]);
 
-/** One shape for both refusals, so a client cannot tell which bound it hit. */
-function tooFast(retryAfterMs: number): NextResponse {
-  return NextResponse.json(
-    { error: "提交过于频繁，请稍后再试" },
-    {
-      status: 429,
-      headers: { "retry-after": String(Math.ceil(retryAfterMs / 1000)) },
-    },
-  );
-}
+/**
+ * One wording for both of this handler's bounds, so a client cannot tell which
+ * one it hit. Everything else about a 429 — the status, the body shape, the
+ * `retry-after` arithmetic — belongs to `tooManyRequests`.
+ */
+const TOO_FAST = "提交过于频繁，请稍后再试";
 
 /**
  * The gate's refusals in HTTP.
@@ -127,7 +122,7 @@ export async function POST(request: Request) {
     FLOOD_CAP.max,
     FLOOD_CAP.windowSeconds * 1000,
   );
-  if (!flood.ok) return tooFast(flood.retryAfterMs);
+  if (!flood.ok) return tooManyRequests(flood.retryAfterMs, TOO_FAST);
 
   // Asked before the gate and before the round's throttle, because a replay is
   // not a new submission and none of those questions are being asked for the
@@ -169,7 +164,7 @@ export async function POST(request: Request) {
     gate.rateLimit.max,
     gate.rateLimit.windowSeconds * 1000,
   );
-  if (!limited.ok) return tooFast(limited.retryAfterMs);
+  if (!limited.ok) return tooManyRequests(limited.retryAfterMs, TOO_FAST);
 
   let contestSlug: string | null = null;
   if (running) {
@@ -261,12 +256,11 @@ export async function POST(request: Request) {
    * the submitter's doing.
    *
    * A judge *throwing* lands in `disrupted` too, and the two being one state is
-   * deliberate. This used to be `failed`, which put an inline judge crashing in
-   * the same bucket as a backend refusing a submission — but a judge that threw
-   * is our code breaking, not the submission being unacceptable, and charging
-   * that to the competitor is precisely the mistake `disrupted` exists to stop.
-   * What separates the two is only the text on the row: one is a judge naming a
-   * condition it was written to detect, the other is a stack that got away.
+   * deliberate: a judge that threw is our code breaking, not the submission
+   * being unacceptable, and charging that to the competitor is precisely the
+   * mistake `disrupted` exists to stop. What separates the two is only the text
+   * on the row — one is a judge naming a condition it was written to detect,
+   * the other is a stack that got away.
    */
   const settlement = (
     backend: InlineBackend,
@@ -312,14 +306,13 @@ export async function POST(request: Request) {
    * Creates the row and settles it in one transaction, because in between the
    * two writes nothing owns it.
    *
-   * They used to be separate statements, and a process dying in the gap left
-   * the row `queued` under `backendId: 'inline'` — a place nothing in the
-   * system can move it out of. `claimJob` selects by backend id and nothing
-   * signs as `inline`; `rejudgeSubmissions` refuses inline rows outright; the
-   * only mechanism that would ever touch it again is the queue fuse, six hours
-   * later. A submission invisible to everything for a quarter of a day is
-   * worse than one that was never written, and a transaction is what makes the
-   * second the only outcome.
+   * As separate statements, a process dying in the gap leaves the row `queued`
+   * under `backendId: 'inline'` — a place nothing in the system can move it out
+   * of. `claimJob` selects by backend id and nothing signs as `inline`;
+   * `rejudgeSubmissions` refuses inline rows outright; the only mechanism that
+   * would ever touch it again is the queue fuse, six hours later. A submission
+   * invisible to everything for a quarter of a day is worse than one that was
+   * never written, and a transaction is what makes the second the only outcome.
    *
    * Holding one open across the judgement costs nothing to reason about:
    * `InlineJudge` is synchronous by type, so there is no await in here for the

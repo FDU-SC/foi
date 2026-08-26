@@ -4,6 +4,7 @@ import {
   TERMINAL_STATES,
   type SubmissionState,
 } from "@/lib/backend/types";
+import { releaseSha } from "@/lib/boot/deployment";
 import { db } from "@/lib/db";
 import { submissions } from "@/lib/db/schema";
 import { problemBySlug } from "@/lib/problems/registry";
@@ -174,7 +175,23 @@ export async function rejudgeSubmissions(
       score: null,
       accepted: null,
       outcome: null,
+      // The pair that pins both ends of a reproducible verdict, cleared and
+      // rewritten differently because only one of them is knowable now.
+      //
+      // `backendVersion` is the backend's own claim about itself and arrives
+      // with the report, so it is nulled and waited for. `releaseSha` is this
+      // process, and this process is the one about to hand the work over:
+      // `jobDetails` resolves `problem.config` out of the live registry when
+      // the runner fetches it, so what the backend evaluates against is *this*
+      // release's definition of the problem, not the one in force when the
+      // competitor submitted. Leaving the old value would pair a new
+      // `backendVersion` with a stale `releaseSha` and describe a judging that
+      // never happened.
+      //
+      // Null on an image built outside CI, which is the same thing a fresh
+      // submission records there — see `releaseSha` in `lib/boot/deployment.ts`.
       backendVersion: null,
+      releaseSha: releaseSha(),
       error: null,
       judgedAt: null,
     })

@@ -69,7 +69,7 @@ export function orphanedBackends(): string[] {
  *
  * A warning rather than a refusal, because the blast radius is one problem and
  * the deployment around it works — see `backendRegistryWarnings` in
- * `./boot.ts`. `assertBackendActionUrls` is the harder cousin, and it is
+ * `./boot.ts`. `backendActionUrlComplaints` is the harder cousin, and it is
  * harder because a missing address cannot be told apart from a backend that
  * legitimately needs none.
  */

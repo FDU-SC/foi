@@ -27,32 +27,12 @@ export async function register() {
   // First, and for the same reason the migration below aborts startup: a
   // deployment that cannot work should say so while the health check is still
   // watching, rather than at whichever request first needs the missing value.
-  const { assertEnv } = await import("@/lib/env");
-  assertEnv();
-
-  // Same argument, one variable `assertEnv` cannot judge on its own: whether a
-  // missing `FOI_SMTP_HOST` is fatal depends on what `content/enrollment/`
-  // declared, and `lib/env.ts` deliberately knows nothing about content — the
-  // same split `backendSecretWarnings` below is on the other side of. Without
-  // this, a production deployment that forgot its relay boots happily and then
-  // prints every verification code and reset link to the container log while
-  // telling people the mail is on its way.
-  const { assertMailDelivery } = await import("@/lib/mail/transport");
-  assertMailDelivery();
-
-  // Third refusal: two backends on one signing key means compromising the
-  // softer of them yields the other's whole queue — see `assertBackendSecrets`.
-  // Its neighbour covers the one thing that still needs an address, a backend
-  // some problem declares an interactive action on.
   //
-  // Beside `assertEnv` rather than inside it because both need the problem
-  // registry to know which backends are involved, and `lib/env.ts`
-  // deliberately knows nothing about content.
-  const { assertBackendActionUrls, assertBackendSecrets } = await import(
-    "@/lib/backend/boot"
-  );
-  assertBackendSecrets();
-  assertBackendActionUrls();
+  // One call rather than the four asserts and six warning sources this used to
+  // spell out. What is fatal depends on the tier, and that is one decision for
+  // the whole process — see `lib/boot/checks.ts`.
+  const { assertBootConfiguration } = await import("@/lib/boot/checks");
+  await assertBootConfiguration();
 
   // Runs before anything touches the schema. Drizzle records applied
   // migrations in its own table, so this is a no-op once up to date. A failure
@@ -70,32 +50,6 @@ export async function register() {
   // foreign key actually requires one, so a deploy changes the schema and
   // nothing else — and rolling back to an older image does not rewrite the
   // mirror tables with older titles on the way down.
-
-  // Enrollment misconfigurations — nobody able to administer, no cohort rules,
-  // a contest whose tag nothing produces — are said loudly rather than
-  // refusing to boot: the CLI can still recover the deployment, and an outage
-  // would be the worse failure.
-  const { enrollmentWarnings } = await import("@/lib/enrollment/registry");
-  const { contestWarnings } = await import("@/lib/contests/registry");
-  const { problemGateWarnings } = await import("@/lib/problems/access");
-  // Alongside `assertEnv` rather than inside it: which backends are in use is
-  // derived from the problem registry, and `lib/env.ts` deliberately knows
-  // nothing about content. Said here, where the rest of the "your
-  // configuration is legal but probably not what you meant" checks are said.
-  const { backendRegistryWarnings, backendSecretWarnings } = await import(
-    "@/lib/backend/boot"
-  );
-  const { mailTemplateWarnings } = await import("@/lib/mail/registry");
-  for (const warning of [
-    ...enrollmentWarnings(),
-    ...contestWarnings(),
-    ...problemGateWarnings(),
-    ...backendRegistryWarnings(),
-    ...backendSecretWarnings(),
-    ...mailTemplateWarnings(),
-  ]) {
-    console.warn(`[foi] ${warning}`);
-  }
 
   // One loop, and it touches no network at all: four indexed statements
   // against columns this process owns. There is no slow backend to isolate it

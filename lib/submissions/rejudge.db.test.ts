@@ -1,5 +1,14 @@
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { INLINE_BACKEND_ID, type Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
 import { accounts, problems, submissions } from "@/lib/db/schema";
@@ -11,10 +20,11 @@ import { rejudgeSubmissions } from "./rejudge";
  * Rejudging, and above all the one column it deliberately does not clear.
  *
  * `rejudgeSubmissions` wipes the whole of the last judging — verdict, score,
- * accepted, outcome, backendVersion, error, judgedAt — and keeps `max_score`.
- * It keeps it by *not writing it*, which is the shape an invariant takes when
- * it is easiest to lose: adding one more line to that `set` object reads as
- * tidying up, and until now nothing would have gone red.
+ * accepted, outcome, backendVersion, error, judgedAt — refreshes `release_sha`
+ * to whatever is about to do the judging, and keeps `max_score`. It keeps that
+ * one by *not writing it*, which is the shape an invariant takes when it is
+ * easiest to lose: adding one more line to that `set` object reads as tidying
+ * up, and until now nothing would have gone red.
  *
  * What it costs only shows up one step later, which is why the assertion has
  * to reach that far. `reportDone` resolves the denominator as "the row's own
@@ -212,6 +222,57 @@ describeDb("重判", () => {
       await reportDone(id, ticket!.lease, verdict, VERSION);
 
       expect((await rowOf(id)).maxScore).toBe(60);
+    });
+  });
+
+  /**
+   * The other pair on the row, and the one that moves where `max_score` stays.
+   *
+   * `release_sha` and `backend_version` together are what make a verdict
+   * reproducible, and a rejudge changes exactly one end of it. The problem
+   * definition the backend evaluates against is read out of the live registry
+   * by `jobDetails` when the runner fetches details — not snapshotted at submit
+   * time — so after a rejudge it is *this* release's. Keeping the original
+   * value would pair a freshly reported `backend_version` with a `release_sha`
+   * naming a tree that had nothing to do with the judging.
+   *
+   * The contrast with `max_score` is the point. That column is kept because it
+   * records what the competitor was scored out of, which a rejudge must not
+   * restate; these two record who did the judging, which a rejudge does change.
+   */
+  describe("刷新 release_sha", () => {
+    const OLD_SHA = "0000000000000000000000000000000000000000";
+    const NEW_SHA = "1111111111111111111111111111111111111111";
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("重判后记的是当前这份构建，而不是提交那次的", async () => {
+      const id = await settled("sub_rj_sha", { releaseSha: OLD_SHA });
+      vi.stubEnv("FOI_RELEASE_SHA", NEW_SHA);
+
+      expect((await rejudgeSubmissions([id])).requeued).toBe(1);
+
+      const row = await rowOf(id);
+      expect(row.releaseSha).toBe(NEW_SHA);
+      // Its other half waits for the runner to say so; only this one is
+      // knowable at the moment the work is handed back out.
+      expect(row.backendVersion).toBeNull();
+    });
+
+    /**
+     * A hand-built image did not come from a commit, and a rejudge run on one
+     * has to say so rather than leave the previous release standing — that
+     * value would then describe a judging performed by something else.
+     */
+    it("非 CI 构建上重判，写的是 null 而不是留着旧值", async () => {
+      const id = await settled("sub_rj_sha_unknown", { releaseSha: OLD_SHA });
+      vi.stubEnv("FOI_RELEASE_SHA", undefined);
+
+      await rejudgeSubmissions([id]);
+
+      expect((await rowOf(id)).releaseSha).toBeNull();
     });
   });
 

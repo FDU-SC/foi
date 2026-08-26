@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TIERS } from "@/lib/boot/deployment";
 
 /**
  * What the process needs before it is allowed to serve anything.
@@ -16,10 +17,11 @@ import { z } from "zod";
  *
  * Backend addresses are deliberately not here. Judging is pulled, so a backend
  * needs no address; what does need one is a backend some problem declares an
- * interactive action on, and *that* refuses a production boot in
- * `assertBackendActionUrls`. It has to live over there because answering it
+ * interactive action on, and *that* refuses a production boot through
+ * `backendActionUrlComplaints`. It has to live over there because answering it
  * means reading the problem registry, and this file is deliberately incapable
- * of knowing anything about content.
+ * of knowing anything about content — which is also why `lib/boot/checks.ts`
+ * loads those checks dynamically, after this one has passed.
  */
 const schema = z.object({
   DATABASE_URL: z
@@ -51,10 +53,40 @@ const schema = z.object({
   // The fallback key, for backends given none of their own. Still mandatory
   // because `effectiveSecret` reaches for it, though in production every
   // backend carrying traffic is now required to have its own instead — see
-  // `assertBackendSecrets`.
+  // `backendSecretComplaints` in `lib/backend/boot.ts`.
   FOI_BACKEND_SECRET: z
     .string("未设置。用 openssl rand -hex 32 生成，并与题目后端保持一致")
     .min(16, "太短。用 openssl rand -hex 32 生成，并与题目后端保持一致"),
+
+  // Optional, and checked for the same reason `FOI_TRUSTED_PROXY_HOPS` below
+  // is: `tier()` falls back to `NODE_ENV` when this does not name a tier, so a
+  // deployment that means `staging` and writes `stagning` gets `prod` — every
+  // refusal in force, mail insisting on a relay — with nothing said about why.
+  // Failing closed is the right direction and a silent failure is not.
+  FOI_ENV: z
+    .string()
+    .optional()
+    .refine(
+      (value) =>
+        value === undefined ||
+        value === "" ||
+        (TIERS as readonly string[]).includes(value),
+      `必须是 ${TIERS.join(" / ")} 之一`,
+    ),
+
+  // Baked into the image by the Dockerfile, not set by an operator, so its
+  // absence is legal — a hand-built image did not come from a commit. What is
+  // checked is that a value present is a value `submissions.release_sha` can be
+  // trusted to mean something in: a build arg that silently arrived as the
+  // literal string `${{ github.sha }}` is worse than no value at all.
+  FOI_RELEASE_SHA: z
+    .string()
+    .optional()
+    .refine(
+      (value) =>
+        value === undefined || value === "" || /^[0-9a-f]{7,40}$/.test(value),
+      "必须是 git commit 的十六进制 sha",
+    ),
 
   // Optional, and checked anyway. A typo here does not stop the process from
   // serving — it silently changes which `x-forwarded-for` entry every rate

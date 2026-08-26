@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Tier } from "@/lib/boot/deployment";
 import {
-  assertMailDelivery,
+  defaultedMailDeliveryComplaints,
+  mailDeliveryComplaints,
   mailDeliveryUnmet,
   mailIsConfigured,
   mailSink,
@@ -14,12 +16,15 @@ import {
  * Nodemailer left to itself upgrades a connection only when the server says it
  * can, which means a stripped advertisement downgrades the whole exchange to
  * plaintext and reports a successful send. These cases pin the flag that turns
- * that from a preference into a requirement, and pin the one door left open in
- * it — the local Mailpit, which speaks no STARTTLS and is the mail setup a
- * fresh checkout is pointed at.
+ * that from a preference into a requirement. There is no longer a door left
+ * open in it: the exception existed for a local Mailpit and both are gone, so
+ * "I want to read the mail locally" is answered by the console sink instead.
  *
  * Every case stubs the whole SMTP block rather than only the variable it is
  * about, so a `.env.local` on somebody's disk cannot change an answer.
+ * `FOI_ENV` is stubbed for the same reason and matters more: it now outranks
+ * `NODE_ENV`, so a checkout declaring `dev` would otherwise quietly turn every
+ * production case below into a development one.
  */
 const NO_RELAY = {
   FOI_SMTP_HOST: undefined,
@@ -27,13 +32,18 @@ const NO_RELAY = {
   FOI_SMTP_USER: undefined,
   FOI_SMTP_PASSWORD: undefined,
   FOI_SMTP_SECURE: undefined,
-  FOI_SMTP_ALLOW_INSECURE: undefined,
+  FOI_ENV: undefined,
 } as const;
 
 function withEnv(overrides: Record<string, string | undefined>): void {
   for (const [name, value] of Object.entries({ ...NO_RELAY, ...overrides })) {
     vi.stubEnv(name, value);
   }
+}
+
+/** Says the tier in as many words, rather than through `NODE_ENV`. */
+function atTier(tier: Tier): void {
+  vi.stubEnv("FOI_ENV", tier);
 }
 
 afterEach(() => {
@@ -96,29 +106,26 @@ describe("配置了中继时强制 STARTTLS", () => {
   });
 });
 
-describe("本机 Mailpit 的例外", () => {
-  it("显式放行后才允许明文", () => {
-    withEnv({
-      FOI_SMTP_HOST: "localhost",
-      FOI_SMTP_PORT: "1025",
-      FOI_SMTP_ALLOW_INSECURE: "true",
-    });
+/**
+ * Mailpit's exception is retired along with Mailpit, and nothing replaces it.
+ *
+ * The variable that lifted the requirement is gone rather than defaulted off,
+ * because an opt-out that exists is an opt-out somebody copies into a
+ * deployment — and what it buys there is a verification code, a reset link and
+ * the relay's own password travelling in the clear.
+ */
+describe("没有明文豁免", () => {
+  it("本机地址不再是例外，照样要求升级", () => {
+    withEnv({ FOI_SMTP_HOST: "localhost", FOI_SMTP_PORT: "1025" });
 
-    expect(relayOptions()).toMatchObject({ requireTLS: false });
+    expect(relayOptions()).toMatchObject({ requireTLS: true });
   });
 
-  /**
-   * The safe posture is what a deployment gets for doing nothing, so the only
-   * way out is the exact string — a typo, a `1`, or a leftover `false` all
-   * leave the requirement standing rather than silently lifting it.
-   */
-  it("只有精确的 \"true\" 能放行", () => {
-    for (const value of ["1", "yes", "TRUE", "false", ""]) {
+  it("那个变量已经不参与判断了", () => {
+    for (const value of ["true", "1", "TRUE", "false", ""]) {
       vi.unstubAllEnvs();
-      withEnv({
-        FOI_SMTP_HOST: "localhost",
-        FOI_SMTP_ALLOW_INSECURE: value,
-      });
+      withEnv({ FOI_SMTP_HOST: "localhost" });
+      vi.stubEnv("FOI_SMTP_ALLOW_INSECURE", value);
 
       expect(relayOptions()).toMatchObject({ requireTLS: true });
     }
@@ -145,26 +152,36 @@ describe("声明的投递方式与环境不一致时", () => {
     expect(mailSink("console")).toBe("console");
   });
 
-  it("声明 console 时生产环境也不拦", () => {
+  it("声明 console 时什么都不报", () => {
     withEnv({});
-    vi.stubEnv("NODE_ENV", "production");
+    atTier("prod");
 
-    expect(() => assertMailDelivery("console")).not.toThrow();
+    expect(mailDeliveryComplaints("console")).toEqual([]);
+    expect(defaultedMailDeliveryComplaints("console", false)).toEqual([]);
   });
 
   it("声明 smtp 且配了中继就真的投递", () => {
     withEnv({ FOI_SMTP_HOST: "smtp.example.com" });
-    vi.stubEnv("NODE_ENV", "production");
+    atTier("prod");
 
-    expect(() => assertMailDelivery("smtp")).not.toThrow();
+    expect(mailDeliveryComplaints("smtp")).toEqual([]);
     expect(mailSink("smtp")).toBe("smtp");
   });
 
-  it("生产环境声明了 smtp 却没有中继时拒绝启动", () => {
-    withEnv({});
-    vi.stubEnv("NODE_ENV", "production");
+  /**
+   * The complaint no longer reads the tier — `lib/boot/checks.ts` decides
+   * whether it stops a boot — so it has to be produced everywhere the shape
+   * exists, including on a checkout where it is merely worth saying.
+   */
+  it("声明了 smtp 却没有中继，在哪一层都是一条发现", () => {
+    for (const tier of ["dev", "staging", "prod"] as const) {
+      vi.unstubAllEnvs();
+      withEnv({});
+      atTier(tier);
 
-    expect(() => assertMailDelivery("smtp")).toThrow(/FOI_SMTP_HOST/);
+      expect(mailDeliveryComplaints("smtp")).toHaveLength(1);
+      expect(mailDeliveryComplaints("smtp")[0]).toMatch(/FOI_SMTP_HOST/);
+    }
   });
 
   /**
@@ -181,42 +198,51 @@ describe("声明的投递方式与环境不一致时", () => {
    * it does not do is turn that into an outage for a deployment with no
    * cohorts to register into.
    */
-  it("完全没有 content/enrollment/ 时不拒绝启动，但会说出来", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("完全没有 content/enrollment/ 时，报的是另一条、且两条互斥", () => {
     withEnv({});
-    vi.stubEnv("NODE_ENV", "production");
+    atTier("prod");
 
-    expect(() => assertMailDelivery("smtp", false)).not.toThrow();
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0]?.[0]).toMatch(/content\/enrollment\//);
+    expect(mailDeliveryComplaints("smtp", false)).toEqual([]);
+    const defaulted = defaultedMailDeliveryComplaints("smtp", false);
+    expect(defaulted).toHaveLength(1);
+    expect(defaulted[0]).toMatch(/content\/enrollment\//);
   });
 
   /**
-   * The fresh-checkout bargain. `content/enrollment/example.ts` names no
-   * `mailDelivery` and so inherits `smtp`, so enforcing everywhere would stop
-   * the one setup the README points a newcomer at from starting at all. What
-   * the warning buys is that the fallback is no longer silent — which is the
-   * whole complaint the field was added to answer.
+   * The tier decision, which is the whole reason `FOI_ENV` had to exist: the
+   * image pins `NODE_ENV=production` on staging too, so on `NODE_ENV` alone
+   * this case could not be told from the one below it.
    */
-  it("非生产环境缺中继时回落到控制台，但会说出来", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    withEnv({});
-    vi.stubEnv("NODE_ENV", "development");
+  it("dev 与 staging 缺中继时回落到控制台", () => {
+    for (const tier of ["dev", "staging"] as const) {
+      vi.unstubAllEnvs();
+      withEnv({});
+      vi.stubEnv("NODE_ENV", "production");
+      atTier(tier);
 
-    expect(() => assertMailDelivery("smtp")).not.toThrow();
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(mailSink("smtp")).toBe("console");
+      expect(mailSink("smtp")).toBe("console");
+    }
+  });
+
+  it("dev 与 staging 上配了中继就仍然走中继", () => {
+    for (const tier of ["dev", "staging"] as const) {
+      vi.unstubAllEnvs();
+      withEnv({ FOI_SMTP_HOST: "smtp.example.com" });
+      atTier(tier);
+
+      expect(mailSink("smtp")).toBe("smtp");
+    }
   });
 
   /**
-   * `assertMailDelivery` runs once at startup and `mailSink` runs per message,
-   * so the second cannot lean on the first having happened: a process started
-   * some other way would otherwise print reset links to the container log,
-   * which is the exact failure the pair exists to stop.
+   * The boot check runs once and `mailSink` runs per message, so the second
+   * cannot lean on the first having happened: a process started some other way
+   * would otherwise print reset links to the container log, which is the exact
+   * failure the pair exists to stop.
    */
-  it("生产环境即便绕过了启动校验，投递也不会退回控制台", () => {
+  it("prod 即便绕过了启动校验，投递也不会退回控制台", () => {
     withEnv({});
-    vi.stubEnv("NODE_ENV", "production");
+    atTier("prod");
 
     expect(() => mailSink("smtp")).toThrow(/FOI_SMTP_HOST/);
   });
@@ -224,13 +250,12 @@ describe("声明的投递方式与环境不一致时", () => {
   /**
    * The same combination the two above refuse, asked by something that only
    * wants to name it. The operations console has to report this from a page
-   * that still renders, which is why it is a third function rather than a call
-   * to either of them — on this exact input `mailSink` throws and
-   * `assertMailDelivery` refuses the boot.
+   * that still renders, which is why it is a separate function — on this exact
+   * input `mailSink` throws and the boot check refuses.
    */
   it("声明 smtp 却没有中继，是一条可以报告的分歧，生产环境下也只是报告", () => {
     withEnv({});
-    vi.stubEnv("NODE_ENV", "production");
+    atTier("prod");
 
     expect(mailDeliveryUnmet("smtp")).toBe(true);
   });

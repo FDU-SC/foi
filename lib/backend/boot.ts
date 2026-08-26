@@ -5,14 +5,20 @@ import { backends } from "./registry";
 import { effectiveSecret } from "./resolve";
 
 /**
- * What this deployment needs from each backend, checked while the process is
- * still starting.
+ * What this deployment needs from each backend, phrased as complaints rather
+ * than refusals.
  *
  * None of these can live in `lib/env.ts`. Each asks not "is this variable set"
  * but "is it set *for the backends that need it*", and knowing which those are
  * means reading the problem registry, which `lib/env.ts` deliberately cannot
- * do. `instrumentation.ts` calls the two asserts next to `assertEnv` for that
- * reason.
+ * do.
+ *
+ * Nothing here decides whether a complaint stops the boot. That depends on the
+ * tier, and the tier is one decision for the whole process rather than three
+ * copies of `if (tier() !== "prod") return` in three modules — see
+ * `lib/boot/checks.ts`. Keeping it out also leaves these callable by
+ * `lib/admin/drift.ts`, which has to report the same conditions from a page
+ * that still renders.
  */
 
 /** Said at startup, next to the enrollment and contest warnings. */
@@ -67,34 +73,19 @@ const SHARED_SECRET_MESSAGE =
   `（确实由同一套评测机服务的多个条目，把它们填成相同的值）。`;
 
 /**
- * Refuses a production boot on a shared signing key.
+ * A shared signing key, worded once.
  *
- * Fatal rather than a warning because the key authenticates a runner to us: it
- * lives on whatever machine somebody runs a runner on — donated hardware, a
- * laptop behind a NAT — and it buys its holder a whole queue's worth of other
- * people's source.
+ * Refused in production and merely said elsewhere, but the sentence is the same
+ * either way — one wording rather than two that can drift, now that the tier
+ * decides the severity instead of each call site.
  *
- * Fatal only in production, because outside it every backend shares the mock's
- * key and that is simply what a checkout looks like. Not in `assertEnv` because
- * `lib/env.ts` would have to import the content registry to know which backends
- * carry traffic, and it deliberately knows nothing about content.
+ * Worth refusing over because the key authenticates a runner to us: it lives on
+ * whatever machine somebody runs a runner on — donated hardware, a laptop
+ * behind a NAT — and it buys its holder a whole queue's worth of other people's
+ * source. Outside production every backend shares the mock's key, which is
+ * simply what a checkout looks like.
  */
-export function assertBackendSecrets(): void {
-  if (process.env.NODE_ENV !== "production") return;
-
-  const sharing = backendsSharingSecret();
-  if (sharing.length === 0) return;
-
-  throw new Error(
-    `题目后端签名密钥配置不安全，拒绝启动:\n  - ${sharing.join("、")} ${SHARED_SECRET_MESSAGE}`,
-  );
-}
-
-/**
- * Said at startup outside production, next to the enrollment and contest
- * warnings. In production `assertBackendSecrets` has already refused the boot.
- */
-export function backendSecretWarnings(): string[] {
+export function backendSecretComplaints(): string[] {
   const sharing = backendsSharingSecret();
   if (sharing.length === 0) return [];
 
@@ -122,23 +113,13 @@ export function backendsMissingActionUrl(): string[] {
     .map((id) => `FOI_BACKEND_${envFragment(id)}_URL`);
 }
 
-/** Refuses a production boot on an interactive backend with nowhere to call. */
-export function assertBackendActionUrls(): void {
-  if (process.env.NODE_ENV !== "production") return;
-
-  const missing = backendsMissingActionUrl();
-  if (missing.length === 0) return;
-
-  throw new Error(
-    `有题目声明了交互动作，但对应的题目后端没有地址，拒绝启动:\n` +
-      missing
-        .map(
-          (variable) =>
-            `  - ${variable}: 未设置。评测不需要地址（评测机自己来领活），` +
-            `但交互动作是平台代选手同步发起的，拉不了。` +
-            `填上它的地址；这套部署不开这道题，就把题目的 actions 去掉`,
-        )
-        .join("\n"),
+/** An interactive backend with nowhere to call, one complaint per variable. */
+export function backendActionUrlComplaints(): string[] {
+  return backendsMissingActionUrl().map(
+    (variable) =>
+      `${variable}: 未设置。评测不需要地址（评测机自己来领活），` +
+      `但交互动作是平台代选手同步发起的，拉不了。` +
+      `填上它的地址；这套部署不开这道题，就把题目的 actions 去掉`,
   );
 }
 
@@ -154,7 +135,7 @@ function isLoopback(hostname: string): boolean {
 /**
  * Backends with an address that points back at this process.
  *
- * `assertBackendActionUrls` can prove `FOI_BACKEND_<NAME>_URL` was set; it
+ * `backendActionUrlComplaints` can prove `FOI_BACKEND_<NAME>_URL` was set; it
  * cannot prove the address means anything, and the way a deployment goes wrong
  * is by copying the line out of `.env.example`. Inside the app container
  * `localhost:4100` is the app container, and an action posted there gets a

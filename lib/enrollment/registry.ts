@@ -37,9 +37,10 @@ interface Registry {
    * ship rules and no policy block and still mean every default it inherits;
    * one that ships nothing has not inherited them, it has said nothing, and
    * the difference matters to anything that would otherwise treat a default as
-   * a declaration — see `assertMailDelivery`, which refuses a production boot
-   * over `mailDelivery` and must not do so over a value the kernel picked on
-   * behalf of a deployment with no content.
+   * a declaration — see `mailDeliveryComplaints`, whose finding refuses a
+   * production boot over `mailDelivery` and must not do so over a value the
+   * kernel picked on behalf of a deployment with no content. That half is
+   * `defaultedMailDeliveryComplaints`, which nothing is ever fatal over.
    */
   declared: boolean;
 }

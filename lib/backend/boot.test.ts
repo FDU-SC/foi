@@ -4,9 +4,8 @@ import { backends } from "@/lib/backend/registry";
 import { externallyJudged } from "@/lib/problems/registry";
 import { problemsServedBy, orphanedBackends } from "./access";
 import {
-  assertBackendActionUrls,
-  assertBackendSecrets,
-  backendSecretWarnings,
+  backendActionUrlComplaints,
+  backendSecretComplaints,
   backendsMissingActionUrl,
   backendsOnLoopback,
   backendsSharingSecret,
@@ -52,7 +51,7 @@ describe("共用签名密钥的题目后端", () => {
     for (const id of inUse) patch(id, { secret: `secret-for-${id}` });
 
     expect(backendsSharingSecret()).toEqual([]);
-    expect(backendSecretWarnings()).toEqual([]);
+    expect(backendSecretComplaints()).toEqual([]);
   });
 
   it("两台以上回落到共享密钥时，把它们都点出来", () => {
@@ -60,8 +59,8 @@ describe("共用签名密钥的题目后端", () => {
     scatter();
 
     expect(backendsSharingSecret().sort()).toEqual([...inUse].sort());
-    expect(backendSecretWarnings()).toHaveLength(1);
-    expect(backendSecretWarnings()[0]).toContain(inUse[0]);
+    expect(backendSecretComplaints()).toHaveLength(1);
+    expect(backendSecretComplaints()[0]).toContain(inUse[0]);
   });
 
   it("只剩一台回落时不报——和谁都没共用就不算共用", () => {
@@ -241,17 +240,16 @@ describe("指向本机的题目后端", () => {
 });
 
 /**
- * The two gates README argues must refuse a boot rather than warn, and which
- * nothing was holding to it. Both read `NODE_ENV` themselves and both are
- * silent outside production, so a test suite that never says `production`
- * exercises only the branch that returns immediately — the whole of what makes
- * them boot checks was uncovered.
+ * The two findings that refuse a production boot, asked here only for *whether
+ * there is one*.
  *
- * What is being pinned is the refusal, not the wording: a warning here is a
- * deployment that comes up and hands one runner every queue's source, or one
- * that comes up and answers a player's "启动实例" with a 500.
+ * Neither reads the tier any more: which of these stops a boot is
+ * `lib/boot/checks.ts`'s decision and is pinned there. What has to hold on this
+ * side is that a deployment in the dangerous shape produces a complaint at all
+ * — and, for the action-URL one, that the complaint names the variable to set,
+ * since that is the only part of it that tells an operator what to do next.
  */
-describe("生产环境拒绝启动", () => {
+describe("拒绝启动级别的发现", () => {
   const inUse = Object.keys(backends).filter(
     (id) => problemsServedBy(id).length > 0,
   );
@@ -278,71 +276,58 @@ describe("生产环境拒绝启动", () => {
     vi.unstubAllEnvs();
   });
 
-  describe("assertBackendSecrets", () => {
-    it("生产环境下几台共用一把密钥就抛，并点名是哪几台", () => {
+  describe("backendSecretComplaints", () => {
+    it("几台共用一把密钥就报，并点名是哪几台", () => {
       if (inUse.length < 2) return;
-      vi.stubEnv("NODE_ENV", "production");
       vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
       for (const id of inUse) patch(id, { secret: undefined });
 
-      expect(() => assertBackendSecrets()).toThrow(/拒绝启动/);
-      for (const id of inUse) {
-        expect(() => assertBackendSecrets()).toThrow(new RegExp(id));
-      }
+      const complaints = backendSecretComplaints();
+      expect(complaints).toHaveLength(1);
+      for (const id of inUse) expect(complaints[0]).toContain(id);
     });
 
-    it("各自有密钥时生产环境也照常启动", () => {
-      vi.stubEnv("NODE_ENV", "production");
+    it("各自有密钥时什么都不报", () => {
       vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
       for (const id of inUse) patch(id, { secret: `secret-for-${id}` });
 
-      expect(() => assertBackendSecrets()).not.toThrow();
+      expect(backendSecretComplaints()).toEqual([]);
     });
 
     /**
-     * A checkout has every backend on the mock's key, which is simply what
-     * `pnpm dev` looks like — the warning list is where that gets said.
+     * The severity used to live in this function, which meant the dangerous
+     * shape produced nothing at all outside production and the sentence had to
+     * exist twice. One wording now, and the tier decides what to do with it.
      */
-    it("非生产环境只告警不拦，哪怕全都在共用", () => {
+    it("不看 NODE_ENV——严重性不在这一层", () => {
       if (inUse.length < 2) return;
+      vi.stubEnv("NODE_ENV", "development");
       vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
       for (const id of inUse) patch(id, { secret: undefined });
 
-      expect(() => assertBackendSecrets()).not.toThrow();
-      expect(backendSecretWarnings()).toHaveLength(1);
+      expect(backendSecretComplaints()).toHaveLength(1);
     });
   });
 
-  describe("assertBackendActionUrls", () => {
-    it("有题目声明了动作、后端却没有地址时，生产环境拒绝启动", () => {
+  describe("backendActionUrlComplaints", () => {
+    it("有题目声明了动作、后端却没有地址时，点名该填哪个变量", () => {
       if (withActions.length === 0) return;
-      vi.stubEnv("NODE_ENV", "production");
       for (const id of withActions) patch(id, { url: undefined });
 
-      expect(() => assertBackendActionUrls()).toThrow(/拒绝启动/);
-      // Names the variable to set, which is the only part of the message that
-      // tells an operator what to do next.
+      const complaints = backendActionUrlComplaints();
+      expect(complaints.length).toBeGreaterThan(0);
       for (const variable of backendsMissingActionUrl()) {
-        expect(() => assertBackendActionUrls()).toThrow(new RegExp(variable));
+        expect(complaints.join("\n")).toContain(variable);
       }
     });
 
-    it("地址都填了就照常启动", () => {
-      vi.stubEnv("NODE_ENV", "production");
+    it("地址都填了就什么都不报", () => {
       for (const id of Object.keys(backends)) {
         patch(id, { url: "http://backend.internal:4100" });
       }
 
       expect(backendsMissingActionUrl()).toEqual([]);
-      expect(() => assertBackendActionUrls()).not.toThrow();
-    });
-
-    it("非生产环境缺地址不拦——本机跑不起 mock 也该能开发", () => {
-      if (withActions.length === 0) return;
-      for (const id of withActions) patch(id, { url: undefined });
-
-      expect(backendsMissingActionUrl().length).toBeGreaterThan(0);
-      expect(() => assertBackendActionUrls()).not.toThrow();
+      expect(backendActionUrlComplaints()).toEqual([]);
     });
 
     /**
@@ -351,7 +336,6 @@ describe("生产环境拒绝启动", () => {
      * a deployment down for missing one.
      */
     it("只判题、不做交互的后端没有地址也不算缺", () => {
-      vi.stubEnv("NODE_ENV", "production");
       for (const id of Object.keys(backends)) {
         patch(id, {
           url: withActions.includes(id)
@@ -360,7 +344,7 @@ describe("生产环境拒绝启动", () => {
         });
       }
 
-      expect(() => assertBackendActionUrls()).not.toThrow();
+      expect(backendActionUrlComplaints()).toEqual([]);
     });
   });
 });

@@ -99,9 +99,9 @@ export const enrollmentPolicySchema = z.object({
    * is the documented escape hatch for a deployment whose relay is not ready:
    * the codes land in the log until it is. What it must not be is what a
    * deployment gets by forgetting something, which is why the default is
-   * `smtp` and `assertMailDelivery` refuses to boot with no relay behind it.
+   * `smtp` and `mailDeliveryComplaints` reports having no relay behind it.
    *
-   * That refusal only bites in production, and the reason is the default
+   * That refusal only bites on `prod`, and the reason is the default
    * itself. `content/enrollment/example.ts` names no `mailDelivery`, so it
    * takes `smtp`, and enforcing everywhere would stop a fresh checkout with
    * no SMTP from starting at all — breaking the one setup the README points a

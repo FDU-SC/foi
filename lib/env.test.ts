@@ -63,6 +63,40 @@ describe("assertEnv", () => {
     expect(message).toContain("FOI_BACKEND_SECRET");
   });
 
+  /**
+   * Optional, and checked for the reason `FOI_TRUSTED_PROXY_HOPS` is: `tier()`
+   * falls back to `NODE_ENV` when this does not name a tier, so a misspelling
+   * silently runs the deployment one tier stricter than it was written to be.
+   * Failing closed is right; failing closed without saying so is not.
+   */
+  it("FOI_ENV 拼错时拒绝启动，并列出合法取值", () => {
+    expect(check({ FOI_ENV: "stagning" })).toThrow(/FOI_ENV/);
+    expect(check({ FOI_ENV: "stagning" })).toThrow(/staging/);
+  });
+
+  it("FOI_ENV 的三个合法取值都通过，不设也通过", () => {
+    for (const declared of ["dev", "staging", "prod", undefined, ""]) {
+      expect(check({ FOI_ENV: declared })).not.toThrow();
+    }
+  });
+
+  /**
+   * Absence is legal — a hand-built image did not come from a commit — but a
+   * value that is not a sha is not. The failure this catches is a build arg
+   * that arrived as an unexpanded template, which would otherwise be written
+   * onto every submission as though it named a tree.
+   */
+  it("FOI_RELEASE_SHA 不是 sha 时拒绝启动，缺失则通过", () => {
+    expect(check({ FOI_RELEASE_SHA: "${{ github.sha }}" })).toThrow(
+      /FOI_RELEASE_SHA/,
+    );
+    expect(check({ FOI_RELEASE_SHA: "not-a-sha" })).toThrow(/FOI_RELEASE_SHA/);
+
+    for (const value of [undefined, "", "0123abc", "a".repeat(40)]) {
+      expect(check({ FOI_RELEASE_SHA: value })).not.toThrow();
+    }
+  });
+
   it("不因为可选变量缺失而拒绝启动", () => {
     // SMTP falls back to logging and the backup interval has a default;
     // neither should stop a boot. Backend addresses were on this list, then

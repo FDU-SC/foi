@@ -26,12 +26,12 @@ export const policy: EnrollmentPolicyInput = {
   // page. Handles named by a rule below are reserved automatically.
   reservedHandles: ["root", "system", "admin", "foi", "judge", "support"],
 
-  // This example runs no relay, so it says so. **Leaving this line out breaks
-  // a fresh checkout**: `next start` is production, and production is where
-  // `assertMailDelivery` throws rather than warns. A real deployment changes
-  // it to `"smtp"` and sets `FOI_SMTP_HOST`; forgetting to is not silent,
-  // because `/admin` reports an unconfigured relay off the environment rather
-  // than off this line.
+  // This example runs no relay, so it says so. Still worth saying even though
+  // `FOI_ENV=dev` would now fall back to the console on its own: a checkout
+  // run as `next start` with no `FOI_ENV` reads as `prod`, which is the tier
+  // that refuses. A real deployment changes it to `"smtp"` and sets
+  // `FOI_SMTP_HOST`; forgetting to is not silent, because `/admin` reports an
+  // unconfigured relay off the environment rather than off this line.
   mailDelivery: "console",
 
   registrationsPerIpPerHour: 10,

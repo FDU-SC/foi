@@ -1,5 +1,6 @@
 import { countDistinct } from "drizzle-orm";
 import { listAccounts } from "@/lib/accounts/queries";
+import { tier } from "@/lib/boot/deployment";
 import { allContests } from "@/lib/contests/registry";
 import { db } from "@/lib/db";
 import { contests, problems, submissions } from "@/lib/db/schema";
@@ -112,10 +113,11 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
   // purpose to fix a decision it made, at every visit, and a list whose first
   // entry can never be resolved is a list that gets skimmed past.
   //
-  // Barely reachable in production, because `assertMailDelivery` refuses that
-  // boot. So this mostly repeats a startup warning, for the reason the
-  // shared-key finding below does: a startup warning scrolled past weeks ago,
-  // in a log that has since rotated.
+  // Barely reachable on prod, because the boot check refuses that tier. So this
+  // mostly repeats a startup warning, for the reason the shared-key finding
+  // below does: a startup warning scrolled past weeks ago, in a log that has
+  // since rotated. On staging it is the ordinary case rather than a near-miss —
+  // that tier falls back to the console on purpose.
   if (mailDeliveryUnmet()) {
     findings.push({
       severity: "warn",
@@ -193,10 +195,10 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     });
   }
 
-  // Not fatal here for the same reason the loopback finding is not: outside
-  // production a missing address falls back to the local mock, which is what a
-  // checkout looks like. In production `assertBackendActionUrls` has already
-  // refused the boot, so this can only appear where it is survivable.
+  // Not fatal here for the same reason the loopback finding is not: on `dev` a
+  // missing address falls back to the local mock, which is what a checkout
+  // looks like. On prod the boot check has already refused, so this can only
+  // appear where it is survivable.
   const missingActionUrl = backendsMissingActionUrl();
   if (missingActionUrl.length > 0) {
     findings.push({
@@ -217,8 +219,11 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
   // address variable was set; it cannot tell an address apart from a leftover,
   // and the leftover this deployment shape produces is `localhost`, which
   // inside the app container is the app container.
-  const loopback =
-    process.env.NODE_ENV === "production" ? backendsOnLoopback() : [];
+  //
+  // Staging counts as a deployment here even though it is not `prod`: a copied
+  // `localhost` breaks a spawn button there exactly as it does on the real one,
+  // and staging exists to find that before prod does.
+  const loopback = tier() === "dev" ? [] : backendsOnLoopback();
 
   if (loopback.length > 0) {
     findings.push({

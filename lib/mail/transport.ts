@@ -1,5 +1,6 @@
 import { createTransport, type Transporter } from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
+import { isProd } from "@/lib/boot/deployment";
 import {
   enrollmentDeclared,
   enrollmentPolicy,
@@ -32,19 +33,6 @@ declare global {
 
 function readFrom(): string {
   return process.env.FOI_MAIL_FROM || "FOI <foi@localhost>";
-}
-
-/**
- * Whether this deployment has excused its relay from encrypting.
- *
- * An opt-out rather than an opt-in, so a deployment that never heard of this
- * variable gets the safe posture. What it is for is the local Mailpit, which
- * speaks no STARTTLS at all: without an escape hatch, requiring the upgrade
- * would turn the one mail setup a fresh checkout is told to use into a
- * connection error.
- */
-function relayMaySkipTls(): boolean {
-  return process.env.FOI_SMTP_ALLOW_INSECURE === "true";
 }
 
 /**
@@ -81,7 +69,13 @@ export function relayOptions(): SMTPTransport.Options | null {
     // condition is: on 465 the socket is encrypted from the first byte, so
     // there is no plaintext phase to protect and the flag is read and ignored.
     // Saying so here keeps the intent legible rather than resting on that.
-    requireTLS: !secure && !relayMaySkipTls(),
+    //
+    // No opt-out. There used to be one, for a local Mailpit that speaks no
+    // STARTTLS, and it is gone along with Mailpit itself: a deployment with no
+    // relay now gets the console sink outside prod, which is a better answer to
+    // "I want to see the mail locally" than a variable whose only other use is
+    // to send reset links in the clear.
+    requireTLS: !secure,
     auth: user ? { user, pass } : undefined,
   };
 }
@@ -118,63 +112,50 @@ const COMPLAINT =
   "  后者会把验证码和重置链接打印到服务端日志，只适合本地开发，" +
   "或者还没有用户的首次部署。";
 
+const UNDECLARED_COMPLAINT =
+  "没有找到 content/enrollment/，注册策略全部取的是内核默认值，" +
+  'mailDelivery 因此是 "smtp"，而 FOI_SMTP_HOST 没有设置——' +
+  "验证码与重置链接都发不出去。这套部署一旦要接待用户，" +
+  "就该补一个 content/enrollment/，在它的 policy 里把这件事说清楚。";
+
 /**
- * Refuses to boot a deployment that says it sends mail but cannot.
+ * A deployment that says it sends mail and has nothing to send it with.
  *
- * Called from `instrumentation.ts` right after `assertEnv`, and separate from
- * it for the reason `backendSecretWarnings` is separate: this reads content,
- * and `lib/env.ts` deliberately knows nothing about content. The timing is the
- * same argument though — a deployment whose registration and recovery are dead
- * ends should say so while the health check is still watching, not at the
- * first person who cannot get their verification code.
+ * Refused in prod and said elsewhere, and which of those happens is
+ * `lib/boot/checks.ts`'s decision rather than this module's. What is worth
+ * refusing over is a deployment whose registration and recovery are dead ends
+ * saying so while the health check is still watching, rather than at the first
+ * person who cannot get their verification code.
  *
- * Fatal only in production. `content/enrollment/example.ts` declares no
- * `mailDelivery` and so inherits `smtp`, which would make a fresh checkout
- * with no relay refuse to start — the exact setup the README tells a newcomer
- * to use. Elsewhere this is a warning and `deliver` falls back to the console.
- *
- * And fatal only for a deployment that shipped enrolment content at all. The
- * refusal rests on `smtp` being what somebody *chose*, whether by writing it
- * or by writing a policy and leaving the default in place. With no
- * `content/enrollment/` nothing was declared — the value comes from
- * `enrollmentPolicySchema`, which is to say from the kernel — so refusing
- * would refuse over a decision the platform made on the deployment's behalf,
- * and would stop an empty `content/` from starting at all. See the
- * `content-absent` job.
- *
- * Not softened to a warning everywhere: a deployment that ships rules and
- * forgets its relay is the case this exists for, and it keeps the refusal.
+ * Only for a deployment that shipped enrolment content. The refusal rests on
+ * `smtp` being what somebody *chose*, whether by writing it or by writing a
+ * policy and leaving the default in place; with no `content/enrollment/` the
+ * value came from `enrollmentPolicySchema`, which is to say from the kernel.
+ * Refusing there would refuse over a decision the platform made on the
+ * deployment's behalf, and would stop an empty `content/` from starting at all
+ * — see the `check-baseline` job. That half is
+ * `defaultedMailDeliveryComplaints` below, which nothing ever refuses over.
  *
  * Both inputs are parameters defaulting to the registry, the way `assertEnv`
  * takes `process.env`: what is being checked is a *combination* of a declared
  * delivery and an environment, and a test cannot edit `content/enrollment/`
  * to reach one half of it.
  */
-export function assertMailDelivery(
+export function mailDeliveryComplaints(
   delivery: MailDelivery = enrollmentPolicy.mailDelivery,
   declared: boolean = enrollmentDeclared,
-): void {
-  if (delivery === "console" || mailIsConfigured()) return;
+): string[] {
+  if (!declared || !mailDeliveryUnmet(delivery)) return [];
+  return [COMPLAINT];
+}
 
-  if (process.env.NODE_ENV === "production" && declared) {
-    throw new Error(COMPLAINT);
-  }
-
-  if (!declared) {
-    console.warn(
-      "[foi] 没有找到 content/enrollment/，注册策略全部取的是内核默认值，" +
-        'mailDelivery 因此是 "smtp"，而 FOI_SMTP_HOST 没有设置——' +
-        "验证码与重置链接都发不出去。这套部署一旦要接待用户，" +
-        "就该补一个 content/enrollment/，在它的 policy 里把这件事说清楚。",
-    );
-    return;
-  }
-
-  console.warn(
-    "[foi] 未设置 FOI_SMTP_HOST，邮件只会打印到控制台。" +
-      "同样的配置在生产环境会直接拒绝启动；" +
-      '如果这套部署本就不发信，请在 content/enrollment/ 的 policy 里写 mailDelivery: "console"。',
-  );
+/** The same gap, on a deployment that declared no enrolment rules at all. */
+export function defaultedMailDeliveryComplaints(
+  delivery: MailDelivery = enrollmentPolicy.mailDelivery,
+  declared: boolean = enrollmentDeclared,
+): string[] {
+  if (declared || !mailDeliveryUnmet(delivery)) return [];
+  return [UNDECLARED_COMPLAINT];
 }
 
 /**
@@ -190,11 +171,16 @@ export function mailSink(
   if (delivery === "console") return "console";
   if (mailIsConfigured()) return "smtp";
 
-  // Declared `smtp` with nothing behind it. `assertMailDelivery` has already
-  // refused this boot in production, so arriving here means the process was
-  // started some other way — throw rather than print a reset link to the log,
-  // which is the failure the pair of them exists to stop.
-  if (process.env.NODE_ENV === "production") throw new Error(COMPLAINT);
+  // Declared `smtp` with nothing behind it. On prod the boot check has already
+  // refused this, so arriving here means the process was started some other
+  // way — throw rather than print a reset link to the log, which is the failure
+  // the pair of them exists to stop.
+  //
+  // Keyed on the tier and not on `NODE_ENV`, which is the whole point of the
+  // distinction: the image pins `NODE_ENV=production` for staging too, so on
+  // `NODE_ENV` a staging deployment could not fall back to the console no
+  // matter what it declared.
+  if (isProd()) throw new Error(COMPLAINT);
   return "console";
 }
 
@@ -202,16 +188,16 @@ export function mailSink(
  * The disagreement itself: this deployment says it sends mail and has nothing
  * to send it with.
  *
- * The same condition `assertMailDelivery` refuses to boot on and `mailSink`
- * refuses to answer for, asked by something that only wants to report it. Both
- * refusals are right where they are — a caller one line away from printing a
- * reset link should not be handed a quiet fallback — and both are wrong for
- * the operations console, whose entire job is to name drift like this and
- * which cannot do it from a page that throws instead of rendering.
+ * The bare predicate the two complaint functions above are worded from and
+ * `mailSink` refuses to answer for, asked by something that only wants to
+ * report it. Those refusals are right where they are — a caller one line away
+ * from printing a reset link should not be handed a quiet fallback — and both
+ * are wrong for the operations console, whose entire job is to name drift like
+ * this and which cannot do it from a page that throws instead of rendering.
  *
- * Takes the delivery for the reason `assertMailDelivery` does: what is being
- * checked is a *combination* of a declared delivery and an environment, and a
- * test cannot edit `content/enrollment/` to reach one half of it.
+ * Takes the delivery for the reason the complaints do: what is being checked is
+ * a *combination* of a declared delivery and an environment, and a test cannot
+ * edit `content/enrollment/` to reach one half of it.
  */
 export function mailDeliveryUnmet(
   delivery: MailDelivery = enrollmentPolicy.mailDelivery,

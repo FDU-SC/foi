@@ -1,3 +1,4 @@
+import { tier } from "@/lib/boot/deployment";
 import type { ProblemBackend } from "./types";
 
 /**
@@ -56,9 +57,12 @@ export function backendUrl(id: string): string | undefined {
   const configured = process.env[`FOI_BACKEND_${envFragment(id)}_URL`];
   if (configured) return configured;
 
-  return process.env.NODE_ENV === "production"
-    ? undefined
-    : developmentFallbackUrl();
+  // `dev` and not "anything but prod". A staging deployment is a real one with
+  // real backends behind it, and the fallback exists for a checkout where every
+  // entry points at the local mock — handing it to staging would let a missing
+  // address there resolve to whatever `FOI_DEV_BACKEND_URL` happens to hold
+  // instead of being reported by `backendsMissingActionUrl`.
+  return tier() === "dev" ? developmentFallbackUrl() : undefined;
 }
 
 /**
@@ -69,7 +73,8 @@ export function backendUrl(id: string): string | undefined {
  * this, so holding it drains that backend's queue, reads every submission in it
  * and writes whatever verdicts it likes. Sharing one across backends makes all
  * of that transitive. Production refuses to boot on it — see
- * `assertBackendSecrets` in `./boot.ts`.
+ * `backendSecretComplaints` in `./boot.ts`, and `lib/boot/checks.ts` for the
+ * tier that turns it from a warning into a refusal.
  *
  * Undefined rather than falling back to the shared key here. The difference
  * between "has its own" and "borrowing everyone's" is exactly what that check
@@ -107,19 +112,6 @@ export function sharedSecret(): string | undefined {
   return (
     process.env.FOI_BACKEND_SECRET || process.env.FOI_JUDGE_SECRET || undefined
   );
-}
-
-/**
- * The commit this process was built from, recorded on every submission.
- *
- * Baked in by the Dockerfile from a build arg the CI supplies. Null outside
- * that path — a local `next dev` or a hand-built image did not come from a
- * commit, and saying so is better than inventing a value. Deliberately absent
- * from `assertEnv`: a deployment without it works fine, it just cannot answer
- * "which code judged this" later.
- */
-export function releaseSha(): string | null {
-  return process.env.FOI_RELEASE_SHA || null;
 }
 
 /**

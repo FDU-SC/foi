@@ -18,7 +18,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 | --- | --- | --- | --- |
 | Postgres 16 | 5433 | `sudo pg_ctlcluster 16 main start` | 见下方 caveat；开机不会自动启动 |
 | Next.js dev（Turbopack） | 3000 | `pnpm dev` | 主应用 |
-| mock 题目后端 | 4100 | `pnpm backend:mock` | 提交→评测闭环所需 |
+| mock 题目后端 | 4100 | `pnpm backend:mock` | 提交→评测闭环所需；实现在 `content/mock-runner.ts` |
 
 ### 非显然的注意事项
 
@@ -32,9 +32,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
   `pnpm db:seed` 是这一步的一部分而不是可选项：种子数据在库里，不在快照的别处。
 - **`.env.local` 已生成且被 gitignore**，内含 `AUTH_SECRET`、`FOI_BACKEND_SECRET` 等。快照会保留它，无需重新创建。
-- **必须用 Turbopack**（`next dev` 在 Next 16 默认即是），不要切回 webpack：`content/` 下七份 `*-modules.ts` 全部依赖 `import.meta.glob`，题目、比赛、赛制、报名、邮件、题目后端、题面组件的注册表都从那里来。
+- **必须用 Turbopack**（`next dev` 在 Next 16 默认即是），不要切回 webpack：仓库根上八份 `content-*-modules.ts` 全部依赖 `import.meta.glob`，题目、题目渲染、比赛、赛制、报名、邮件、题目后端、题面组件的注册表都从那里来。它们扫的是 `./content/...`——住在根上而不是 `content/` 里，是为了让 `rm -rf content` 之后平台仍然构建得起来，见 CI 的 `content-absent` 作业。
 - **数据库迁移会在 dev server 启动时由 `instrumentation.ts` 自动应用**，也可手动 `pnpm db:migrate`。
 - **种子账号**：`admin` / `alice` / `bob` / `carol`，统一密码 `foi-dev-2026`（可用 `FOI_SEED_PASSWORD` 覆盖）。
-- **mock 题目后端本身就是一个 runner**，返回随机评测结果，用于验证「提交→领活→取详情→心跳→上报」这条闭环。它一个进程服务四个队列，靠 `FOI_BACKEND_SECRET` 认证，**不需要配任何 `FOI_BACKEND_<NAME>_URL`**——评测这条路上内核不连后端，是 runner 连 `FOI_PUBLIC_URL`。地址只有 `leaky-bucket` 的 `spawn`/`poll`/`destroy` 才用得到，而非生产环境下没配地址的条目一律回落到 `:4100`，所以本环境不配也能跑通。**别照抄旧说法说「生产缺任何一个后端 URL 会 `assertEnv` 拒绝启动」**：`assertEnv` 早就不看后端地址了，现在拒绝启动的是 `lib/backend/access.ts` 的 `assertBackendActionUrls()`，而且只针对「有题目在它上面声明了 `actions`、它却没有地址」的后端。`.env.local` 里给的 `FOI_JUDGE_FLAG_CHECKER_URL` 之类也已经不再被读取——`flag-checker`、`output-only`、`roulette` 都退役成了内联判题，见 README「判在哪里」。
+- **mock 题目后端本身就是一个 runner**，返回随机评测结果，用于验证「提交→领活→取详情→心跳→上报」这条闭环。它现在是 `content/mock-runner.ts`（不再在 `scripts/` 下：它认识 `config.mode`、`config.image`，那是这批题目的知识），一个进程服务 `content/backends.ts` 声明的全部队列，靠 `FOI_BACKEND_SECRET` 认证，**不需要配任何 `FOI_BACKEND_<NAME>_URL`**——评测这条路上内核不连后端，是 runner 连 `FOI_PUBLIC_URL`。地址只有 `leaky-bucket` 的 `spawn`/`poll`/`destroy` 才用得到。非生产环境下没配地址的条目回落到 `FOI_DEV_BACKEND_URL`（`.env.example` 里给的是 `:4100`）；**这个回落从前写死在 `lib/backend/env.ts` 里，现在不设就是没有回落**。**别照抄旧说法说「生产缺任何一个后端 URL 会 `assertEnv` 拒绝启动」**：`assertEnv` 早就不看后端地址了，现在拒绝启动的是 `lib/backend/access.ts` 的 `assertBackendActionUrls()`，而且只针对「有题目在它上面声明了 `actions`、它却没有地址」的后端。`FOI_JUDGE_<NAME>_URL` 这一套旧名已经彻底删掉，不再被读取——`flag-checker`、`output-only`、`roulette` 都退役成了内联判题，见 README「判在哪里」。
 - **有五道题不经过任何后端**（`answer-only`、`game-of-life`、`warmup-2025`、`life-oscillator`、`roulette-daily`）。它们在提交那一次请求里同步判完，所以不启 mock 也能验证这几道题的完整闭环。`roulette-daily` 的结果由 `HMAC(AUTH_SECRET, handle|日期)` 派生，换一把 `AUTH_SECRET` 就换一套结果。
 - Postgres 用户密码认证：连接串已用 `foi_dev_password`，通过 TCP `localhost:5433` 连接。

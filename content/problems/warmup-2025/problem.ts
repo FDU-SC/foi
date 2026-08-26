@@ -18,6 +18,10 @@ import {
  *
  * 真要彻底删除也可以，直接删目录即可；`submissions.problem_slug` 是
  * ON DELETE RESTRICT，会先让你面对那些历史提交。
+ *
+ * 它也没有 `views.tsx`，同样是有意的。渲染插槽本就是可选的，不填就回落成格式化
+ * JSON——一道题退役之后没人再维护它自己的渲染，历史提交长成那样是诚实的，不是
+ * 缺了什么。真把目录删掉之后，那些提交走的也是这条路。
  */
 export const problem = {
   slug: "warmup-2025",

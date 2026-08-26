@@ -180,9 +180,12 @@ async function main() {
     console.log(`密码: ${password}`);
     console.log("这是唯一一次显示，请立即保存。");
   }
+  // 组 id 是那套 content 自己定义的，这个脚本一个也不认识——它连 registry 都不
+  // 加载。所以这里给形状，不给名字。
   console.log(
-    `\n它现在还没有任何权限。在 content/enrollment/ 加一条规则并重新部署：\n` +
-      `  { label: "管理员", handles: ["${normalizedHandle}"], groups: ["管理员"] }`,
+    `\n它现在还没有任何权限。在 content/enrollment/ 加一条规则，把它放进一个带` +
+      ` admin.access 能力的组，然后重新部署：\n` +
+      `  { label: "…", handles: ["${normalizedHandle}"], groups: ["…"] }`,
   );
 }
 

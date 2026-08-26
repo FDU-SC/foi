@@ -5,14 +5,8 @@ import type {
 } from "@/lib/enrollment/types";
 
 /**
- * How people get in, and what they get when they do.
- *
- * This is the file that replaced the roster. Listing everybody stopped being
- * possible once they could sign themselves up, and it was never the part worth
- * keeping: what the repository is for is the *decisions* — who may register,
- * which cohort an address belongs to, who is allowed to administer the thing.
- * The people themselves are in the `accounts` table, where they can arrive at
- * three in the morning without waiting for a review.
+ * How people get in, and what they get when they do. The rules are here; the
+ * people are in the `accounts` table. See the README's 「注册、分流与权限」.
  *
  * A real deployment adds its own file next to this one — `2026-spring.ts` and
  * so on — which is also why they stay out of the public mirror: only this
@@ -32,37 +26,21 @@ export const policy: EnrollmentPolicyInput = {
   // page. Handles named by a rule below are reserved automatically.
   reservedHandles: ["root", "system", "admin", "foi", "judge", "support"],
 
-  // Said out loud rather than left to be inferred from a missing variable,
-  // which is the entire point of this field. This example runs no relay — the
-  // quick start does not ask for one, and `emailDomains` here is a reserved
-  // test domain — so it is a deployment that prints codes to the log, and the
-  // config should be the place that says so.
-  //
-  // A real deployment changes this to `"smtp"` and sets `FOI_SMTP_HOST`.
-  // Forgetting to is not silent: `/admin` reports an unconfigured relay
-  // whatever the policy says, because that finding reads the environment
-  // rather than this line.
-  //
-  // Leaving it out would make `pnpm build && pnpm start` refuse to boot on a
-  // fresh checkout — production is where `assertMailDelivery` throws, and
-  // `next start` is production. That is the check working, and this line is
-  // the answer it is asking for.
+  // This example runs no relay, so it says so. **Leaving this line out breaks
+  // a fresh checkout**: `next start` is production, and production is where
+  // `assertMailDelivery` throws rather than warns. A real deployment changes
+  // it to `"smtp"` and sets `FOI_SMTP_HOST`; forgetting to is not silent,
+  // because `/admin` reports an unconfigured relay off the environment rather
+  // than off this line.
   mailDelivery: "console",
 
   registrationsPerIpPerHour: 10,
 };
 
 /**
- * What each group may do.
- *
- * This is the file half of "哪个组能干什么". A group listed here with
- * capabilities can do those things; a group that appears only in a rule below
- * is an ordinary cohort and can do nothing — which is what makes adding one
- * free.
- *
- * The capability names come from `lib/auth/policy.ts`. That list is the
- * kernel's, because the code reads those identifiers; which groups exist and
- * what each may do is yours.
+ * What each group may do. Only groups carrying capabilities go here; a group
+ * that appears only in a rule below is an ordinary cohort, which is what makes
+ * adding one free. The capability names come from `lib/auth/policy.ts`.
  */
 export const groups: GroupInput[] = [
   {
@@ -84,31 +62,16 @@ export const groups: GroupInput[] = [
 ];
 
 /**
- * Which groups somebody ends up in.
+ * Which groups somebody ends up in. Every matching rule contributes, and
+ * membership is recomputed on every read.
  *
- * Every matching rule contributes, so one person can be in an intake year, a
- * programme and the setters' group at once. Membership is recomputed on every
- * read: edit a rule here, deploy, and everyone it covers is re-sorted on their
- * next request without a migration or a backfill.
- *
- * Contests select their entrants by group, which is the whole point — a cohort
- * is described once here rather than pasted into every contest file.
- *
- * A rule comes in one of two shapes, and the shape decides what it may confer:
- *
- *   email:   a pattern over the address. Covers a whole intake with one line,
- *            and confers no capabilities at all — the set of addresses a regex
- *            matches is infinite, so nothing can be reserved against it, and
- *            getting a digit wrong would turn a whole year group into
- *            administrators.
- *
- *   handles: a finite list of usernames. May confer capabilities, because a
- *            finite list *can* be reserved: registration refuses every handle
- *            named here, so a rule matching means the person is the one the
- *            repository meant rather than whoever registered the name first.
- *
- * The registry refuses to load an `email` rule that names a group carrying
- * capabilities, and drops any such group a computed rule produces at runtime.
+ * **The shape of a rule decides what it may confer**: `email` covers a whole
+ * intake with one line and can produce plain cohorts only; `handles` may
+ * produce capability-bearing groups, because registration reserves every
+ * handle named here and a finite list is therefore something the repository
+ * can actually point at. The registry refuses to load an `email` rule naming a
+ * privileged group, and drops any such group a computed rule returns at
+ * runtime.
  */
 export const rules: EnrollmentRuleInput[] = [
   {

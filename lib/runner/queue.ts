@@ -12,31 +12,13 @@ import { toView } from "@/lib/submissions/queries";
 import { verdictColumns } from "@/lib/submissions/verdict";
 
 /**
- * The queue, which is the kernel's again.
+ * The queue. Runners pull from it; the kernel never dispatches.
  *
- * Every mainstream CI runner pulls: GitHub is explicit that it "does not push
- * jobs to runners — runners pull them", and GitLab's runners poll
- * `POST /api/v4/jobs/request` against a queue held by the platform. Turning
- * this around dissolved most of what was hard about pushing.
- *
- * **Redelivery becomes free.** Pushing made it expensive because the kernel
- * never knew whether a dispatch had landed, so a retry needed idempotency
- * keys, a re-minted callback token and a guard against double judging. Here,
- * a job nobody claimed is a job nobody claimed: put it back.
- *
- * **Backpressure needs no protocol.** A runner takes as many as it wants, and
- * prefetching is a thing it does rather than a thing the wire format has to
- * express.
- *
- * **The one timing parameter finally has a home.** `abandonAfterMs` was
- * impossible to set because it had to cover how long a problem takes *and* how
- * deep a backend's queue was — two numbers owned by different people. The
- * question here is "how long since anybody said anything", which belongs to
- * neither.
- *
- * The whole reliability story is the three numbers below, and there is nothing
- * else: no queue snapshots, no set differences, no health layer. That is also
- * all GitHub has.
+ * The whole reliability story is the three numbers below, and there is
+ * deliberately nothing else: no queue snapshots, no set differences, no health
+ * layer. A job nobody claimed is a job nobody claimed, so redelivery needs no
+ * protocol, and prefetching is something a runner does rather than something
+ * the wire format has to express.
  */
 
 /**
@@ -62,13 +44,11 @@ export const MAX_ATTEMPTS = 3;
 /**
  * How long a job may sit unclaimed before the kernel gives up on it.
  *
- * The other half of GitHub's two-number model, and the only guard against the
- * failure the push model could not have at all: nobody is running a runner for
- * this backend. That covers a backend deleted from `content/backends.ts`, a
- * deployment where somebody forgot to start the runner, and an outage that
- * outlasts the round. Long, because it must not fire during an ordinary
- * backlog — six hours is longer than any queue this deployment can produce and
- * shorter than a competitor's patience.
+ * The only guard against nobody running a runner for this backend at all: a
+ * backend deleted from `content/backends.ts`, a deployment where somebody
+ * forgot to start the runner, an outage that outlasts the round. Long, because
+ * it must not fire during an ordinary backlog — six hours is longer than any
+ * queue this deployment can produce and shorter than a competitor's patience.
  */
 export const QUEUE_FUSE_MS = 6 * 60 * 60_000;
 
@@ -79,18 +59,14 @@ export const QUEUE_FUSE_MS = 6 * 60 * 60_000;
  * what happens to a row, this decides nothing at all. It is the window the
  * board and `/api/health` count `runners` over — the number that tells a
  * backlog apart from an outage — so nothing is written or refused on the back
- * of it.
+ * of it. Both readers must keep taking it from here: two literals that can
+ * disagree leave an operator unable to tell a stale board from a real
+ * disagreement about what "out there" means.
  *
  * Several times the poll interval the protocol suggests, because a runner that
  * misses one poll to a network hiccup has not gone anywhere and a board that
  * flickers is one nobody reads. What it has to catch is a runner that has
  * stopped, and that shows up within a minute.
- *
- * It lived as a literal in `lib/backend/client.ts` and another in the health
- * route, which is how the two came to be able to disagree: an operator
- * comparing "the board says nobody is out there" with "health says two" would
- * have had no way to tell a stale board from a real disagreement about what
- * "out there" means. One number, read by both.
  */
 export const RUNNER_ONLINE_MS = 60_000;
 
@@ -144,15 +120,12 @@ async function markRunnerSeen(
  * behind another runner's row lock is a runner not doing anything, when there
  * are almost certainly other rows it could take.
  *
- * Ordered by `queued_at` rather than `created_at`, which is the difference
- * between "who has been waiting longest" and "who submitted longest ago". They
- * are the same number for exactly one lap, and the two paths that start a
- * second one — the reaper taking a job back, an administrator rejudging —
- * deliberately leave `created_at` alone, for the reasons set out on both
- * columns in `lib/db/schema.ts`. Ordering by it therefore put every rejudged
- * submission at the head of the queue ahead of everything submitted since,
- * which is the opposite of what a rejudge is: a rejudge is new work, and a
- * batch of them mid-contest would have starved the people still competing.
+ * Ordered by `queued_at` rather than `created_at`: the reaper taking a job back
+ * and an administrator rejudging both deliberately leave `created_at` alone,
+ * so ordering by it puts every rejudged submission ahead of everything
+ * submitted since. See both columns in `lib/db/schema.ts`; the queue positions
+ * in `lib/submissions/queue-position.ts` count against the same clock and this
+ * predicate, and the two must stay in step.
  *
  * Rows at the attempt cap are simply not selected. They are left `queued` for
  * the reaper to write off, rather than being disrupted from here, because
@@ -215,10 +188,7 @@ export async function claimJob(
  *
  * The lease check is not bookkeeping here, it is the access control. A runner
  * can name any submission id it likes, and without this a single compromised
- * evaluator could walk the id space and read every competitor's source. That
- * risk is new with the direction change — under the push model the kernel chose
- * what to send and to whom — and it is the reason this endpoint exists at all
- * rather than the payload riding along with the claim.
+ * evaluator could walk the id space and read every competitor's source.
  *
  * A problem missing from the registry yields a null config rather than a
  * refusal. It means the definition was deleted while a submission to it was
@@ -376,10 +346,9 @@ export async function reportDone(
  * There is not going to be a verdict, and the runner is saying so itself.
  *
  * Lands in `disrupted`, alongside the rows the kernel gave up on by inference.
- * The two are one state because the handling is identical, and neither counts
- * against the submitter — which is the difference between this and a
- * `system_error` verdict, and the reason the protocol has no way to report one
- * as a result.
+ * Neither counts against the submitter — which is the difference between this
+ * and a `system_error` verdict, and the reason the protocol has no way to
+ * report one as a result.
  */
 export async function reportFailed(
   id: string,

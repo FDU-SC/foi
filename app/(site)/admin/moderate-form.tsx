@@ -1,29 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
-import { useFormStatus } from "react-dom";
-import { Button } from "@/components/ui/button";
+import { ActionResult, PendingSubmit } from "@/components/form";
 import { Input } from "@/components/ui/field";
 import {
   reinstateAccountAction,
   suspendAccountAction,
   type ActionState,
 } from "./actions";
-
-function SubmitButton({
-  label,
-  variant,
-}: {
-  label: string;
-  variant: "danger" | "secondary";
-}) {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" variant={variant} size="sm" disabled={pending}>
-      {pending ? "处理中…" : label}
-    </Button>
-  );
-}
 
 /**
  * Suspending asks for a reason inline rather than behind a dialog. The reason
@@ -46,7 +30,9 @@ export function ModerateForm({
     <form action={formAction} className="flex flex-col items-end gap-1">
       <input type="hidden" name="handle" value={handle} />
       {suspended ? (
-        <SubmitButton label="解封" variant="secondary" />
+        <PendingSubmit variant="secondary" size="sm" pendingLabel="处理中…">
+          解封
+        </PendingSubmit>
       ) : (
         <div className="flex items-center gap-1.5">
           <Input
@@ -56,15 +42,12 @@ export function ModerateForm({
             className="h-8 w-32 py-0 text-xs"
             aria-label={`封禁 ${handle} 的原因`}
           />
-          <SubmitButton label="封禁" variant="danger" />
+          <PendingSubmit variant="danger" size="sm" pendingLabel="处理中…">
+            封禁
+          </PendingSubmit>
         </div>
       )}
-      {state.error ? (
-        <span className="text-err text-xs">{state.error}</span>
-      ) : null}
-      {state.message ? (
-        <span className="text-ok text-xs">{state.message}</span>
-      ) : null}
+      <ActionResult state={state} />
     </form>
   );
 }

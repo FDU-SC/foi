@@ -11,8 +11,7 @@ import {
   verifyPassword,
 } from "@/lib/auth/credentials";
 import type { Capability } from "@/lib/auth/policy";
-import type { SessionUser } from "@/lib/auth/session";
-import { viewerFor, type Viewer } from "@/lib/auth/viewer";
+import { viewerFor, type SessionUser, type Viewer } from "@/lib/auth/viewer";
 import { rateLimit, rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { ACTION_LIMITS, alsoRule, fixedRule } from "@/lib/ratelimit/policy";
 
@@ -46,9 +45,9 @@ function withinLoginRate(handle: string, request: Request | undefined): boolean 
 
   // Taken off the request rather than `next/headers`, so this works wherever
   // Auth.js invokes the provider. Read through `sourceFrom` rather than off
-  // `x-forwarded-for` directly: this used to take the leftmost entry, which is
-  // the one the sender writes, so the bound below counted attempts per header
-  // value instead of per machine and a sprayer simply varied it.
+  // `x-forwarded-for` directly: the leftmost entry is the one the sender
+  // writes, so reading it counts attempts per header value instead of per
+  // machine and a sprayer simply varies it.
   const source = request ? sourceFrom(request.headers) : "unknown";
 
   // Only the second half stands aside when no source can be established, and
@@ -144,17 +143,16 @@ export async function getResolvedUser(): Promise<ResolvedUser | null> {
   /**
    * A session is only good for the password it was issued against.
    *
-   * Suspending an account already bit immediately, because the check above
-   * reads a column. Changing a password did not: the token carries a handle
-   * and nothing else, the account row still says `active`, and a stolen cookie
-   * therefore kept working for the rest of its week — through the one remedy
-   * the person whose account it is can actually reach. Resetting a password is
-   * what someone does *because* they think a session was taken, so it has to
-   * be the thing that ends it.
+   * Suspension bites immediately because the check above reads a column.
+   * Changing a password would not: the token carries a handle and nothing
+   * else, the account row still says `active`, and a stolen cookie would keep
+   * working for the rest of its week — through the one remedy the person whose
+   * account it is can actually reach. Resetting a password is what someone
+   * does *because* they think a session was taken, so it has to be the thing
+   * that ends it.
    *
-   * Tokens issued before this claim existed decode to 0 and so fail too,
-   * which is the right way round: sessions taken before the fix are exactly
-   * the ones worth ending.
+   * A token carrying no such claim decodes to 0 and fails too, which is the
+   * right way round.
    */
   const setAt = await passwordSetAt(handle);
   if (!sessionMatchesPassword(setAt, session.user.credentialsAt)) return null;

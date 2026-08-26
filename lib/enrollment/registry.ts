@@ -1,7 +1,7 @@
 import type { z } from "zod";
-import { enrollmentModules } from "@/content-enrollment-modules";
 import { normalizeHandle } from "@/lib/accounts/types";
 import { declaredGroupIds, isPrivileged, privilegedGroupIds } from "@/lib/auth/groups";
+import { enrollmentSources } from "./modules";
 import {
   enrollmentPolicySchema,
   enrollmentRuleSchema,
@@ -38,8 +38,8 @@ interface Registry {
    * one that ships nothing has not inherited them, it has said nothing, and
    * the difference matters to anything that would otherwise treat a default as
    * a declaration — see `assertMailDelivery`, which refuses a production boot
-   * over `mailDelivery` and used to refuse it over a value the kernel had
-   * picked on behalf of a deployment with no content.
+   * over `mailDelivery` and must not do so over a value the kernel picked on
+   * behalf of a deployment with no content.
    */
   declared: boolean;
 }
@@ -58,16 +58,10 @@ function buildRegistry(): Registry {
   let policy: EnrollmentPolicy | undefined;
   let policySource: string | undefined;
 
-  // Sorted so that rule order — and therefore the order groups come out in —
-  // is the same on every machine, rather than whatever the glob happened to
-  // emit.
-  const paths = Object.keys(enrollmentModules).sort();
+  const sources = enrollmentSources();
 
-  for (const path of paths) {
-    const mod = enrollmentModules[path] as {
-      policy?: unknown;
-      rules?: unknown;
-    };
+  for (const mod of sources) {
+    const path = mod.path;
 
     if (mod.policy !== undefined) {
       if (policySource) {
@@ -126,7 +120,7 @@ function buildRegistry(): Registry {
     policy: policy ?? enrollmentPolicySchema.parse({}),
     rules,
     handleIndex,
-    declared: paths.length > 0,
+    declared: sources.length > 0,
   };
 }
 
@@ -213,6 +207,60 @@ export function groupsFor(handle: string, email: string | null): string[] {
   }
 
   return [...groups];
+}
+
+/** What `tallyCohorts` needs off an account, and nothing more. */
+export interface TallyableAccount {
+  handle: string;
+  email: string | null;
+}
+
+export interface CohortTally {
+  /**
+   * Accounts in each group. Declared groups start at zero so they are listed
+   * even when empty — that is the value of the console's card right after
+   * somebody adds a group: a count of 0 next to a name you just wrote is how a
+   * mistyped group announces itself, and absence from the list would not.
+   */
+  counts: Map<string, number>;
+  /**
+   * Handles whose address no rule recognises, in the order given.
+   *
+   * Only accounts that have an address at all: an account with none cannot be
+   * matched by a cohort rule and is not evidence of a rule falling behind.
+   */
+  untagged: string[];
+}
+
+/**
+ * Every given account run through `groupsFor` once, counted and listed.
+ *
+ * Both readings come out of one pass. `lib/admin/drift.ts` wants the untagged
+ * handles and `enrollmentViewFor` wants the count of them; computing them
+ * separately is a full scan of the rule set per account done twice, and two
+ * spellings of "no rule recognises this address" is the shape a drift finding
+ * and a console counter come to disagree in.
+ *
+ * The caller decides which accounts to pass — both callers pass the active
+ * ones, and neither would be right for the other's set.
+ */
+export function tallyCohorts(
+  accounts: readonly TallyableAccount[],
+): CohortTally {
+  const counts = new Map<string, number>(
+    declaredGroupIds().map((id) => [id, 0]),
+  );
+  const untagged: string[] = [];
+
+  for (const account of accounts) {
+    const resolved = groupsFor(account.handle, account.email);
+    if (resolved.length === 0 && account.email) untagged.push(account.handle);
+    for (const id of resolved) {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+  }
+
+  return { counts, untagged };
 }
 
 /**

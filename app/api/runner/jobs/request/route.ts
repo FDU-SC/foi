@@ -15,9 +15,7 @@ const MAX_BODY_BYTES = 4 * 1024;
 /**
  * Where runners come for work.
  *
- * Short polling, once a second or two, and that is the whole transport. GitLab
- * runs long polling through Workhorse and Redis; that is a consequence of their
- * scale rather than of the design, and four backends do not need it.
+ * Short polling, once a second or two, and that is the whole transport.
  *
  * The answer is an id and a lease, or 204. It will not grow fields: everything
  * an evaluation needs is behind `GET /api/runner/jobs/{id}`, so a runner that
@@ -25,10 +23,9 @@ const MAX_BODY_BYTES = 4 * 1024;
  * with nothing in the protocol having to know that is what it is doing.
  */
 export async function POST(request: Request) {
-  // Before the body is read and before an HMAC is computed. Like the retired
-  // callback route, this endpoint answers to nobody — its credential is in a
-  // header over a body it has not read yet — so the source gate is the only
-  // bound that can come first.
+  // Before the body is read and before an HMAC is computed. This endpoint
+  // answers to no session — its credential is in a header over a body it has
+  // not read yet — so the source gate is the only bound that can come first.
   const gated = guardRequest(request, "POST /api/runner/jobs/request");
   if (gated) return gated;
 

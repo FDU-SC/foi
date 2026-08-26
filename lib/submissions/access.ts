@@ -9,22 +9,17 @@ import type { SubmissionListItem } from "./types";
  * The same shape as the problem, contest and judge gates, and here for a
  * sharper reason than any of them: this is where the leak actually happened.
  * The rule — yours, or you hold `submission.readAny` — was written out three
- * times identically, in the detail route, the SSE stream and the detail page.
- * The list endpoint was the fourth place that needed it and the one place that
- * did not have it, so `GET /api/submissions` handed any player the whole
+ * times identically, in the detail route, the SSE stream and the detail page,
+ * and the list endpoint was the fourth place that needed it and the one place
+ * that did not have it, so `GET /api/submissions` handed any player the whole
  * site's verdicts. Three correct copies of a rule are not evidence the rule is
- * safe; they are the reason the fourth was missed.
+ * safe; they are the reason the fourth is missed.
  *
  * Scope is derived from the viewer and cannot be widened by an argument. A
  * caller may narrow — one problem, one contest, one person — but asking for
  * somebody else's submissions without the capability returns your own, not
  * theirs.
  */
-
-/** Whether this viewer may read this particular row. */
-export function canReadSubmission(row: SubmissionRow, viewer: Viewer): boolean {
-  return viewer.can("submission.readAny") || row.handle === viewer.handle;
-}
 
 /**
  * One submission, or `undefined` when it does not exist or is not this
@@ -38,7 +33,10 @@ export async function submissionFor(
 ): Promise<SubmissionRow | undefined> {
   const row = await getSubmissionRow(id);
   if (!row) return undefined;
-  return canReadSubmission(row, viewer) ? row : undefined;
+
+  const mayRead =
+    viewer.can("submission.readAny") || row.handle === viewer.handle;
+  return mayRead ? row : undefined;
 }
 
 /**

@@ -1,4 +1,5 @@
 import { MAX_CLOCK_SKEW_SECONDS } from "@/lib/backend/signature";
+import { makeRoom } from "@/lib/bounded-map";
 
 /**
  * Nonces already spent, so a captured claim cannot be posted twice.
@@ -77,21 +78,6 @@ export function createReplayWindow(options: ReplayWindowOptions): ReplayWindow {
   /** Key to the moment it may be forgotten. */
   const spent = new Map<string, number>();
 
-  function evict(now: number): void {
-    for (const [key, expiresAt] of spent) {
-      if (expiresAt <= now) spent.delete(key);
-    }
-
-    if (spent.size < options.maxKeys) return;
-
-    // Still full after dropping what has expired. Shed the entries nearest
-    // their own expiry, which are the ones a replay has least time left to
-    // exploit.
-    const byExpiry = [...spent.entries()].sort((a, b) => a[1] - b[1]);
-    const excess = spent.size - options.maxKeys + 1;
-    for (let i = 0; i < excess; i += 1) spent.delete(byExpiry[i][0]);
-  }
-
   return {
     firstUse(backendId, nonce) {
       const now = Date.now();
@@ -105,7 +91,11 @@ export function createReplayWindow(options: ReplayWindowOptions): ReplayWindow {
       const expiresAt = spent.get(key);
       if (expiresAt !== undefined && expiresAt > now) return false;
 
-      if (spent.size >= options.maxKeys) evict(now);
+      // What gets shed when this is full are the nonces nearest their own
+      // expiry, which are the ones a replay has least time left to exploit.
+      if (spent.size >= options.maxKeys) {
+        makeRoom(spent, (at) => at, now, options.maxKeys);
+      }
       spent.set(key, now + ttlMs);
       return true;
     },
@@ -127,9 +117,8 @@ declare global {
  *
  * In memory and therefore per process, the same assumption the rate limiter
  * and the submission event bus already make. A second app process would have
- * its own window and would accept a nonce the first one had spent — worth
- * knowing, and no worse than the state before this existed. Moving it to
- * Postgres belongs with the same move for those two.
+ * its own window and would accept a nonce the first one had spent. Moving it
+ * to Postgres belongs with the same move for those two.
  */
 export const claimNonces: ReplayWindow = (globalThis.__foiClaimNonces ??=
   createReplayWindow({ maxKeys: 50_000 }));

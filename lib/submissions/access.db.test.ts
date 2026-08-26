@@ -1,10 +1,10 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { AS_PLAYER } from "@/lib/auth/test-support";
+import { AS_PLAYER } from "@/test/auth-support";
 import { viewerFor } from "@/lib/auth/viewer";
 import { db } from "@/lib/db";
 import { accounts, problems, submissions } from "@/lib/db/schema";
-import { canReadSubmission, submissionFor, submissionsFor } from "./access";
+import { submissionFor, submissionsFor } from "./access";
 import { viewerWith } from "@/test/content-shapes";
 
 /**
@@ -82,15 +82,13 @@ describeDb("提交门禁", () => {
 
   afterAll(cleanup);
 
-  describe("canReadSubmission", () => {
-    it("本人可读", async () => {
-      const row = await submissionFor("sub_access_owner", ownerViewer);
-      expect(row).toBeDefined();
-      if (row) expect(canReadSubmission(row, ownerViewer)).toBe(true);
-    });
-  });
-
   describe("submissionFor", () => {
+    it("本人可读", async () => {
+      await expect(
+        submissionFor("sub_access_owner", ownerViewer),
+      ).resolves.toBeDefined();
+    });
+
     it("他人的提交返回 undefined，与不存在无法区分", async () => {
       await expect(
         submissionFor("sub_access_other", ownerViewer),

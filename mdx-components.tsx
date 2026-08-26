@@ -1,6 +1,6 @@
 import type { MDXComponents } from "mdx/types";
 import type { ComponentPropsWithoutRef } from "react";
-import { presentation } from "@/lib/presentation/registry";
+import { presentation } from "@/lib/presentation";
 import { cn } from "@/lib/utils";
 
 type Props<T extends keyof React.JSX.IntrinsicElements> =

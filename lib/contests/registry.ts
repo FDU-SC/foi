@@ -16,11 +16,11 @@ import { contestConfigSchema, type ContestConfig } from "./types";
  * here at load time. A typo therefore fails the build instead of producing a
  * standings page that silently omits a column.
  *
- * Two references cannot be checked this strictly any more, because what they
- * point at is data rather than code. A handle in a `list` may belong to
- * somebody who has not registered yet, and a cohort tag may be produced by a
- * rule that computes it from an address. Both are reported by
- * `contestWarnings()` at startup instead of failing the build.
+ * Two references cannot be checked that strictly, because what they point at
+ * is data rather than code. A handle in a `list` may belong to somebody who
+ * has not registered yet, and a cohort tag may be produced by a rule that
+ * computes it from an address. Both are reported by `contestWarnings()` at
+ * startup instead of failing the build.
  */
 function slugFromPath(path: string): string | null {
   return path.match(/\/contests\/([^/]+)\/[^/]+$/)?.[1] ?? null;
@@ -99,9 +99,9 @@ function buildRegistry(): Map<string, ContestConfig> {
     }
 
     // A `freezeAt` that the format ignores is worse than no freeze at all: the
-    // schedule says the board stops updating, and it does not. Nothing showed
-    // this before — the config validated, the contest loaded, and the mistake
-    // only surfaced when the board failed to freeze during a live round.
+    // schedule says the board stops updating, and it does not. Nothing else
+    // shows it — the config validates and the contest loads — so without this
+    // the mistake surfaces when the board fails to freeze during a live round.
     if (parsed.data.freezeAt && ruleset.supportsFreeze !== true) {
       throw new Error(
         `${path} 配置了 freezeAt，但赛制 "${ruleset.id}" 不支持封榜，这个字段不会有任何效果。请去掉 freezeAt，或改用支持封榜的赛制。`,
@@ -125,9 +125,9 @@ const registry = buildRegistry();
  * the drift report, the problem gate's reverse index, and the access layer
  * itself.
  *
- * `visible` is deliberately not filtered here, for the same reason `hidden` is
- * not filtered in the problem registry: it is one of the reasons a contest may
- * be withheld, and keeping one of them here while the rest live in the gate is
+ * `visibleTo` is deliberately not filtered here, for the same reason it is not
+ * filtered in the problem registry: it is one of the reasons a contest may be
+ * withheld, and keeping one of them here while the rest live in the gate is
  * how they drift apart.
  */
 export function allContests(): ContestConfig[] {
@@ -145,15 +145,15 @@ export function contestBySlug(slug: string): ContestConfig | undefined {
  * Entry rules that name something nothing can ever satisfy.
  *
  * Both modes render as an empty standings table, which looks identical to a
- * contest nobody has entered. Saying so at startup is the closest thing left to
- * the build-time check that used to catch a mistyped reference.
+ * contest nobody has entered. Saying so at startup is the closest thing to a
+ * build-time check available for a reference into data.
  *
  * The two checks are gated differently, and that is the point of separating
  * them. A group name is only checkable when the rule set is exhaustive — a rule
  * that computes its tags can emit names nothing here can enumerate, and warning
  * about every contest on such a deployment would train people to ignore the
  * warnings. A handle does not depend on the rules at all, so a short-circuit on
- * `exhaustive` was silently taking the handle check down with it.
+ * `exhaustive` would silently take the handle check down with it.
  *
  * What the handle check can say is narrower than "this person exists": accounts
  * are data, and a handle in a `list` legitimately belongs to somebody who has

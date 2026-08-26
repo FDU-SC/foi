@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AS_PLAYER } from "@/lib/auth/test-support";
+import { AS_PLAYER } from "@/test/auth-support";
 import { viewerFor, type Viewer } from "@/lib/auth/viewer";
 import { viewerWith } from "@/test/content-shapes";
 import { allContests } from "@/lib/contests/registry";

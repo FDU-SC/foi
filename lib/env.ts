@@ -3,23 +3,23 @@ import { z } from "zod";
 /**
  * What the process needs before it is allowed to serve anything.
  *
- * These used to be read where they were used, which meant a missing value
- * surfaced at the first request that happened to need it: no `AUTH_SECRET`
- * looked like a broken login, no `FOI_PUBLIC_URL` looked like a broken
- * submission, and both looked fine until somebody tried. A deploy that cannot
- * work should fail while the health check is still watching, in the same way a
- * failed migration already does.
+ * Checked here rather than where each is used, because a value read at the
+ * point of use surfaces at the first request that happens to need it: no
+ * `AUTH_SECRET` looks like a broken login, no `FOI_PUBLIC_URL` looks like a
+ * broken submission, and both look fine until somebody tries. A deploy that
+ * cannot work should fail while the health check is still watching, in the
+ * same way a failed migration already does.
  *
  * Only the variables whose absence is fatal are listed. SMTP has a documented
  * fallback that logs to the console and the backup interval has a default;
  * neither should stop a boot.
  *
- * Backend addresses were here for a while and have gone again, which is not a
- * relaxation. Judging is pulled, so a backend needs no address; what still does
- * is a backend some problem declares an interactive action on, and *that*
- * refuses a production boot in `assertBackendActionUrls`. It has to live over
- * there because answering it means reading the problem registry, and this file
- * is deliberately incapable of knowing anything about content.
+ * Backend addresses are deliberately not here. Judging is pulled, so a backend
+ * needs no address; what does need one is a backend some problem declares an
+ * interactive action on, and *that* refuses a production boot in
+ * `assertBackendActionUrls`. It has to live over there because answering it
+ * means reading the problem registry, and this file is deliberately incapable
+ * of knowing anything about content.
  */
 const schema = z.object({
   DATABASE_URL: z
@@ -49,8 +49,8 @@ const schema = z.object({
     }, "必须是完整的 URL，例如 https://foi.example.com"),
 
   // The fallback key, for backends given none of their own. Still mandatory
-  // because `resolveBackend` reaches for it, though in production every backend
-  // carrying traffic is now required to have its own instead — see
+  // because `effectiveSecret` reaches for it, though in production every
+  // backend carrying traffic is now required to have its own instead — see
   // `assertBackendSecrets`.
   FOI_BACKEND_SECRET: z
     .string("未设置。用 openssl rand -hex 32 生成，并与题目后端保持一致")
@@ -77,15 +77,18 @@ const schema = z.object({
  *
  * Normalised here rather than in the schema so that everything downstream sees
  * one name, and so the fallback is a single line to delete once the deployed
- * environments have been updated. `resolveBackend` reads the same pair.
+ * environments have been updated. `sharedSecret` in `lib/backend/env.ts` reads
+ * the same pair, and the two have to be deleted together: this one accepting a
+ * name that one does not would boot a deployment whose every submission then
+ * fails to resolve a backend.
  *
  * `||` rather than `??`, so that an empty value reads as absent — the same
- * rule `resolveBackend` and `content/backends.ts` already apply, and the reason
+ * rule `sharedSecret` and `content/backends.ts` already apply, and the reason
  * they give for it holds here twice over. A `.env` carrying an unfilled
  * `FOI_BACKEND_SECRET=` next to a filled `FOI_JUDGE_SECRET` is a mid-rename
- * deployment, which is precisely the case this fallback exists for; `??` kept
- * the `""`, skipped the fallback, and refused the boot naming the variable the
- * operator had *not* left blank.
+ * deployment, which is precisely the case this fallback exists for; `??` would
+ * keep the `""`, skip the fallback, and refuse the boot naming the variable
+ * the operator had *not* left blank.
  */
 function withLegacyNames(
   env: Record<string, string | undefined>,

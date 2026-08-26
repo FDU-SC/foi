@@ -2,8 +2,7 @@ declare global {
   /**
    * Not a timer handle. The reaper reschedules itself, so the only thing worth
    * keeping across a hot reload is something that can stop whichever tick is
-   * pending — see `startReaping`, which used to return the first handle and
-   * left every reload stacking another loop on the last.
+   * pending — see `startReaping`.
    */
   var __foiReaper: (() => void) | undefined;
   var __foiVerificationSweep: ReturnType<typeof setInterval> | undefined;
@@ -41,27 +40,16 @@ export async function register() {
   const { assertMailDelivery } = await import("@/lib/mail/transport");
   assertMailDelivery();
 
-  // Third refusal, and the newest. A backend's signing key used to authenticate
-  // us *to* it — outbound, from a server we control. It now authenticates a
-  // runner *to us*, from whatever machine happens to be running one, and it
-  // buys its holder the whole of that backend's queue: every competitor's
-  // source, a free hand with verdicts, and the ability to burn attempts until
-  // submissions read as disrupted. Two backends on one key means compromising
-  // the softer of them yields all of that for both.
+  // Third refusal: two backends on one signing key means compromising the
+  // softer of them yields the other's whole queue — see `assertBackendSecrets`.
+  // Its neighbour covers the one thing that still needs an address, a backend
+  // some problem declares an interactive action on.
   //
-  // This was a warning for as long as the exposure was ours. Now that it is not,
-  // production says no — the fix is one environment variable per service, and a
-  // deployment that has not done it should find out before a contest rather
-  // than after one. Beside `assertEnv` rather than inside it because knowing
-  // which backends carry traffic means reading the problem registry, and
-  // `lib/env.ts` deliberately knows nothing about content.
-  //
-  // Its neighbour is the half of the old address check that survived. Judging
-  // needs no address, so `lib/env.ts` no longer demands one for every entry;
-  // what still cannot work without one is a backend some problem declares an
-  // interactive action on, because those the kernel does have to dial.
+  // Beside `assertEnv` rather than inside it because both need the problem
+  // registry to know which backends are involved, and `lib/env.ts`
+  // deliberately knows nothing about content.
   const { assertBackendActionUrls, assertBackendSecrets } = await import(
-    "@/lib/backend/access"
+    "@/lib/backend/boot"
   );
   assertBackendSecrets();
   assertBackendActionUrls();
@@ -77,25 +65,16 @@ export async function register() {
     console.log("[foi] 数据库迁移已应用");
   }
 
-  // Nothing else writes to the database here, and that is deliberate.
-  //
-  // Startup used to push the whole problem and contest registry into their
-  // mirror tables and materialise the declared accounts. None of it was
-  // needed: `ensureProblem` and `ensureContest` upsert on the submission path,
-  // which is the moment the foreign key actually requires a row, and accounts
-  // now come from registration or from `scripts/create-account.cjs`. What the
-  // sync bought was a mirror row for problems nobody had submitted to, whose
-  // only consumer was a drift finding reporting that the sync had not run yet.
-  //
-  // A deploy therefore changes the schema and nothing else. That is worth
-  // having on its own: rolling back to an older image no longer rewrites the
+  // Nothing else writes to the database here, and that is deliberate. The
+  // mirror rows are upserted on the submission path, which is the moment the
+  // foreign key actually requires one, so a deploy changes the schema and
+  // nothing else — and rolling back to an older image does not rewrite the
   // mirror tables with older titles on the way down.
 
   // Enrollment misconfigurations — nobody able to administer, no cohort rules,
   // a contest whose tag nothing produces — are said loudly rather than
   // refusing to boot: the CLI can still recover the deployment, and an outage
-  // would be the worse failure. Some of these used to fail the build, back
-  // when what they referred to was code rather than data.
+  // would be the worse failure.
   const { enrollmentWarnings } = await import("@/lib/enrollment/registry");
   const { contestWarnings } = await import("@/lib/contests/registry");
   const { problemGateWarnings } = await import("@/lib/problems/access");
@@ -104,7 +83,7 @@ export async function register() {
   // nothing about content. Said here, where the rest of the "your
   // configuration is legal but probably not what you meant" checks are said.
   const { backendRegistryWarnings, backendSecretWarnings } = await import(
-    "@/lib/backend/access"
+    "@/lib/backend/boot"
   );
   const { mailTemplateWarnings } = await import("@/lib/mail/registry");
   for (const warning of [
@@ -118,30 +97,21 @@ export async function register() {
     console.warn(`[foi] ${warning}`);
   }
 
-  // One loop where there were two, and the two were a consequence of the queue
-  // living somewhere else. A poller asked every backend what it was holding and
-  // a verifier reasoned about what that answer left out; both existed to infer,
-  // across a network, a fact the kernel now simply has. Neither had anything to
-  // do once nobody was dispatching.
-  //
-  // What is left touches no network at all: four indexed statements against
-  // columns this process owns. So there is no slow backend to isolate a loop
-  // from, and nothing left worth splitting.
+  // One loop, and it touches no network at all: four indexed statements
+  // against columns this process owns. There is no slow backend to isolate it
+  // from, so nothing here is worth splitting.
   //
   // Self-scheduling rather than `setInterval`, because a pass can outrun its
-  // own interval and nothing stops the next one starting anyway — which is how
-  // the original reconciler ended up with dozens of passes in flight.
+  // own interval and nothing would stop the next one starting anyway.
   const { startReaping } = await import("@/lib/runner/reaper");
 
   // Guarded so HMR reloads do not stack up loops during `next dev`.
   globalThis.__foiReaper?.();
   globalThis.__foiReaper = startReaping(REAP_INTERVAL_MS);
 
-  // This slot used to release handles held by signups that never confirmed
-  // their address. There are no such signups any more — an account is not
-  // created until the code has been typed back — so what is left to forget is
-  // the addresses of people who started and stopped. Every one is somebody's
-  // mailbox, and an abandoned attempt should not leave it in the database.
+  // Forgets the addresses of people who started registering and stopped. Every
+  // one is somebody's mailbox, and an abandoned attempt should not leave it in
+  // the database.
   const { purgeExpiredVerifications } = await import(
     "@/lib/auth/email-verification"
   );

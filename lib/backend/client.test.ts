@@ -1,12 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProblemBackend } from "@/lib/backend/types";
 import { backends } from "@/lib/backend/registry";
-import {
-  callBackendAction,
-  redactJudgeStatus,
-  resolveBackend,
-  type BackendQueueStatus,
-} from "./client";
+import { callBackendAction } from "./client";
+import { resolveBackend } from "./resolve";
 import {
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
@@ -47,94 +43,6 @@ afterEach(() => {
   unaddressed.clear();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
-});
-
-/**
- * `resolveBackend` needed no change to support per-backend keys — the
- * `entry.secret ?? FOI_BACKEND_SECRET` chain was written for them long before
- * `content/backends.ts` ever filled `secret` in. Pinned here because that makes
- * the precedence load-bearing rather than incidental: get it backwards and
- * every deployment silently keeps signing with the shared value while its
- * per-backend keys sit configured and unused.
- */
-describe("密钥优先级", () => {
-  const id = Object.keys(backends)[0];
-  let saved: ProblemBackend;
-
-  beforeEach(() => {
-    saved = backends[id];
-  });
-
-  afterEach(() => {
-    backends[id] = saved;
-  });
-
-  it("专属密钥压过共享密钥", () => {
-    backends[id] = { ...saved, secret: "dedicated-key" };
-
-    expect(resolveBackend(id).secret).toBe("dedicated-key");
-  });
-
-  it("没有专属密钥时回落到共享的，本机开发才能一把跑起来", () => {
-    backends[id] = { ...saved, secret: undefined };
-
-    expect(resolveBackend(id).secret).toBe("test-secret");
-  });
-
-  it("两者都没有时报错，而不是拿 undefined 去签名", () => {
-    backends[id] = { ...saved, secret: undefined };
-    vi.stubEnv("FOI_BACKEND_SECRET", undefined);
-    vi.stubEnv("FOI_JUDGE_SECRET", undefined);
-
-    expect(() => resolveBackend(id)).toThrow(/FOI_BACKEND_SECRET/);
-  });
-});
-
-describe("redactJudgeStatus", () => {
-  const status = (): BackendQueueStatus => ({
-    id: "queue-a",
-    url: "http://localhost:4100",
-    runners: 2,
-    queued: 1,
-    judging: 0,
-    items: [
-      {
-        submissionId: "sub_1",
-        problemSlug: "some-problem",
-        state: "queued",
-        status: "测试点 3/10",
-        runnerId: "runner-a",
-        enqueuedAt: "2026-08-22T01:46:24.000Z",
-      },
-    ],
-  });
-
-  it("抹掉后端地址与队列条目的题目", () => {
-    const redacted = redactJudgeStatus(status());
-
-    expect(redacted.url).toBeNull();
-    expect(redacted.items[0]).not.toHaveProperty("problemSlug");
-  });
-
-  it("抹掉评测机自述与它的名字，那都是后端作者写的字符串", () => {
-    const redacted = redactJudgeStatus(status());
-
-    expect(redacted.items[0]).not.toHaveProperty("status");
-    expect(redacted.items[0]).not.toHaveProperty("runnerId");
-  });
-
-  it("保留 submissionId，选手要靠它找到自己的排队位次", () => {
-    expect(redactJudgeStatus(status()).items[0].submissionId).toBe("sub_1");
-  });
-
-  it("不改动原对象，因为读它的不止一个调用方", () => {
-    const original = status();
-
-    redactJudgeStatus(original);
-
-    expect(original.url).not.toBeNull();
-    expect(original.items[0].problemSlug).toBe("some-problem");
-  });
 });
 
 /**

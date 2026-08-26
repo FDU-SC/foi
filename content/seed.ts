@@ -8,24 +8,14 @@ import ARGON2_OPTIONS from "../scripts/argon2-options.cjs";
 /**
  * Creates the development accounts and gives them all one password.
  *
- * Content, not platform. Which four people exist on a fresh checkout, what
- * their addresses look like, and which cohort those addresses sort them into
- * are facts about this deployment — the shapes below are chosen to match
- * `content/enrollment/example.ts` and to populate `content/contests/demo-acm/`,
- * and none of that survives swapping the directory. The kernel's own way to
- * create an account is `scripts/create-account.cjs`, which asks for a handle
- * and a password and knows nothing about cohorts.
- *
- * This used to hand a password to everybody in the roster, because the roster
- * was who existed. Now people exist by registering, so a seed has to actually
- * create them — which is the honest shape for a seed script, and means the
- * rows it writes look exactly like the ones the registration form produces.
- *
- * The addresses are chosen to match the rules in
- * `content/enrollment/example.ts`: `demo` for everyone, and an intake year for
- * the three that carry a student-number-shaped local part. That is what makes
- * `content/contests/demo-acm/` — which selects its field by tag — show a
- * populated standings page on a fresh checkout.
+ * Content, not platform. The addresses below are shaped to match the rules in
+ * `content/enrollment/example.ts` — `demo` for everyone, plus an intake year
+ * for the three with a student-number-shaped local part — which is what makes
+ * `content/contests/demo-acm/`, whose field is selected by tag, show a
+ * populated standings page on a fresh checkout. None of that survives swapping
+ * the directory. The kernel's own way to create an account is
+ * `scripts/create-account.cjs`, which asks for a handle and a password and
+ * knows nothing about cohorts.
  *
  * Development only. In production nobody is seeded: people register, and the
  * first administrator comes from `scripts/create-account.cjs`.
@@ -119,7 +109,7 @@ async function main() {
           email: sql`excluded.email`,
           emailVerifiedAt: sql`excluded.email_verified_at`,
           status: sql`'active'`,
-          updatedAt: new Date(),
+          updatedAt: sql`now()`,
         },
       });
 
@@ -130,7 +120,7 @@ async function main() {
         target: credentials.handle,
         set: {
           passwordHash: sql`excluded.password_hash`,
-          updatedAt: new Date(),
+          updatedAt: sql`now()`,
         },
       });
 

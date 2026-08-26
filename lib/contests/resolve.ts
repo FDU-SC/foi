@@ -1,7 +1,4 @@
-import { sql } from "drizzle-orm";
 import { accountSnapshot } from "@/lib/accounts/cache";
-import { db } from "@/lib/db";
-import { contests } from "@/lib/db/schema";
 import { groupsFor } from "@/lib/enrollment/registry";
 import { problemBySlug } from "@/lib/problems/registry";
 import type { ContestConfig } from "./types";
@@ -61,10 +58,10 @@ export interface ResolvedParticipant {
  * `open` returns null rather than a list: the caller derives the field from
  * whoever submitted, which is what makes a casual contest work with no setup.
  *
- * The other two now read accounts rather than a compiled roster, because that
- * is where people are. `group` in particular has to run the cohort rules over
- * every address, so it goes through the snapshot in `lib/accounts/cache.ts`
- * rather than issuing a query per contest view. A few seconds of staleness
+ * The other two read accounts, because that is where people are. `group` in
+ * particular has to run the cohort rules over every address, so it goes
+ * through the snapshot in `lib/accounts/cache.ts` rather than issuing a query
+ * per contest view. A few seconds of staleness
  * only ever means a just-registered competitor appears on the board one
  * refresh late; nothing here grants access.
  *
@@ -96,22 +93,4 @@ export async function resolveParticipants(
   }
 
   return matched.sort((a, b) => a.handle.localeCompare(b.handle));
-}
-
-/**
- * Upserts a contest's mirror row just before a submission references it,
- * mirroring `ensureProblem` and for the same reasons — see the note there.
- *
- * A contest deleted from the repository keeps its row so that submissions made
- * during it stay attributable; `/admin` reports it rather than anything
- * detaching that history on its own.
- */
-export async function ensureContest(contest: ContestConfig): Promise<void> {
-  await db
-    .insert(contests)
-    .values({ slug: contest.slug, title: contest.title })
-    .onConflictDoUpdate({
-      target: contests.slug,
-      set: { title: sql`excluded.title`, syncedAt: new Date() },
-    });
 }

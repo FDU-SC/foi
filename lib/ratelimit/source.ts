@@ -36,24 +36,6 @@ function trustedProxyHops(): number {
 }
 
 /**
- * Best-effort source address.
- *
- * Counted from the right, and that is the whole point. `x-forwarded-for` is a
- * list a client may start and each proxy appends to, so the leftmost entry is
- * whatever the client typed — not only when it reaches the app directly, which
- * is what this used to claim, but on every request that went through Caddy as
- * intended. Reading entry [0] meant anyone could pick their own bucket by
- * sending a header, and 40 attempts from one machine looked like 40 machines.
- *
- * That defeated exactly the abuse the per-source bound in `auth.ts` exists to
- * catch: spraying one password across many accounts never trips the per-handle
- * counter, so the per-source counter is the only thing watching, and it was
- * watching a number the sprayer chose.
- *
- * Entry `length - hops` is the address the outermost proxy we trust actually
- * observed. Anything to its left was supplied by the peer and is ignored.
- */
-/**
  * The two answers that mean "no source could be established".
  *
  * Not addresses, and callers have to be able to tell. A bound keyed on a
@@ -74,6 +56,22 @@ export function isResolvedSource(source: string): boolean {
   return !(UNRESOLVED_SOURCES as readonly string[]).includes(source);
 }
 
+/**
+ * Best-effort source address, counted from the right.
+ *
+ * `x-forwarded-for` is a list a client may start and each proxy appends to, so
+ * the leftmost entry is whatever the client typed — on every request, not only
+ * on one that reached the app directly. Reading entry [0] lets anyone pick
+ * their own bucket by sending a header, so 40 attempts from one machine look
+ * like 40 machines.
+ *
+ * That would defeat exactly the abuse the per-source bound in `auth.ts` exists
+ * to catch: spraying one password across many accounts never trips the
+ * per-handle counter, so the per-source counter is the only thing watching.
+ *
+ * Entry `length - hops` is the address the outermost proxy we trust actually
+ * observed. Anything to its left was supplied by the peer and is ignored.
+ */
 export function sourceFrom(store: Headers): string {
   const hops = trustedProxyHops();
 

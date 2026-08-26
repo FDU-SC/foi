@@ -1,20 +1,19 @@
 import type { Viewer } from "@/lib/auth/viewer";
-import { problemFor } from "@/lib/problems/access";
+import { problemFor } from "./access";
 import {
   DEFAULT_ACTION_RATE_LIMIT,
   isInlineBackend,
   type ActionRateLimit,
   type ProblemConfig,
-} from "@/lib/problems/types";
+} from "./types";
 
 /**
  * How anything reaching a problem's interactive endpoints obtains one.
  *
  * The same shape as the problem, contest, submission and backend gates, and
  * for the same reason: there is no way to ask for an action without saying who
- * is asking. Two of the four refusals below are ones the route would have had
- * to remember on its own, and the whole history of this codebase is rules that
- * got remembered in three places and missed in a fourth.
+ * is asking. Two of the four refusals below are ones a route would otherwise
+ * have to remember on its own.
  *
  * Undefined for every refusal, so the caller answers 404 to all of them. The
  * distinctions matter here and must not reach the browser: telling somebody

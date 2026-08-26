@@ -5,10 +5,10 @@ import { getSessionUser } from "@/auth";
 import { ProblemRef } from "@/components/problem/problem-ref";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
-import { locateInQueues } from "@/lib/backend/queue-lookup";
-import { isSettled } from "@/lib/backend/types";
 import { viewerFor } from "@/lib/auth/viewer";
+import { isSettled } from "@/lib/backend/types";
 import { submissionsFor } from "@/lib/submissions/access";
+import { locateInQueues } from "@/lib/submissions/queue-position";
 
 export const metadata: Metadata = { title: "提交记录" };
 export const dynamic = "force-dynamic";

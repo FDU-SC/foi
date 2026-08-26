@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ResolvedUser } from "@/lib/accounts/types";
-import { AS_PLAYER } from "@/lib/auth/test-support";
+import { AS_PLAYER } from "@/test/auth-support";
 import { type Viewer } from "@/lib/auth/viewer";
 import {
   contestWithGroupEntry,

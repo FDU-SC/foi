@@ -1,29 +1,24 @@
 import type { Viewer } from "@/lib/auth/viewer";
 import { problemFor } from "@/lib/problems/access";
 import { externallyJudged } from "@/lib/problems/registry";
-import { envFragment } from "./env";
 import { backends } from "./registry";
 
 /**
- * Which backends this deployment actually uses, and what it needs from each.
+ * Which problems each backend serves, and who may know a backend exists.
  *
- * The file has grown a second job since the direction reversed. It still
- * answers who may see a backend exist; it now also holds the two boot checks
- * that used to be in `lib/env.ts` and could not stay there, because both
- * questions changed from "is this variable set" to "is this variable set *for
- * the backends that need it*" — and knowing which those are means reading the
- * problem registry, which `lib/env.ts` deliberately cannot do.
+ * The derived index and the one gate built on it, which are the same subject:
+ * a backend is visible to somebody exactly when a problem it serves is.
+ * Deployment-time assertions are `./boot.ts`.
  */
 
 /**
  * Which backends a person may know about.
  *
- * There was no answer to this before: `/judges` and its API required a login
- * and nothing else, so every account saw every backend. Redaction hid the
- * address and which problem each queue entry was for, but not the backend's
- * existence, its health, or how deep its queue ran — and a backend that only
- * serves an unopened round announces that round by being busy. Gating the
- * statement while leaving that visible only moves where the leak is.
+ * Redaction is not enough on its own: it hides the address and which problem
+ * each queue entry is for, but not the backend's existence or how deep its
+ * queue runs — and a backend that only serves an unopened round announces that
+ * round by being busy. Gating the statement while leaving that visible only
+ * moves where the leak is.
  *
  * A backend is therefore shown when the viewer can see at least one problem it
  * serves. Holders of `backend.inspect` see all of them, including ones nothing
@@ -66,233 +61,20 @@ export function orphanedBackends(): string[] {
 /**
  * The mirror image: backends some problem routes to that nothing declares.
  *
- * This is the failure a declared list exists to catch, and until it was said
- * at startup it was only caught at the worst moment. A problem carrying a
+ * This is the failure a declared list exists to catch, and it has to be said
+ * at startup or it is caught at the worst moment. A problem carrying a
  * misspelt `backend.id` loads fine — the schema asks for a non-empty string
  * and nothing more — and stays fine right up to the first submission, which
  * gets a 500 from `resolveBackend` naming a backend nobody meant to have.
  *
  * A warning rather than a refusal, because the blast radius is one problem and
- * the deployment around it works. `assertBackendActionUrls` is the harder
- * cousin, and it is harder because a missing address cannot be told apart from
- * a backend that legitimately needs none.
+ * the deployment around it works — see `backendRegistryWarnings` in
+ * `./boot.ts`. `assertBackendActionUrls` is the harder cousin, and it is
+ * harder because a missing address cannot be told apart from a backend that
+ * legitimately needs none.
  */
 export function undeclaredBackends(): string[] {
   return [...problemsByBackend.keys()].filter((id) => !backends[id]);
-}
-
-/** Said at startup, next to the enrollment and contest warnings. */
-export function backendRegistryWarnings(): string[] {
-  return undeclaredBackends().map(
-    (id) =>
-      `题目 ${problemsServedBy(id).join("、")} 指向了没有登记的题目后端 "${id}"，` +
-      `提交到这些题会失败。在 content/backends.ts 里补一个条目，或改掉题目的 backend.id`,
-  );
-}
-
-/**
- * Backends carrying real traffic that end up signing with the shared key,
- * reported only when that actually weakens something.
- *
- * The weakness is a plural one: sharing a key with nobody is not sharing. What
- * makes it matter is a second backend holding the same value, because a runner
- * signing with it can then claim from either queue.
- *
- * **The count is over entries now, and it used to be over distinct addresses.**
- * That grouping existed because two entries pointing at one URL really were one
- * process with one key, and telling an operator to split a key they cannot
- * split is how a warning becomes something everybody scrolls past. It cannot
- * survive the direction change: judging needs no address, so most entries have
- * none, and grouping by `undefined` would collapse every backend in a
- * production deployment into a single imaginary service and report nothing at
- * all. A deployment that genuinely runs one runner for two backends now says so
- * by setting both `FOI_BACKEND_<NAME>_SECRET` variables to the same value —
- * which is explicit, and is what the message has always asked for anyway.
- *
- * **Which backends count is derived, not declared**, for the same reason the
- * index above is. #22 proposed requiring all six entries to be filled in, which
- * would have meant configuring a key for a backend nothing routes to, and would
- * have made `.env.production.example` a second list to keep in step with
- * `content/backends.ts`. `problemsServedBy` already knows which backends a
- * deployment actually uses, so the check is built on that.
- */
-export function backendsSharingSecret(): string[] {
-  const onSharedValue = Object.keys(backends).filter(
-    (id) => problemsServedBy(id).length > 0 && effectiveSecret(id) === shared(),
-  );
-
-  // Every entry on this value named it, which is the deployment saying one
-  // runner really does serve them all — the arrangement the message below asks
-  // for. Only a borrower makes it accidental.
-  const borrowed = onSharedValue.some((id) => !backends[id].secret);
-  if (!borrowed) return [];
-
-  return onSharedValue.length > 1 ? onSharedValue : [];
-}
-
-/**
- * The key a backend actually signs with — its own, or the shared fallback.
- *
- * Exported because `resolveBackend` needs the same answer, and the check above
- * needs it for a reason that only shows up when the two chains disagree: it
- * used to ask whether an entry had a key of its own, not what key it ended up
- * with. So the one arrangement that is both plausible and silent — somebody
- * fills in `FOI_BACKEND_TRADITIONAL_SECRET` by copying the value out of
- * `FOI_BACKEND_SECRET`, while the next backend along is still borrowing it —
- * read as one backend on the shared key and got waved through. Two backends
- * signing with one value is exactly the state this file refuses a production
- * boot on, however each of them arrived at it.
- */
-export function effectiveSecret(id: string): string | undefined {
-  return backends[id]?.secret || shared();
-}
-
-/**
- * The fallback itself. `||` and the trailing `undefined` so that a blank line
- * in an `.env` reads as absent here too — see `backendSecret` in `./config.ts`,
- * which every reader of these variables now agrees with.
- */
-function shared(): string | undefined {
-  return (
-    process.env.FOI_BACKEND_SECRET || process.env.FOI_JUDGE_SECRET || undefined
-  );
-}
-
-const SHARED_SECRET_MESSAGE =
-  `都在使用共享的 FOI_BACKEND_SECRET：拉模型下这把密钥是评测机进来的凭证，` +
-  `拿到它就能领走该后端队列里的任意提交、读到里面所有人的代码、写任意评测结果。` +
-  `几台共用一把，等于其中任何一台被攻破，另外几台的队列也一起丢。` +
-  `为每台服务设置各自的 FOI_BACKEND_<名字>_SECRET，并同步到后端本身` +
-  `（确实由同一套评测机服务的多个条目，把它们填成相同的值）。`;
-
-/**
- * Refuses a production boot on a shared signing key.
- *
- * This was a warning for as long as the key pointed outward. Under the push
- * model it authenticated us to a backend, lived on a server we control, and its
- * worst case was somebody impersonating the platform. Reversing the direction
- * reversed all three: it now authenticates a runner to us, it lives on whatever
- * machine somebody runs a runner on — donated hardware, a laptop behind a NAT —
- * and it buys its holder a whole queue's worth of other people's source. The
- * blast radius and the exposed surface both grew at once, which is what moves
- * this from "worth mentioning" to "not like this".
- *
- * Fatal only in production, because outside it every backend shares the mock's
- * key and that is simply what a checkout looks like. Not in `assertEnv` because
- * `lib/env.ts` would have to import the content registry to know which backends
- * carry traffic, and it deliberately knows nothing about content.
- */
-export function assertBackendSecrets(): void {
-  if (process.env.NODE_ENV !== "production") return;
-
-  const sharing = backendsSharingSecret();
-  if (sharing.length === 0) return;
-
-  throw new Error(
-    `题目后端签名密钥配置不安全，拒绝启动:\n  - ${sharing.join("、")} ${SHARED_SECRET_MESSAGE}`,
-  );
-}
-
-/**
- * Said at startup outside production, next to the enrollment and contest
- * warnings. In production `assertBackendSecrets` has already refused the boot.
- */
-export function backendSecretWarnings(): string[] {
-  const sharing = backendsSharingSecret();
-  if (sharing.length === 0) return [];
-
-  return [`题目后端 ${sharing.join("、")} ${SHARED_SECRET_MESSAGE}`];
-}
-
-/**
- * Backends a problem declares an interactive action on but that have no
- * address, named by the variable to set.
- *
- * The narrowed replacement for the old "every entry needs a URL" boot check,
- * and the narrowing is the whole point of it having moved here. That check
- * lived in `lib/env.ts` because every backend was dispatched to, so the answer
- * needed nothing but the environment. Only actions go outward now, and which
- * backends have actions is a fact about `content/problems/*` — so the question
- * cannot be answered without the registry, and this is the file that already
- * has it.
- *
- * Fatal in production for the same reason the old one was: a missing address is
- * silent at boot and expensive afterwards. A player presses "启动实例" and gets
- * a 500 they cannot act on, which is exactly the failure `FOI_PUBLIC_URL` is
- * mandatory to avoid.
- */
-export function backendsMissingActionUrl(): string[] {
-  return externallyJudged()
-    .filter((problem) => Object.keys(problem.backend.actions).length > 0)
-    .map((problem) => problem.backend.id)
-    .filter((id, index, ids) => ids.indexOf(id) === index)
-    .filter((id) => !backends[id]?.url)
-    .map((id) => `FOI_BACKEND_${envFragment(id)}_URL`);
-}
-
-/** Refuses a production boot on an interactive backend with nowhere to call. */
-export function assertBackendActionUrls(): void {
-  if (process.env.NODE_ENV !== "production") return;
-
-  const missing = backendsMissingActionUrl();
-  if (missing.length === 0) return;
-
-  throw new Error(
-    `有题目声明了交互动作，但对应的题目后端没有地址，拒绝启动:\n` +
-      missing
-        .map(
-          (variable) =>
-            `  - ${variable}: 未设置。评测不需要地址（评测机自己来领活），` +
-            `但交互动作是平台代选手同步发起的，拉不了。` +
-            `填上它的地址；这套部署不开这道题，就把题目的 actions 去掉`,
-        )
-        .join("\n"),
-  );
-}
-
-/** `localhost`, any `127.x`, and the v6 spelling `new URL` hands back. */
-function isLoopback(hostname: string): boolean {
-  return (
-    hostname === "localhost" ||
-    hostname === "[::1]" ||
-    hostname.startsWith("127.")
-  );
-}
-
-/**
- * Backends with an address that points back at this process.
- *
- * `assertBackendActionUrls` can prove `FOI_BACKEND_<NAME>_URL` was set; it
- * cannot prove the address means anything, and the way a deployment goes wrong
- * is by copying the line out of `.env.example`. Inside the app container
- * `localhost:4100` is the app container, and an action posted there gets a
- * connection refused that surfaces to a player as a container that will not
- * start.
- *
- * A smaller finding than it was, and only because there is so much less to get
- * wrong: an address only matters for interactive actions now, so a copied
- * `localhost` costs one problem's spawn button rather than every verdict in the
- * deployment.
- *
- * Reported rather than refused. A backend really can share a host with the app,
- * so loopback is a smell and not a fault, and taking a deployment down over a
- * smell is the worse failure. Whether it is worth saying at all depends on
- * where this is running, and that is the caller's to decide: during `pnpm dev`
- * every entry is the local mock and this is simply what a checkout looks like.
- */
-export function backendsOnLoopback(): string[] {
-  return Object.keys(backends).filter((id) => {
-    const url = backends[id].url;
-    if (!url || problemsServedBy(id).length === 0) return false;
-
-    try {
-      return isLoopback(new URL(url).hostname);
-    } catch {
-      // An address that will not parse is a different finding, and one an
-      // action failing will report far more directly.
-      return false;
-    }
-  });
 }
 
 /**

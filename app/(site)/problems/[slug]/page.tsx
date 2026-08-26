@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getResolvedUser } from "@/auth";
-import { ProblemBadges } from "@/components/problem/problem-badges";
+import { ProblemBadgesSlot } from "@/components/problem/badges-slot";
 import { ProblemProvider } from "@/components/problem/problem-context";
 import { Badge } from "@/components/ui/badge";
 import { describeAudience } from "@/lib/auth/audience";
@@ -181,7 +181,7 @@ export default async function ProblemPage({
             {config.title}
           </h1>
           <div className="mt-3 flex flex-wrap items-center gap-2 empty:mt-0">
-            <ProblemBadges config={config} />
+            <ProblemBadgesSlot config={config} />
           </div>
         </header>
 

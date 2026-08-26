@@ -17,10 +17,11 @@
  * an endpoint they hit, so that adding a second route for the same activity
  * does not require a new entry.
  *
- * Where each of these actually gets asked is `./enforcement`, which is a map
- * rather than a mechanism — nothing reads it at runtime. Adding a capability
- * here without wiring it to anything fails the test beside it, because a word
- * in this list that nothing enforces reads as a control and is not one.
+ * Where each of these actually gets asked is `test/enforcement.ts`, which is a
+ * map rather than a mechanism — nothing reads it at runtime. Adding a
+ * capability here without wiring it to anything fails the test beside it,
+ * because a word in this list that nothing enforces reads as a control and is
+ * not one.
  */
 export const CAPABILITIES = [
   /** Reach the /admin operations console at all. */
@@ -93,14 +94,13 @@ export type Capability = (typeof CAPABILITIES)[number];
 /**
  * Capabilities that another capability already gives you in practice.
  *
- * `submission.readAny` is the case that forced this. Somebody who can open
+ * `submission.readAny` is the case that forces this. Somebody who can open
  * every submission in a contest can add them up, so withholding
  * `standings.viewFrozen` from them withholds nothing — it only makes the board
  * disagree with the data they can already reach, which is worse than either
- * answer alone. Declaring it as a grant of both was the intent all along; the
- * comment above `standings.viewFrozen` said so while `capabilitiesOf` did a
- * plain union, so a deployment that split the two got a freeze it believed in
- * and a hole it did not know about.
+ * answer alone. Left to a plain union in `capabilitiesOf`, a deployment that
+ * splits the two gets a freeze it believes in and a hole it does not know
+ * about.
  *
  * Kept here rather than in `content/` for the same reason the capability list
  * is: which decisions exist, and which of them are the same decision wearing

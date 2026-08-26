@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getSessionUser } from "@/auth";
 import { groupName } from "@/lib/auth/groups";
 import { viewerFor } from "@/lib/auth/viewer";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { ThemeToggle } from "@/components/site/theme-toggle";
 import { UserMenu } from "@/components/site/user-menu";
 
 const NAV = [

@@ -10,8 +10,8 @@
  * `/api/submissions/stream` is the case. Each open stream registers a listener
  * on the process-wide bus and a twenty-second heartbeat timer, and
  * `lib/submissions/events.ts` sets `setMaxListeners(0)` precisely so that
- * having many is not warned about. Nothing bounded how many one account could
- * open.
+ * having many is not warned about — which leaves nothing else bounding how
+ * many one account may open.
  *
  * The contract is a release function rather than a second call, because the
  * failure mode of the alternative is a slow leak: a path that forgets to

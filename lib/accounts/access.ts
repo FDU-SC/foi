@@ -7,12 +7,10 @@ import { listAccounts } from "./queries";
 /**
  * How the operations console obtains account data.
  *
- * The console's reads were the last thing still guarded only by `proxy.ts`.
- * That is a real gate, but it is a routing gate: it protects a URL prefix, and
- * the note in `app/(site)/admin/actions.ts` already records why that is not
- * enough for writes — a Server Action is reachable by POST whatever the
- * matcher matched. Reads had no equivalent second answer, so a mistake in the
- * matcher would have exposed the directory with nothing else to catch it.
+ * `proxy.ts` is a real gate but a routing one: it protects a URL prefix, and
+ * the note in `app/(site)/admin/actions.ts` records why that is not enough for
+ * writes. Reads need the same second answer, or a mistake in the matcher
+ * exposes the directory with nothing else to catch it.
  *
  * This is also the one part of the console that shows personal data rather
  * than platform state, which is why it answers to `account.read` rather than

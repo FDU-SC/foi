@@ -23,11 +23,6 @@ import {
  * `visibleTo` decides who may *read* about the round; `participants` decides
  * who may *compete* in it. A round announced to the whole school and entered
  * by the team it was written for is the ordinary case, not an edge one.
- *
- * Note what is *not* gated here. An unstarted contest is announced — its
- * title, its schedule and its format are how people know to turn up. What it
- * withholds is its problem set, which is a separate question with a separate
- * answer below, because those two leak different things.
  */
 
 export type ContestVisibility =
@@ -67,8 +62,8 @@ export function contestsFor(viewer: Viewer): ContestView[] {
 /**
  * One contest, or `undefined` when this viewer may not have it.
  *
- * `contestBySlug` never filtered on the audience, so before this existed a
- * contest kept off the index page was still readable by anyone who knew its
+ * `contestBySlug` does not filter on the audience, so reaching for it directly
+ * leaves a contest kept off the index page readable by anyone who knows its
  * slug.
  */
 export function contestFor(
@@ -87,18 +82,15 @@ export function contestFor(
 /**
  * Whether this person may enter this contest.
  *
- * `participants` used to decide only who appeared on the board, so any account
- * could attribute submissions to a closed contest and occupy its judges with
- * them — the entries simply never showed up in the standings. Asking the
- * question on the submission path is what makes the field mean what it says.
+ * Asked on the submission path, not only when drawing the board: gating the
+ * standings alone lets any account attribute submissions to a closed contest
+ * and occupy its judges with them, the entries simply never showing up.
  *
- * Here rather than in `./queries`, where it was written. Everything else in
- * that module reaches the database, so importing it to ask this — a question
- * about a config object and a group list, with no row behind it — opened a
- * connection pool as a side effect, and `eligibility.test.ts` needed a
- * `DATABASE_URL` to test a pure function. Being the second contest gate is the
- * better reason: `contestFor` says who may read the round, this says who may
- * compete in it, and a reader looking for one will want the other.
+ * Here rather than beside the database queries, because it is the second
+ * contest gate: `contestFor` says who may read the round, this says who may
+ * compete in it, and a reader looking for one will want the other. It also
+ * keeps a question about a config object and a group list from dragging a
+ * connection pool in behind it.
  *
  * A `Viewer` is deliberately not what this takes, unlike every gate above it.
  * Entry is not a capability question — no capability enters you into a closed
@@ -136,13 +128,12 @@ export function canEnterContest(
  * single statement. So an upcoming contest has a public page and a withheld
  * problem list.
  *
- * Two halves, and for a while they lived in different places. The clock half
- * was here; the override half was spelled out on the contest page and again
- * on the standings page, because both draw the problem set and both have to
- * let a proofreader in early. Nothing downstream re-checks — the labels and
- * point values go straight into the HTML — so a third page copying one half
- * of the rule would publish the shape of an unstarted round. That is the
- * failure `lib/submissions/access.ts` opens on, one page earlier.
+ * Both halves — the clock and the proofreader's override — belong in this one
+ * predicate. Every page that draws a problem set needs both, nothing
+ * downstream re-checks (the labels and point values go straight into the
+ * HTML), so a page that spells out one half of the rule publishes the shape of
+ * an unstarted round. That is the failure `lib/submissions/access.ts` opens on,
+ * one page earlier.
  *
  * The override is `problem.viewAll` and not `contest.viewAll`: what is
  * withheld here is problems, and whoever may read an unopened statement may
@@ -160,13 +151,11 @@ export function isContestProblemSetVisibleTo(
  * The round a submission or an interactive action belongs to, re-derived from
  * the slug the client supplied.
  *
- * This was written three times — inside `submitFor`, and as a local
- * `resolveContest` on the statement page and again in the action route — and
- * the three had drifted. The statement page had dropped the `gate.visible`
- * check, so a holder of `contest.viewAll` opening `?contest=<staged round>`
- * got that round's breadcrumb and had its slug handed to the submit panel, for
- * an attribution the API then refused. Four facts have to hold together and
- * checking three of them is not a weaker gate, it is a different one.
+ * Four facts have to hold together, and any call site that spells out three of
+ * them has not written a weaker gate, it has written a different one. Drop
+ * `gate.visible`, for instance, and a holder of `contest.viewAll` opening
+ * `?contest=<staged round>` gets that round's breadcrumb and has its slug
+ * handed to the submit panel, for an attribution the API then refuses.
  *
  * The facts, in this order:
  *
@@ -182,8 +171,7 @@ export function isContestProblemSetVisibleTo(
  * refusal they can act on. The two callers that want a contest or nothing —
  * the statement page and the action route, where naming a round the player is
  * not in must become naming no round at all — collapse both to null at the
- * call site. That last line is all the three ever disagreed about, which is
- * why it is the only part left outside.
+ * call site, which is the only part deliberately left outside.
  *
  * The account rather than a `Viewer`, and the viewer derived here: entry keys
  * on a handle that is really somebody's, and two parameters carrying one

@@ -9,27 +9,25 @@ export const MAX_CLOCK_SKEW_SECONDS = 300;
 /**
  * Everything about a request that the signature covers.
  *
- * The signature used to cover the body and nothing else, which left the two
- * fields that decide what a request *does* outside it. Two consequences, and
- * the second is the sharper one:
+ * The method and the path are covered as well as the body, and both additions
+ * are load-bearing. Cover the body alone and the two fields that decide what a
+ * request *does* fall outside the signature.
  *
  * The action a problem invokes travels in the path (`/action/spawn`), so
- * anything on the wire could rewrite it and the signature still verified. A
- * backend routing on the path rather than on `body.action` — which is what
+ * anything on the wire could rewrite it and the signature would still verify.
+ * A backend routing on the path rather than on `body.action` — which is what
  * this repository's reference runner does, and therefore what a backend author
- * is
- * likely to copy — would then run `destroy` for a request signed as `poll`.
+ * is likely to copy — would then run `destroy` for a request signed as `poll`.
  *
- * Worse, a GET carries no body at all, so `<timestamp>.` was its entire
- * signing input: every empty-bodied request sharing a second shared one
- * signature. One captured pair of headers was a valid credential for every
- * other path — which is what makes this load-bearing in the direction traffic
- * runs now, where the empty-bodied GET is a runner asking for a job's contents
- * and the path is the only thing naming *which* job.
+ * Worse, a GET carries no body at all, so `<timestamp>.` would be its entire
+ * signing input: every empty-bodied request sharing a second shares one
+ * signature, and one captured pair of headers is a valid credential for every
+ * other path. In the direction traffic runs, that empty-bodied GET is a runner
+ * asking for a job's contents and the path is the only thing naming *which*
+ * job.
  *
- * So the path and the method are signed now, and the whitelist in
- * `lib/backend/actions.ts` is no longer the only thing standing between a path
- * segment and the backend.
+ * So the whitelist in `lib/problems/actions.ts` is not the only thing standing
+ * between a path segment and the backend.
  */
 export interface SignedRequest {
   method: string;

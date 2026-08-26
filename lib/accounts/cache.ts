@@ -6,14 +6,12 @@ import type { AccountStatus } from "@/lib/db/schema";
  * A process-local snapshot of who exists, so that rendering a page does not
  * turn one query into hundreds.
  *
- * The roster used to be a compile-time Map, which let submission lists and
- * standings resolve a display name with a synchronous lookup. Moving identity
- * into the database would otherwise have meant a join on every listing and a
- * batched fetch inside the standings computation. Holding the whole table for
- * a few seconds keeps those call sites in the shape they were already in, and
- * follows the same reasoning as `lib/standings/cache.ts`: at the scale this
- * platform is for, recomputing everything is cheaper than invalidating
- * anything precisely.
+ * Submission lists and the standings computation resolve display names in
+ * bulk, so without this each becomes a join per listing and a batched fetch
+ * inside the computation. Holding the whole table for a few seconds follows
+ * the same reasoning as `lib/standings/cache.ts`: at the scale this platform
+ * is for, recomputing everything is cheaper than invalidating anything
+ * precisely.
  *
  * The rule that makes this safe: **authorisation never reads the snapshot.**
  * A suspension has to take effect on the next request, so anything deciding
@@ -25,11 +23,9 @@ import type { AccountStatus } from "@/lib/db/schema";
  * Writes go through `lib/accounts/queries.ts`, which invalidates. The TTL is
  * the backstop for a second process having done the writing.
  *
- * There was a `displayNameFor(handle)` here that fell back to the bare handle,
- * left over from when the roster was a compile-time Map and a name could be
- * looked up one at a time. Nothing called it: the callers that survived the
- * move ask for the whole map once and index it, because a page that resolves
- * names one await at a time is the shape this cache exists to avoid.
+ * There is deliberately no per-handle accessor. Callers ask for the whole map
+ * once and index it; a page that resolves names one await at a time is the
+ * shape this cache exists to avoid.
  */
 export interface AccountSummary {
   handle: string;

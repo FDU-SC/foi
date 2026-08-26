@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fail, input, participants, problem, solve } from "@/lib/standings/test-support";
+import { fail, input, participants, problem, solve } from "@/test/standings-support";
 import type { CtfCell } from "./ctf-dynamic";
 import { ruleset as ctfDynamicRuleset } from "./ctf-dynamic";
 

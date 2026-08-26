@@ -1,18 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { useFormStatus } from "react-dom";
-import { Button } from "@/components/ui/button";
+import { ActionResult, PendingSubmit } from "@/components/form";
 import { rejudgeSubmissionAction, type ActionState } from "./actions";
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" variant="secondary" size="sm" disabled={pending}>
-      {pending ? "处理中…" : "重新评测"}
-    </Button>
-  );
-}
 
 /**
  * The opt-in is a checkbox rather than a second button, because the thing being
@@ -32,7 +22,9 @@ export function RejudgeForm({ id }: { id: string }) {
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-3">
       <input type="hidden" name="id" value={id} />
-      <SubmitButton />
+      <PendingSubmit variant="secondary" size="sm" pendingLabel="处理中…">
+        重新评测
+      </PendingSubmit>
       <label className="text-fg-muted flex items-center gap-1.5 text-xs">
         <input
           type="checkbox"
@@ -41,12 +33,7 @@ export function RejudgeForm({ id }: { id: string }) {
         />
         连已通过的一起重判
       </label>
-      {state.error ? (
-        <span className="text-err text-xs">{state.error}</span>
-      ) : null}
-      {state.message ? (
-        <span className="text-ok text-xs">{state.message}</span>
-      ) : null}
+      <ActionResult state={state} />
     </form>
   );
 }

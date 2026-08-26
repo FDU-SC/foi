@@ -2,24 +2,9 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { useFormStatus } from "react-dom";
-import { Button } from "@/components/ui/button";
+import { FormMessage, PendingSubmit } from "@/components/form";
 import { Field, Input } from "@/components/ui/field";
 import { resetPasswordAction, type ResetState } from "./actions";
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button
-      type="submit"
-      variant="primary"
-      className="w-full"
-      disabled={pending}
-    >
-      {pending ? "设置中…" : "设置新密码"}
-    </Button>
-  );
-}
 
 export function ResetForm({ token }: { token: string }) {
   const [state, formAction] = useActionState<ResetState, FormData>(
@@ -30,9 +15,7 @@ export function ResetForm({ token }: { token: string }) {
   if (state.message) {
     return (
       <div className="space-y-4">
-        <p className="text-ok bg-ok-subtle rounded-md px-3 py-2 text-sm leading-6">
-          {state.message}
-        </p>
+        <FormMessage tone="ok">{state.message}</FormMessage>
         <Link
           href="/login"
           className="bg-primary text-primary-fg hover:bg-primary-hover block rounded-md px-3 py-2 text-center text-sm font-medium transition-colors"
@@ -68,13 +51,15 @@ export function ResetForm({ token }: { token: string }) {
         />
       </Field>
 
-      {state.error ? (
-        <p className="text-err bg-err-subtle rounded-md px-3 py-2 text-sm leading-6">
-          {state.error}
-        </p>
-      ) : null}
+      {state.error ? <FormMessage tone="err">{state.error}</FormMessage> : null}
 
-      <SubmitButton />
+      <PendingSubmit
+        variant="primary"
+        className="w-full"
+        pendingLabel="设置中…"
+      >
+        设置新密码
+      </PendingSubmit>
     </form>
   );
 }

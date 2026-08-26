@@ -1,9 +1,8 @@
 import "server-only";
 
 /**
- * Not content. This declares where the server/client boundary runs — see
- * `./content-problem-modules.ts` for why these files exist and why they live
- * at the repository root rather than inside `content/`.
+ * Not content: a boundary declaration. See `./content-problem-modules.ts` for
+ * why all eight live at the repository root.
  *
  * Schedules, problem sets and entry rules. See `lib/contests/registry.ts`.
  *

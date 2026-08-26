@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeVerdict } from "@/lib/presentation/verdict";
+import { describeVerdict } from "@/lib/presentation";
 import { verdicts } from "./verdicts";
 
 /**

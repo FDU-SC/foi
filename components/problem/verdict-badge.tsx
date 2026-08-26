@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { STATE_PRESETS, type SubmissionState } from "@/lib/backend/types";
-import { describeVerdict } from "@/lib/presentation/verdict";
+import { describeVerdict } from "@/lib/presentation";
 
 /**
  * The columns this needs, so that both a database row and a `SubmissionView`

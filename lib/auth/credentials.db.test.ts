@@ -16,6 +16,15 @@ import {
  * timestamps: the one frozen into a JWT at sign-in, and the one the row
  * carries now. Neither is a property of the TypeScript around them, so these
  * run against a real Postgres and skip themselves when there is none.
+ *
+ * Both of those timestamps are values of the same column, so the cases below
+ * are only meaningful while one clock writes it. They used to fail whenever
+ * the database's clock ran far enough ahead of this process's: `setPassword`
+ * stamped the row from here and the row it was overwriting had been stamped
+ * over there, so a reset could land *before* the session it was ending. The
+ * last case in this file is the one that holds that down — it compares against
+ * the database's clock rather than against elapsed wall time, so it bites on a
+ * machine whose two clocks happen to agree as well as on one whose do not.
  */
 const HANDLE = "credtest";
 const PASSWORD = "correct-horse-battery";
@@ -124,5 +133,29 @@ describeDb("credentials", () => {
   it("没有 credentialsAt 声明的旧 token 一律失效", async () => {
     // Tokens minted before the claim existed decode to 0.
     await expect(stillValid(0)).resolves.toBe(false);
+  });
+
+  it("updatedAt 由数据库的时钟写入，而不是这个进程的", async () => {
+    // `now()` is the transaction's timestamp and does not move within one, so
+    // this is an equality rather than a tolerance: whatever `setPassword`
+    // writes inside this transaction either is that timestamp or came from
+    // somewhere else. A `new Date()` would be somewhere else even on a machine
+    // whose two clocks agree perfectly — argon2 alone puts tens of
+    // milliseconds between the two.
+    await db.transaction(async (tx) => {
+      const [opened] = await tx
+        .select({ at: sql<Date>`now()` })
+        .from(credentials)
+        .where(eq(credentials.handle, HANDLE));
+
+      await setPassword(HANDLE, "written-inside-a-transaction", tx);
+
+      const [row] = await tx
+        .select({ updatedAt: credentials.updatedAt })
+        .from(credentials)
+        .where(eq(credentials.handle, HANDLE));
+
+      expect(row.updatedAt.getTime()).toBe(new Date(opened.at).getTime());
+    });
   });
 });

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { BadgeTone } from "@/components/ui/badge";
+import type { BadgeTone } from "@/lib/presentation";
 
 /**
  * What the kernel needs to know about one problem backend.
@@ -10,11 +10,10 @@ import type { BadgeTone } from "@/components/ui/badge";
  * conventions for spelling one out of the environment are in `./env.ts`.
  *
  * "Backend" rather than "judge" because judging is one of the things these
- * services do, not the only one: the same process that grades a submission is
- * also the one that would hand out a container for the problem, and it has to
- * be, since a per-instance flag is only known to whoever created the instance.
- * The judging half of the protocol keeps the `judge` name throughout, because
- * that half really is about judging.
+ * services do, not the only one: the same process that grades a submission
+ * also hands out containers for the problem, and it has to be, since a
+ * per-instance flag is only known to whoever created the instance. The judging
+ * half of the protocol keeps the `judge` name throughout, deliberately.
  */
 export interface ProblemBackend {
   /**
@@ -28,9 +27,9 @@ export interface ProblemBackend {
    * therefore cannot be pulled — so an address is needed by exactly those
    * backends that some problem declares an `actions` entry on.
    *
-   * That is not a compromise held over from the old direction. A problem
-   * handing out containers for a competitor to connect into needs that machine
-   * reachable regardless of how judging works.
+   * That is not a compromise. A problem handing out containers for a
+   * competitor to connect into needs that machine reachable regardless of how
+   * judging works.
    */
   url?: string;
   /**
@@ -40,15 +39,9 @@ export interface ProblemBackend {
    */
   secret?: string;
   /**
-   * Milliseconds to wait for a reply from an interactive endpoint.
-   *
-   * One knob, where there used to be three, and now with only one endpoint
-   * left to apply to. `actionTimeoutMs` went because the protocol already
-   * requires every action to answer promptly and let a `poll` action follow up.
-   * `abandonAfterMs` went because it was never a property of the backend at
-   * all: it had to cover both how long a problem takes to judge and how deep
-   * the queue was. Its replacement is a heartbeat, which is a property of
-   * neither and is one number for the whole deployment.
+   * Milliseconds to wait for a reply from an interactive endpoint. Not a
+   * judging deadline — how long an evaluation may take is the heartbeat's
+   * question, and that is one number for the whole deployment.
    *
    * Rarely worth setting. A backend that cannot answer a cheap question inside
    * ten seconds is one `/judges` should be showing as unhealthy.
@@ -61,11 +54,8 @@ export interface ProblemBackend {
  *
  * The column is `not null` because every other row has a real backend to name,
  * and a sentinel keeps it that way rather than making every reader handle a
- * null. Safe as a value because the registry refuses a declared backend by
- * this name — see `lib/backend/registry.ts`. It used to be safe only by
- * observation, the argument being that a real entry would need somebody to set
- * `FOI_BACKEND_INLINE_SECRET` and nobody would; that is a description of what
- * has happened so far, not a property.
+ * null. Safe as a value only because the registry refuses a declared backend
+ * by this name — see `lib/backend/registry.ts`, which has to keep doing so.
  *
  * Rows carrying it are written to a terminal state in the same request that
  * created them, so no runner ever sees one — `claimJob` selects by backend id
@@ -93,42 +83,26 @@ export const INLINE_BACKEND_VERSION = "inline";
  * There is deliberately no "claimed but not started yet". What the kernel needs
  * to know is that somebody holds this and is alive; whether that somebody is
  * cloning a repository, pulling an image or running the seventh test is a thing
- * it has no business having an opinion about. GitLab's `waiting_for_runner_ack`
- * exists because they had no uniform heartbeat at the time; we do, so the
- * premise does not hold.
+ * it has no business having an opinion about.
  *
- * `disrupted` is the Internal Error every mainstream judge has, and it covers
- * two sources at once: a runner saying "I cannot evaluate this", and the kernel
- * inferring that nobody is coming. They are one state because the handling is
- * identical — no result, not counted against the submitter, an administrator
- * can rejudge — and the difference is recorded in `error` rather than in the
- * state. DOMjudge is the sharpest precedent: internal error is not in its
- * verdict priority table at all, because it is not a verdict, it is a veto
- * saying "this judging does not count".
- *
- * `rejected` used to be here and is gone with the push model. Its three sources
- * were a 4xx on dispatch, an `accepted: false` acknowledgement, and an inline
- * judge throwing. The first two do not exist when nobody dispatches, and the
- * third was always misfiled: our code breaking is not the submission being
- * unacceptable, so it lands in `disrupted` too.
- *
- * A union rather than a `const` array indexed into. The array was exported and
- * nothing imported it: no caller iterates the states, and the two places that
- * enumerate them — `STATE_PRESETS` below and the state column's `$type` — are
- * both keyed by the type, so a missing case is a compile error either way.
- * What the value bought was a runtime list nobody asked for.
+ * `disrupted` covers two sources at once: a runner saying "I cannot evaluate
+ * this", and the kernel inferring that nobody is coming. They are one state
+ * because the handling is identical — no result, not counted against the
+ * submitter, an administrator can rejudge — and the difference is recorded in
+ * `error` rather than in the state. It is not a verdict; it is a veto saying
+ * this judging does not count, which is why the kernel breaking lands here
+ * too rather than in anything the submitter could be blamed for.
  */
 export type SubmissionState = "queued" | "judging" | "completed" | "disrupted";
 
 /**
  * "Is there any point waiting for this?" — the client's question.
  *
- * Everything that polls, streams or renders a spinner asks this one. There used
- * to be a second predicate beside it answering "may a late report still write
- * here", because the push model had a state — `abandoned` — that was settled
- * for the reader and still writable by the judge. A lease removes the need: a
- * report is accepted when it holds the current lease and refused when it does
- * not, which is a fact about the holder rather than a guess about the state.
+ * Everything that polls, streams or renders a spinner asks this one, and it is
+ * the only predicate over the state there needs to be. In particular "may a
+ * late report still write here" is not one: that is answered by whether the
+ * caller holds the current lease, which is a fact about the holder rather than
+ * a guess about the state.
  */
 export function isSettled(state: SubmissionState): boolean {
   return state === "completed" || state === "disrupted";
@@ -201,10 +175,7 @@ export interface BackendUser {
  * Request body the kernel POSTs to an interactive endpoint.
  *
  * The one thing the kernel still initiates against a backend, and the reason
- * `url` survives on `ProblemBackend` at all: an action is a synchronous
- * request a player set off, and there is no way to pull one. That is not a
- * compromise — a problem handing out a machine for a competitor to connect
- * into needs that machine reachable regardless of how judging works.
+ * `url` exists on `ProblemBackend` at all.
  *
  * The kernel reads `action` to pick the path and nothing else: `payload` and
  * the response are as opaque here as a verdict's `detail` is everywhere else.
@@ -220,18 +191,15 @@ export interface BackendActionRequest {
 /**
  * What a backend says about itself when it reports.
  *
- * Required, unlike everything optional in a verdict, and the difference is not
- * strictness for its own sake. `score`, `maxScore` and `accepted` may be
- * omitted because they can genuinely not exist — a pass/fail task has no score,
- * a computed total has no fixed maximum. A running process always has a
- * version, even if it is `dev` or a commit hash, so making this optional would
- * only blur "this backend never reports one" into "this judging did not record
- * one", and a provenance trail with holes in it is not a provenance trail.
+ * Required, unlike everything optional in a verdict. `score`, `maxScore` and
+ * `accepted` may be omitted because they can genuinely not exist — a pass/fail
+ * task has no score, a computed total has no fixed maximum. A running process
+ * always has a version, so making this optional would only blur "this backend
+ * never reports one" into "this judging did not record one".
  *
  * On the envelope rather than inside the verdict because it answers "who judged
  * this", not "what did it decide" — which is also why a `failed` report carries
- * one: there is no verdict there to attach it to, and knowing which version of
- * a runner could not evaluate something is the first thing anybody asks.
+ * one: there is no verdict there to attach it to.
  *
  * Self-reported and unverifiable, but it travels inside the HMAC-signed body,
  * so it is at least the backend's own claim rather than a third party's — the
@@ -287,11 +255,10 @@ export const jobRequestSchema = z.object({
 /**
  * What a claim answers with.
  *
- * An id and a lease, and it will never need to be anything else. Everything a
- * runner has to know in order to evaluate is behind the details endpoint, so a
- * new field is added there rather than here — and a runner that prefetches
- * claims N of these, fetches N sets of details and starts work, with the
- * protocol needing nothing to express that.
+ * An id and a lease, and nothing else belongs here. Everything a runner has to
+ * know in order to evaluate is behind the details endpoint, so a new field is
+ * added there rather than here; that is also what lets a runner prefetch by
+ * claiming N tickets before fetching any details.
  */
 export interface JobTicket {
   id: string;
@@ -343,26 +310,16 @@ export const jobReportSchema = z.discriminatedUnion("state", [
 export type JobReport = z.infer<typeof jobReportSchema>;
 
 /**
- * Naming and colouring a verdict lives in `lib/presentation/verdict.ts`.
+ * Naming and colouring a *verdict* lives in `lib/presentation.ts`; no grading
+ * tradition's abbreviations belong in this module, whose only claim about
+ * `status` is that it is one to sixty-four characters. The four below stay
+ * because the kernel really does own them — they are the queue's lifecycle,
+ * not a judge's opinion.
  *
- * Nine statuses used to be listed here, which put one grading tradition's
- * abbreviations inside the module that defines the protocol — a protocol whose
- * only claim about `status` is that it is one to sixty-four characters. The
- * four states below stay, because the kernel really does own those: they are
- * the queue's lifecycle, not a judge's opinion.
- */
-
-/**
- * `disrupted` is not spelled as a failure, and that is the point of it being a
- * state of its own.
- *
- * It used to read "评测失败" in red, alongside a genuine refusal of the
- * submission, which told a player their work was rejected when what happened is
- * that a machine fell over. Every mainstream judge is explicit about this —
- * PEGWiki's wording for IE is literally "it is not your fault, an administrator
- * will rejudge your submission" — so the label says the judging was
- * interrupted, and the tone is a warning rather than an error, because the red
- * one is reserved for outcomes the submitter can act on.
+ * `disrupted` is deliberately not spelled as a failure. The label says the
+ * judging was interrupted and the tone is a warning rather than an error,
+ * because red is reserved for outcomes the submitter can act on and a machine
+ * falling over is not one.
  */
 export const STATE_PRESETS: Record<
   SubmissionState,
@@ -374,16 +331,7 @@ export const STATE_PRESETS: Record<
   disrupted: { label: "评测中断", tone: "warn" },
 };
 
-/**
- * What to say when nothing more specific was recorded.
- *
- * One sentence where there used to be two, because there is now one state. The
- * pair existed to tell a refusal apart from a timeout, which called for
- * opposite reactions from the player; neither survives — a refusal cannot
- * happen when nothing is dispatched, and a machine going quiet is not something
- * the player can respond to at all. So the sentence says what is true and what
- * to do about it, which is: nothing, ask for a rejudge.
- */
+/** What to say when nothing more specific was recorded. */
 const DEFAULT_DISRUPTED_REASON =
   "评测未能完成，这不是你这次提交的问题。请联系管理员重判。";
 

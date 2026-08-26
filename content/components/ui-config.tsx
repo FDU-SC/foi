@@ -26,17 +26,11 @@ const problemUiSchema = z.object({
   placeholder: z.string().optional(),
 
   /**
-   * How this deployment sorts its problems, drawn by `ProblemBadges`.
-   *
-   * Both were fields on `problemConfigSchema` until the kernel was asked what
-   * it did with them, and the answer was: rendered them as badges on three
-   * pages. Which is to say they are this competition's taxonomy — the rungs of
-   * one syllabus and the vocabulary of one problem set — and a platform that
-   * declares every problem has a `difficulty: string` has already decided
-   * something for a deployment that grades on two axes, or on none.
-   *
-   * `maxScore` did not come with them. Scoring genuinely reads it, so it stays
-   * on the problem; what moved is only the decision to *show* it.
+   * How this deployment sorts its problems, drawn by `ProblemBadges`. Here
+   * rather than on `problemConfigSchema` because nothing but those badges ever
+   * reads them: a platform declaring that every problem has a `difficulty` has
+   * already decided something for a deployment that grades on two axes, or on
+   * none. `maxScore` stays on the problem because scoring genuinely reads it.
    */
   difficulty: z.string().min(1).optional(),
   tags: z.array(z.string()).default([]),

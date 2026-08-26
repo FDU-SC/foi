@@ -10,12 +10,10 @@ import { handleSchema } from "@/lib/accounts/types";
  * names would be: it is shorter, it cannot go stale, and it says why somebody
  * is in a cohort rather than merely that they are.
  *
- * There used to be two arrays here. `rules` matched an address and could not
- * confer privilege; `grants` named a handle and was the only thing that could.
- * They were one mechanism wearing two shapes — a grant is a rule whose
- * condition happens to be "this exact handle" — so they are one array now, and
- * the safety property is stated against the *condition* instead of against
- * which array something was written in. See `privilegeAllowed` below.
+ * One array rather than two, because a grant is a rule whose condition happens
+ * to be "this exact handle". The safety property is therefore stated against
+ * the *condition* rather than against which array something was written in —
+ * see `privilegeAllowed` below.
  */
 
 /** What the groups of a matched rule are, literal or computed from captures. */
@@ -74,10 +72,9 @@ export function isHandlesRule(rule: EnrollmentRule): rule is HandlesRule {
 /**
  * Whether this rule's condition is one the repository can vouch for.
  *
- * The whole of the old rule/grant split, kept as a checked property rather
- * than as a structural accident. There is no `disabled` counterpart:
- * suspending an account is a moderation decision and lives in the database, so
- * that banning a spam signup does not require a commit.
+ * A checked property rather than a structural accident. There is no `disabled`
+ * counterpart: suspending an account is a moderation decision and lives in the
+ * database, so that banning a spam signup does not require a commit.
  */
 export function privilegeAllowed(rule: EnrollmentRule): boolean {
   return isHandlesRule(rule);
@@ -90,14 +87,12 @@ export const enrollmentPolicySchema = z.object({
   /**
    * Where mail goes: a real relay, or the server log.
    *
-   * The neighbour of `enabled` above, and it was missing. Whether a
-   * deployment lets people sign up is said out loud in a file; whether it can
-   * send them anything used to be *inferred*, from `FOI_SMTP_HOST` being
-   * absent. The inference cannot tell a laptop apart from a production box
-   * deployed without its mail configuration — both took the console branch in
+   * Declared rather than inferred from `FOI_SMTP_HOST` being absent, because
+   * that inference cannot tell a laptop apart from a production box deployed
+   * without its mail configuration: both take the console branch in
    * `lib/mail/transport.ts`, which prints the message and reports success, so
-   * registration and recovery announced themselves as working while every
-   * code and every reset link went to the container log.
+   * registration and recovery announce themselves as working while every code
+   * and every reset link goes to the container log.
    *
    * `console` is a real answer rather than a degraded one. A fresh checkout
    * runs the whole registration flow with no mail server standing by, and it
@@ -111,7 +106,7 @@ export const enrollmentPolicySchema = z.object({
    * takes `smtp`, and enforcing everywhere would stop a fresh checkout with
    * no SMTP from starting at all — breaking the one setup the README points a
    * newcomer at. Outside production a missing relay therefore falls back to
-   * `console` with a warning: the old behaviour, made audible.
+   * `console` with a warning.
    */
   mailDelivery: z.enum(["smtp", "console"]).default("smtp"),
 
@@ -149,26 +144,16 @@ export type EnrollmentPolicyInput = z.input<typeof enrollmentPolicySchema>;
  * Options a policy file may still name that no longer exist.
  *
  * `requireEmailVerification` was a boolean defaulting to true. Proving the
- * address turned out not to be a thing a deployment gets to decide, for the
- * reason `lib/auth/email-verification.ts` gives about its own attempt cap:
- * some settings are security parameters rather than deployment policy, and
- * offering the knob is offering the wrong answer. Here the wrong answer was
- * sharper than a weak cap — an address decides which cohort somebody lands in,
- * and a cohort decides which contests they may enter, so an unproven address
- * is an unproven claim to a seat in a round. It also switched off more than
- * its name said: the browser binding went with it, while `register()` carried
- * on recording `emailVerifiedAt` for an address nobody had proven.
- *
- * The need behind it is already served. A deployment that does not want to
- * depend on mail sets `enabled: false` and creates accounts with
- * `scripts/create-account.cjs`. What the flag additionally allowed was open
- * self-registration without proving anything, which this application has no
- * coherent use for.
+ * address is not a thing a deployment gets to decide, for the reason
+ * `lib/auth/email-verification.ts` gives about its own attempt cap: some
+ * settings are security parameters rather than deployment policy. Here the
+ * stake is sharper than a weak cap — an address decides which cohort somebody
+ * lands in, and a cohort decides which contests they may enter, so an unproven
+ * address is an unproven claim to a seat in a round.
  *
  * Reported rather than ignored because `z.object` strips unknown keys in
  * silence, and the direction that matters is `false`: that deployment believed
- * addresses went unproven, and the answer has changed underneath it. Who may
- * register is not something to change without saying so.
+ * addresses went unproven, and the answer has changed underneath it.
  */
 const RETIRED_POLICY_KEYS: Record<string, string> = {
   requireEmailVerification:

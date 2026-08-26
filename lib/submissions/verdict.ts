@@ -11,8 +11,8 @@ import type { Verdict } from "@/lib/backend/types";
  *
  * Both landing paths go through this: a runner reporting `done` through
  * `lib/runner/queue.ts`, and an inline problem settling inside the submit
- * request. They used to hold two copies of the same destructuring, which is the
- * shape the next divergence would have taken.
+ * request. Two copies of the destructuring is the shape the next divergence
+ * would take.
  */
 export interface VerdictColumns {
   score: number | null;
@@ -32,16 +32,13 @@ export function verdictColumns(
     // configured total cannot silently rescore every submission ever made
     // against the old one.
     //
-    // The fallback arrives as a number because the caller is the only thing
-    // that knows which number it is. This parameter used to be a slug and the
-    // lookup happened here, which quietly made the current registry
-    // authoritative on every path — including the one path that had decided
-    // otherwise. `rejudgeSubmissions` clears an entire judging but keeps
-    // `max_score`, for precisely the reason above, and then the next verdict
-    // overwrote it from the registry anyway; the exemption bought nothing. A
-    // denominator is a decision about one submission's history, and the two
-    // landing paths do not make it the same way, so neither of them should have
-    // to discover that by reading this function.
+    // The fallback arrives as a number, not a slug to look up here: looking it
+    // up would make the current registry authoritative on every path,
+    // including the one that has decided otherwise. `rejudgeSubmissions`
+    // clears an entire judging but keeps `max_score`, for precisely the reason
+    // above, and a registry lookup here would overwrite it on the next verdict
+    // anyway. A denominator is a decision about one submission's history, and
+    // the two landing paths do not make it the same way.
     maxScore: verdict.maxScore ?? fallbackMaxScore,
 
     // Null when the backend did not say, which is not the same as false.

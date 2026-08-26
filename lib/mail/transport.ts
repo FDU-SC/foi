@@ -16,12 +16,11 @@ import type { MailBody } from "./types";
  * the two fight over backpressure while splitting the delivery record across
  * two systems. FOI hands the message over once and reports what happened.
  *
- * Mail may also go to stdout instead, and which of the two happens is a
+ * Mail may also go to stdout instead, and which of the two happens must be a
  * declared decision rather than a side effect of the environment — see
- * `policy.mailDelivery` in `lib/enrollment/types.ts`. A fresh checkout should
- * be able to run the whole registration flow without a mail server standing
- * by, which is the same bargain a reference runner offers for judging;
- * what changed is that a production box has to say it means that.
+ * `policy.mailDelivery` in `lib/enrollment/types.ts`. A fresh checkout runs the
+ * whole registration flow with no mail server standing by; a production box
+ * has to say it means that.
  */
 export interface MailMessage extends MailBody {
   to: string;
@@ -136,14 +135,12 @@ const COMPLAINT =
  *
  * And fatal only for a deployment that shipped enrolment content at all. The
  * refusal rests on `smtp` being what somebody *chose*, whether by writing it
- * or by writing a policy and leaving the default in place — the complaint even
- * says "注册策略声明了". With no `content/enrollment/` there is no policy and
- * nothing was declared: the value comes from `enrollmentPolicySchema`, which
- * is to say from the kernel, and refusing the boot means refusing over a
- * decision the platform made on the deployment's behalf. That is what stopped
- * an empty `content/` from starting — see the `content-absent` job — and the
- * failure it prevented was hypothetical, because a deployment with no
- * enrolment rules has no cohorts to register into.
+ * or by writing a policy and leaving the default in place. With no
+ * `content/enrollment/` nothing was declared — the value comes from
+ * `enrollmentPolicySchema`, which is to say from the kernel — so refusing
+ * would refuse over a decision the platform made on the deployment's behalf,
+ * and would stop an empty `content/` from starting at all. See the
+ * `content-absent` job.
  *
  * Not softened to a warning everywhere: a deployment that ships rules and
  * forgets its relay is the case this exists for, and it keeps the refusal.
@@ -183,7 +180,7 @@ export function assertMailDelivery(
 /**
  * Which of the two sinks a message goes to.
  *
- * The console branch is now reached by declaring it, not by leaving a variable
+ * The console branch is reached by declaring it, not by leaving a variable
  * unset — that is the whole point of `policy.mailDelivery`. The one exception
  * is the development fallback, which keeps a checkout with no relay working.
  */

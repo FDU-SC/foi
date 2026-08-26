@@ -16,41 +16,24 @@ export interface ActionState {
   message?: string;
 }
 
-// Every action starts with `requireCapability`, which lives in `@/auth`
-// alongside `getViewer` because it asks the same question and answers it the
-// same way — it just refuses instead of returning false. Server Actions are
-// reachable by POST regardless of what the proxy matched, which is why the
-// route is never trusted here.
-//
-// There used to be a third action here, pushing the filesystem registries into
-// their mirror tables by hand. It went when the startup sync did: mirror rows
-// are written on the submission path now, at the moment a foreign key first
-// needs one, so there is nothing left for an operator to trigger.
+// Every action starts with `requireCapability`. Server Actions are reachable
+// by POST regardless of what the proxy matched, so the route is never trusted
+// here.
 
 /**
- * Turns the refusal into the shape these forms already speak.
+ * Turns a refusal into the shape these forms already speak, and rethrows
+ * everything else.
  *
- * `requireCapability` throws, which is right for the many call sites that have
- * no partial answer to fall back on — `lib/auth/enforcement.ts` argues that
- * asymmetry against the read gates. These three do have one: they return an
- * `ActionState` with an `error` in it, and every other way they can fail
- * already comes back that way. Letting the throw escape instead sent an
- * operator to a full-page error for the one failure the page itself is best
- * placed to explain.
+ * Rethrowing the rest is the load-bearing half: a database that has gone away
+ * is not a permission problem and must not be reported as one — that belongs
+ * to `app/error.tsx`.
  *
- * And it is a failure they can actually hit without doing anything strange.
- * The buttons are drawn from a capability check on the server-rendered page —
- * see `PAGE_CHECKS` — so a console left open across a privilege change offers
- * a button that no longer works, and the honest answer is "not any more,
- * reload" rather than a stack trace.
- *
- * Rethrows anything else, deliberately. A database that has gone away is not
- * a permission problem and must not be reported as one; that one belongs to
- * `app/error.tsx`.
- *
- * The sentence comes off the error rather than being written here, so that
- * what a refusal is called has one home; what this adds is the part only the
- * console knows, which is that there was a button and it is now wrong.
+ * These three actions convert because they have somewhere to put the answer
+ * and because it is a failure an operator reaches without doing anything
+ * strange: the buttons are drawn from a capability check on the server-rendered
+ * page (see `PAGE_CHECKS`), so a console left open across a privilege change
+ * still offers one. The sentence comes off the error so that what a refusal is
+ * called has one home.
  */
 function refused(error: unknown): ActionState {
   if (error instanceof ForbiddenError) {
@@ -68,18 +51,13 @@ const issueSchema = z.object({
 /**
  * Sends somebody a password reset they did not ask for.
  *
- * This replaces the administrator-issued setup code, and the difference is the
- * point: the code had to be read off this screen and carried to its owner over
- * chat, which left a credential capable of taking over the account sitting in
- * a message history, with no way to tell it had gone to the wrong person. Here
- * the administrator triggers the mail and the secret goes straight to the
- * address the account already proved it controls.
+ * The operator triggers the mail and never sees the secret, which is the whole
+ * difference from the administrator-issued setup code this replaced.
  *
- * An account with no usable address is out of scope on purpose. Every account
- * created since has one, so what is left here is a mailbox that has stopped
- * working — and that case belongs to `scripts/set-password.cjs`, which needs
- * shell access on the server: the right bar for the one path that bypasses
- * email entirely.
+ * An account with no usable address is out of scope on purpose: what that
+ * describes is a mailbox that has stopped working, and that case belongs to
+ * `scripts/set-password.cjs`, which needs shell access on the server — the
+ * right bar for the one path that bypasses email entirely.
  */
 export async function resendPasswordResetAction(
   _prev: ActionState,
@@ -93,20 +71,11 @@ export async function resendPasswordResetAction(
   }
 
   /**
-   * Bounded per operator, and it was the one send path that was not.
-   *
-   * The public `requestPasswordReset` has always been capped per source. This
-   * one — the privileged path that mails the same thing — had nothing, and the
-   * only bound in reach was the per-recipient cooldown in `lib/mail/notify.ts`,
-   * which stops the *same* account being mailed twice a minute and says
-   * nothing about how many different accounts one operator may mail. A stolen
-   * `credential.manage` session could therefore send one message per account
-   * per minute for as long as it lasted, from this deployment's domain.
-   *
-   * Mail is the one thing here whose cost lands somewhere else: on other
-   * people's inboxes, on this domain's standing with their providers, and on
-   * the relay's quota. A privileged path being looser than the public one that
-   * does the same thing is the wrong way round however small the number.
+   * Bounded per operator, which the cooldown in `lib/mail/notify.ts` does not
+   * do: that one stops the *same* account being mailed twice a minute and says
+   * nothing about how many different accounts one session may mail. Without
+   * this, a stolen `credential.manage` session sends one message per account
+   * per minute, from this deployment's domain, for as long as it lasts.
    */
   const rule = fixedRule(ACTION_LIMITS.resendPasswordResetAction);
   const limited = rateLimit(
@@ -168,21 +137,10 @@ const moderateSchema = z.object({
 });
 
 /**
- * Locks an account out.
+ * Locks an account out — the one authorisation decision that is data rather
+ * than code, so that banning a spam signup does not require a pull request.
  *
- * This is the one authorisation decision that is data rather than code, and
- * deliberately so: banning a spam signup should not require a pull request,
- * and adding one throwaway handle per incident to a repository file would make
- * that file useless. It is still an accountable act, so who did it and why is
- * recorded on the row.
- *
- * Which is also why it stops at the edge of the privileged groups. Everything
- * that grants power is a reviewed commit naming a person; if taking it away
- * were a button, one holder could remove the others between two page loads and
- * the repository would still say they were administrators. Nobody gets to
- * shortcut that, themselves included.
- *
- * It bites immediately. `getResolvedUser()` reads the account by primary key
+ * It bites immediately: `getResolvedUser()` reads the account by primary key
  * on every request and never through the snapshot, so an open session stops
  * working on its next page load rather than when a token expires.
  */
@@ -190,8 +148,6 @@ export async function suspendAccountAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  // The viewer comes back from the check, so the actor's identity does not
-  // need fetching a second time by a second route.
   let actor: Viewer;
   try {
     actor = await requireCapability("account.moderate");
@@ -216,11 +172,11 @@ export async function suspendAccountAction(
     return { error: "不能封禁自己" };
   }
 
-  // Nor anybody else who holds the same power. Suspension is the one
-  // authorisation decision that is data rather than code, which is what makes
-  // it fast enough for a spam signup — and also what would let one
-  // administrator remove the others without a review. Taking privilege away is
-  // a commit against `content/enrollment/`, the same way granting it is.
+  // Nor anybody else who holds power. Being data rather than code is what
+  // makes suspension fast enough for a spam signup, and also what would let
+  // one administrator remove the others between two page loads while the
+  // repository still said they were administrators. Taking privilege away is a
+  // commit against `content/enrollment/`, the same way granting it is.
   //
   // Asked through the shared predicate, so the button that offers this and the
   // guard that refuses it cannot answer differently.
@@ -245,16 +201,9 @@ export async function suspendAccountAction(
  * Lifts a suspension, and only ever a suspension.
  *
  * The status is read before it is written because `reinstateAccount` writes
- * "active" over whatever was there and hands back a row either way, so an
- * account that was never suspended came back reported as reinstated — the
- * console confirming an act it had not performed, on the one screen whose
- * whole job is to say what the database actually holds.
- *
- * Reaching that state means the page was rendered before somebody else lifted
- * the suspension: the button only exists on a row the server said was
- * suspended. So the answer is the current status plus a refresh, not an
- * apology for a failed write — nothing failed, and the account is already in
- * the state the operator wanted.
+ * "active" over whatever was there and hands back a row either way — so an
+ * account nobody had suspended would come back reported as reinstated, on the
+ * one screen whose whole job is to say what the database actually holds.
  */
 export async function reinstateAccountAction(
   _prev: ActionState,

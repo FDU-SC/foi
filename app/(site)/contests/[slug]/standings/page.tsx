@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getViewer } from "@/auth";
-import { StandingsTable } from "@/components/standings/standings-table";
 import { Badge } from "@/components/ui/badge";
 import {
   contestFor,
@@ -10,6 +9,7 @@ import {
 } from "@/lib/contests/access";
 import type { ContestConfig } from "@/lib/contests/types";
 import { standingsFor } from "@/lib/standings/compute";
+import { StandingsTable } from "./standings-table";
 
 export const dynamic = "force-dynamic";
 

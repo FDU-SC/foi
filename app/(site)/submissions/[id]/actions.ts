@@ -24,19 +24,14 @@ const rejudgeSchema = z.object({
 });
 
 /**
- * Sends one submission back to the queue.
+ * Sends one submission back to the queue — the whole of the administrative
+ * side of judging, and deliberately so: no cancel, no pinning to a runner, no
+ * internal-error console.
  *
- * The whole of the administrative side of judging, and deliberately so: there
- * is no panel for cancelling a running job, none for pinning one to a
- * particular runner, and no internal-error console. A runner that cannot
- * evaluate says so and the row lands in `disrupted` carrying the reason, which
- * is visible in the submission list; this is how it gets tried again.
- *
- * What is missing and would be the cheapest thing to add next is bulk: "rejudge
- * every submission to this problem" after a checker is fixed. It is not here
- * because the safety argument changes at that size — the accepted-submissions
- * default below matters far more when the operation covers a whole round — and
- * that deserves its own confirmation rather than the same checkbox.
+ * Bulk rejudge is the obvious next thing and is not here on purpose: the
+ * accepted-submissions default below matters far more when the operation
+ * covers a whole round, so it needs its own confirmation rather than this
+ * checkbox.
  */
 export async function rejudgeSubmissionAction(
   _prev: ActionState,

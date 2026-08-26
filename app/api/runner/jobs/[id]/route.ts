@@ -55,30 +55,29 @@ const UNPROVEN = "签名不匹配";
  * Both endpoints below have to look the row up before they can verify
  * anything, because the key a signature is checked against belongs to the
  * backend the *row* names — there is no caller-supplied backend id here to
- * trust. So the refusal for an id that is not there was written in one place
- * and the refusal for a bad signature in another, and the two disagreed:
+ * trust. Write the refusal for a missing id in one place and the refusal for a
+ * bad signature in another, and the two disagree:
  *
  *   - no signature headers, id does not exist → 401 `{"error":"签名不匹配"}`
  *   - no signature headers, id exists         → 401 `{"error":"缺少签名头"}`
  *
  * Submission ids are time-ordered ULIDs, so that difference is an
  * unauthenticated enumeration of who submitted when — precisely what the
- * not-found branch was written to prevent, defeated by the branch above it. A
- * clock outside the skew window produced the same split, for the same reason:
- * the reason string was chosen by whichever check happened to run first, and
- * which check ran first depended on the row.
+ * not-found branch exists to prevent, defeated by the branch above it. A clock
+ * outside the skew window splits the same way and for the same reason: the
+ * reason string is chosen by whichever check ran first, and which ran first
+ * depends on the row.
  *
  * One rule instead, applied to both: a caller that has proved it holds a
  * configured key gets the diagnosis it needs, and everybody else gets one
  * fixed 401 that reveals nothing about whether the row is there.
  *
- * The diagnosis lost by that is `verifySignature`'s "you are still on the old
- * signature format", which only the right key can provoke and which now
- * reaches nobody here — proving key possession takes a *current*-format
- * signature. Nothing is actually lost: a runner reaches these two endpoints
- * only after claiming a job, and `POST /api/runner/jobs/request` still answers
- * that one verbatim, because it takes the backend id from its own body and so
- * has no row existence to give away.
+ * The cost is `verifySignature`'s "you are still on the old signature format",
+ * which only the right key can provoke and so reaches nobody here — proving
+ * key possession takes a *current*-format signature. A runner reaches these
+ * two endpoints only after claiming a job, and `POST /api/runner/jobs/request`
+ * still answers that one verbatim, because it takes the backend id from its
+ * own body and has no row existence to give away.
  */
 async function authorizeJob(
   request: Request,
@@ -112,9 +111,7 @@ async function authorizeJob(
  * Separate from the claim because the claim's shape then never has to change,
  * and because this is where the lease earns its keep: without a holder check
  * here, one compromised evaluator could walk the id space and read every
- * competitor's submission. That exposure is new with the pull model — under the
- * push model the kernel chose what to send and to whom — so it is closed at the
- * one endpoint that hands content out.
+ * competitor's submission.
  *
  * The lease travels in the query string rather than a header because the
  * signature covers the path *and its search*, and covers no headers at all. A

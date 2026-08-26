@@ -6,22 +6,19 @@ import { allProblems, externallyJudged } from "@/lib/problems/registry";
 import { backends } from "@/lib/backend/registry";
 import { undeclaredBackends } from "@/lib/backend/access";
 import { isInlineBackend } from "@/lib/problems/types";
+import { viewsFor } from "@/lib/problems/views";
 
 /**
  * That *this* content is coherent, and that it exercises the kernel.
  *
- * Two jobs, and they used to be done in the wrong place. The kernel's own
- * suites reached into the registries by name — `contestBySlug("demo-acm")`,
- * `roulette-daily`, a `traditional` queue — which meant the platform's tests
- * could not run against any other `content/`, and meant a content edit broke
- * `lib/` rather than breaking here. Those suites now look problems up by shape
- * (see `test/content-shapes.ts`); the shapes they need are asserted below, so
- * a deployment that stops providing one is told directly instead of finding
- * out through a kernel test failing for reasons that are not about the kernel.
+ * The kernel's own suites look problems up by shape rather than by name (see
+ * `test/content-shapes.ts`). The shapes they need are asserted below, so a
+ * deployment that stops providing one is told directly instead of finding out
+ * through a `lib/` test failing for reasons that are not about `lib/`.
  *
  * Facts particular to this competition — that the demo round is scored ACM
  * with twenty penalty minutes, that its window is in the past — are the second
- * half, and they belong here for the obvious reason.
+ * half.
  */
 
 describe("内核测试需要的形状", () => {
@@ -80,6 +77,18 @@ describe("这套 content 自身自洽", () => {
 
   it("开发环境把邮件打到控制台，而不是假装有 relay", () => {
     expect(enrollmentPolicy.mailDelivery).toBe("console");
+  });
+
+  /**
+   * `problems/views.ts` 找不到不会报错，只会让每道题的提交内容与评测详情静悄悄
+   * 回落成 JSON——那正是「没登记」的合法形态。以前这条路径要十份文件同时消失才
+   * 走得到，现在一处 glob 漂移就够，所以在这里钉一下。
+   */
+  it("problems/views.ts 真的被 content-problem-view-modules 找到了", () => {
+    const declared = allProblems().filter(
+      (problem) => viewsFor(problem.slug).PayloadView !== undefined,
+    );
+    expect(declared.length, "没有一道题拿到渲染，八成是那份表没被扫到").toBeGreaterThan(0);
   });
 });
 

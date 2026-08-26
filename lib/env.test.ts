@@ -68,7 +68,7 @@ describe("assertEnv", () => {
     // neither should stop a boot. Backend addresses were on this list, then
     // fatal in production, and are now neither: judging needs no address at
     // all, and the one case that still does — a backend with interactive
-    // actions — is checked in `lib/backend/access.ts`, which is the layer that
+    // actions — is checked in `lib/backend/boot.ts`, which is the layer that
     // can see which backends those are.
     expect(check({})).not.toThrow();
   });

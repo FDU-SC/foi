@@ -6,33 +6,19 @@ import { Button } from "@/components/ui/button";
 /**
  * The last thing between an unhandled server error and a blank page.
  *
- * There was no error boundary anywhere under `app/` until this one, so every
- * throw nobody caught fell through to Next's built-in screen — which in a
- * deployment says nothing an operator can act on and looks, to whoever hit it,
- * like the site being down. The one that made this worth writing is
- * `requireCapability`, whose refusal is an ordinary outcome rather than a
- * fault: a stale page still offering a button whose privilege has since been
- * revoked reaches it on every press. The three console actions catch
- * `ForbiddenError` themselves and answer their own form; this catches
- * everything that has no such answer.
+ * **Cannot branch on the error, and never will be able to.** This component
+ * runs on the client, and Next replaces the message of anything thrown on the
+ * server with a generic one before it crosses that boundary, leaving only
+ * `error.digest`. Anything that needs to tell a refusal from a fault has to do
+ * it on the server, before the throw escapes — which is what the three console
+ * actions do with `ForbiddenError`.
  *
- * Deliberately says nothing about *what* went wrong, and that is not
- * politeness. This component runs on the client, and Next replaces the message
- * of anything thrown on the server with a generic one before it crosses that
- * boundary, leaving only `error.digest` to correlate against the server log.
- * So branching on the error here is not something that has been left undone —
- * it is not available, and a page that tried would be reading a string Next
- * wrote. Anything that needs to distinguish a refusal from a fault has to do
- * it on the server, before the throw escapes.
- *
- * Placed at `app/` rather than inside `app/(site)/`, so it also covers the
- * signed-out pages, which have no layout of their own to hang one off. It does
- * not wrap the root layout — nothing but `global-error.tsx` can — and that
- * split is deliberate here rather than a gap: `app/layout.tsx` renders fonts,
- * the theme script and a body, and a failure in it means the document itself
- * is broken, which the default screen already reports honestly. What sits
- * inside is the header and footer of `app/(site)/layout.tsx`, replaced by this
- * whole page, so the frame below is self-contained.
+ * Placed at `app/` rather than inside `app/(site)/` so it also covers the
+ * signed-out pages, which have no layout of their own. It does not wrap the
+ * root layout — nothing but `global-error.tsx` can — and that is fine here: a
+ * failure in `app/layout.tsx` means the document itself is broken, which the
+ * default screen already reports honestly. The frame below is self-contained
+ * because this page replaces the header and footer along with everything else.
  */
 export default function AppError({
   error,
@@ -53,11 +39,10 @@ export default function AppError({
       </div>
 
       {/*
-        The digest is the only thing this page knows that the server log also
-        knows, so it is shown rather than hidden: it is a hash of the error and
-        carries nothing about the request, and being read out to somebody is
-        the whole point of it existing. Absent when the throw happened on the
-        client, where there is no server log to point at.
+        Shown rather than hidden: the digest is a hash of the error, carries
+        nothing about the request, and is the only handle this page shares with
+        the server log. Absent when the throw happened on the client, where
+        there is no server log to point at.
       */}
       {error.digest ? (
         <p className="text-fg-subtle text-xs">

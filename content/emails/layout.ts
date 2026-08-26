@@ -1,3 +1,4 @@
+import { escapeHtml } from "@/lib/mail/html";
 import type { MailBody } from "@/lib/mail/types";
 
 /**
@@ -34,19 +35,20 @@ export interface CodeMail {
   footnote?: string[];
 }
 
+/**
+ * This competition's wall clock, stated rather than configured.
+ *
+ * The kernel's fallback reads `FOI_TIMEZONE` and must, because it runs for
+ * whoever deploys the platform. This file is one deployment: its copy is
+ * Chinese and its entrants are in one city, so the zone belongs beside the
+ * locale that already says so. A deployment elsewhere replaces this directory
+ * rather than pointing an environment variable at it.
+ */
 const formatter = new Intl.DateTimeFormat("zh-CN", {
   dateStyle: "long",
   timeStyle: "short",
   timeZone: "Asia/Shanghai",
 });
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 function paragraph(line: string): string {
   return `    <p style="margin:0 0 12px;font-size:14px;line-height:1.7;color:#374151;">${escapeHtml(line)}</p>`;

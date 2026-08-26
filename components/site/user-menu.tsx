@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { logout } from "@/app/actions/auth";
-import type { SessionUser } from "@/lib/auth/session";
+import type { SessionUser } from "@/lib/auth/viewer";
 
 export function UserMenu({
   user,

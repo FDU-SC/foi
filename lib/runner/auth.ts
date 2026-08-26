@@ -1,5 +1,5 @@
-import { resolveBackend } from "@/lib/backend/client";
 import { listBackendIds } from "@/lib/backend/registry";
+import { resolveBackend } from "@/lib/backend/resolve";
 import {
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
@@ -17,13 +17,10 @@ import {
  * on a job answers a different question (who currently holds this row) that
  * `lib/runner/queue.ts` deals with.
  *
- * The blast radius of one of these keys grew when the direction reversed, which
- * is why production now refuses to boot on a shared one. Under the push model
- * the key sat on our own servers and let its holder impersonate the platform;
- * now it sits on whatever machine runs a runner — donated hardware, somebody's
- * laptop behind a NAT — and lets its holder drain a queue, read every
- * competitor's source, and write verdicts. See `backendSecretWarnings` in
- * `lib/backend/access.ts`.
+ * One of these keys lets its holder drain a queue, read every competitor's
+ * source and write verdicts, from whatever machine runs a runner — which is
+ * why production refuses to boot on a shared one. See `assertBackendSecrets`
+ * in `lib/backend/boot.ts`.
  */
 
 /**

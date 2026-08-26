@@ -4,12 +4,12 @@ import { groupsFor } from "@/lib/enrollment/registry";
 /**
  * Claims FOI stores on the JWT.
  *
- * The handle, and the instant the password behind it was last written. Role
- * and display name used to ride along too, which meant a change did not reach
- * anyone until their token expired — someone demoted or suspended kept their
- * old powers for up to a week. Resolving on every request costs a Map lookup
- * for the role and one indexed read for the rest, and makes both an edit to
- * `content/enrollment/` and a suspension take effect on the next page load.
+ * The handle, and the instant the password behind it was last written. Nothing
+ * about the person rides along: a claim on the token does not reach anyone
+ * until it expires, so somebody demoted or suspended would keep their old
+ * powers for up to a week. Resolving on every request costs a Map lookup and
+ * one indexed read, and makes both an edit to `content/enrollment/` and a
+ * suspension take effect on the next page load.
  *
  * `credentialsAt` is the exception, and it is here for the opposite reason: it
  * is a fact about the token rather than about the person. It says which

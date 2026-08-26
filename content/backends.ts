@@ -9,22 +9,16 @@ import type { ProblemBackend } from "@/lib/backend/types";
  * the payload it forwards, and it finds this file through
  * `content-backend-modules.ts` rather than importing it by name.
  *
- * Only the problems that genuinely need a service are here. Three entries used
- * to live alongside these and no longer do — `flag-checker`, `output-only` and
- * `roulette` — because none of them needed anything this file provides.
- * Judging them takes nothing the kernel does not already hold: the submission,
- * the problem's own config, and who submitted. They are now inline judges in
- * `content/problems/_shared/judge/`, and with them went three URLs, three
- * secrets and three deployments.
- *
  * The test for whether something belongs here is whether the judgement needs
  * **isolation** (it runs what the competitor submitted), **resources** (a time
  * or memory limit worth measuring), or **state the kernel does not hold** (a
  * container, a flag minted when that container was handed out). Every entry
- * below is here for one of those three reasons; anything else is inline.
+ * below is here for one of those three reasons; anything else is an inline
+ * judge in `content/problems/_shared/judge/`, which costs no URL, no secret
+ * and no deployment.
  *
  * `fromEnv` reads `FOI_BACKEND_<NAME>_URL` and `FOI_BACKEND_<NAME>_SECRET`,
- * falling back to the local mock's address outside production.
+ * falling back to `FOI_DEV_BACKEND_URL` outside production.
  */
 export const backends: Record<string, ProblemBackend> = {
   traditional: fromEnv("traditional"),
@@ -32,10 +26,8 @@ export const backends: Record<string, ProblemBackend> = {
   // A timed problem cannot share a machine with anything else without changing
   // the number being measured, so this queue is a serial one and it runs long:
   // a warmup plus three timed runs at an 8s limit, against a baseline judged
-  // the same way. That used to need a thirty-minute `abandonAfterMs`, because
-  // the kernel gave up on anything older than ten. It needs nothing now: a
-  // runner heartbeating through a long evaluation keeps its job for as long as
-  // it takes, and the kernel never has to know how long that is.
+  // the same way. Nothing here has to say so — a runner heartbeating through a
+  // long evaluation keeps its job for as long as it takes.
   performance: fromEnv("performance"),
   // The one entry that genuinely needs its address, and the reason `url`
   // survives at all. It hands out containers, so `spawn`/`poll`/`destroy` are

@@ -9,7 +9,7 @@ import {
   solve,
   START,
   unjudged,
-} from "@/lib/standings/test-support";
+} from "@/test/standings-support";
 import type { AcmCell } from "./acm";
 import { ruleset as acmRuleset } from "./acm";
 

@@ -1,7 +1,8 @@
 import type { HTMLAttributes } from "react";
+import type { BadgeTone } from "@/lib/presentation";
 import { cn } from "@/lib/utils";
 
-const TONES = {
+const TONES: Record<BadgeTone, string> = {
   neutral: "bg-surface-2 text-fg-muted border-border",
   ok: "bg-ok-subtle text-ok border-ok/25",
   err: "bg-err-subtle text-err border-err/25",
@@ -9,9 +10,14 @@ const TONES = {
   partial: "bg-partial-subtle text-partial border-partial/25",
   info: "bg-info-subtle text-info border-info/25",
   primary: "bg-primary-subtle text-primary border-primary/25",
-} as const;
+};
 
-export type BadgeTone = keyof typeof TONES;
+/**
+ * Re-exported because this is where a caller reaches for the prop's type, and
+ * `content/` already does. The definition is in `lib/presentation.ts` — see
+ * the note there for why it moved.
+ */
+export type { BadgeTone };
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   tone?: BadgeTone;

@@ -79,16 +79,15 @@ const statementLoaders = new Map<string, () => Promise<unknown>>(
  * that legitimately need the whole set — the mirror sync, the drift report,
  * load-time validation, and the access layer itself.
  *
- * `hidden` is deliberately not filtered here. It is one of two reasons a
+ * `visibleTo` is deliberately not filtered here. It is one of the reasons a
  * problem may be withheld, and splitting one of them into the registry while
- * the other lives in the gate is how they drift apart.
+ * the rest live in the gate is how they drift apart.
  */
 export function allProblems(): ProblemConfig[] {
-  // `order` first, then title. The comparison used to name `zh` as its locale,
-  // which sorted a deployment's titles by one language's collation whatever
-  // language they were written in. Left to the runtime, it follows the
-  // environment — and a deployment that cares about the order says so with
-  // `order`, which is what that field is for.
+  // `order` first, then title, with no locale named: naming one sorts a
+  // deployment's titles by that language's collation whatever language they
+  // are written in. Left to the runtime it follows the environment, and a
+  // deployment that cares about the order says so with `order`.
   return [...registry.values()].sort(
     (a, b) => a.order - b.order || a.title.localeCompare(b.title),
   );

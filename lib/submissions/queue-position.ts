@@ -13,10 +13,10 @@ export interface QueuePosition {
 /**
  * Where the given submissions sit in their backends' queues.
  *
- * Exact now, which is the dividend of holding the queue here. It used to read
- * every backend's self-reported snapshot and match locally, so a position was
- * as fresh as the last poll, silently absent for a backend that truncated its
- * listing, and wrong for the whole interval after a judge dequeued something.
+ * Exact, which is the dividend of holding the queue here rather than reading
+ * each backend's self-reported snapshot: that answer is only as fresh as the
+ * last poll, silently absent for a backend that truncated its listing, and
+ * wrong for the whole interval after a judge dequeued something.
  *
  * Two statements, and the second reads whole queues rather than counting per
  * row. Counting in the database instead would mean a correlated subquery or a
@@ -57,13 +57,11 @@ export async function locateInQueues(
 
   if (wanted.length === 0) return found;
 
-  // The same set `claimJob` picks from, predicate for predicate. Rows at the
-  // attempt cap are deliberately left `queued` for the reaper to write off, so
-  // for up to one tick they sit in the table looking like work — and counting
-  // them told whoever was behind them that somebody was in front who was never
-  // going to be handed to anybody. An exact position is the whole dividend of
-  // holding the queue here; a position that counts phantoms is the snapshot
-  // this replaced, with better latency.
+  // The same set `claimJob` picks from, predicate for predicate, and it has to
+  // stay that way. Rows at the attempt cap are deliberately left `queued` for
+  // the reaper to write off, so for up to one tick they sit in the table
+  // looking like work — count them and everyone behind them is told somebody
+  // is in front who will never be handed to anybody.
   const backendIds = [...new Set(wanted.map((row) => row.backendId))];
 
   const queued = await db

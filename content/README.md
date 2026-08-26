@@ -136,10 +136,14 @@ pnpm db:seed                                  # 建号
 psql "$DATABASE_URL" -f content/demo-data.sql # 给演示赛填一批判完的提交
 ```
 
-`demo-data.sql` 只插提交，不插它引用的题目行，而 `submissions.problem_slug` 有外
-键。镜像表现在只在提交那一刻 upsert（启动时的全量同步已经去掉了），所以要先真的
-往 `maze-runner` 交一次，那一行才存在；否则脚本的 `JOIN problems` 落空，一条也插
-不进去而且不会报错。
+两条命令的先后是有要求的，反过来第二条会拒绝执行：账号是 `seed.ts` 的事，
+`demo-data.sql` 不建号，只在开头点名说缺哪几个。
+
+它引用的题目行与比赛行倒是自己插——`problems` 与 `contests` 只是外键锚点，由提交
+那一刻的 upsert 写入（启动时的全量同步已经去掉了），而一个直接往 `submissions`
+写行的脚本，本来就是在替那条路径做事，那就得把那条路径会写的两行一起写了。从前
+它是靠 `JOIN problems` 去够这两个锚点的，于是在一个没人提交过的库上这个 join 落
+空、一行都插不进去、psql 还报告成功。现在它插不进去就会报错退出。
 
 内核自己的建号方式是 `scripts/create-account.cjs`，它只问用户名和密码，不认识任
 何分流规则。

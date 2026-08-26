@@ -4,7 +4,7 @@ import type { DbOrTx } from "@/lib/accounts/queries";
 import { normalizeHandle } from "@/lib/accounts/types";
 import { db } from "@/lib/db";
 import { credentials } from "@/lib/db/schema";
-import ARGON2_OPTIONS from "@/scripts/argon2-options.cjs";
+import ARGON2_OPTIONS from "./argon2-options.cjs";
 
 /**
  * Everything that touches the one secret the repository cannot hold.
@@ -16,11 +16,10 @@ import ARGON2_OPTIONS from "@/scripts/argon2-options.cjs";
  *
  * Single-use codes are `lib/auth/tokens.ts`, not here.
  *
- * The argon2 parameters are imported from `scripts/argon2-options.cjs` rather
- * than declared here, even though this is the module that owns the decision.
- * The operational scripts write hashes `verifyPassword` has to accept and
- * cannot read a `.ts`, so the only file all four callers can share is a `.cjs`
- * one — see the comment there.
+ * The argon2 parameters live in `./argon2-options.cjs` rather than as a
+ * constant in this file: `scripts/create-account.cjs` writes hashes
+ * `verifyPassword` has to accept and cannot read a `.ts`. The `.cjs` is still
+ * this module's — the tool imports it, not the other way round.
  */
 
 /**

@@ -13,7 +13,7 @@ import type { InlineJudge } from "@/lib/problems/types";
  *
  * The expected answers stay in `backend.config`, exactly as they did when a
  * backend read them: `toPublicConfig` strips the whole `backend` key before
- * anything reaches a browser, and `scripts/check-client-bundle.cjs` fails the
+ * anything reaches a browser, and `test/check-client-bundle.ts` fails the
  * build if one of these strings turns up in a client chunk anyway.
  */
 interface OutputCase {

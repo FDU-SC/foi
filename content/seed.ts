@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import { Pool } from "pg";
 import { accounts, credentials } from "../lib/db/schema";
-import ARGON2_OPTIONS from "../scripts/argon2-options.cjs";
+import ARGON2_OPTIONS from "../lib/auth/argon2-options.cjs";
 
 /**
  * Creates the development accounts and gives them all one password.

@@ -35,13 +35,14 @@ const crypto = require("node:crypto");
 const { hash } = require("@node-rs/argon2");
 const { Client } = require("pg");
 
-// See the note in set-password.cjs: fed through `node -`, a relative require
-// resolves against the working directory rather than against this file.
+// Fed through `node -`, a relative require resolves against the working
+// directory rather than against this file. The application owns the file;
+// this tool reads it.
 const ARGON2_OPTIONS = (() => {
   try {
-    return require("./argon2-options.cjs");
+    return require("../lib/auth/argon2-options.cjs");
   } catch {
-    return require("./scripts/argon2-options.cjs");
+    return require("./lib/auth/argon2-options.cjs");
   }
 })();
 

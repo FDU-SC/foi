@@ -4,7 +4,7 @@
  *
  * That marker is what actually holds the boundary: reaching a content glob
  * from a client component fails the build, at the import, naming the file.
- * This script cannot do that — it reads minified output after the fact, and
+ * This check cannot do that — it reads minified output after the fact, and
  * every protocol marker below is a guess about what Turbopack emits.
  * `s.s(["problem"` is its codegen shape and will stop matching at some
  * upgrade, silently and with a green build.
@@ -15,13 +15,13 @@
  * without the marker — and a green result means only that these strings were
  * absent.
  */
-const { readdirSync, readFileSync, existsSync } = require("node:fs");
-const { join } = require("node:path");
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const root = join(process.cwd(), ".next", "static");
-const files = [];
+const files: string[] = [];
 
-function collect(directory) {
+function collect(directory: string) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
     if (entry.isDirectory()) collect(path);
@@ -65,27 +65,32 @@ const PROTOCOL_MARKERS = [
  */
 const MARKERS_FILE = join(process.cwd(), "content", "leak-markers.json");
 
-function contentMarkers() {
+function contentMarkers(): { label: string; value: string }[] | null {
   if (!existsSync(MARKERS_FILE)) return null;
 
-  const parsed = JSON.parse(readFileSync(MARKERS_FILE, "utf8"));
+  const parsed: unknown = JSON.parse(readFileSync(MARKERS_FILE, "utf8"));
   if (!Array.isArray(parsed)) {
     throw new Error("content/leak-markers.json 必须是一个数组");
   }
   for (const marker of parsed) {
-    if (typeof marker?.label !== "string" || typeof marker?.value !== "string") {
+    if (
+      typeof marker !== "object" ||
+      marker === null ||
+      typeof (marker as { label?: unknown }).label !== "string" ||
+      typeof (marker as { value?: unknown }).value !== "string"
+    ) {
       throw new Error(
         "content/leak-markers.json 的每一项都要有字符串 label 与 value",
       );
     }
   }
-  return parsed;
+  return parsed as { label: string; value: string }[];
 }
 
 const declared = contentMarkers();
 const markers = [...PROTOCOL_MARKERS, ...(declared ?? [])];
 
-const findings = [];
+const findings: string[] = [];
 for (const file of files) {
   const source = readFileSync(file, "utf8");
   for (const marker of markers) {

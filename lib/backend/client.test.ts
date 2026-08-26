@@ -20,11 +20,31 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+/**
+ * Every declared backend gets an address for the duration of this file.
+ *
+ * These suites are about signing and about content types, and they used to get
+ * an address for free: outside production the kernel filled an unconfigured
+ * backend in with `http://localhost:4100`, the mock this repository happens to
+ * ship. It no longer does — an address nobody configured reads as `undefined`
+ * whatever `NODE_ENV` says — so the dependency is declared here instead of
+ * inherited from a default that was one deployment's habit.
+ */
+const unaddressed = new Map<string, ProblemBackend>();
+
 beforeEach(() => {
   vi.stubEnv("FOI_BACKEND_SECRET", "test-secret");
+
+  for (const [id, entry] of Object.entries(backends)) {
+    if (entry.url) continue;
+    unaddressed.set(id, entry);
+    backends[id] = { ...entry, url: `http://${id}.test` };
+  }
 });
 
 afterEach(() => {
+  for (const [id, entry] of unaddressed) backends[id] = entry;
+  unaddressed.clear();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });

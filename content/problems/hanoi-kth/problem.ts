@@ -18,8 +18,11 @@ export const problem = {
       ],
     },
   },
-  ui: { submit: "code", languages: ["cpp", "python"] } satisfies ProblemUi,
-  tags: ["递归", "分治", "趣味"],
-  difficulty: "普及",
+  ui: {
+    submit: "code",
+    languages: ["cpp", "python"],
+    tags: ["递归", "分治", "趣味"],
+    difficulty: "普及",
+  } satisfies ProblemUi,
   order: 9,
 } satisfies ProblemConfigInput;

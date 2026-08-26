@@ -1,7 +1,7 @@
 import type { ContestConfigInput } from "@/lib/contests/types";
 
 /**
- * The worked example for a contest, and the one `scripts/demo-data.sql`
+ * The worked example for a contest, and the one `content/demo-data.sql`
  * attributes its seeded submissions to.
  *
  * It deliberately references only `maze-runner`: this directory is on the

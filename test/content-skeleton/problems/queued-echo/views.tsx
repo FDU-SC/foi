@@ -2,7 +2,7 @@
 
 /**
  * How this problem draws what came back, found by
- * `content/problem-view-modules.ts`.
+ * `content-problem-view-modules.ts`.
  *
  * The skeleton fills this slot on exactly one of its three problems, on
  * purpose. `inline-echo` and `withdrawn` ship no `views.tsx` at all, so their

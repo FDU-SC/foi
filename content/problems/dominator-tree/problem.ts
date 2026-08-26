@@ -18,8 +18,11 @@ export const problem = {
       ],
     },
   },
-  ui: { submit: "code", languages: ["cpp", "python"] } satisfies ProblemUi,
-  tags: ["图论", "支配树", "Lengauer-Tarjan"],
-  difficulty: "NOI",
+  ui: {
+    submit: "code",
+    languages: ["cpp", "python"],
+    tags: ["图论", "支配树", "Lengauer-Tarjan"],
+    difficulty: "NOI",
+  } satisfies ProblemUi,
   order: 7,
 } satisfies ProblemConfigInput;

@@ -1,4 +1,4 @@
-import { contestModules } from "@/content/contest-modules";
+import { contestModules } from "@/content-contest-modules";
 import { handleSchema, normalizeHandle } from "@/lib/accounts/types";
 import { knownGroups } from "@/lib/enrollment/registry";
 import { audienceCovers, describeAudience } from "@/lib/auth/audience";
@@ -102,7 +102,7 @@ function buildRegistry(): Map<string, ContestConfig> {
     // schedule says the board stops updating, and it does not. Nothing showed
     // this before — the config validated, the contest loaded, and the mistake
     // only surfaced when the board failed to freeze during a live round.
-    if (parsed.data.freezeAt && !ruleset.supportsFreeze) {
+    if (parsed.data.freezeAt && ruleset.supportsFreeze !== true) {
       throw new Error(
         `${path} 配置了 freezeAt，但赛制 "${ruleset.id}" 不支持封榜，这个字段不会有任何效果。请去掉 freezeAt，或改用支持封榜的赛制。`,
       );

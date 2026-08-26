@@ -11,7 +11,7 @@ import type { ProblemConfigInput } from "@/lib/problems/types";
  * is a skeleton somebody will trim.
  *
  * `config` is forwarded to the runner verbatim and the kernel never reads it.
- * What is here is the least `scripts/mock-backend.ts` needs to recognise the
+ * What is here is the least `content/mock-runner.ts` needs to recognise the
  * job; a real problem puts testdata locations and limits in the same place.
  */
 export const problem = {
@@ -30,6 +30,5 @@ export const problem = {
     },
   },
   ui: { submit: "code", languages: ["cpp", "python"] } satisfies ProblemUi,
-  tags: ["示例"],
   order: 2,
 } satisfies ProblemConfigInput;

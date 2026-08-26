@@ -1,7 +1,7 @@
 import {
   contestRulesetModules,
   rulesetModules,
-} from "@/content/ruleset-modules";
+} from "@/content-ruleset-modules";
 import type { AnyRuleset } from "./types";
 
 /**
@@ -31,12 +31,23 @@ function exportedRuleset(path: string, mod: unknown): AnyRuleset {
   if (
     typeof candidate.id !== "string" ||
     typeof candidate.name !== "string" ||
-    typeof candidate.computeStandings !== "function" ||
-    typeof candidate.supportsFreeze !== "boolean"
+    typeof candidate.computeStandings !== "function"
   ) {
     throw new Error(
-      `${path} 导出的 ruleset 不符合 Ruleset 接口，请检查 id、name、supportsFreeze 与 computeStandings。`,
+      `${path} 导出的 ruleset 不符合 Ruleset 接口，请检查 id、name 与 computeStandings。`,
     );
+  }
+
+  // `supportsFreeze` is not on that list: absent means "does not freeze", so
+  // there is nothing to check for. A value of the wrong type is worth catching
+  // though — `supportsFreeze: "yes"` is truthy, and would let a contest set a
+  // `freezeAt` that the format then ignores, which is the exact failure the
+  // field exists to prevent.
+  if (
+    candidate.supportsFreeze !== undefined &&
+    typeof candidate.supportsFreeze !== "boolean"
+  ) {
+    throw new Error(`${path} 的 supportsFreeze 必须是布尔值，或者干脆不写。`);
   }
 
   return candidate as AnyRuleset;

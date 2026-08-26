@@ -2,7 +2,7 @@ import type { ComponentType } from "react";
 import {
   problemConfigModules,
   problemStatementModules,
-} from "@/content/problem-modules";
+} from "@/content-problem-modules";
 import {
   isInlineBackend,
   problemConfigSchema,
@@ -15,9 +15,11 @@ import {
  * means creating a directory under `content/problems/` — no registration step,
  * and Turbopack's watcher picks up additions and removals during `next dev`.
  *
- * The globs themselves live under `content/` because Turbopack only scans
- * downward from the calling file. Configs load eagerly; statements load lazily
- * from a module marked `server-only`, so their chunks remain on the server.
+ * The globs themselves live at the repository root, because Turbopack only
+ * scans downward from the calling file and the root is the nearest place that
+ * outlives the directory it scans — see `content-problem-modules.ts`. Configs
+ * load eagerly; statements load lazily from a module marked `server-only`, so
+ * their chunks remain on the server.
  */
 function slugFromPath(path: string): string | null {
   return path.match(/\/problems\/([^/]+)\/[^/]+$/)?.[1] ?? null;
@@ -82,8 +84,13 @@ const statementLoaders = new Map<string, () => Promise<unknown>>(
  * the other lives in the gate is how they drift apart.
  */
 export function allProblems(): ProblemConfig[] {
+  // `order` first, then title. The comparison used to name `zh` as its locale,
+  // which sorted a deployment's titles by one language's collation whatever
+  // language they were written in. Left to the runtime, it follows the
+  // environment — and a deployment that cares about the order says so with
+  // `order`, which is what that field is for.
   return [...registry.values()].sort(
-    (a, b) => a.order - b.order || a.title.localeCompare(b.title, "zh"),
+    (a, b) => a.order - b.order || a.title.localeCompare(b.title),
   );
 }
 

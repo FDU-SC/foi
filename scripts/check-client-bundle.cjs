@@ -1,5 +1,6 @@
 /**
- * The belt. The braces are `import "server-only"` in `content/*-modules.ts`.
+ * The belt. The braces are `import "server-only"` in the root
+ * `content-*-modules.ts` globs.
  *
  * That marker is what actually holds the boundary: reaching a content glob
  * from a client component fails the build, at the import, naming the file.

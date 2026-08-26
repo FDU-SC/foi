@@ -11,7 +11,7 @@ import { actionMail, codeMail } from "./layout";
  * This is copy, and copy is deployment-specific — a school competition and a
  * public CTF want different words for the same event — so it lives under
  * `content/` next to the problem statements and the enrollment rules rather
- * than in `lib/`. The kernel finds this file through `content/email-modules.ts`
+ * than in `lib/`. The kernel finds this file through `content-email-modules.ts`
  * and checks that both exports are here; which messages exist is its decision,
  * what they say is this file's.
  */

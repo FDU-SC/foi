@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { enrollmentModules } from "@/content/enrollment-modules";
+import { enrollmentModules } from "@/content-enrollment-modules";
 import { CAPABILITIES, IMPLIES, type Capability } from "./policy";
 
 /**

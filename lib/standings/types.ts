@@ -85,7 +85,7 @@ export interface Standings<Cell> {
  * knows this interface, and has no built-in notion of penalty time, subtask
  * totals or dynamic scoring. A new format is a new file in `content/rulesets/`,
  * or a `ruleset.tsx` beside one contest's own definition; see
- * `content/ruleset-modules.ts` for when each is the right choice.
+ * `content-ruleset-modules.ts` for when each is the right choice.
  *
  * `computeStandings` is a pure function over every submission in the contest,
  * which keeps formats where one solve changes everyone's score expressible
@@ -96,19 +96,31 @@ export interface Ruleset<Cell = unknown> {
   name: string;
   description: string;
   /**
-   * Whether this format implements the freeze window.
+   * Whether this format implements the freeze window. Omitted means it does
+   * not.
    *
-   * Required rather than optional so that writing a new format forces an
-   * answer. Freezing is not something the kernel can do on a format's behalf —
-   * it has to decide what a submission made after the cutoff looks like, and a
+   * Freezing is not something the kernel can do on a format's behalf — it has
+   * to decide what a submission made after the cutoff looks like, and a
    * "pending" cell on a solve-count board has no counterpart on a score-based
-   * one — so a format that has not implemented it must say so.
-   * `lib/contests/registry.ts`
-   * then refuses to load a contest that sets `freezeAt` against a format that
-   * would quietly ignore it, which is how that mistake used to surface: not at
-   * all, until the board failed to freeze during a live round.
+   * one — so `lib/contests/registry.ts` refuses to load a contest that sets
+   * `freezeAt` against a format that would quietly ignore it. That is how the
+   * mistake used to surface: not at all, until the board failed to freeze
+   * during a live round.
+   *
+   * Optional, where it used to be required so that writing a new format forced
+   * an answer. The trouble with forcing it is what the answer is a question
+   * about: freezing the scoreboard for the last hour is one competition
+   * tradition's ritual, and requiring the field made every format that has
+   * never heard of it open by declining to implement it. Both templates that
+   * do not freeze wrote `supportsFreeze: false` above a paragraph explaining
+   * why a format nobody asked to freeze does not freeze. Silence says the same
+   * thing, and says it without conscripting the next format into the argument.
+   *
+   * What is *not* softened is the check: a contest naming `freezeAt` against a
+   * format that says nothing still fails to load. Only the direction of the
+   * default moved.
    */
-  supportsFreeze: boolean;
+  supportsFreeze?: boolean;
   computeStandings(input: StandingsInput): Standings<Cell>;
   render?: {
     Cell?: ComponentType<{ cell: Cell | undefined; problem: ContestProblem }>;

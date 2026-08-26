@@ -10,7 +10,8 @@ import { allProblems, externallyJudged } from "@/lib/problems/registry";
 import type { ExternallyJudged, ProblemConfig } from "@/lib/problems/types";
 
 /**
- * What the kernel's own suites need `content/` to contain, found by shape.
+ * What the kernel's own suites need their mounted content to contain, found by
+ * shape.
  *
  * The gates, the action whitelist and the submission path are all written
  * against the live registries, and deliberately: a fixture registry would
@@ -26,9 +27,17 @@ import type { ExternallyJudged, ProblemConfig } from "@/lib/problems/types";
  * all of them. A deployment whose content is missing one gets told which
  * mechanism is going untested rather than which slug is missing.
  *
+ * Which content is mounted is `FOI_TEST_CONTENT`'s decision, not this file's:
+ * unset means the repository's own `content/`, which is the default and the
+ * arrangement worth keeping, and `skeleton` means the fixture — see
+ * `vitest.config.mts`. That switch is what lets `content-absent` delete
+ * `content/` and still run every suite here: the shapes are then supplied by
+ * the kernel rather than borrowed from a deployment.
+ *
  * Facts about one deployment's own content — that its demo round charges
  * twenty penalty minutes, that its warmup is retired — belong in
- * `content/deployment.test.ts` instead.
+ * `content/deployment.test.ts` instead, which the `deployment` project runs
+ * against the real directory whatever `FOI_TEST_CONTENT` says.
  */
 
 function required<T>(value: T | undefined, shape: string): T {

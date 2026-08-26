@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
  *
  * The kernel's `mdx-components.tsx` styles headings, tables and code fences
  * and stops there; everything a statement *writes* comes from here, merged in
- * through `content/presentation-modules.ts`. Which components exist is
+ * through `content-presentation-modules.ts`. Which components exist is
  * therefore a deployment's decision, and these two are the skeleton's whole
  * answer — deliberately not the same set the repository's own content ships,
  * so that nothing in `lib/` can be quietly depending on `Sample` existing.

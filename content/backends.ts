@@ -7,7 +7,7 @@ import type { ProblemBackend } from "@/lib/backend/types";
  * A problem's `backend.id` selects an entry here. Adding a backend means
  * adding a key — the kernel neither knows nor cares what the service does with
  * the payload it forwards, and it finds this file through
- * `content/backend-modules.ts` rather than importing it by name.
+ * `content-backend-modules.ts` rather than importing it by name.
  *
  * Only the problems that genuinely need a service are here. Three entries used
  * to live alongside these and no longer do — `flag-checker`, `output-only` and

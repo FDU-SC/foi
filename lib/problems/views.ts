@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { problemViewModules } from "@/content/problem-view-modules";
+import { problemViewModules } from "@/content-problem-view-modules";
 import type { Verdict } from "@/lib/backend/types";
 
 /**
@@ -40,7 +40,7 @@ function buildRegistry(): Map<string, ProblemViews> {
   for (const [path, mod] of Object.entries(problemViewModules)) {
     const slug = path.match(SLUG)?.[1];
     // The glob cannot match anything else, so a miss means the pattern above
-    // and the one in `content/problem-view-modules.ts` have drifted apart.
+    // and the one in `content-problem-view-modules.ts` have drifted apart.
     if (!slug) throw new Error(`无法从 ${path} 解析出题目 slug`);
 
     const exported = mod as ProblemViews;

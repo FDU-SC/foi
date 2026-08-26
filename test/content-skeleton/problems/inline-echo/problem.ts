@@ -40,6 +40,5 @@ export const problem = {
     config: { expected: "echo" } satisfies EchoConfig,
   },
   ui: { submit: "text", placeholder: "把提示里的词原样填回来" } satisfies ProblemUi,
-  tags: ["示例"],
   order: 1,
 } satisfies ProblemConfigInput;

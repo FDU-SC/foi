@@ -1,5 +1,5 @@
-import { backendModules } from "@/content/backend-modules";
-import type { ProblemBackend } from "./types";
+import { backendModules } from "@/content-backend-modules";
+import { INLINE_BACKEND_ID, type ProblemBackend } from "./types";
 
 /**
  * The backends this deployment declares, discovered the same way problems and
@@ -54,6 +54,21 @@ function buildRegistry(): {
       throw new Error(
         `${path} 里的后端 id "${id}" 只能包含小写字母、数字和连字符：` +
           `这个名字会拼进 FOI_BACKEND_<名字>_SECRET`,
+      );
+    }
+
+    // The one name the kernel has already spent. `submissions.backendId` is
+    // `not null`, so an inline judgement is recorded under this sentinel, and
+    // a declared backend sharing it would make the two indistinguishable: the
+    // queue board would count settled inline rows as work waiting for a
+    // runner, and a runner signing as `inline` would be handed rows it must
+    // never see. Refused here rather than documented, because the previous
+    // argument for why this could not happen — that nobody would set
+    // `FOI_BACKEND_INLINE_SECRET` — described a habit rather than a rule.
+    if (id === INLINE_BACKEND_ID) {
+      throw new Error(
+        `${path} 声明了名为 "${INLINE_BACKEND_ID}" 的后端，这个名字被内核占用了：` +
+          `内联判题的提交就记在这个 backendId 下。换一个名字。`,
       );
     }
   }

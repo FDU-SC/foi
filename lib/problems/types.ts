@@ -264,21 +264,22 @@ export const problemConfigSchema = z.object({
    * deployment ship a submitter that takes something else entirely without
    * asking for a schema change.
    *
+   * `tags` and `difficulty` were the last two fields to move in here, and they
+   * went for the reason the others did. Nothing in the kernel ever read them —
+   * no gate, no queue, no board — they were only drawn as badges on three
+   * pages, which is to say they were a taxonomy this deployment happens to
+   * sort its problems by. `difficulty` had already been walked halfway: it was
+   * a closed enum holding the five rungs of one country's olympiad ladder,
+   * and softening it to free text left the kernel still asserting that
+   * problems have exactly one difficulty and that it is a string. A deployment
+   * that grades on two axes, or on none, now says so without a schema change,
+   * and draws whatever it means through `Presentation.ProblemBadges`.
+   *
    * Reaches the browser, unlike `backend.config` — `toPublicConfig` strips
    * that one and not this one. Nothing secret goes here.
    */
   ui: z.unknown().optional(),
 
-  tags: z.array(z.string()).default([]),
-  /**
-   * Free text, rendered as a badge and never compared against anything.
-   *
-   * A closed enum once, holding the five rungs of one country's olympiad
-   * ladder. Which rungs exist is a fact about a syllabus, and a deployment
-   * that grades on a different one should not have to edit the kernel to say
-   * so.
-   */
-  difficulty: z.string().min(1).optional(),
   /**
    * Which groups may see this problem. Omitted means everyone, `[]` means
    * nobody — that is how a problem is staged before it has an audience.

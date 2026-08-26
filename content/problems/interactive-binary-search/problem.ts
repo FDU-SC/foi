@@ -21,8 +21,8 @@ export const problem = {
     submit: "code",
     languages: ["cpp"],
     placeholder: "实现 void solve()，可调用 query() 与 answer()",
+    tags: ["交互", "二分", "示例"],
+    difficulty: "入门",
   } satisfies ProblemUi,
-  tags: ["交互", "二分", "示例"],
-  difficulty: "入门",
   order: 4,
 } satisfies ProblemConfigInput;

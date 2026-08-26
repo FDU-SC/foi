@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getResolvedUser } from "@/auth";
+import { ProblemBadges } from "@/components/problem/problem-badges";
 import { ProblemProvider } from "@/components/problem/problem-context";
 import { Badge } from "@/components/ui/badge";
 import { describeAudience } from "@/lib/auth/audience";
@@ -179,16 +180,8 @@ export default async function ProblemPage({
           <h1 className="text-fg text-2xl font-bold tracking-tight">
             {config.title}
           </h1>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {config.difficulty ? (
-              <Badge tone="primary">{config.difficulty}</Badge>
-            ) : null}
-            {config.tags.map((tag) => (
-              <Badge key={tag}>{tag}</Badge>
-            ))}
-            <span className="text-fg-subtle ml-auto font-mono text-xs tabular-nums">
-              满分 {config.maxScore}
-            </span>
+          <div className="mt-3 flex flex-wrap items-center gap-2 empty:mt-0">
+            <ProblemBadges config={config} />
           </div>
         </header>
 

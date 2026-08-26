@@ -37,8 +37,11 @@ export const problem = {
       ],
     } satisfies OutputOnlyConfig,
   },
-  ui: { submit: "text", placeholder: "每行一个答案，按场景顺序" } satisfies ProblemUi,
-  tags: ["提交答案", "示例"],
-  difficulty: "入门",
+  ui: {
+    submit: "text",
+    placeholder: "每行一个答案，按场景顺序",
+    tags: ["提交答案", "示例"],
+    difficulty: "入门",
+  } satisfies ProblemUi,
   order: 99,
 } satisfies ProblemConfigInput;

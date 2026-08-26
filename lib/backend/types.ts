@@ -6,7 +6,7 @@ import type { BadgeTone } from "@/components/ui/badge";
  *
  * The type is the kernel's; the list of backends is not. A deployment declares
  * its own in `content/backends.ts`, discovered through
- * `content/backend-modules.ts` the way problems and rulesets are, and the
+ * `content-backend-modules.ts` the way problems and rulesets are, and the
  * conventions for spelling one out of the environment are in `./env.ts`.
  *
  * "Backend" rather than "judge" because judging is one of the things these
@@ -61,9 +61,11 @@ export interface ProblemBackend {
  *
  * The column is `not null` because every other row has a real backend to name,
  * and a sentinel keeps it that way rather than making every reader handle a
- * null. Safe as a value because `content/backends.ts` keys double as
- * environment-variable fragments: a real entry by this name would need
- * `FOI_BACKEND_INLINE_SECRET`, which nothing sets.
+ * null. Safe as a value because the registry refuses a declared backend by
+ * this name — see `lib/backend/registry.ts`. It used to be safe only by
+ * observation, the argument being that a real entry would need somebody to set
+ * `FOI_BACKEND_INLINE_SECRET` and nobody would; that is a description of what
+ * has happened so far, not a property.
  *
  * Rows carrying it are written to a terminal state in the same request that
  * created them, so no runner ever sees one — `claimJob` selects by backend id

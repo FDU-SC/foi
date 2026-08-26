@@ -21,6 +21,5 @@ export const problem = {
   },
   ui: { submit: "none" },
   retired: true,
-  tags: ["示例"],
   order: 3,
 } satisfies ProblemConfigInput;

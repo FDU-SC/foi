@@ -95,7 +95,7 @@ describe("这套 content 自身自洽", () => {
 describe("演示赛", () => {
   const demo = contestBySlug("demo-acm");
 
-  it("存在，并且 scripts/demo-data.sql 的种子提交挂得上", () => {
+  it("存在，并且 content/demo-data.sql 的种子提交挂得上", () => {
     expect(demo).toBeDefined();
   });
 

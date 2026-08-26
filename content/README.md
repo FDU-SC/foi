@@ -1,13 +1,14 @@
 # 这套 content
 
 平台在上一层。这里是**一份**部署：一批题、三种赛制、四个题目后端、一场演示赛，
-外加注册规则、邮件文案和题面词汇。
+外加注册规则、邮件文案和题面词汇。它同时是写自己那一套时的参考实现，所以它是完
+整的而不是最小的——完整是为了把平台的每一种能力都摆出来一次。
 
 这些都是示例，不是平台的一部分。判据在仓库根 README 的「[换掉
-content](../README.md#换掉-content)」：CI 每个 PR 跑两遍全套检查，一遍把这个目
-录换成 `test/content-skeleton/`，一遍把它整个删掉。两遍都得绿。所以下面写到的
-任何东西——包括 `traditional` 这个后端名、`demo-acm` 这场比赛、「省选」这个难
-度——内核都不认识。
+content](../README.md#换掉-content)」：CI 每个 PR 把这个目录整个删掉再跑一遍类型
+检查、lint、构建与冒烟，另有一条用例断言内核源码里不出现这里的任何一个名字。所
+以下面写到的任何东西——包括 `traditional` 这个后端名、`demo-acm` 这场比赛、「省
+选」这个难度——内核都不认识。
 
 八份 `content-*-modules.ts` 不在这里，在仓库根上。它们是内核声明 server/client
 边界的地方，扫的是 `./content/...`，换 content 不换它们。
@@ -30,6 +31,31 @@ content](../README.md#换掉-content)」：CI 每个 PR 跑两遍全套检查，
 | `seed.ts` / `demo-data.sql` | 开发账号与演示赛的种子提交 |
 | `env.example` | 这套 content 需要的环境变量 |
 | `leak-markers.json` | 只该留在服务端的字符串，给构建期的兜底扫描 |
+
+## 最少需要什么
+
+上面这些几乎全是可选的。严格说一样都不需要——`content/` 整个不存在，平台照样起得
+来，八个注册表都把「空」当作合法部署，只是没有东西可做。要让它有用，最少是一道
+题：一份 `problems/<slug>/problem.ts` 加一份 `statement.mdx`；题目挂在外部后端上
+的话，再加 `backends.ts` 里的一条名册。
+
+其余每一样缺了都有回落，不会拦住启动：
+
+| 缺什么 | 会怎样 |
+| --- | --- |
+| `contests/` | 题目就是散题，没有榜 |
+| `rulesets/` | 同上，赛制是比赛才用得到的 |
+| `problems/<slug>/views.tsx` | 提交内容与评测详情回落成格式化 JSON |
+| `components/index.tsx` | 题面只能用 `mdx-components.tsx` 给的那些元素 |
+| `verdicts.ts` | 评测结论显示原字符串，颜色按分数推 |
+| `enrollment/` | 注册不分流、不限域名，没有人能进 `/admin` |
+| `emails/` | 验证码与重置密码用内置纯文本 |
+
+启动时每一样缺失都会打一条点名的警告，而不是静悄悄降级。
+
+内核的**测试**要求的比这多：[`test/content-shapes.ts`](../test/content-shapes.ts)
+列了七种形状——一道 retired 的题、一道声明了 actions 的题、一种支持封榜的赛制，等
+等。那是跑 `pnpm test` 的前提，不是跑平台的前提。
 
 ## 题目
 

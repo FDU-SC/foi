@@ -18,9 +18,7 @@ import "server-only";
  * `content/`, which made the claim "the platform is a thin kernel and content
  * is replaceable" untestable at its strongest form: `rm -rf content` took the
  * boundary declarations with it and the build failed at module resolution,
- * long before anything interesting could be learned. It also forced
- * `test/content-skeleton/` to carry byte-identical copies of all eight, two
- * declarations of one boundary that could drift in silence. From the root they
+ * long before anything interesting could be learned. From the root they
  * survive the directory they scan, so a deployment can delete `content/`
  * outright and the kernel still compiles, boots and serves — see the
  * `content-absent` job in `.github/workflows/check.yml`, which is that

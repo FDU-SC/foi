@@ -52,7 +52,7 @@ describe("挂载的 content 能撑起内核用例", () => {
   it("有一道声明了 actions 的在役题目", () => {
     const { action } = problemWithAction();
     // Not one of the backend's own protocol paths — `actionFor` refuses those
-    // whatever a problem declares, so a skeleton naming one would exercise the
+    // whatever a problem declares, so content naming one would exercise the
     // refusal instead of the relay.
     expect(["judge", "queue", "status"]).not.toContain(action);
   });

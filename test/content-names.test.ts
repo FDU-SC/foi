@@ -39,16 +39,13 @@ import { listRulesets } from "@/lib/standings/registry";
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 /**
- * `content/` is excluded because naming its own problems is its job, and
- * `test/content-skeleton/` for exactly the same reason — it is content as
- * well, mounted by a different job. `drizzle/` holds generated SQL, `public/`
- * is not source.
+ * `content/` is excluded because naming its own problems is its job.
+ * `drizzle/` holds generated SQL, `public/` is not source.
  */
 const SKIP = new Set([
   ".git",
   ".next",
   "content",
-  "content-skeleton",
   "coverage",
   "drizzle",
   "node_modules",

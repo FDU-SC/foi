@@ -16,8 +16,7 @@ if (existsSync(".env.local")) process.loadEnvFile(".env.local");
  * functions and runs anywhere; `db` talks to a real Postgres and skips itself
  * when there is none, so a checkout without a database still gets the scoring
  * and signature coverage. `deployment` is the tests `content/` writes about
- * itself, and it is separate for the reason spelled out under
- * `FOI_TEST_CONTENT` below.
+ * itself, which is a different question from anything the kernel asks.
  *
  * The first two collect from the whole tree rather than from a list of
  * directories. They used to name `lib/` and `content/`, which meant a test
@@ -50,38 +49,20 @@ const serverOnly = {
 };
 
 /**
- * Where the kernel's suites get their content from.
+ * There is no fixture content, and that is the arrangement rather than a gap.
  *
- * Unset, which is the default and what a developer gets: the repository's own
- * `content/`. That arrangement is worth keeping as the default — the gates,
- * the action whitelist and the submission path are written against the live
- * registries on purpose, because a fixture registry would happily agree with a
- * gate that had drifted, and would not catch a contest file that forgot a
- * problem.
+ * The kernel's suites run against whatever `content/` is mounted, on purpose:
+ * the gates, the action whitelist and the submission path are written against
+ * the live registries, and a fixture registry would happily agree with a gate
+ * that had drifted, or fail to notice a contest file that forgot a problem.
+ * What they must not do is name a slug — they ask by shape, and the shapes are
+ * listed in `test/content-shapes.ts`.
  *
- * `skeleton` points the eight `@/content-*-modules` specifiers at the matching
- * `test/skeleton-*-modules.ts`, which glob `test/content-skeleton/`. That is
- * not a way of switching the checks off: the same suites run with the same
- * assertions, only the material comes from a fixture the kernel owns rather
- * than from a deployment. It exists because `test/content-shapes.ts` asks
- * `content/` for seven shapes, and the `content-absent` CI job deletes
- * `content/` outright — without this, proving the platform boots with no
- * content would mean giving up on running its tests at the same time.
- *
- * One rule with a capture rather than eight entries, and eight files on the
- * other side rather than one: see the note in
- * `test/skeleton-problem-modules.ts` on why merging them deadlocks the loader.
+ * A tree with no `content/` at all therefore does not run these suites; it
+ * runs `pnpm typecheck`, `pnpm build` and the smoke check, which is what the
+ * `content-absent` job does. Handing the kernel a fixture so that it could run
+ * tests there too would only have those tests assert the fixture's facts.
  */
-const skeleton = {
-  find: /^@\/content-([a-z-]+)-modules$/,
-  replacement: `${fileURLToPath(new URL("./test", import.meta.url))}/skeleton-$1-modules.ts`,
-};
-
-const kernelAlias =
-  process.env.FOI_TEST_CONTENT === "skeleton"
-    ? [serverOnly, skeleton]
-    : [serverOnly];
-
 export default defineConfig({
   resolve: {
     tsconfigPaths: true,
@@ -99,7 +80,6 @@ export default defineConfig({
     projects: [
       {
         extends: true,
-        resolve: { alias: kernelAlias },
         test: {
           name: "unit",
           include: EVERYWHERE,
@@ -108,7 +88,6 @@ export default defineConfig({
       },
       {
         extends: true,
-        resolve: { alias: kernelAlias },
         test: {
           name: "db",
           include: DB_ONLY,
@@ -120,23 +99,22 @@ export default defineConfig({
       },
       {
         extends: true,
-        // Deliberately without the skeleton alias, whatever `FOI_TEST_CONTENT`
-        // says. These tests are `content/` checking its own work — that the
-        // demo round charges twenty penalty minutes, that the verdict table is
-        // actually wired into the presentation export — and pointing them at a
-        // fixture would have them assert the fixture's facts and pass.
-        resolve: { alias: [serverOnly] },
+        // Separate because it asks a different question. These are `content/`
+        // checking its own work — that the demo round charges twenty penalty
+        // minutes, that the verdict table is actually wired into the
+        // presentation export — and none of it is a fact about the platform.
+        // A deployment that replaces this directory replaces these too.
         test: {
           name: "deployment",
           include: DEPLOYMENT,
           exclude: NOT_SOURCE,
           // Nothing here declares `passWithNoTests`, and nothing needs to: a
           // project contributing no files is only an error when *no* project
-          // contributes any, so this one matching nothing — a deployment with
-          // no tests, or the `content-absent` job's empty tree — passes on the
-          // strength of the two above. Setting it at the root instead would
-          // buy this case at the price of the one worth catching, which is a
-          // typo in `include` turning a suite off in silence.
+          // contributes any, so this one matching nothing — a deployment that
+          // writes no tests about itself — passes on the strength of the two
+          // above. Setting it at the root instead would buy this case at the
+          // price of the one worth catching, which is a typo in `include`
+          // turning a suite off in silence.
           //
           // Collects `content/`'s database tests too, rather than leaving them
           // to the `db` project, which excludes this directory. Serial for the

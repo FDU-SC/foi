@@ -22,29 +22,33 @@ import type { ExternallyJudged, ProblemConfig } from "@/lib/problems/types";
  * platform's test suite. Swap `content/` and the kernel stopped compiling.
  *
  * So the dependency stays and the names go. Each finder below describes a
- * *shape*, throws a message naming that shape when nothing matches, and points
- * at `test/content-skeleton/`, which is the reference content that satisfies
- * all of them. A deployment whose content is missing one gets told which
- * mechanism is going untested rather than which slug is missing.
+ * *shape* and throws a message naming that shape when nothing matches, so a
+ * deployment whose content is missing one is told which mechanism is going
+ * untested rather than which slug it should have written.
  *
- * Which content is mounted is `FOI_TEST_CONTENT`'s decision, not this file's:
- * unset means the repository's own `content/`, which is the default and the
- * arrangement worth keeping, and `skeleton` means the fixture — see
- * `vitest.config.mts`. That switch is what lets `content-absent` delete
- * `content/` and still run every suite here: the shapes are then supplied by
- * the kernel rather than borrowed from a deployment.
+ * There is no fixture behind any of this, deliberately. A tree with no
+ * `content/` does not run these suites at all — it typechecks, builds and
+ * boots, which is what `content-absent` checks — because the alternative was
+ * a fixture registry for the kernel to test itself against, and a fixture
+ * registry agrees with whatever it was written next to.
+ *
+ * That makes the list below a standing obligation on `content/`, which is why
+ * adding to it is not free: a new shape has to be something the shipped
+ * example would plausibly contain anyway. If it is not, the requirement is
+ * probably the kernel wanting a particular deployment rather than the suite
+ * wanting a mechanism exercised.
  *
  * Facts about one deployment's own content — that its demo round charges
  * twenty penalty minutes, that its warmup is retired — belong in
  * `content/deployment.test.ts` instead, which the `deployment` project runs
- * against the real directory whatever `FOI_TEST_CONTENT` says.
+ * separately.
  */
 
 function required<T>(value: T | undefined, shape: string): T {
   if (value === undefined) {
     throw new Error(
       `内核测试需要 content/ 里有${shape}。` +
-        `参考 test/content-skeleton/，那份骨架满足所有这类要求。`,
+        `完整清单见 test/content-shapes.ts，上游那套示例 content 每一条都满足。`,
     );
   }
   return value;

@@ -6,7 +6,7 @@ import type { BadgeTone } from "@/lib/presentation";
  *
  * The type is the kernel's; the list of backends is not. A deployment declares
  * its own in `content/backends.ts`, discovered through
- * `content-backend-modules.ts` the way problems and rulesets are, and the
+ * `content/backend-modules.ts` the way problems and rulesets are, and the
  * conventions for spelling one out of the environment are in `./env.ts`.
  *
  * "Backend" rather than "judge" because judging is one of the things these

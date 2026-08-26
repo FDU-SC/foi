@@ -58,10 +58,11 @@ const serverOnly = {
  * What they must not do is name a slug — they ask by shape, and the shapes are
  * listed in `test/content-shapes.ts`.
  *
- * A tree with no `content/` at all therefore does not run these suites; it
- * runs `pnpm typecheck`, `pnpm build` and the smoke check, which is what the
- * `content-absent` job does. Handing the kernel a fixture so that it could run
- * tests there too would only have those tests assert the fixture's facts.
+ * A tree whose `content/` holds only the eight globs therefore does not run
+ * these suites; it runs `pnpm typecheck`, `pnpm build` and the smoke check,
+ * which is what the `content-absent` job does. Handing the kernel a fixture so
+ * that it could run tests there too would only have those tests assert the
+ * fixture's facts.
  */
 export default defineConfig({
   resolve: {

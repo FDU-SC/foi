@@ -1,4 +1,4 @@
-import { enrollmentModules } from "@/content-enrollment-modules";
+import { enrollmentModules } from "@/content/enrollment-modules";
 
 /**
  * Where enrolment content comes from, and in what order, answered once.

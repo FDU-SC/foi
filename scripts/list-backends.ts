@@ -10,7 +10,7 @@
  *
  * Reads `content/backends.ts` directly rather than going through
  * `lib/backend/registry.ts`, which is not importable from plain Node: it comes
- * by way of `content-backend-modules.ts`, and `import.meta.glob` is a bundler
+ * by way of `content/backend-modules.ts`, and `import.meta.glob` is a bundler
  * feature that only exists under Turbopack and Vite. The file itself is an
  * ordinary module, so tsx loads it as written.
  *
@@ -22,10 +22,11 @@
  * Deliberately a `string` rather than a literal.
  *
  * `tsc` resolves a literal import specifier at compile time, so writing the
- * path inline made `pnpm typecheck` fail the moment `content/` was not there —
- * which is the one situation this script exists to survive, and the one the
- * `content-absent` job puts it in. Widening the type is what keeps the module
- * graph out of the type checker's reach; the `catch` below covers the runtime.
+ * path inline made `pnpm typecheck` fail the moment `content/backends.ts` was
+ * gone — which is the one situation this script exists to survive, and the
+ * one the `content-absent` job puts it in. Widening the type is what keeps
+ * the module graph out of the type checker's reach; the `catch` below covers
+ * the runtime.
  */
 const SOURCE: string = "../content/backends";
 

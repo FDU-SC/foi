@@ -1,4 +1,4 @@
-import { backendModules } from "@/content-backend-modules";
+import { backendModules } from "@/content/backend-modules";
 import { loadSingletonModule, requiredExport } from "@/lib/singleton-module";
 import { INLINE_BACKEND_ID, type ProblemBackend } from "./types";
 

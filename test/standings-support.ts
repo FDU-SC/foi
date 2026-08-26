@@ -3,7 +3,7 @@ import type {
   Participant,
   StandingsInput,
   SubmissionRecord,
-} from "./types";
+} from "@/lib/standings/types";
 
 /**
  * Fixture builders for the ruleset suites.

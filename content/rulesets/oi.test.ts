@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { input, participants, problem, submission } from "@/lib/standings/test-support";
+import { input, participants, problem, submission } from "@/test/standings-support";
 import type { OiCell } from "./oi";
 import { ruleset as oiRuleset } from "./oi";
 

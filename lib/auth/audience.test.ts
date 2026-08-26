@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { audienceCovers, describeAudience, inAudience } from "./audience";
-import { AS_PLAYER } from "./test-support";
+import { AS_PLAYER } from "@/test/auth-support";
 import { viewerWith } from "@/test/content-shapes";
 import { viewerFor } from "./viewer";
 

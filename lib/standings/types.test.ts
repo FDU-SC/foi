@@ -7,7 +7,7 @@ import {
   problem,
   submission,
   unjudged,
-} from "./test-support";
+} from "@/test/standings-support";
 import {
   assignRanks,
   isAccepted,

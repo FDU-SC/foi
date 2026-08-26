@@ -1,32 +1,31 @@
-import type { Capability } from "./policy";
+import type { Capability } from "@/lib/auth/policy";
 
 /**
  * Every place this application decides whether somebody may have something.
  *
- * There are three separate things in this codebase that get called
- * "permission", and only the first two had a single place to read them.
- * `./policy` is the *vocabulary* — which decisions exist. `content/enrollment/`
- * plus each resource's own `visibleTo` / `participants` are the *grants* — who
- * holds what. This file is the third: *enforcement*, meaning where the question
- * actually gets asked.
+ * Three separate things in this codebase get called "permission".
+ * `lib/auth/policy.ts` is the *vocabulary* — which decisions exist.
+ * `content/enrollment/` plus each resource's own `visibleTo` / `participants`
+ * are the *grants* — who holds what. This file is the third: *enforcement*,
+ * meaning where the question actually gets asked.
  *
  * Enforcement is deliberately spread out. It sits at the point of retrieval,
  * one gate per resource, because a rule you have to remember at each call site
  * is a rule that gets missed on the seventh page — `lib/problems/access.ts`
  * tells that story and `lib/submissions/access.ts` tells the one where it had
- * already happened. Nothing here is trying to gather that back up. What was
- * missing was the index: answering "may this person do X" meant opening six
- * files and hoping there was not a seventh.
+ * already happened. Nothing here is trying to gather that back up. This is
+ * only the index, so that answering "may this person do X" does not mean
+ * opening six files and hoping there is not a seventh.
  *
  * **This table is not consulted at runtime, and that is the difference between
  * it and `lib/ratelimit/policy.ts`.** That table is load-bearing — a handler
  * reads its number out of it, which is what stops the number drifting. Doing
  * the same here would make every gate read
  * `viewer.can(READ_GATES["…"].capabilities[0])` in place of
- * `viewer.can("account.read")`, and `./viewer` is explicit that every question
- * about permission is spelled `viewer.can("…")`. A layer of indirection over a
- * string literal buys nothing and costs the one spelling. So this is
- * documentation, and `enforcement.test.ts` is what keeps documentation honest:
+ * `viewer.can("account.read")`, and `lib/auth/viewer.ts` is explicit that
+ * every question about permission is spelled `viewer.can("…")`. A layer of
+ * indirection over a string literal buys nothing and costs the one spelling.
+ * So this is documentation, and `enforcement.test.ts` keeps it honest:
  * it walks the source, and fails when a gate exists that this file has not
  * heard of, or a capability exists that nothing here claims.
  *
@@ -42,10 +41,10 @@ import type { Capability } from "./policy";
  * Keying on the filename would have declared those two exceptions; keying on
  * the signature means there are none.
  *
- * `inAudience` in `./audience` is not here either, for the opposite reason: it
- * is the shared primitive the audience column below is written in, not a gate.
- * `lib/auth/` is the kernel — vocabulary, identity, primitives — and owns no
- * resource, so it can hold no gate. That is why the scan skips it.
+ * `inAudience` in `lib/auth/audience.ts` is not here either, for the opposite
+ * reason: it is the shared primitive the audience column below is written in,
+ * not a gate. `lib/auth/` is the kernel — vocabulary, identity, primitives —
+ * and owns no resource, so it can hold no gate. That is why the scan skips it.
  *
  * **The load-time checks over `content/` cannot see the capability axis, and
  * that is a boundary of the approach rather than a gap somebody left.**
@@ -145,7 +144,8 @@ export interface Gate {
   /** The activity, phrased the way somebody would ask about it. */
   what: string;
   /**
-   * Capabilities that change this gate's answer, in `./policy`'s spelling.
+   * Capabilities that change this gate's answer, in `lib/auth/policy.ts`'s
+   * spelling.
    *
    * Empty is a legitimate and interesting answer, and `noOverride` is then
    * required: several gates are ones no capability opens, which is a fact
@@ -242,9 +242,9 @@ export const READ_GATES = {
    * can print the right notice without asking a capability of its own.
    *
    * Deliberately not written as `IMPLIES: contest.viewAll → problem.viewAll`
-   * in `./policy`, which would be far too wide — it would hand over unstarted
-   * rounds too, and that file is explicit that proofreading a round before it
-   * opens is the entire reason `problem.viewAll` exists on its own.
+   * in `lib/auth/policy.ts`, which would be far too wide — it would hand over
+   * unstarted rounds too, and that file is explicit that proofreading a round
+   * before it opens is the entire reason `problem.viewAll` exists on its own.
    */
   "lib/problems/access.ts#problemFor": {
     what: "取一道题的题面",
@@ -293,12 +293,11 @@ export const READ_GATES = {
     denied: "false",
   },
   /**
-   * The third contest gate, and the only one the clock decides. It is here
-   * rather than in `PAGE_CHECKS` because it used to be there: the contest
-   * page and the standings page each held half of it, spelling the override
-   * out themselves on top of a clock-only helper. Nothing downstream
-   * re-checks, so the third page to draw a problem list would have been the
-   * one that copied only the half it noticed.
+   * The third contest gate, and the only one the clock decides. Here rather
+   * than in `PAGE_CHECKS` because it must not be a page's to spell out: the
+   * contest page and the standings page both draw a problem list, nothing
+   * downstream re-checks, and the third page to draw one would copy only the
+   * half of the rule it noticed.
    */
   "lib/contests/access.ts#isContestProblemSetVisibleTo": {
     what: "开赛前扣住题目集：几道题、叫什么、各值多少分",
@@ -312,11 +311,10 @@ export const READ_GATES = {
    * with "does this round contain the problem" and `isContestOpen` in between.
    *
    * Registered in its own right all the same, because the ordering is the
-   * gate. This was written three times before — inside `submitFor`, and as a
-   * local `resolveContest` on the statement page and again in the action route
-   * — and the copy that had dropped the first question handed a staged round's
-   * slug to the submit panel, for an attribution the API then refused. Four
-   * facts held together is not three facts and a remark.
+   * gate, and no call site may spell it out itself. A copy that drops the
+   * first question hands a staged round's slug to the submit panel, for an
+   * attribution the API then refuses. Four facts held together is not three
+   * facts and a remark.
    *
    * `capabilities` is empty and means it. `contest.viewAll` does get somebody
    * a view out of `contestFor`, but the first question reads `gate.visible`
@@ -429,10 +427,9 @@ export const READ_GATES = {
    *
    * The `null` in the signature is therefore not this gate refusing anybody.
    * It means no contest goes by that slug, and the capability holder gets it
-   * just the same. This column used to say `null` all the same, which is the
-   * one way a reader could be actively misled by it: somebody without
-   * `standings.viewFrozen` gets a whole board, so the refusal branch that
-   * entry invited would never have run, while the case that does occur has
+   * just the same — which is why this column must not say `null`. Somebody
+   * without `standings.viewFrozen` gets a whole board, so the refusal branch
+   * that entry would invite never runs, while the case that does occur has
    * nothing to do with permission.
    */
   "lib/standings/compute.ts#standingsFor": {
@@ -646,8 +643,7 @@ export const PAGE_CHECKS = {
     ],
   },
   /**
-   * Was the boundary, and is not one any more: both halves of the rule moved
-   * into `isContestProblemSetVisibleTo`, which now decides whether the list
+   * Not a boundary: `isContestProblemSetVisibleTo` decides whether the list
    * gets resolved at all. What is left asks the same capability for a
    * different question — the gate has already said the viewer may have the
    * problems, and this only picks which reason to print above them.

@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { AS_PLAYER } from "@/lib/auth/test-support";
+import { AS_PLAYER } from "@/test/auth-support";
 import { capabilitiesOf, listGroups } from "@/lib/auth/groups";
 import { viewerFor } from "@/lib/auth/viewer";
 import { contestPhase } from "@/lib/contests/types";
 import { groupWith } from "@/test/content-shapes";
-import { listRulesets } from "./registry";
 import {
   at,
   END,
@@ -13,7 +12,8 @@ import {
   problem,
   solve,
   START,
-} from "./test-support";
+} from "@/test/standings-support";
+import { listRulesets } from "./registry";
 import type { AnyRuleset } from "./types";
 
 /**

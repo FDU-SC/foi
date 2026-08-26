@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { AS_PLAYER } from "@/lib/auth/test-support";
+import { AS_PLAYER } from "@/test/auth-support";
 import { viewerFor } from "@/lib/auth/viewer";
 import { db } from "@/lib/db";
 import { allContests } from "@/lib/contests/registry";

@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
+import { CAPABILITIES } from "@/lib/auth/policy";
 import {
   PAGE_CHECKS,
   READ_GATES,
@@ -8,7 +9,6 @@ import {
   type Denied,
   type Gate,
 } from "./enforcement";
-import { CAPABILITIES } from "./policy";
 
 /**
  * The two tables widened off their literal types, so that optional fields are
@@ -44,7 +44,13 @@ const ALL_GATES: Record<string, Gate> = { ...READS, ...WRITES };
  * skipped.
  */
 
-const ROOT = join(import.meta.dirname, "..", "..");
+/**
+ * The repository root, which every path below is relative to — the map keys
+ * read `lib/<resource>/access.ts#<function>`, and the scan has to produce the
+ * same spelling. One level up from `test/`, and the assertion at the bottom of
+ * this file is what keeps a wrong answer here from passing as a clean run.
+ */
+const ROOT = join(import.meta.dirname, "..");
 
 /**
  * The kernel is skipped by every scan below.
@@ -57,10 +63,10 @@ const KERNEL = join("lib", "auth");
 
 /**
  * Comments are stripped before scanning, because this file's own prose is full
- * of `viewer.can("…")` and so is `./policy`'s. The naive stripper can eat the
- * tail of a line whose string literal contains `//`; that can only lose a
- * detection, never invent one, which is the right way round for a scan whose
- * failures edit the map.
+ * of `viewer.can("…")` and so is `lib/auth/policy.ts`'s. The naive stripper
+ * can eat the tail of a line whose string literal contains `//`; that can only
+ * lose a detection, never invent one, which is the right way round for a scan
+ * whose failures edit the map.
  */
 function code(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");

@@ -387,11 +387,12 @@ describeDb("失联回收", () => {
  * The loop's own health signal, which is the one thing here that touches no
  * table.
  *
- * It lives in this file rather than a `reaper.test.ts` of its own because
- * `reaper.ts` imports `lib/db`, and that module throws on import without a
- * connection string — a unit-project test would take the whole DB-less run
- * down with it. Ungated for the same reason the rest of the file is gated: by
- * the time anything here executes, the import has already succeeded.
+ * It lives in this file rather than a `reaper.test.ts` of its own because the
+ * rest of the file is already gated on `DATABASE_URL`, and the health signal
+ * is not worth a second file to split off. `lib/db` no longer throws on
+ * import — the pool is created on first use — so a unit-project test *could*
+ * live beside this; it stays here so the loop's own bookkeeping and the
+ * statements that write the timestamps it reports stay in one place.
  */
 describe("回收循环的存活信号", () => {
   /** Longer than any plausible staleness window, and shorter than none. */

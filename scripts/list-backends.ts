@@ -2,9 +2,9 @@
  * Prints the id of every backend this deployment declares, one per line.
  *
  * Exists so that nothing outside `content/` has to keep its own copy of the
- * roster. Four places did: `.env.example`, `.env.production.example`,
- * `setup-deploy.sh` and the CI smoke step each spelled out
- * `traditional / interactive / performance / leaky-bucket`, so adding a
+ * roster. Four places did: `.env.example`, `.env.production.example` (since
+ * merged into the first), `setup-deploy.sh` and the CI smoke step each spelled
+ * out `traditional / interactive / performance / leaky-bucket`, so adding a
  * backend meant remembering all four, and swapping `content/` left all four
  * describing a deployment that no longer existed.
  *

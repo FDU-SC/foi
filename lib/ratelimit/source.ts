@@ -77,8 +77,8 @@ export function sourceFrom(store: Headers): string {
 
   // With nothing trusted in front, both headers can only have come from the
   // peer, so there is no source to be had. Says so rather than inventing one:
-  // `docker-compose.expose.yml` publishes its own port for the tailnet
-  // environments, and that is the honest answer there.
+  // the tailnet environments publish their own port and sit behind no proxy,
+  // and that is the honest answer there.
   if (hops === 0) return "direct";
 
   const chain = (store.get("x-forwarded-for") ?? "")

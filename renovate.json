@@ -78,7 +78,7 @@
       "labels": ["dependencies", "需要人工核对"]
     },
     {
-      "description": "postgres:16-alpine 出现在四个地方、分属两个 manager：docker-compose.yml、docker-compose.prod.yml（两处，主库与备份容器）、以及 deploy.yml 的 CI service。不同组的话 CI 用的和生产跑的会漂移，而那种漂移只会在迁移行为不一致时才被发现。",
+      "description": "postgres:16-alpine 出现在四个地方、分属两个 manager：docker-compose.example.yml（两处，主库与备份容器）、以及 check.yml 两个 job 各自的 CI service。不同组的话 CI 用的和生产跑的会漂移，而那种漂移只会在迁移行为不一致时才被发现。",
       "groupName": "postgres",
       "matchPackageNames": ["postgres"],
       "automerge": false
@@ -91,8 +91,8 @@
       "labels": ["dependencies", "需要人工核对"]
     },
     {
-      "description": "开发用的 compose 不钉 digest。docker:pinDigests 对生产与 CI 是对的，但 docker-compose.yml 只服务本机开发，而它里面的 axllent/mailpit:latest 是个浮动 tag——钉上之后 mailpit 每发一版就是一个需要人看的 PR。让依赖 PR 流里出现没人真的会读的条目，代价和每周一个重复的扫描 issue 是同一种。",
-      "matchFileNames": ["docker-compose.yml"],
+      "description": "mailpit 不钉 digest。docker:pinDigests 对生产与 CI 是对的，而 axllent/mailpit:latest 是个浮动 tag，钉上之后它每发一版就是一个需要人看的 PR——但那个容器只在本机开发的 local profile 里起，没人会为它读一个 PR。让依赖 PR 流里出现没人真的会读的条目，代价和每周一个重复的扫描 issue 是同一种。\n\n从前这条按文件名匹配 docker-compose.yml，理由是那份 compose 只服务本机开发。三层编排合并成一份模板之后，同一个文件里既有要钉的 postgres 也有不该钉的 mailpit，所以改成按包名匹配。",
+      "matchPackageNames": ["axllent/mailpit"],
       "pinDigests": false
     }
   ],

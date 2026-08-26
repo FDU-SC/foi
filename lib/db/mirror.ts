@@ -22,6 +22,10 @@ import { contests, problems } from "./schema";
  * The title tracks the registry rather than freezing at first submission: a
  * slug is the identity and a title is a display name, so a renamed problem or
  * round should read the same everywhere it appears.
+ *
+ * `syncedAt` is `now()` and not a `Date` from this process, because the insert
+ * branch takes the column's own `now()` default: one clock per column, or the
+ * timestamps of two rows written seconds apart stop being comparable.
  */
 
 export async function ensureProblem(config: ProblemConfig): Promise<void> {
@@ -30,7 +34,7 @@ export async function ensureProblem(config: ProblemConfig): Promise<void> {
     .values({ slug: config.slug, title: config.title })
     .onConflictDoUpdate({
       target: problems.slug,
-      set: { title: sql`excluded.title`, syncedAt: new Date() },
+      set: { title: sql`excluded.title`, syncedAt: sql`now()` },
     });
 }
 
@@ -40,6 +44,6 @@ export async function ensureContest(contest: ContestConfig): Promise<void> {
     .values({ slug: contest.slug, title: contest.title })
     .onConflictDoUpdate({
       target: contests.slug,
-      set: { title: sql`excluded.title`, syncedAt: new Date() },
+      set: { title: sql`excluded.title`, syncedAt: sql`now()` },
     });
 }

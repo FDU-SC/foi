@@ -37,6 +37,12 @@ import { HEARTBEAT_LAPSE_MS, MAX_ATTEMPTS, QUEUE_FUSE_MS } from "./queue";
  */
 
 /**
+ * `QUEUE_FUSE_MS` as something Postgres will cast to an `interval`, so the
+ * fuse can be measured from `now()` instead of from this process's clock.
+ */
+const QUEUE_FUSE_INTERVAL = `${QUEUE_FUSE_MS} milliseconds`;
+
+/**
  * A pass. Never throws for a row it could not settle — every statement is a
  * `where` clause, so anything that has moved underneath it is simply not
  * matched.
@@ -87,7 +93,11 @@ export async function reapOnce(): Promise<{
       // A fresh lap starts here, and the fuse below measures from it. Left at
       // the creation time, the next tick writes the row off as never claimed,
       // moments after taking it away from the runner that had claimed it.
-      queuedAt: new Date(),
+      //
+      // Stamped by the database, like the column's default on a first
+      // submission — see `lib/submissions/rejudge.ts`, which requeues for a
+      // different reason and has to agree with this one about the clock.
+      queuedAt: sql`now()`,
       error: "评测机失去联系，已重新排队",
     })
     .where(
@@ -110,6 +120,12 @@ export async function reapOnce(): Promise<{
   // submission older than the fuse re-enters the queue already expired and is
   // written off on the following tick, with an `error` blaming an absent
   // runner on a row a runner had just been holding.
+  //
+  // The cutoff is subtracted from the database's clock rather than this
+  // process's, because `queued_at` is written by the database at every one of
+  // the three places that write it. `lapsedBefore` above is the other way
+  // round for the same reason: nothing writes `last_heartbeat_at` but this
+  // process.
   const fused = await db
     .update(submissions)
     .set({
@@ -120,7 +136,7 @@ export async function reapOnce(): Promise<{
     .where(
       and(
         eq(submissions.state, "queued"),
-        lt(submissions.queuedAt, new Date(Date.now() - QUEUE_FUSE_MS)),
+        lt(submissions.queuedAt, sql`now() - ${QUEUE_FUSE_INTERVAL}::interval`),
       ),
     )
     .returning();

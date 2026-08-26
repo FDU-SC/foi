@@ -109,7 +109,7 @@ async function main() {
           email: sql`excluded.email`,
           emailVerifiedAt: sql`excluded.email_verified_at`,
           status: sql`'active'`,
-          updatedAt: new Date(),
+          updatedAt: sql`now()`,
         },
       });
 
@@ -120,7 +120,7 @@ async function main() {
         target: credentials.handle,
         set: {
           passwordHash: sql`excluded.password_hash`,
-          updatedAt: new Date(),
+          updatedAt: sql`now()`,
         },
       });
 

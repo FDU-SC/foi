@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
@@ -134,9 +134,11 @@ async function updateAccount(
     >
   >,
 ): Promise<AccountRow | undefined> {
+  // Same clock the insert took from the column default, so that `updated_at`
+  // cannot land before the `created_at` of the row it belongs to.
   const [row] = await db
     .update(accounts)
-    .set({ ...patch, updatedAt: new Date() })
+    .set({ ...patch, updatedAt: sql`now()` })
     .where(eq(accounts.handle, normalizeHandle(handle)))
     .returning();
 

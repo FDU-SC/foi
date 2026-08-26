@@ -113,6 +113,18 @@ export function sessionMatchesPassword(
  * connection through the argon2 work. Splitting this into a hash half and a
  * write half would avoid that, at the price of a second exported way to put a
  * hash in the table — and the connection is the cheaper of the two.
+ *
+ * `updatedAt` is written by the database and not by this process, and that is
+ * load-bearing rather than tidy. The insert branch never named the column at
+ * all, so it took the `now()` default in `lib/db/schema.ts`; a `new Date()` on
+ * the update branch put a second clock in the same column, and every
+ * comparison this column exists for is between two of its own values —
+ * `verifyPassword` reads one into a token and `sessionMatchesPassword` reads
+ * the other back out. Where the two clocks disagree by more than the argon2
+ * work between them, a reset stamps the row *earlier* than the session it was
+ * meant to end, and the session survives the password change. `--revoke` in
+ * `scripts/set-password.cjs` has always written `now()`, so the two ways to
+ * change a password did not even agree with each other.
  */
 export async function setPassword(
   handle: string,
@@ -129,7 +141,7 @@ export async function setPassword(
       target: credentials.handle,
       set: {
         passwordHash: sql`excluded.password_hash`,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       },
     });
 }

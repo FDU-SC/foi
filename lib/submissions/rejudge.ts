@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import {
   INLINE_BACKEND_ID,
   TERMINAL_STATES,
@@ -163,7 +163,13 @@ export async function rejudgeSubmissions(
       // inside the round — so the queue fuse needs its own clock, or every
       // submission older than the fuse would be written off seconds after being
       // requeued, blaming a runner that never got the chance to come.
-      queuedAt: new Date(),
+      //
+      // `now()` rather than a `Date` from this process: a first submission
+      // takes this column's default, so `claimJob` orders rows the database
+      // stamped against rows this process stamped. Behind by the skew, a
+      // requeued row sorts ahead of everything submitted during it — which is
+      // the head-of-queue behaviour `queued_at` was introduced to stop.
+      queuedAt: sql`now()`,
       verdict: null,
       score: null,
       accepted: null,

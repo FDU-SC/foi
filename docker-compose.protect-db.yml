@@ -1,0 +1,30 @@
+# Data-loss overlay, used by production. Enabled by setting this in its .env:
+#
+#   COMPOSE_FILE=docker-compose.prod.yml:docker-compose.protect-db.yml
+#   FOI_PGDATA_VOLUME=foi_pgdata
+#
+# An external volume is one compose did not create, and therefore one it
+# refuses to delete: `docker compose down -v` reports it as external and skips
+# it. That is the whole point. Submissions are the only thing in this system
+# that cannot be rebuilt from the repository, and the command that would
+# destroy them differs from an ordinary restart by two characters.
+#
+# Create it once, before the first deploy:
+#
+#   docker volume create foi_pgdata
+#
+# `name` is required rather than defaulted, and that is not pedantry. Compose
+# does *not* apply COMPOSE_PROJECT_NAME to external volumes — it uses the name
+# verbatim. Leaving it off would resolve all three stacks on this host to one
+# volume literally called `pgdata`, which is to say one database serving
+# production, staging and dev at once. Hence `:?`: an unset value stops
+# compose rather than producing that.
+#
+# Only production layers this on. Staging's database is dropped and refilled
+# from a production snapshot on every deploy, so protecting it would be
+# protecting the wrong thing.
+
+volumes:
+  pgdata:
+    external: true
+    name: ${FOI_PGDATA_VOLUME:?FOI_PGDATA_VOLUME 未设置}

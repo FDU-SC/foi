@@ -54,8 +54,9 @@ content](../README.md#换掉-content)」：CI 每个 PR 把这个目录整个删
 启动时每一样缺失都会打一条点名的警告，而不是静悄悄降级。
 
 内核的**测试**要求的比这多：[`test/content-shapes.ts`](../test/content-shapes.ts)
-列了七种形状——一道 retired 的题、一道声明了 actions 的题、一种支持封榜的赛制，等
-等。那是跑 `pnpm test` 的前提，不是跑平台的前提。
+列了几种形状——一道 retired 的题、一道内联判题的题、一场按 group 限制参赛的比赛，
+等等。那是跑 `pnpm test` 的前提，不是跑平台的前提，而且清单只收「用例要一个样本、
+否则就得点名一个 slug」的那几样。
 
 ## 题目
 

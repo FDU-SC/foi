@@ -3,7 +3,6 @@ import type { Capability } from "@/lib/auth/policy";
 import { viewerFor, type Viewer } from "@/lib/auth/viewer";
 import { allContests } from "@/lib/contests/registry";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
-import { listRulesets } from "@/lib/standings/registry";
 import type { ContestConfig, ContestProblemConfig } from "@/lib/contests/types";
 import { problemsFor } from "@/lib/problems/access";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
@@ -32,11 +31,21 @@ import type { ExternallyJudged, ProblemConfig } from "@/lib/problems/types";
  * a fixture registry for the kernel to test itself against, and a fixture
  * registry agrees with whatever it was written next to.
  *
- * That makes the list below a standing obligation on `content/`, which is why
- * adding to it is not free: a new shape has to be something the shipped
- * example would plausibly contain anyway. If it is not, the requirement is
- * probably the kernel wanting a particular deployment rather than the suite
- * wanting a mechanism exercised.
+ * That makes the list below a standing obligation on `content/`, and the whole
+ * of it, so adding an entry costs a deployment something. Two tests before
+ * adding one:
+ *
+ * Does a suite actually take material from it? A finder nothing calls is an
+ * obligation nobody collects on. Two entries were removed for failing this —
+ * `freezingRuleset` and `problemWithAction` asserted that a shape existed, and
+ * the suites that would have wanted it already open with their own
+ * `expect(…length).toBeGreaterThan(0)`, which says where the emptiness would
+ * bite. A suite that iterates a filtered registry guards its own filter; this
+ * file is for suites that need one specimen and would otherwise name a slug.
+ *
+ * And would the shipped example plausibly contain it anyway? If not, the
+ * requirement is the kernel wanting a particular deployment rather than a
+ * mechanism wanting exercise.
  *
  * Facts about one deployment's own content — that its demo round charges
  * twenty penalty minutes, that its warmup is retired — belong in
@@ -100,14 +109,6 @@ export function contestWithGroupEntry(): {
   };
 }
 
-/** A scoring format that implements the freeze window. */
-export function freezingRuleset() {
-  return required(
-    listRulesets().find((ruleset) => ruleset.supportsFreeze),
-    "一种 supportsFreeze 的赛制",
-  );
-}
-
 /**
  * A handle registration will not hand out.
  *
@@ -143,18 +144,6 @@ export function inlineProblem(): ProblemConfig {
     ),
     "一道内联判题的题目",
   );
-}
-
-/** A problem declaring at least one interactive action, with the action's name. */
-export function problemWithAction(): { problem: ExternallyJudged; action: string } {
-  const problem = required(
-    externallyJudged().find(
-      (candidate) =>
-        !candidate.retired && Object.keys(candidate.backend.actions).length > 0,
-    ),
-    "一道声明了 actions 的在役题目",
-  );
-  return { problem, action: Object.keys(problem.backend.actions)[0]! };
 }
 
 /**

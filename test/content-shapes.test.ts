@@ -2,10 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   contestWithGroupEntry,
   externalProblem,
-  freezingRuleset,
   groupWith,
   inlineProblem,
-  problemWithAction,
   publicProblemOutside,
   reservedHandle,
   retiredProblem,
@@ -47,18 +45,6 @@ describe("挂载的 content 能撑起内核用例", () => {
 
   it("有一道内联判题的题目", () => {
     expect(inlineProblem().slug).toBeTruthy();
-  });
-
-  it("有一道声明了 actions 的在役题目", () => {
-    const { action } = problemWithAction();
-    // Not one of the backend's own protocol paths — `actionFor` refuses those
-    // whatever a problem declares, so content naming one would exercise the
-    // refusal instead of the relay.
-    expect(["judge", "queue", "status"]).not.toContain(action);
-  });
-
-  it("有一种支持封榜的赛制", () => {
-    expect(freezingRuleset().supportsFreeze).toBe(true);
   });
 
   it("有带能力的组", () => {

@@ -53,6 +53,17 @@ describe("actionFor 白名单", () => {
     expect(declared.length).toBeGreaterThan(0);
   });
 
+  // Not a fact about the kernel but about the material below it. `actionFor`
+  // refuses the backend's own protocol paths whatever a problem declares, so
+  // content that named an action `judge` would turn the cases below into a
+  // test of the refusal — and they would fail somewhere in `lib/`, looking
+  // like the relay broke rather than like a problem picked a reserved word.
+  it("声明的 action 没有占用后端自己的协议路径", () => {
+    for (const { slug, action } of declared) {
+      expect(["judge", "queue", "status"], slug).not.toContain(action);
+    }
+  });
+
   it("在役题目声明过的 action 解析得出", () => {
     expect(live.length).toBeGreaterThan(0);
     for (const { slug, action } of live) {

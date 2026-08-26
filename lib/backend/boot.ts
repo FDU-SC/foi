@@ -43,8 +43,7 @@ export function backendRegistryWarnings(): string[] {
  * **Which backends count is derived, not declared**, for the same reason the
  * index in `./access.ts` is. Requiring every entry to be filled in would mean
  * configuring a key for a backend nothing routes to, and would make
- * `.env.production.example` a second list to keep in step with
- * `content/backends.ts`.
+ * `.env.example` a second list to keep in step with `content/backends.ts`.
  */
 export function backendsSharingSecret(): string[] {
   const onSharedValue = Object.keys(backends).filter(

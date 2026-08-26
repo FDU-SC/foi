@@ -35,6 +35,10 @@ yarn-error.log*
 # Templates carry no secrets and must be committed.
 !.env*.example
 
+# 实际使用的那份编排，和 .env 同一个道理：模板进仓库，实例不进。本机开发按自己
+# 的习惯改，服务器上那份由部署工作流从模板生成。
+/docker-compose.yml
+
 # vercel
 .vercel
 

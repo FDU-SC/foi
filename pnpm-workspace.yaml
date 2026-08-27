@@ -2,3 +2,9 @@ allowBuilds:
   esbuild: true
   sharp: false
   unrs-resolver: false
+
+overrides:
+  # drizzle-kit still pulls the deprecated @esbuild-kit/* pair, which pins
+  # esbuild 0.18 — GHSA-67mh-4wv8-2f99. drizzle-kit's own esbuild is already
+  # 0.25.x, so this only lifts the stale transitive copy to the patched line.
+  '@esbuild-kit/core-utils>esbuild': '^0.25.0'

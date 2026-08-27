@@ -59,7 +59,7 @@
       "labels": ["dependencies", "需要人工核对"]
     },
     {
-      "description": "base image 的 digest 会随每次 Debian 安全刷新变动，单独一组以免和 npm 升级混在一起。不自动合并：PR 上的 verify 并不构建镜像（build job 被 if: github.event_name != 'pull_request' 挡着），所以 Dockerfile 的改动在 PR 阶段没有任何东西验证过。",
+      "description": "base image 的 digest 会随每次安全刷新变动，单独一组以免和 npm 升级混在一起。不自动合并：PR 上的 verify 并不构建镜像，所以 Dockerfile 的改动在 PR 阶段没有任何东西验证过。",
       "matchManagers": ["dockerfile"],
       "groupName": "docker base image",
       "automerge": false
@@ -70,7 +70,7 @@
       "automerge": false
     },
     {
-      "description": "Node 的大版本散在三个 manager 里：Dockerfile 的 node:22-bookworm-slim（dockerfile）、两个 workflow 里 actions/setup-node 的 node-version: 22（github-actions 的 uses-with depType）、以及 @types/node（npm）。升大版本时这三处必须一起动，否则运行时、CI 与类型会各走各的。只对 major 分组，好让 @types/node 的 patch/minor 仍然走上面的自动合并，也让 base image 的 digest 刷新仍然独立成 PR。若 uses-with 那条的 depName 与这里对不上，后果只是它单独开一个 PR，不影响正确性。",
+      "description": "Node 的大版本散在多个 manager 里：Dockerfile 的 node:22-alpine（dockerfile）、CI workflow 的容器镜像（github-actions）、以及 @types/node（npm）。升大版本时这几处必须一起动，否则运行时、CI 与类型会各走各的。只对 major 分组，好让 @types/node 的 patch/minor 仍然走上面的自动合并，也让 base image 的 digest 刷新仍然独立成 PR。",
       "groupName": "node",
       "matchPackageNames": ["node", "@types/node"],
       "matchUpdateTypes": ["major"],
@@ -78,7 +78,7 @@
       "labels": ["dependencies", "需要人工核对"]
     },
     {
-      "description": "postgres:16-alpine 出现在四个地方、分属两个 manager：docker-compose.example.yml（两处，主库与备份容器）、以及 check.yml 两个 job 各自的 CI service。不同组的话 CI 用的和生产跑的会漂移，而那种漂移只会在迁移行为不一致时才被发现。",
+      "description": "postgres:17-alpine 出现在多处、分属两个 manager：docker-compose.example.yml 和 check.yml 的 CI service。不同组的话 CI 用的和生产跑的会漂移，而那种漂移只会在迁移行为不一致时才被发现。",
       "groupName": "postgres",
       "matchPackageNames": ["postgres"],
       "automerge": false

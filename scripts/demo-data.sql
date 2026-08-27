@@ -54,7 +54,7 @@ resolved_uids AS (
 )
 INSERT INTO submissions (
   id, uid, problem_slug, contest_slug, payload, state,
-  verdict, score, max_score, backend_id,
+  result, detail, backend_id,
   created_at, judged_at
 )
 SELECT
@@ -67,10 +67,12 @@ SELECT
   jsonb_build_object(
     'status', CASE WHEN plan.ok THEN 'accepted' ELSE 'wrong_answer' END,
     'score', CASE WHEN plan.ok THEN s.max_score ELSE 0 END,
-    'maxScore', s.max_score
+    'maxScore', s.max_score,
+    'accepted', plan.ok
   ),
-  CASE WHEN plan.ok THEN s.max_score ELSE 0 END,
-  s.max_score,
+  jsonb_build_object(
+    'message', CASE WHEN plan.ok THEN '种子数据：通过' ELSE '种子数据：未通过' END
+  ),
   'traditional',
   w.at + (plan.minute || ' minutes')::interval,
   w.at + (plan.minute || ' minutes')::interval

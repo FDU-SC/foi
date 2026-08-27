@@ -7,6 +7,8 @@ import { backends } from "@/lib/backend/registry";
 import { undeclaredBackends } from "@/lib/backend/access";
 import { isInlineBackend } from "@/lib/problems/types";
 import { viewsFor } from "@/lib/problems/views";
+import { problemsFor } from "@/lib/problems/access";
+import { viewerFor } from "@/lib/permissions/viewer";
 
 describe("内核测试需要的形状", () => {
   it("有一场按 group 限制参赛、且第一道题覆盖了 rateLimit 的比赛", () => {
@@ -40,6 +42,24 @@ describe("内核测试需要的形状", () => {
       (group) => group.capabilities.length > 0,
     );
     expect(privileged.length, "每一条按能力取 viewer 的用例都靠它").toBeGreaterThan(0);
+  });
+
+  it("有一道不属于任何比赛的公开题", () => {
+    const contest = allContests()[0];
+    if (!contest) return;
+    const listed = new Set(contest.problems.map((entry) => entry.slug));
+    const now = new Date(contest.startsAt.getTime() + 1);
+    const outside = problemsFor(viewerFor(null), now)
+      .map((view) => view.config)
+      .find((config) => !listed.has(config.slug));
+    expect(outside, "赛外提交路径需要一道不在赛里的公开题").toBeDefined();
+  });
+
+  it("至少保留了一个用户名", () => {
+    expect(
+      enrollmentPolicy.reservedHandles.length,
+      "注册拒绝保留名的用例靠它",
+    ).toBeGreaterThan(0);
   });
 });
 

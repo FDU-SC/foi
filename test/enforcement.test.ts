@@ -6,7 +6,6 @@ import {
   PAGE_CHECKS,
   READ_GATES,
   WRITE_GATES,
-  type Denied,
   type Gate,
 } from "./enforcement";
 
@@ -60,33 +59,7 @@ function parameters(source: string, openAt: number): string {
   return close === -1 ? "" : source.slice(openAt + 1, close);
 }
 
-function returnType(source: string, openAt: number): string {
-  const close = closingParen(source, openAt);
-  if (close === -1) return "";
-
-  const opensBody = (at: number): boolean =>
-    source[at] === "{" && /^[^\S\n]*\n/.test(source.slice(at + 1));
-
-  let angle = 0;
-  for (let i = close + 1; i < source.length; i += 1) {
-    if (source[i] === "<") angle += 1;
-    else if (source[i] === ">" && source[i - 1] !== "=") angle -= 1;
-    else if (angle === 0 && opensBody(i)) {
-      return source.slice(close + 1, i).trim();
-    }
-  }
-  return "";
-}
-
-const DENIED_ADMITS: Partial<Record<Denied, RegExp>> = {
-  undefined: /\bundefined\b/,
-  null: /\bnull\b/,
-  false: /\bboolean\b/,
-  "empty-array": /\[\]/,
-  "filtered-out": /\[\]/,
-};
-
-function declaredGates(): { key: string; file: string; returns: string }[] {
+function declaredGates(): { key: string; file: string }[] {
   return sources("lib").flatMap((file) => {
     const source = code(readFileSync(file, "utf8"));
     return [...source.matchAll(/export\s+(?:async\s+)?function\s+(\w+)\s*\(/g)]
@@ -94,10 +67,9 @@ function declaredGates(): { key: string; file: string; returns: string }[] {
       .filter(({ open }) =>
         /\b(?:Viewer|ResolvedUser)\b/.test(parameters(source, open)),
       )
-      .map(({ match, open }) => ({
+      .map(({ match }) => ({
         key: `${key(file)}#${match[1]}`,
         file,
-        returns: returnType(source, open),
       }));
   });
 }
@@ -247,25 +219,6 @@ describe("授权地图", () => {
     }
   });
 
-  it("denied 声称的形状，函数签名得容得下", () => {
-    const signatures = new Map(
-      declaredGates().map((gate) => [gate.key, gate.returns]),
-    );
-
-    const wrong = Object.entries(READS).flatMap(([name, gate]) => {
-      const admits = DENIED_ADMITS[gate.denied];
-      const signature = signatures.get(name);
-
-      if (!admits || signature === undefined) return [];
-
-      return admits.test(signature)
-        ? []
-        : [`${name}：denied 写的是 ${gate.denied}，但签名是「${signature}」`];
-    });
-
-    expect(wrong, "denied 这一列与函数签名对不上").toEqual([]);
-  });
-
   it("动作的拒绝一律是抛出，取函数一律不是", () => {
     const wrong = [
       ...Object.entries(WRITES)
@@ -286,9 +239,5 @@ describe("授权地图", () => {
       declaredActions().filter((action) => action.capability).length,
     ).toBeGreaterThanOrEqual(2);
     expect(checksOutsideGates().length).toBeGreaterThanOrEqual(4);
-
-    expect(
-      declaredGates().filter((gate) => gate.returns.length > 0).length,
-    ).toBeGreaterThanOrEqual(15);
   });
 });

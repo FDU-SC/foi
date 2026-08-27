@@ -60,6 +60,13 @@ const schema = z.object({
     ),
 });
 
+export function trustedProxyHops(): number {
+  const raw = process.env.FOI_TRUSTED_PROXY_HOPS;
+  if (raw === undefined || raw === "") return 1;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 0 ? n : 1;
+}
+
 export function assertEnv(
   env: Record<string, string | undefined> = process.env,
 ): void {

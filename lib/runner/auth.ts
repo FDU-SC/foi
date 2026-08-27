@@ -1,4 +1,3 @@
-import { listBackendIds } from "@/lib/backend/registry";
 import { resolveBackend } from "@/lib/backend/resolve";
 import {
   SIGNATURE_HEADER,
@@ -38,21 +37,4 @@ export function verifyRunner(
 
   const { timestamp, signature } = headerPair(request);
   return verifySignature({ secret, timestamp, signature, request: signed });
-}
-
-export function signedByAnyBackend(
-  request: Request,
-  signed: SignedRequest,
-): boolean {
-  const { timestamp, signature } = headerPair(request);
-
-  return listBackendIds().some((id) => {
-    let secret: string;
-    try {
-      secret = resolveBackend(id).secret;
-    } catch {
-      return false;
-    }
-    return verifySignature({ secret, timestamp, signature, request: signed }).ok;
-  });
 }

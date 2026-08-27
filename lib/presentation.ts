@@ -1,8 +1,7 @@
 import type { MDXComponents } from "mdx/types";
 import type { ComponentType } from "react";
-import { presentationModules } from "@/content/presentation-modules";
+import { presentation as declared } from "@/content/presentation-modules";
 import type { PublicProblemConfig } from "@/lib/problems/types";
-import { loadSingletonModule, requiredExport } from "@/lib/singleton-module";
 
 export type BadgeTone =
   | "neutral"
@@ -28,24 +27,7 @@ export interface Presentation {
   ProblemBadges?: ComponentType<{ config: PublicProblemConfig }>;
 }
 
-function buildRegistry(): Presentation {
-  const found = loadSingletonModule(presentationModules, "题面组件");
-  if (!found) return {};
-
-  const exported = requiredExport(
-    found,
-    "presentation",
-    "见 lib/presentation.ts",
-  );
-
-  if (typeof exported !== "object" || exported === null) {
-    throw new Error(`${found.path} 导出的 presentation 必须是一个对象`);
-  }
-
-  return exported as Presentation;
-}
-
-export const presentation: Presentation = buildRegistry();
+export const presentation: Presentation = declared;
 
 export function describeVerdict(result: {
   outcome: string | null;

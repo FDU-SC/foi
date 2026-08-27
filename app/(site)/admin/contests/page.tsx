@@ -71,7 +71,7 @@ export default async function AdminContestsPage() {
       ) : (
         all.map((contest) => {
           const phase = contestPhase(contest);
-          const ruleset = rulesetFor(contest.slug, contest.ruleset.id);
+          const ruleset = rulesetFor(contest.ruleset.id);
 
           return (
             <Card key={contest.slug}>

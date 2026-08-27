@@ -220,12 +220,12 @@ describeDb("评测机作业接口", () => {
     });
   });
 
-  describe("签得过时，不存在的 id 才得到 404", () => {
+  describe("持有密钥时，不存在的 id 同样返回 401", () => {
     it("取详情", async () => {
       const response = await fetchJob(MISSING, { lease: "anything" });
 
-      expect(response.status).toBe(404);
-      expect(await response.json()).toEqual({ error: "提交不存在" });
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({ error: "签名不匹配" });
     });
 
     it("上报", async () => {
@@ -234,8 +234,8 @@ describeDb("评测机作业接口", () => {
         state: "alive",
       });
 
-      expect(response.status).toBe(404);
-      expect(await response.json()).toEqual({ error: "提交不存在" });
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({ error: "签名不匹配" });
     });
   });
 

@@ -5,11 +5,10 @@ import { externallyJudged } from "@/lib/problems/registry";
 import { problemsServedBy, orphanedBackends } from "./access";
 import {
   backendsMissingActionUrl,
-  backendsOnLoopback,
   backendsSharingSecret,
 } from "./boot";
 
-describe("共用签名密钥的题目后端", () => {
+describe("backendsSharingSecret", () => {
   const inUse = Object.keys(backends).filter(
     (id) => problemsServedBy(id).length > 0,
   );
@@ -40,15 +39,6 @@ describe("共用签名密钥的题目后端", () => {
     expect(backendsSharingSecret()).toEqual([]);
   });
 
-  it("两台以上回落到共享密钥时，把它们都点出来", () => {
-    if (inUse.length < 2) return;
-    scatter();
-
-    const complaints = backendsSharingSecret();
-    expect(complaints).toHaveLength(1);
-    for (const id of inUse) expect(complaints[0]).toContain(id);
-  });
-
   it("只剩一台回落时不报——和谁都没共用就不算共用", () => {
     if (inUse.length < 2) return;
     scatter();
@@ -57,15 +47,12 @@ describe("共用签名密钥的题目后端", () => {
     expect(backendsSharingSecret()).toEqual([]);
   });
 
-  it("同一地址的多个条目不再算一台，照样点出来", () => {
+  it("都写明了同一个值时不报——那是部署在说这几台确实是一台", () => {
     if (inUse.length < 2) return;
-    for (const id of inUse) {
-      patch(id, { secret: undefined, url: "http://localhost:4100" });
-    }
+    vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
+    for (const id of inUse) patch(id, { secret: "one-runner-for-both" });
 
-    const complaints = backendsSharingSecret();
-    expect(complaints).toHaveLength(1);
-    for (const id of inUse) expect(complaints[0]).toContain(id);
+    expect(backendsSharingSecret()).toEqual([]);
   });
 
   it("没有题目指向的后端从不参与，哪怕它也没有密钥", () => {
@@ -81,12 +68,24 @@ describe("共用签名密钥的题目后端", () => {
     }
   });
 
-  it("都写明了同一个值时不报——那是部署在说这几台确实是一台", () => {
+  it("两台以上回落到共享密钥时，把它们都点出来", () => {
     if (inUse.length < 2) return;
-    vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
-    for (const id of inUse) patch(id, { secret: "one-runner-for-both" });
+    scatter();
 
-    expect(backendsSharingSecret()).toEqual([]);
+    const complaints = backendsSharingSecret();
+    expect(complaints).toHaveLength(1);
+    for (const id of inUse) expect(complaints[0]).toContain(id);
+  });
+
+  it("同一地址的多个条目不再算一台，照样点出来", () => {
+    if (inUse.length < 2) return;
+    for (const id of inUse) {
+      patch(id, { secret: undefined, url: "http://localhost:4100" });
+    }
+
+    const complaints = backendsSharingSecret();
+    expect(complaints).toHaveLength(1);
+    for (const id of inUse) expect(complaints[0]).toContain(id);
   });
 
   it("专属密钥的值恰好等于共享密钥时，照样算共用", () => {
@@ -102,78 +101,17 @@ describe("共用签名密钥的题目后端", () => {
     expect(complaints[0]).toContain(inUse[1]);
   });
 
-});
+  it("不看 NODE_ENV——严重性不在这一层", () => {
+    if (inUse.length < 2) return;
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
+    for (const id of inUse) patch(id, { secret: undefined });
 
-describe("指向本机的题目后端", () => {
-  const inUse = Object.keys(backends).filter(
-    (id) => problemsServedBy(id).length > 0,
-  );
-
-  const saved = new Map<string, ProblemBackend>();
-
-  function patch(id: string, changes: Partial<ProblemBackend>): void {
-    if (!saved.has(id)) saved.set(id, backends[id]);
-    backends[id] = { ...backends[id], ...changes };
-  }
-
-  function elsewhere(): void {
-    for (const id of Object.keys(backends)) {
-      patch(id, { url: "http://host.docker.internal:4100" });
-    }
-  }
-
-  afterEach(() => {
-    for (const [id, entry] of saved) backends[id] = entry;
-    saved.clear();
-  });
-
-  it("指向别处时什么都不报", () => {
-    elsewhere();
-
-    expect(backendsOnLoopback()).toEqual([]);
-  });
-
-  it("全部指向本机的 mock 时，列出每一台有题目指向的后端", () => {
-    for (const id of Object.keys(backends)) {
-      patch(id, { url: "http://localhost:4100" });
-    }
-
-    expect(backendsOnLoopback().sort()).toEqual([...inUse].sort());
-  });
-
-  it("127.0.0.1 与 [::1] 和 localhost 一样算", () => {
-    if (inUse.length === 0) return;
-
-    for (const address of ["http://127.0.0.1:4100", "http://[::1]:4100"]) {
-      elsewhere();
-      patch(inUse[0], { url: address });
-
-      expect(backendsOnLoopback()).toEqual([inUse[0]]);
-    }
-  });
-
-  it("没有题目指向的后端从不参与，哪怕它指向本机", () => {
-    elsewhere();
-    for (const id of orphanedBackends()) {
-      patch(id, { url: "http://localhost:4100" });
-    }
-
-    expect(backendsOnLoopback()).toEqual([]);
-  });
-
-  it("地址不合法时既不报也不抛", () => {
-    for (const id of inUse) patch(id, { url: "not an address" });
-
-    expect(() => backendsOnLoopback()).not.toThrow();
-    expect(backendsOnLoopback()).toEqual([]);
+    expect(backendsSharingSecret()).toHaveLength(1);
   });
 });
 
-describe("拒绝启动级别的发现", () => {
-  const inUse = Object.keys(backends).filter(
-    (id) => problemsServedBy(id).length > 0,
-  );
-
+describe("backendsMissingActionUrl", () => {
   const withActions = [
     ...new Set(
       externallyJudged()
@@ -192,68 +130,37 @@ describe("拒绝启动级别的发现", () => {
   afterEach(() => {
     for (const [id, entry] of saved) backends[id] = entry;
     saved.clear();
-    vi.unstubAllEnvs();
   });
 
-  describe("backendsSharingSecret", () => {
-    it("几台共用一把密钥就报，并点名是哪几台", () => {
-      if (inUse.length < 2) return;
-      vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
-      for (const id of inUse) patch(id, { secret: undefined });
+  it("有题目声明了动作、后端却没有地址时，点名该填哪个变量", () => {
+    if (withActions.length === 0) return;
+    for (const id of withActions) patch(id, { url: undefined });
 
-      const complaints = backendsSharingSecret();
-      expect(complaints).toHaveLength(1);
-      for (const id of inUse) expect(complaints[0]).toContain(id);
-    });
-
-    it("各自有密钥时什么都不报", () => {
-      vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
-      for (const id of inUse) patch(id, { secret: `secret-for-${id}` });
-
-      expect(backendsSharingSecret()).toEqual([]);
-    });
-
-    it("不看 NODE_ENV——严重性不在这一层", () => {
-      if (inUse.length < 2) return;
-      vi.stubEnv("NODE_ENV", "development");
-      vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
-      for (const id of inUse) patch(id, { secret: undefined });
-
-      expect(backendsSharingSecret()).toHaveLength(1);
-    });
+    const complaints = backendsMissingActionUrl();
+    expect(complaints.length).toBeGreaterThan(0);
+    const joined = complaints.join("\n");
+    for (const id of withActions) {
+      expect(joined).toContain(`FOI_BACKEND_${id.toUpperCase().replace(/-/g, "_")}_URL`);
+    }
   });
 
-  describe("backendsMissingActionUrl", () => {
-    it("有题目声明了动作、后端却没有地址时，点名该填哪个变量", () => {
-      if (withActions.length === 0) return;
-      for (const id of withActions) patch(id, { url: undefined });
+  it("地址都填了就什么都不报", () => {
+    for (const id of Object.keys(backends)) {
+      patch(id, { url: "http://backend.internal:4100" });
+    }
 
-      const complaints = backendsMissingActionUrl();
-      expect(complaints.length).toBeGreaterThan(0);
-      const joined = complaints.join("\n");
-      for (const id of withActions) {
-        expect(joined).toContain(`FOI_BACKEND_${id.toUpperCase().replace(/-/g, "_")}_URL`);
-      }
-    });
+    expect(backendsMissingActionUrl()).toEqual([]);
+  });
 
-    it("地址都填了就什么都不报", () => {
-      for (const id of Object.keys(backends)) {
-        patch(id, { url: "http://backend.internal:4100" });
-      }
+  it("只判题、不做交互的后端没有地址也不算缺", () => {
+    for (const id of Object.keys(backends)) {
+      patch(id, {
+        url: withActions.includes(id)
+          ? "http://backend.internal:4100"
+          : undefined,
+      });
+    }
 
-      expect(backendsMissingActionUrl()).toEqual([]);
-    });
-
-    it("只判题、不做交互的后端没有地址也不算缺", () => {
-      for (const id of Object.keys(backends)) {
-        patch(id, {
-          url: withActions.includes(id)
-            ? "http://backend.internal:4100"
-            : undefined,
-        });
-      }
-
-      expect(backendsMissingActionUrl()).toEqual([]);
-    });
+    expect(backendsMissingActionUrl()).toEqual([]);
   });
 });

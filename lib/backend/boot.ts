@@ -38,25 +38,3 @@ export function backendsMissingActionUrl(): string[] {
       );
     });
 }
-
-function isLoopback(hostname: string): boolean {
-  return (
-    hostname === "localhost" ||
-    hostname === "[::1]" ||
-    hostname.startsWith("127.")
-  );
-}
-
-export function backendsOnLoopback(): string[] {
-  return Object.keys(backends).filter((id) => {
-    const url = backends[id].url;
-    if (!url || problemsServedBy(id).length === 0) return false;
-
-    try {
-      return isLoopback(new URL(url).hostname);
-    } catch {
-
-      return false;
-    }
-  });
-}

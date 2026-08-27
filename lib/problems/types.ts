@@ -117,8 +117,3 @@ export function toPublicConfig(config: ProblemConfig): PublicProblemConfig {
   return rest;
 }
 
-export interface ProblemEntry {
-  config: ProblemConfig;
-
-  sourcePath: string;
-}

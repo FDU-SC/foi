@@ -10,6 +10,7 @@ import {
   sign,
   verifySignature,
 } from "../lib/backend/signature";
+import { effectiveSecretFromEnv } from "../lib/backend/env";
 import type { JobDetails, JobTicket, Verdict } from "../lib/backend/types";
 import { backends } from "./backends";
 
@@ -50,10 +51,7 @@ const VERSION = "2.0.0";
 const GO_SILENT = process.argv.includes("--go-silent");
 
 function secretFor(backendId: string): string {
-  const name = backendId.replace(/-/g, "_").toUpperCase();
-  const secret =
-    process.env[`FOI_BACKEND_${name}_SECRET`] ||
-    process.env.FOI_BACKEND_SECRET;
+  const secret = effectiveSecretFromEnv(backendId);
   if (!secret) {
     throw new Error(`缺少 ${backendId} 的签名密钥：设置 FOI_BACKEND_SECRET`);
   }

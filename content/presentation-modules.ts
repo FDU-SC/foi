@@ -1,3 +1,1 @@
-export const presentationModules = import.meta.glob("./components/index.tsx", {
-  eager: true,
-});
+export { presentation } from "./components/index";

@@ -1,10 +1,4 @@
-function trustedProxyHops(): number {
-  const raw = process.env.FOI_TRUSTED_PROXY_HOPS;
-  if (raw === undefined || raw === "") return 1;
-
-  const hops = Number(raw);
-  return Number.isInteger(hops) && hops >= 0 ? hops : 1;
-}
+import { trustedProxyHops } from "@/lib/env";
 
 const UNRESOLVED_SOURCES = ["direct", "unknown"] as const;
 

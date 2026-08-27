@@ -1,7 +1,4 @@
-import {
-  contestRulesetModules,
-  rulesetModules,
-} from "@/content/ruleset-modules";
+import { rulesetModules } from "@/content/ruleset-modules";
 import type { AnyRuleset } from "./types";
 
 function idFromPath(path: string): string | null {
@@ -59,33 +56,10 @@ function buildRegistry(): Map<string, AnyRuleset> {
   return registry;
 }
 
-function buildContestRulesets(): Map<string, AnyRuleset> {
-  const own = new Map<string, AnyRuleset>();
-
-  for (const path of Object.keys(contestRulesetModules).sort()) {
-    const slug = path.match(/\/contests\/([^/]+)\/ruleset\.tsx$/)?.[1];
-    if (!slug) continue;
-    own.set(slug, exportedRuleset(path, contestRulesetModules[path]));
-  }
-
-  return own;
-}
-
 const registry = buildRegistry();
-const contestOwned = buildContestRulesets();
 
-export function getContestRuleset(slug: string): AnyRuleset | undefined {
-  return contestOwned.get(slug);
-}
-
-export function rulesetFor(
-  contestSlug: string,
-  namedId: string | undefined,
-): AnyRuleset | undefined {
-  return (
-    getContestRuleset(contestSlug) ??
-    (namedId ? registry.get(namedId) : undefined)
-  );
+export function rulesetFor(namedId: string): AnyRuleset | undefined {
+  return registry.get(namedId);
 }
 
 export function listRulesets(): AnyRuleset[] {

@@ -25,6 +25,10 @@ export function sharedSecret(): string | undefined {
   return process.env.FOI_BACKEND_SECRET || undefined;
 }
 
+export function effectiveSecretFromEnv(id: string): string | undefined {
+  return backendSecret(id) || sharedSecret();
+}
+
 export function fromEnv(id: string): ProblemBackend {
   return { url: backendUrl(id), secret: backendSecret(id) };
 }

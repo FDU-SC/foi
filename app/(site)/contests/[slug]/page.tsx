@@ -37,7 +37,7 @@ export default async function ContestPage({
   if (!view) notFound();
 
   const contest = view.config;
-  const ruleset = rulesetFor(contest.slug, contest.ruleset.id);
+  const ruleset = rulesetFor(contest.ruleset.id);
 
   const now = new Date();
   const phase = contestPhase(contest, now);

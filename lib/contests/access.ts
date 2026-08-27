@@ -89,20 +89,24 @@ export function contestEntryFor(
   user: Pick<ResolvedUser, "handle" | "groups"> | null,
   now = new Date(),
 ): ContestEntry {
-  const view = contestFor(contestSlug, viewerFor(user));
-  const contest = view?.gate.visible ? view.config : undefined;
+  const config = contestBySlug(contestSlug);
+  if (!config) return { ok: false, reason: "contest-mismatch" };
 
-  const problemEntry = contest?.problems.find(
-    (candidate) => candidate.slug === problemSlug,
-  );
-
-  if (!contest || !problemEntry || !isContestOpen(contest, now)) {
+  if (!inAudience(config.visibleTo, viewerFor(user))) {
     return { ok: false, reason: "contest-mismatch" };
   }
 
-  if (!user || !canEnterContest(contest, user)) {
+  const problemEntry = config.problems.find(
+    (candidate) => candidate.slug === problemSlug,
+  );
+
+  if (!problemEntry || !isContestOpen(config, now)) {
+    return { ok: false, reason: "contest-mismatch" };
+  }
+
+  if (!user || !canEnterContest(config, user)) {
     return { ok: false, reason: "not-entered" };
   }
 
-  return { ok: true, contest, problemEntry };
+  return { ok: true, contest: config, problemEntry };
 }

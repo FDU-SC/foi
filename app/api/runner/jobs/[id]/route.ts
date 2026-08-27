@@ -6,7 +6,7 @@ import { readJsonBody } from "@/lib/body-limit";
 import { db } from "@/lib/db";
 import { submissions } from "@/lib/db/schema";
 import { guardRequest } from "@/lib/ratelimit/gate";
-import { jobPath, signedByAnyBackend, verifyRunner } from "@/lib/runner/auth";
+import { jobPath, verifyRunner } from "@/lib/runner/auth";
 import {
   jobDetails,
   reportAlive,
@@ -39,16 +39,10 @@ async function authorizeJob(
   if (backendId) {
     const signature = verifyRunner(backendId, request, signed);
     if (signature.ok) return null;
-
-    const reason = signedByAnyBackend(request, signed)
-      ? signature.reason
-      : UNPROVEN;
-    return NextResponse.json({ error: reason }, { status: 401 });
+    return NextResponse.json({ error: UNPROVEN }, { status: 401 });
   }
 
-  return signedByAnyBackend(request, signed)
-    ? NextResponse.json({ error: "提交不存在" }, { status: 404 })
-    : NextResponse.json({ error: UNPROVEN }, { status: 401 });
+  return NextResponse.json({ error: UNPROVEN }, { status: 401 });
 }
 
 export async function GET(

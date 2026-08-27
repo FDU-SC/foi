@@ -3,6 +3,7 @@ import {
   problemConfigModules,
   problemStatementModules,
 } from "@/content/problem-modules";
+import { slugFromGlobPath } from "@/lib/slug-from-path";
 import {
   isInlineBackend,
   problemConfigSchema,
@@ -10,15 +11,11 @@ import {
   type ProblemConfig,
 } from "./types";
 
-function slugFromPath(path: string): string | null {
-  return path.match(/\/problems\/([^/]+)\/[^/]+$/)?.[1] ?? null;
-}
-
 function buildRegistry(): Map<string, ProblemConfig> {
   const registry = new Map<string, ProblemConfig>();
 
   for (const [path, mod] of Object.entries(problemConfigModules)) {
-    const dirSlug = slugFromPath(path);
+    const dirSlug = slugFromGlobPath(path, "problems");
     if (!dirSlug) continue;
 
     const exported = (mod as { problem?: unknown }).problem;
@@ -52,7 +49,7 @@ const registry = buildRegistry();
 
 const statementLoaders = new Map<string, () => Promise<unknown>>(
   Object.entries(problemStatementModules).flatMap(([path, load]) => {
-    const slug = slugFromPath(path);
+    const slug = slugFromGlobPath(path, "problems");
     return slug ? [[slug, load] as const] : [];
   }),
 );

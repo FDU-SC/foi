@@ -1,9 +1,9 @@
 import type { Viewer } from "@/lib/permissions/viewer";
 import {
   accountDirectoryFor,
-  accountsFor,
   type AccountDirectory,
 } from "@/lib/accounts/access";
+import { listAccounts } from "@/lib/accounts/queries";
 import { normalizeHandle } from "@/lib/accounts/types";
 import { allContests } from "@/lib/contests/registry";
 import { resolveParticipants } from "@/lib/contests/resolve";
@@ -82,7 +82,7 @@ export async function enrollmentViewFor(
     return { ...base, ruleMatches: null, groupCounts: null, untagged: null };
   }
 
-  const active = await accountsFor(viewer, { status: "active" });
+  const active = await listAccounts({ status: "active" });
 
   const { counts: groupCounts, untagged } = tallyCohorts(active);
 

@@ -34,7 +34,7 @@ async function loadAndCompute(
   const contest = contestBySlug(slug);
   if (!contest) return null;
 
-  const ruleset = rulesetFor(contest.slug, contest.ruleset.id);
+  const ruleset = rulesetFor(contest.ruleset.id);
   if (!ruleset) {
     throw new Error(`比赛 "${contest.slug}" 没有可用的赛制`);
   }

@@ -48,7 +48,7 @@ export const contestConfigSchema = z
     description: z.string().optional(),
 
     ruleset: z.object({
-      id: z.string().min(1).optional(),
+      id: z.string().min(1),
       config: z.unknown().optional(),
     }),
 

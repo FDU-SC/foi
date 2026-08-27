@@ -3,18 +3,15 @@ import { handleSchema, normalizeHandle } from "@/lib/accounts/types";
 import { knownGroups } from "@/lib/enrollment/registry";
 import { audienceCovers, describeAudience } from "@/lib/permissions/audience";
 import { problemBySlug } from "@/lib/problems/registry";
-import { getContestRuleset, rulesetFor } from "@/lib/standings/registry";
+import { slugFromGlobPath } from "@/lib/slug-from-path";
+import { rulesetFor } from "@/lib/standings/registry";
 import { contestConfigSchema, type ContestConfig } from "./types";
-
-function slugFromPath(path: string): string | null {
-  return path.match(/\/contests\/([^/]+)\/[^/]+$/)?.[1] ?? null;
-}
 
 function buildRegistry(): Map<string, ContestConfig> {
   const registry = new Map<string, ContestConfig>();
 
   for (const [path, mod] of Object.entries(contestModules)) {
-    const dirSlug = slugFromPath(path);
+    const dirSlug = slugFromGlobPath(path, "contests");
     if (!dirSlug) continue;
 
     const exported = (mod as { contest?: unknown }).contest;
@@ -56,22 +53,12 @@ function buildRegistry(): Map<string, ContestConfig> {
       }
     }
 
-    const own = getContestRuleset(dirSlug);
     const named = parsed.data.ruleset.id;
 
-    if (own && named) {
-      throw new Error(
-        `${path} 既指定了赛制 "${named}"，同目录下又有 ruleset.tsx。` +
-          `两者只能选一个：引用共享模板意味着跟着模板一起演进，自带则与这场比赛一起冻结在 git 里。`,
-      );
-    }
-
-    const ruleset = rulesetFor(dirSlug, named);
+    const ruleset = rulesetFor(named);
     if (!ruleset) {
       throw new Error(
-        named
-          ? `${path} 引用了未知的赛制 "${named}"，请检查 content/rulesets/`
-          : `${path} 没有指定赛制：写 ruleset.id 引用 content/rulesets/ 里的模板，或在同目录下放一个 ruleset.tsx`,
+        `${path} 引用了未知的赛制 "${named}"，请检查 content/rulesets/`,
       );
     }
 

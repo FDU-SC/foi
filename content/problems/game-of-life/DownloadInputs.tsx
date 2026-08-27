@@ -3,7 +3,6 @@
 import { Button } from "@/components/ui/button";
 import { inputs } from "./data";
 
-/** 提交答案题的输入分发，与 answer-only 同款（数据小，前端 Blob 生成）。 */
 export function DownloadInputs() {
   const download = (name: string, content: string) => {
     const url = URL.createObjectURL(

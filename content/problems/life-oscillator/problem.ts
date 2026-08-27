@@ -13,8 +13,7 @@ export const problem = {
     kind: "inline",
     judge: judgeLifeOscillator,
     config: {
-      // Special Judge：不比对固定答案，而是验证提交的图案是否满足
-      // 「最小周期恰为 k」。尺寸上限与 k 见各场景，它们也是判题计算量的上界。
+
       cases: [
         { name: "场景 1", maxDim: 16, k: 2 },
         { name: "场景 2", maxDim: 20, k: 3 },

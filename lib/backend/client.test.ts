@@ -16,16 +16,6 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-/**
- * Every declared backend gets an address for the duration of this file.
- *
- * These suites are about signing and about content types, and they used to get
- * an address for free: outside production the kernel filled an unconfigured
- * backend in with `http://localhost:4100`, the mock this repository happens to
- * ship. It no longer does — an address nobody configured reads as `undefined`
- * whatever `NODE_ENV` says — so the dependency is declared here instead of
- * inherited from a default that was one deployment's habit.
- */
 const unaddressed = new Map<string, ProblemBackend>();
 
 beforeEach(() => {
@@ -45,12 +35,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/**
- * The body of an action response is opaque to the kernel; the header saying how
- * to interpret it is not. Relaying the backend's own `content-type` let a
- * backend answer `text/html` and have the kernel serve it from the platform's
- * origin.
- */
 describe("交互端点响应的 content-type 白名单", () => {
   const backend = () => resolveBackend(Object.keys(backends)[0]);
   const request = {
@@ -66,8 +50,7 @@ describe("交互端点响应的 content-type 白名单", () => {
       status: 200,
       headers: contentType ? { "content-type": contentType } : {},
     });
-    // `new Response` with a string body sets `text/plain` on its own, so the
-    // "no content type at all" case has to be made by taking it back off.
+
     if (contentType === null) response.headers.delete("content-type");
 
     vi.spyOn(globalThis, "fetch").mockResolvedValue(response);
@@ -123,16 +106,9 @@ describe("交互端点响应的 content-type 白名单", () => {
   });
 });
 
-/**
- * A backend is reached over the network and may be somebody else's service, so
- * how long it can keep the kernel waiting is bounded by a timeout and how much
- * it can make the kernel hold has to be bounded too. It was not: `res.text()`
- * and `res.json()` read to completion.
- */
 describe("后端响应的字节上限", () => {
   const backend = () => resolveBackend(Object.keys(backends)[0]);
 
-  /** Declares a length nothing will read, so the cap trips on the header. */
   function oversized(): Response {
     return new Response("x".repeat(64), {
       status: 200,
@@ -161,13 +137,6 @@ describe("后端响应的字节上限", () => {
   });
 });
 
-/**
- * A backend answering `302` is aiming the kernel, not answering it. `fetch`
- * follows redirects by default, so the one outbound call left would make the
- * next request from inside the deployment's network and relay the body back to
- * whoever pressed the button — an interactive endpoint turned into a fetcher
- * for the link-local metadata address.
- */
 describe("出站请求不跟随重定向", () => {
   const backend = () => resolveBackend(Object.keys(backends)[0]);
   const request = {
@@ -178,7 +147,6 @@ describe("出站请求不跟随重定向", () => {
     payload: null,
   };
 
-  /** What Node hands back for a 3xx when it is told not to chase it. */
   function redirectTo(status: number, location: string): Response {
     return new Response("redirecting", {
       status,
@@ -210,11 +178,6 @@ describe("出站请求不跟随重定向", () => {
     }
   });
 
-  /**
-   * The load-bearing half: the 502 above is only reachable because Node was
-   * told not to take the hop itself. Left at the default `follow`, the kernel
-   * would have made the second request before this file ever saw a status.
-   */
   it("交给 fetch 的 redirect 模式不是跟随", async () => {
     let mode: RequestInit["redirect"] | "unset" = "unset";
     vi.spyOn(globalThis, "fetch").mockImplementation((_input, init) => {
@@ -237,15 +200,6 @@ describe("出站请求不跟随重定向", () => {
   });
 });
 
-/**
- * The signature covers the method and the path, so the one outbound call left
- * has to sign the request it actually makes. That pairing is the thing that can
- * come apart silently — change a path after signing it and the backend answers
- * 401 for a reason nothing here would have caught.
- *
- * So rather than asserting a particular canonical string, the case takes the
- * URL and headers `fetch` was handed and verifies one against the other.
- */
 describe("出站请求签的是它实际发出的 method 与 path", () => {
   const backendId = Object.keys(backends)[0];
 
@@ -302,8 +256,6 @@ describe("出站请求签的是它实际发出的 method 与 path", () => {
     expect(sent().path).toBe("/action/some-action");
     expect(verifyAsBackendWould(sent())).toEqual({ ok: true });
 
-    // The point of signing the path: the same headers do not carry over to a
-    // different action.
     expect(
       verifySignature({
         secret: resolveBackend(backendId).secret,

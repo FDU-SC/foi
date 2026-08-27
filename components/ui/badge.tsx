@@ -12,11 +12,6 @@ const TONES: Record<BadgeTone, string> = {
   primary: "bg-primary-subtle text-primary border-primary/25",
 };
 
-/**
- * Re-exported because this is where a caller reaches for the prop's type, and
- * `content/` already does. The definition is in `lib/presentation.ts` — see
- * the note there for why it moved.
- */
 export type { BadgeTone };
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {

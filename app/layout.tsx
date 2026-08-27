@@ -20,7 +20,6 @@ export const metadata: Metadata = {
   description: "FOI 竞赛平台",
 };
 
-// Applied before first paint so the theme never flashes on hydration.
 const themeScript = `
 (function () {
   try {

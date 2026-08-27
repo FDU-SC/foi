@@ -1,31 +1,13 @@
 import "server-only";
 import type { InlineJudge } from "@/lib/problems/types";
 
-/**
- * Inline judging for the oscillator problem: a Special Judge that verifies a
- * property rather than comparing against one fixed answer.
- *
- * This is the case that tests the inline/backend line, because unlike a string
- * comparison it genuinely computes — it simulates Game of Life. It stays on
- * this side because the work is bounded by the *configuration* rather than by
- * the submission: `maxDim` caps the grid and `k` caps the generations, both
- * written by the setter. The size check below is what makes that true, which
- * is why it runs before the simulation and not after. At the largest scene
- * shipped today that is a 66×66 field for four generations — tens of
- * microseconds.
- *
- * If a future scene wants a field big enough that the number matters, that is
- * the signal to move this problem to a backend, not to raise the cap here.
- * Synchronous JavaScript cannot be preempted: a judge that runs long does not
- * slow this request down, it stops the process from serving any other.
- */
 type LifeGrid = number[][];
 
 interface PeriodicCase {
   name?: string;
-  /** Largest submitted grid accepted, in either dimension. */
+
   maxDim: number;
-  /** The exact minimal period the pattern must have. */
+
   k: number;
 }
 
@@ -66,7 +48,6 @@ function lifeEquals(a: LifeGrid, b: LifeGrid): boolean {
   return a.every((row, i) => row.every((cell, j) => cell === b[i][j]));
 }
 
-/** Surrounds the pattern with dead cells so its evolution can breathe. */
 function lifePadded(grid: LifeGrid, pad: number): LifeGrid {
   const rows = grid.length;
   const cols = grid[0].length;
@@ -79,7 +60,6 @@ function lifePadded(grid: LifeGrid, pad: number): LifeGrid {
   return out;
 }
 
-/** Parses '.', 'O', '0', '1' rows into a rectangular grid; null on bad input. */
 function lifeParse(text: string): LifeGrid | null {
   const rows: number[][] = [];
   for (const raw of text.split(/\r?\n/)) {
@@ -98,29 +78,12 @@ function lifeParse(text: string): LifeGrid | null {
   return rows.map((row) => [...row, ...Array(width - row.length).fill(0)]);
 }
 
-/**
- * Each scene asks for a pattern whose *minimal* period is exactly k — the k-th
- * generation equals the initial state and no earlier generation does.
- *
- * Simulation runs on a generously padded field, because intermediate states
- * commonly breathe wider than the submitted box: a 13×13 pulsar only has
- * period 3 when its frame sits inside a larger one. The size check still
- * applies to the submitted grid itself, and it applies first.
- */
 export const judgeLifeOscillator: InlineJudge = ({ payload, config }) => {
-  // Positive, not merely present. A `k` of zero or less makes the generation
-  // loop below run no iterations at all, so the scene fell through to the
-  // award without simulating anything: one mistyped digit in the configuration
-  // and every submission passed that scene, including an empty grid. A
-  // non-positive `maxDim` is the mirror image — the size check rejects every
-  // grid — and is just as much not a scene worth judging.
+
   const cases = (
     (config as LifeOscillatorConfig | undefined)?.cases ?? []
   ).filter((testCase) => testCase.k > 0 && testCase.maxDim > 0);
 
-  // Nothing to check against is not the same as failing the check, and the
-  // argument for saying so rather than returning a verdict is on
-  // `InlineUnavailable`.
   if (cases.length === 0) {
     return {
       unavailable: true,
@@ -150,8 +113,6 @@ export const judgeLifeOscillator: InlineJudge = ({ payload, config }) => {
       return fail("提交的网格缺失或格式不对（每行只能包含 . 和 O）");
     }
 
-    // Before the simulation, and that ordering is what bounds the work: every
-    // generation below costs O(maxDim²), and nothing else caps the grid.
     const dim = testCase.maxDim ?? 50;
     if (grid.length > dim || grid[0].length > dim) {
       return fail(`尺寸 ${grid.length}×${grid[0].length} 超过上限 ${dim}×${dim}`);
@@ -184,10 +145,6 @@ export const judgeLifeOscillator: InlineJudge = ({ payload, config }) => {
     };
   });
 
-  // Counted, not summed — see the same reasoning in `output-only.ts`. Summing
-  // `perCase` and comparing against 100 denies full marks at 12, 14 and 17
-  // scenes, and `accepted` is declared so that `isAccepted` does not repeat the
-  // comparison on the standings side.
   const passed = tests.filter((test) => test.status === "accepted").length;
   const allPassed = passed === cases.length;
 

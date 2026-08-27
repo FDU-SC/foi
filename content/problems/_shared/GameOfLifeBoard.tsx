@@ -14,7 +14,6 @@ function emptyGrid(rows: number, cols: number): Grid {
   return Array.from({ length: rows }, () => Array<number>(cols).fill(0));
 }
 
-/** Parses '.', 'O', '0', '1' rows into a grid (rectangular; pads short rows). */
 function parseGrid(lines: string[], rows: number, cols: number): Grid | null {
   const cells: number[][] = [];
   for (const raw of lines) {
@@ -37,7 +36,6 @@ function parseGrid(lines: string[], rows: number, cols: number): Grid | null {
   ]);
 }
 
-/** Cuts empty border rows/columns off a grid. */
 function crop(grid: Grid): Grid {
   const rows = grid.filter((row) => row.some((cell) => cell === 1));
   if (rows.length === 0) return [[]];
@@ -94,20 +92,6 @@ function nextGeneration(grid: Grid): Grid {
 
 const signature = (grid: Grid) => JSON.stringify(grid);
 
-/**
- * An interactive Game of Life board shared by the life problems.
- *
- * Click cells to paint, play/step to watch evolution, and the board detects
- * when the pattern enters a cycle (with the minimal period) — which is the
- * whole game for the oscillator problem. "跳到第 N 代" runs a simulation in
- * one jump, and the export button copies the cropped `.`/`O` text for
- * submission.
- *
- * Evolution follows the judge's rules exactly: cells outside the grid are
- * dead, nothing wraps around. Cycle detection matches the judge too: the
- * board simulates in place, and a repeat of any earlier state (including the
- * initial one) is reported with its minimal period.
- */
 export function GameOfLifeBoard({
   maxRows = 50,
   maxCols = 50,
@@ -143,9 +127,8 @@ export function GameOfLifeBoard({
   const [jumpTo, setJumpTo] = useState("100");
   const [copied, setCopied] = useState(false);
 
-  /** The user-authored starting pattern; playback can rewind to it. */
   const initialRef = useRef(grid);
-  /** Every generation seen (signature -> generation), for cycle detection. */
+
   const historyRef = useRef<Map<string, number>>(new Map([[signature(grid), 0]]));
 
   const alive = useMemo(
@@ -153,7 +136,6 @@ export function GameOfLifeBoard({
     [grid],
   );
 
-  /** Replaces the pattern; used by every editing operation. */
   const applyEdit = (next: Grid) => {
     setPlaying(false);
     setCycle(null);
@@ -176,9 +158,6 @@ export function GameOfLifeBoard({
     setGeneration((g) => g + 1);
   }, [grid, generation]);
 
-  // Playback ticks inside the timer, so nothing calls setState synchronously
-  // in the effect itself; a found cycle or the generation cap simply stops
-  // scheduling the next tick.
   useEffect(() => {
     if (!playing) return;
     if (cycle || generation >= maxGenerations) return;
@@ -259,7 +238,7 @@ export function GameOfLifeBoard({
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Clipboard unavailable; nothing to do.
+
     }
   };
 

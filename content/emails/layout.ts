@@ -1,49 +1,29 @@
 import { escapeHtml } from "@/lib/mail/html";
 import type { MailBody } from "@/lib/mail/types";
 
-/**
- * The shared look of every message this deployment sends.
- *
- * Same idea as `mdx-components.tsx`: a single place that decides what these
- * look like, so a new template is a few lines of copy rather than a fresh
- * attempt at HTML email. Everything is inline-styled and table-free, because
- * mail clients strip stylesheets and disagree about everything else.
- *
- * `MailBody` comes from the kernel because it is the contract the templates in
- * `./index.ts` have to meet; the styling below is entirely this deployment's.
- */
 export type { MailBody };
 
 export interface ActionMail {
   subject: string;
-  /** Shown above the button. One or two sentences. */
+
   intro: string[];
   action: { label: string; url: string };
   expiresAt: Date;
-  /** Shown in smaller type under the button. */
+
   footnote?: string[];
 }
 
 export interface CodeMail {
   subject: string;
-  /** Shown above the code. One or two sentences. */
+
   intro: string[];
-  /** Digits only. Displayed as-is, so it must already be what gets typed. */
+
   code: string;
   expiresAt: Date;
-  /** Shown in smaller type under the code. */
+
   footnote?: string[];
 }
 
-/**
- * This competition's wall clock, stated rather than configured.
- *
- * The kernel's fallback reads `FOI_TIMEZONE` and must, because it runs for
- * whoever deploys the platform. This file is one deployment: its copy is
- * Chinese and its entrants are in one city, so the zone belongs beside the
- * locale that already says so. A deployment elsewhere replaces this directory
- * rather than pointing an environment variable at it.
- */
 const formatter = new Intl.DateTimeFormat("zh-CN", {
   dateStyle: "long",
   timeStyle: "short",
@@ -58,7 +38,6 @@ function note(line: string, first = false): string {
   return `    <p style="margin:${first ? "0" : "12px"} 0 0;font-size:12px;line-height:1.7;color:#6b7280;">${escapeHtml(line)}</p>`;
 }
 
-/** The card every message sits in. Only the middle differs between templates. */
 function shell(inner: string): string {
   return `<!doctype html>
 <html lang="zh-CN">
@@ -71,11 +50,6 @@ ${inner}
 </html>`;
 }
 
-/**
- * The link is repeated as plain text under the button on purpose. Plenty of
- * clients refuse to render the anchor, and a verification email whose link
- * cannot be reached is a person who cannot finish signing up.
- */
 export function actionMail(mail: ActionMail): MailBody {
   const expiry = `此链接在 ${formatter.format(mail.expiresAt)} 前有效，只能使用一次。`;
   const footnote = mail.footnote ?? [];
@@ -109,16 +83,6 @@ export function actionMail(mail: ActionMail): MailBody {
   return { subject: mail.subject, text, html };
 }
 
-/**
- * A code instead of a link, for the one thing that happens before an account
- * exists. There is nothing to link to: the person is already on the page that
- * needs the answer, and sending them away from a half-filled form to come back
- * through a second tab is worse than asking them to type six digits.
- *
- * `text-indent` cancels the trailing space `letter-spacing` leaves after the
- * last digit, which is the difference between the code looking centred and
- * looking slightly off.
- */
 export function codeMail(mail: CodeMail): MailBody {
   const expiry = `验证码在 ${formatter.format(mail.expiresAt)} 前有效。`;
   const footnote = mail.footnote ?? [];

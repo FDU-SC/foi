@@ -8,29 +8,10 @@ import { issueCode, verifyCode } from "./email-verification";
 import { issueRegistrationProof } from "./registration-proof";
 import { register } from "./register";
 
-/**
- * The invariant this whole flow exists for: no proof of the address, no
- * account. It is enforced in `register()` rather than in the form, so this is
- * where it has to be checked — a test that went through the form would only
- * establish that the form does what the form does.
- *
- * Reads the real `content/enrollment/example.ts` policy, which is why the
- * addresses below are `@example.test` and the reserved handles are its.
- */
 const EMAIL = "regtest@example.test";
 const HANDLE = "regtest";
 const TAKEN = "regtest-taken";
 
-/**
- * A switch for making the middle of the three writes fail.
- *
- * `setPassword` is the only one that can be made to fail without inventing a
- * database error: the other two are an upsert and a delete against rows these
- * tests own, and both succeed by construction. Wrapped rather than replaced so
- * every other case in this file goes on exercising the real one — a stub that
- * never writes a hash would make the successful paths prove less than they
- * look like they prove.
- */
 const passwordHook = vi.hoisted(() => ({ failSetPassword: false }));
 
 vi.mock("@/lib/accounts/password", async (importOriginal) => {
@@ -74,12 +55,6 @@ async function cleanup(): Promise<void> {
   await db.delete(emailVerifications).where(eq(emailVerifications.email, EMAIL));
 }
 
-/**
- * A filled-in form with no proof cookie attached, which is what a request that
- * skipped the verify step looks like. Cases that did verify spread a proof
- * over the top. `proof` is spelled out rather than omitted because `register`
- * requires the field: a caller with nothing to offer says so.
- */
 const FORM = {
   handle: HANDLE,
   displayName: "注册测试",
@@ -144,8 +119,7 @@ describeDb("register", () => {
   });
 
   it("用户名撞车不会浪费掉这次验证", async () => {
-    // 这正是发码/验证要和最终提交分开的理由：换个用户名就能接着注册，
-    // 不必为一个和邮箱无关的错误再跑一趟收件箱。
+
     await db.insert(accounts).values({
       handle: TAKEN,
       displayName: "占位",
@@ -165,10 +139,7 @@ describeDb("register", () => {
   });
 
   it("保留用户名即使验证过也拒绝", async () => {
-    // Taken off the policy rather than spelled out. Naming one meant that a
-    // deployment reserving a different set — or none — did not fail here; it
-    // created the account and left it behind, and the next case along failed
-    // instead with the address already taken.
+
     const proof = await prove(EMAIL);
 
     await expect(
@@ -214,12 +185,8 @@ describeDb("register", () => {
       "写密码故意失败",
     );
 
-    // 账号行是在抛错之前就插进去的，所以它现在不在，只可能是回滚的结果。
-    // 没有事务的时候留下的正是这一行：账号存在、password_hash 是空的、登不
-    // 进去，而且注册页会告诉这个人用户名已被占用——占用者是他自己。
     expect(await getAccount(HANDLE)).toBeUndefined();
 
-    // 邮箱证明也没被花掉，所以重试一次就能过，不必再跑一趟收件箱。
     passwordHook.failSetPassword = false;
     await expect(register({ ...FORM, proof })).resolves.toMatchObject({
       ok: true,

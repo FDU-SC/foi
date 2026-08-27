@@ -18,7 +18,6 @@ function cell(
 
 const problems = [problem("a", "A"), problem("b", "B")];
 
-/** No blood bonus, so a cell's score is the题目 value on its own. */
 const plain = { bloodBonus: [] as number[] };
 
 describe("ctf 动态分值衰减", () => {
@@ -45,7 +44,6 @@ describe("ctf 动态分值衰减", () => {
       return cell(standings, "u0", "a")?.score ?? 0;
     });
 
-    // 严格单调递减
     for (let i = 1; i < values.length; i += 1) {
       expect(values[i]).toBeLessThan(values[i - 1]);
     }
@@ -98,7 +96,7 @@ describe("ctf 血奖", () => {
       problems,
       config: { bloodBonus: [0.1, 0.05] },
       submissions: [
-        // alice 先提交但没解出，bob 后提交却先解出，一血归 bob
+
         fail("alice", "a", 5),
         solve("bob", "a", 10),
         solve("alice", "a", 20),
@@ -157,12 +155,7 @@ describe("ctf 失败尝试", () => {
 });
 
 describe("ctf 参赛名单", () => {
-  /**
-   * The roster is not a fixed thing: a `mode: "group"` contest resolves it on
-   * every read, so somebody dropping out of a group is enough to put solves
-   * from a non-participant into the input. Counting them changes the answer
-   * for everybody, because the solve count is the divisor.
-   */
+
   it("非参赛者的 AC 不改变分值衰减", () => {
     const alone = compute({
       participants: participants("alice"),
@@ -183,11 +176,6 @@ describe("ctf 参赛名单", () => {
     );
   });
 
-  /**
-   * Skipping the award was never the same as not counting the solve: the
-   * outsider still held the earliest position, so first blood went to nobody
-   * instead of to the first competitor.
-   */
   it("非参赛者不占血", () => {
     const standings = compute({
       participants: participants("alice", "bob"),

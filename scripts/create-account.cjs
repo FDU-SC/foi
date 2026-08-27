@@ -1,43 +1,9 @@
 #!/usr/bin/env node
-/**
- * Creates an account from a shell, which is the only way to get the first one.
- *
- * Everybody else registers: the form proves the address, picks a handle and
- * writes the row. That cannot produce the first administrator, because a fresh
- * deployment has no administrator to name and — more to the point — because
- * naming somebody in `content/enrollment/` is a commit, and a commit cannot
- * reference an account that does not exist yet. So the order is: create the
- * account here, then add a rule naming its handle, then deploy.
- *
- * Startup used to do this instead, materialising accounts declared in the
- * repository. It meant every boot wrote to the database, and it put a
- * `displayName` field in the enrollment file that had nothing to do with
- * authorisation.
- *
- *   printf '%s' 'your-password' | docker compose exec -T app \
- *     node scripts/create-account.cjs admin --name '管理员' \
- *       --email admin@example.edu
- *
- *   # with nothing piped in, a strong password is generated and printed once
- *   docker compose exec -T app node scripts/create-account.cjs admin \
- *     --name '管理员' --email admin@example.edu
- *
- * The address is required and recorded as verified: an operator typing it at a
- * shell is a stronger check than a mailed code, and it means this account can
- * use the ordinary password reset afterwards rather than needing a second trip
- * through here. `policy.emailDomains` is deliberately not consulted — the
- * allowlist gates self-registration, and the reason to reach for this script
- * includes the external competitor whose address is not on it. Anyone who can
- * run this could write the row by hand anyway.
- */
 
 const crypto = require("node:crypto");
 const { hash } = require("@node-rs/argon2");
 const { Client } = require("pg");
 
-// Fed through `node -`, a relative require resolves against the working
-// directory rather than against this file. The application owns the file;
-// this tool reads it.
 const ARGON2_OPTIONS = (() => {
   try {
     return require("../lib/accounts/argon2-options.cjs");
@@ -76,8 +42,7 @@ function readStdin() {
     stdin.on("data", (chunk) => (data += chunk));
     stdin.on("end", finish);
     stdin.on("error", finish);
-    // See the note in set-password.cjs: fed through `node -`, stdin may never
-    // emit 'end'.
+
     setTimeout(finish, 300);
   });
 }
@@ -121,10 +86,6 @@ async function main() {
   if (!email) fail("缺少 --email");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail("邮箱格式不正确");
 
-  // Both normalised the way the application does. Sub-addresses are left alone
-  // here: `policy.stripSubaddress` is about one mailbox not becoming several
-  // cohorts through the registration form, and an operator typing an address
-  // at a shell means the address they typed.
   const normalizedHandle = handle.trim().toLowerCase();
   const normalizedEmail = email.trim().toLowerCase();
 
@@ -178,8 +139,7 @@ async function main() {
     console.log(`密码: ${password}`);
     console.log("这是唯一一次显示，请立即保存。");
   }
-  // 组 id 是那套 content 自己定义的，这个脚本一个也不认识——它连 registry 都不
-  // 加载。所以这里给形状，不给名字。
+
   console.log(
     `\n它现在还没有任何权限。在 content/enrollment/ 加一条规则，把它放进一个带` +
       ` admin.access 能力的组，然后重新部署：\n` +

@@ -65,16 +65,6 @@ describe("registration proof", () => {
   });
 });
 
-/**
- * `Secure` has to follow the scheme this deployment is actually reached over.
- *
- * Keying it on `NODE_ENV` — which the Dockerfile pins to `production` in the
- * one image all three environments run — would mark the cookie `Secure` on the
- * two served over plain HTTP. The browser drops it, the proof never comes back,
- * and every registration on dev and staging fails as `email-unverified` with
- * nothing anywhere saying why. These pin the derivation so that cannot come
- * back by way of a "tidy up the env checks" commit.
- */
 describe("registrationProofCookieOptions", () => {
   it("https 部署下带 Secure", () => {
     vi.stubEnv("FOI_PUBLIC_URL", "https://foi.example.com");
@@ -87,8 +77,7 @@ describe("registrationProofCookieOptions", () => {
   });
 
   it("NODE_ENV 不参与判断", () => {
-    // The condition this replaced. All three deployed environments run one
-    // image with NODE_ENV=production, so it cannot tell them apart.
+
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("FOI_PUBLIC_URL", "http://tailnet-host:8633");
     expect(registrationProofCookieOptions().secure).toBe(false);

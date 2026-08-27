@@ -9,22 +9,10 @@ import { judgeLifeOscillator } from "./life-oscillator";
 import { judgeOutputOnly } from "./output-only";
 import { judgeRoulette } from "./roulette";
 
-/**
- * The judges that run in the kernel rather than on a backend.
- *
- * Worth their own coverage precisely because there is no service between them
- * and a submission: a backend that misbehaves is reported as unhealthy, while
- * one of these misbehaving is the platform itself getting an answer wrong.
- */
 const USER: BackendUser = { handle: "alice", groups: [] };
 
-/**
- * Case counts the all-correct assertions run at: two that divide 100 cleanly
- * enough to hide the old bug, three that do not.
- */
 const CASE_COUNTS = [2, 3, 12, 14, 17];
 
-/** Whatever the judge said, verdict or refusal. */
 function attempt(
   fn: InlineJudge,
   config: unknown,
@@ -34,14 +22,6 @@ function attempt(
   return fn({ payload, config, user, contestSlug: null });
 }
 
-/**
- * The same call, insisting a verdict came back.
- *
- * Every assertion below except the two about unavailability is about what a
- * judgement *says*, and reading `.score` off a union whose other half is "I
- * cannot judge this" would either not compile or quietly compare `undefined`.
- * Failing here names which judge declined and why.
- */
 function judge(
   fn: InlineJudge,
   config: unknown,
@@ -71,17 +51,6 @@ describe("judgeOutputOnly", () => {
     expect(verdict.score).toBe(100);
   });
 
-  /**
-   * Parameterised on the number of cases, because that is the only thing that
-   * decides whether the old summing was wrong. `100 / n` added back up n times
-   * is exactly 100 for 2 and 3 and short of it for 12, 14 and 17 —
-   * 99.99999999999999, and 99.99999999999997 at 17 — so an entirely correct
-   * submission failed to reach full marks and settled as `partial`.
-   *
-   * Every problem shipped today has two or three scenes. A test written
-   * against the live configuration passes either way, which is exactly how
-   * this survived.
-   */
   it.each(CASE_COUNTS)("%i 个场景全对时是满分的 AC", (count) => {
     const cases = Array.from({ length: count }, (_, index) => ({
       expected: String(index),
@@ -114,13 +83,6 @@ describe("judgeOutputOnly", () => {
     expect(judge(judgeOutputOnly, config, { text: "8" }).score).toBe(50);
   });
 
-  /**
-   * A setter's mistake, not a competitor's — so it must not read as a wrong
-   * answer, and must not cost anybody a score. The second half of that only
-   * became true when this stopped being a `system_error` verdict: any verdict
-   * settles the row as `completed`, which is on the board and, under ACM
-   * rules, a penalised attempt.
-   */
   it("配置缺 cases 时说自己判不了，而不是给一个判决", () => {
     const judgement = attempt(judgeOutputOnly, {}, { text: "8" });
 
@@ -130,7 +92,7 @@ describe("judgeOutputOnly", () => {
 });
 
 describe("judgeLifeOscillator", () => {
-  /** A blinker: period 2. */
+
   const BLINKER = "...\nOOO\n...";
   const config = { cases: [{ name: "场景 1", maxDim: 16, k: 2 }] };
 
@@ -142,7 +104,6 @@ describe("judgeLifeOscillator", () => {
     expect(verdict.score).toBe(100);
   });
 
-  /** Same floating-point trap as `judgeOutputOnly`; the note is over there. */
   it.each(CASE_COUNTS)("%i 个场景全对时是满分的 AC", (count) => {
     const verdict = judge(
       judgeLifeOscillator,
@@ -156,18 +117,13 @@ describe("judgeLifeOscillator", () => {
   });
 
   it("周期不等于 k 的图案不得分", () => {
-    const stillLife = "OO\nOO"; // period 1, not 2
+    const stillLife = "OO\nOO";
     const verdict = judge(judgeLifeOscillator, config, { text: stillLife });
 
     expect(verdict.score).toBe(0);
     expect(verdict.accepted).toBe(false);
   });
 
-  /**
-   * The size check is what bounds the simulation, so it has to run before it —
-   * this is the only thing keeping an inline judge's cost tied to the setter's
-   * configuration rather than to whatever the submitter pasted.
-   */
   it("超尺寸的图案在模拟之前就被拒", () => {
     const huge = Array.from({ length: 40 }, () => "O".repeat(40)).join("\n");
     const verdict = judge(
@@ -186,13 +142,6 @@ describe("judgeLifeOscillator", () => {
     expect(verdict.score).toBe(0);
   });
 
-  /**
-   * `for (let t = 1; t <= k; t++)` runs zero times when k is not positive, so
-   * the scene used to reach the award without simulating anything: a single
-   * mistyped digit in the configuration handed that scene's marks to every
-   * submission, an empty grid included. A non-positive `maxDim` is the same
-   * kind of mistake from the other side.
-   */
   it.each([
     { name: "k", cases: [{ maxDim: 16, k: 0 }] },
     { name: "k 为负", cases: [{ maxDim: 16, k: -1 }] },
@@ -204,7 +153,6 @@ describe("judgeLifeOscillator", () => {
     expect(judgement).not.toHaveProperty("score");
   });
 
-  /** Dropped rather than failed: a bad scene must not sit in the denominator. */
   it("非法场景被丢掉，剩下的场景仍按自己的个数分满分", () => {
     const verdict = judge(
       judgeLifeOscillator,
@@ -239,11 +187,6 @@ describe("judgeRoulette", () => {
     vi.unstubAllEnvs();
   });
 
-  /**
-   * Per player, not per day for everybody. The verdict reveals the number, so
-   * a shared wheel meant the first person to submit could hand that day's
-   * answer to everyone else.
-   */
   it("不同选手同一天拿到各自的轮盘", () => {
     vi.stubEnv("AUTH_SECRET", "roulette-test-key-0123456789");
 
@@ -262,11 +205,6 @@ describe("judgeRoulette", () => {
     vi.unstubAllEnvs();
   });
 
-  /**
-   * The reason the key exists. The old implementation hashed only the date, so
-   * anyone who could guess that one line could compute a month of results —
-   * while the statement claimed nobody could know them in advance.
-   */
   it("换一把密钥，结果就完全不同——说明它不是只由日期决定的", () => {
     vi.stubEnv("AUTH_SECRET", "key-one-0123456789abcdef");
     const first = ["a", "b", "c", "d", "e", "f"].map((h) =>

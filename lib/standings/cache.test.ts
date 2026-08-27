@@ -1,19 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { cachedStandings, invalidateStandings, standingsKey } from "./cache";
 
-/**
- * The cache is process-wide and deliberately so — see the note on the maps in
- * `cache.ts` — which means these cases cannot reset it between runs. Each one
- * works on a contest slug nobody else uses instead, the same way concurrent
- * requests for different contests do not interfere in production.
- */
 let counter = 0;
 
 function contest(): string {
   return `contest-${(counter += 1)}`;
 }
 
-/** A compute that finishes only when the test says so. */
 function held<T>(): { compute: () => Promise<T>; settle: (value: T) => void } {
   let settle!: (value: T) => void;
   const promise = new Promise<T>((resolve) => {
@@ -75,15 +68,6 @@ describe("cachedStandings", () => {
   });
 });
 
-/**
- * The window between a recompute reading its rows and writing them down.
- *
- * A verdict landing inside it used to be lost twice over: the invalidation
- * deleted an entry that was not there yet, and then the recompute installed
- * figures taken from before the verdict and served them for a full TTL. The
- * board went stale *because* something had changed, which is the exact
- * inversion the invalidation exists to prevent.
- */
 describe("重算与失效撞在一起时", () => {
   it("飞行中被失效的结果不写进缓存", async () => {
     const slug = contest();
@@ -92,16 +76,11 @@ describe("重算与失效撞在一起时", () => {
     const { compute, settle } = held<string>();
     const inflight = cachedStandings(key, compute);
 
-    // The verdict lands while the recompute is still out.
     invalidateStandings(slug);
     settle("判题之前的榜");
 
-    // Whoever was already waiting still gets it — one board a moment behind is
-    // not worth a second trip to the database.
     expect(await inflight).toBe("判题之前的榜");
 
-    // But it was not written down, so the next reader recomputes rather than
-    // being served the stale figures until the TTL runs out.
     const after = vi.fn(async () => "判题之后的榜");
     expect(await cachedStandings(key, after)).toBe("判题之后的榜");
     expect(after).toHaveBeenCalledTimes(1);
@@ -120,10 +99,6 @@ describe("重算与失效撞在一起时", () => {
     expect(after).not.toHaveBeenCalled();
   });
 
-  /**
-   * The counter is per key, so an invalidation for one contest must not throw
-   * away a recompute another one has in the air.
-   */
   it("失效只影响被失效的那场比赛", async () => {
     const mine = contest();
     const key = standingsKey(mine, "public");

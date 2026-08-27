@@ -8,9 +8,9 @@ export const problem = {
   backend: {
     id: "interactive",
     config: {
-      // mode 标记告诉评测机这是一道交互题，走拼接 grader 的评测路径。
+
       mode: "interactive",
-      // 答案由 seed 在评测机内部生成，选手不可见。
+
       n: 1_000_000,
       maxQueries: 30,
       seed: 42,

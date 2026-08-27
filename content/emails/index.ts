@@ -5,23 +5,8 @@ import type {
 } from "@/lib/mail/types";
 import { actionMail, codeMail } from "./layout";
 
-/**
- * Every message FOI sends, as plain functions.
- *
- * This is copy, and copy is deployment-specific — a school competition and a
- * public CTF want different words for the same event — so it lives under
- * `content/` next to the problem statements and the enrollment rules rather
- * than in `lib/`. The kernel finds this file through `content/email-modules.ts`
- * and checks that both exports are here; which messages exist is its decision,
- * what they say is this file's.
- */
 export type { MailBody };
 
-/**
- * Addressed to nobody by name, and that is not an oversight: this goes out
- * before an account exists, so there is no display name to greet — only an
- * address somebody has claimed and not yet proved.
- */
 export function verificationCode(input: VerificationCodeMail): MailBody {
   return codeMail({
     subject: "验证你的 FOI 注册邮箱",

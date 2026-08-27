@@ -19,15 +19,6 @@ import {
 } from "./groups";
 import { CAPABILITIES, IMPLIES } from "./policy";
 
-/**
- * The safety property these cases exist for: a regex must never be able to
- * hand out privilege.
- *
- * It used to be guaranteed structurally — `role` and `tags` were different
- * fields and only one of them carried capabilities, so a rule producing tags
- * simply had nowhere to put a role. Merging them into one concept removes that
- * accident, so the guarantee has to be stated and checked instead.
- */
 describe("用户组声明", () => {
   it("声明的能力都在内核的能力表里", () => {
     for (const group of listGroups()) {
@@ -63,13 +54,6 @@ describe("用户组声明", () => {
   });
 });
 
-/**
- * The union used to be all `capabilitiesOf` did, which made the note above
- * `standings.viewFrozen` in `./policy` a claim about intent rather than about
- * behaviour: a deployment granting `submission.readAny` alone got a freeze it
- * believed in and a bypass it did not know about. These pin the closure so
- * that the comment and the code cannot drift apart again.
- */
 describe("能力蕴含", () => {
   it("IMPLIES 里的键和值都是真实的能力名", () => {
     for (const [capability, implied] of Object.entries(IMPLIES)) {
@@ -84,12 +68,6 @@ describe("能力蕴含", () => {
     }
   });
 
-  /**
-   * `capabilitiesOf` walks one hop. Asserted rather than assumed, because the
-   * day somebody writes a two-hop entry is the day the closure would quietly
-   * stop closing — the runtime guard in `capabilitiesOf` throws on one, and
-   * this says the same thing where it is cheap to read.
-   */
   it("蕴含关系是平的：没有哪一项的蕴含项自己还有蕴含项", () => {
     for (const implied of Object.values(IMPLIES)) {
       for (const id of implied ?? []) {
@@ -98,19 +76,6 @@ describe("能力蕴含", () => {
     }
   });
 
-  /**
-   * The guard used to sit inside `capabilitiesOf`, where two things kept it
-   * from being one: it stood down under `NODE_ENV === "production"` — every
-   * deployed environment there is — and even with that removed it could only
-   * fire for somebody who *held* the offending capability, so a two-hop entry
-   * could ship and stay quiet until the first administrator signed in. It now
-   * runs over the whole table at load, and this says so where it is cheap to
-   * read.
-   *
-   * Reaching into `IMPLIES` because the repository's own table is flat and
-   * there is no other way to see the guard fire. Restored in a `finally`: it is
-   * module state shared with every case after this one.
-   */
   it("多跳的蕴含项当场抛错，不看 NODE_ENV，也不用有人持有它", () => {
     const saved = IMPLIES["standings.viewFrozen"];
     IMPLIES["standings.viewFrozen"] = ["admin.access"];
@@ -136,15 +101,6 @@ describe("能力蕴含", () => {
     }
   });
 
-  /**
-   * The two spellings `hasPrivilege` replaced: the load-time check in
-   * `lib/enrollment/registry.ts` asked `isPrivileged` per group, the
-   * suspension guard asked whether `capabilitiesOf` came back non-empty. They
-   * agree only because the closure adds to a set that already had something in
-   * it, so pin that here — a capability that nothing grants but something
-   * implies would make the two disagree about who counts as privileged, and
-   * they are the same rule about who may not be touched.
-   */
   it("hasPrivilege 与「能力集非空」问的是同一件事", () => {
     const ids = listGroups().map((group) => group.id);
 
@@ -158,17 +114,14 @@ describe("能力蕴含", () => {
   });
 
   it("蕴含出来的能力不会让一个纯分组凭空得到权限", () => {
-    // The closure runs over what the groups granted, so a membership that
-    // granted nothing still grants nothing.
+
     expect(capabilitiesOf(["未声明的组-甲", "未声明的组-乙"]).size).toBe(0);
   });
 });
 
 describe("只有列出 handles 的规则能授予带权限的用户组", () => {
   it("仓库里按邮箱匹配的规则都没有命中带权限的组", () => {
-    // The load-time check would already have thrown; this states the property
-    // so that a future rule change fails here with an explanation rather than
-    // at import time with a stack trace.
+
     for (const rule of listRules()) {
       if (isHandlesRule(rule) || typeof rule.groups === "function") continue;
       for (const id of rule.groups) {
@@ -202,23 +155,12 @@ describe("只有列出 handles 的规则能授予带权限的用户组", () => {
       if (!isHandlesRule(rule)) continue;
       for (const handle of rule.handles) {
         expect(rulesForHandle(handle)).toContain(rule);
-        // Case-insensitively, the way registration normalises before it looks.
+
         expect(rulesForHandle(handle.toUpperCase())).toContain(rule);
       }
     }
   });
 
-  /**
-   * Load-bearing beyond the safety argument. `proxy.ts` decides whether to let
-   * a request reach `/admin`, and it runs where there is no database — the
-   * session callback in `auth.config.ts` therefore calls `groupsFor(handle,
-   * null)`, with no address to match patterns against. That works only because
-   * every capability comes from a rule keyed on the handle.
-   *
-   * Were a pattern ever allowed to confer one, this call would quietly stop
-   * seeing it and administrators would be redirected away from a console they
-   * are entitled to, with nothing in any log to explain it.
-   */
   it("不带邮箱也能算出全部权限——proxy 的前提", () => {
     const privileged = new Set(privilegedGroupIds());
 
@@ -237,9 +179,7 @@ describe("只有列出 handles 的规则能授予带权限的用户组", () => {
 
 describe("加组时的防呆", () => {
   it("只点名给过一个人、别处无定义的组名会被报出来", () => {
-    // The shape a typo takes: `出题員` for `出题人` parses, validates, and
-    // silently leaves its holder with nothing. Nothing else can tell those
-    // two apart, so the check is "does anything else refer to this name".
+
     const declared = new Set(declaredGroupIds());
     const fromPatterns = new Set(
       listRules().flatMap((rule) =>

@@ -32,15 +32,9 @@ export default async function SubmissionPage({
 
   const viewer = viewerFor(user);
 
-  // Undefined covers both "no such submission" and "not yours": no reason to
-  // confirm an id exists to somebody who cannot read it.
   const row = await submissionFor(id, viewer);
   if (!row) notFound();
 
-  // Raw on purpose: this row is proof the viewer already interacted with the
-  // problem, and access to the row is checked above. Withholding the title
-  // here would only blank out a page the reader is entitled to — the gate is
-  // about problems nobody has seen yet, not ones already submitted to.
   const problem = problemBySlug(row.problemSlug);
   const reason = failureReason(row);
   const queue = isSettled(row.state) ? null : await locateOne(row.id);
@@ -69,18 +63,6 @@ export default async function SubmissionPage({
         </span>
       </header>
 
-      {/*
-        Through `failureReason` rather than straight off `row.error`, which is
-        the same judgement `toView` makes for the list and the submit panel. The
-        column also carries text on rows that are still in flight — a runner's
-        last words before the reaper took the job off it — and printing that
-        here would announce a failure beside a spinner. It appears once the row
-        really is `disrupted`.
-
-        Amber rather than red, matching the badge: nothing here is the
-        submitter's doing, and the colour that says "you got this wrong" is
-        reserved for verdicts that mean it.
-      */}
       {reason ? (
         <p className="text-warn bg-warn-subtle rounded-md px-3 py-2 text-sm">
           {reason}
@@ -91,11 +73,6 @@ export default async function SubmissionPage({
         <RejudgeForm id={row.id} />
       ) : null}
 
-      {/*
-        The holder's own words, while it is still holding. Rendered verbatim and
-        interpreted not at all — "拉取镜像" and "测试点 3/10" are equally valid
-        and the kernel knows what neither means.
-      */}
       {row.runnerStatus && !isSettled(row.state) ? (
         <p className="text-fg-muted bg-surface-2 rounded-md px-3 py-2 font-mono text-xs">
           {row.runnerStatus}
@@ -111,11 +88,6 @@ export default async function SubmissionPage({
         </Card>
       ) : null}
 
-      {/*
-        Both of these are opaque to the kernel, so both go through a slot a
-        deployment may fill — see `lib/presentation.ts`. Unfilled, they
-        render as the JSON they are.
-      */}
       <Card>
         <CardHeader title="提交内容" />
         <CardBody>

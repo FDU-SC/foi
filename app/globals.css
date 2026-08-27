@@ -122,7 +122,6 @@
   }
 }
 
-/* rehype-pretty-code emits both themes; swap them off the root class. */
 :where(html:not(.dark)) [data-theme="dark"],
 :where(html.dark) [data-theme="light"] {
   display: none;

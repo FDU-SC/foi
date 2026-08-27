@@ -1,15 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { describeVerdict } from "./presentation";
 
-/**
- * The half of `describeVerdict` that belongs to the kernel: what to do with a
- * status nothing has named.
- *
- * Every status below is deliberately one no vocabulary would list, so these
- * cases hold whatever `content/` this runs against. That a *listed* status
- * comes back translated is a fact about a deployment's table and is asserted
- * in `content/verdicts.test.ts`.
- */
 describe("describeVerdict 对没有登记的 status", () => {
   const base = { score: null, maxScore: null, accepted: null };
 

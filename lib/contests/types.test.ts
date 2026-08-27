@@ -9,17 +9,6 @@ import {
   type ContestPhase,
 } from "./types";
 
-/**
- * The clock, on its own.
- *
- * `frozen` used not to be a phase — it was worked out from `freezeAt` wherever
- * somebody needed it — and folding it in broke nothing the compiler could see,
- * because every caller was comparing the phase to a string literal. So what is
- * pinned here is not just where the boundaries fall but that the derived
- * predicates agree with them: those are what the access gates ask, and a
- * predicate that drifts from the phase is the original bug with a new name.
- */
-
 const STARTS = "2026-01-15T13:00:00+08:00";
 const FREEZES = "2026-01-15T17:00:00+08:00";
 const ENDS = "2026-01-15T18:00:00+08:00";
@@ -57,11 +46,6 @@ describe("contestPhase", () => {
     expect(contestPhase(FROZEN, nudge(ENDS, 1))).toBe("ended");
   });
 
-  /**
-   * `endsAt` belongs to the contest, which is why a submission made at exactly
-   * that instant is still accepted. The freeze window inherits that boundary
-   * rather than closing one tick early, so the sequence never runs backwards.
-   */
   it("endsAt 当刻仍在比赛内，因此仍是 frozen", () => {
     expect(contestPhase(FROZEN, at(ENDS))).toBe("frozen");
     expect(contestPhase(PLAIN, at(ENDS))).toBe("running");
@@ -74,9 +58,7 @@ describe("contestPhase", () => {
   });
 
   it("相位只向前走，不回退", () => {
-    // The property that makes an exhaustive switch over it safe to reason
-    // about, and the one an extra `now < endsAt` on the freeze test would
-    // break: `frozen` would fall back to `running` for the final instant.
+
     const order: ContestPhase[] = ["upcoming", "running", "frozen", "ended"];
     const moments = [
       nudge(STARTS, -1),
@@ -96,13 +78,6 @@ describe("contestPhase", () => {
   });
 });
 
-/**
- * The truth table the three gates read, asserted per phase.
- *
- * `isContestOpen` answering `true` for `frozen` is the whole reason these
- * exist: the previous spelling was `phase !== "running"`, which typechecked
- * perfectly and closed submissions for the last hour of every frozen round.
- */
 describe("相位派生谓词", () => {
   const moments: { phase: ContestPhase; now: Date }[] = [
     { phase: "upcoming", now: nudge(STARTS, -1) },
@@ -136,11 +111,6 @@ describe("相位派生谓词", () => {
   });
 });
 
-/**
- * Refused at load for the same reason a `freezeAt` against a format that
- * ignores it is refused: the schedule says the board stops updating, and it
- * never does.
- */
 describe("freezeAt 的加载期校验", () => {
   function issues(freezeAt: string): string[] {
     const parsed = contestConfigSchema.safeParse({

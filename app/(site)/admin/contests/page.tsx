@@ -32,8 +32,7 @@ function participantsLabel(
 }
 
 export default async function AdminContestsPage() {
-  // Entry lists come from the account table, so the access layer resolves them
-  // up front rather than leaving a query inside the render loop.
+
   const rows = await adminContestsFor(await getViewer());
   if (!rows) notFound();
 

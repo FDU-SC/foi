@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resetPassword, verificationCode } from "./index";
 
-/**
- * These templates are the last thing between a working flow and a person
- * staring at an email they cannot act on, and nothing downstream reads them —
- * `deliver` just hands the strings to the relay. So what is worth asserting is
- * that the one piece of information the message exists to carry actually
- * survives into both bodies, and that nothing in it can escape its own markup.
- */
 const EXPIRES = new Date("2026-03-01T04:05:00Z");
 
 describe("verificationCode", () => {
@@ -23,7 +16,7 @@ describe("verificationCode", () => {
   });
 
   it("验证码不出现在主题里", () => {
-    // 主题会显示在锁屏通知上，旁边的人不该顺手就读到。
+
     expect(mail.subject).not.toContain("042317");
   });
 
@@ -50,7 +43,7 @@ describe("resetPassword", () => {
       "https://foi.example.test/reset-password?token=abc123",
     );
     expect(mail.html).toContain('href="https://foi.example.test/reset-password');
-    // 按钮渲染不出来的客户端里，地址还得能被复制。
+
     expect(mail.html.split("reset-password?token=abc123").length).toBe(3);
   });
 

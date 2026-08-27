@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 
 const POLL_INTERVAL_MS = 4000;
 
-// Fixed locale and time zone so the server and client render the same string.
 const clock = new Intl.DateTimeFormat("zh-CN", {
   hour: "2-digit",
   minute: "2-digit",
@@ -43,11 +42,6 @@ function Metric({
   );
 }
 
-/**
- * One row of the queue. The position beside a waiting submission is exactly
- * how many are ahead of it: the kernel owns the ordering, so this is a fact
- * rather than an index into what a backend last reported.
- */
 function QueueRow({ item, index }: { item: QueueEntry; index: number }) {
   const judging = item.state === "judging";
   return (
@@ -60,7 +54,7 @@ function QueueRow({ item, index }: { item: QueueEntry; index: number }) {
           {judging ? "评测中" : "排队中"}
         </Badge>
       </td>
-      {/* Absent for non-admins: it would reveal who is working on what. */}
+
       {item.problemSlug ? (
         <td className="text-fg px-3 py-1.5 font-mono text-[11px]">
           {item.problemSlug}
@@ -68,12 +62,7 @@ function QueueRow({ item, index }: { item: QueueEntry; index: number }) {
       ) : null}
       <td className="text-fg-subtle px-3 py-1.5 font-mono text-[11px]">
         {item.submissionId}
-        {/*
-          The runner's own words, rendered and not read. A backend decides what
-          goes in here and the kernel forwards it — the same bargain as a
-          verdict's `detail`. Redacted alongside the problem slug, so a player
-          never sees another competitor's.
-        */}
+
         {item.status ? (
           <div className="text-fg-muted mt-0.5 font-sans text-[11px]">
             {item.status}
@@ -90,19 +79,10 @@ function QueueRow({ item, index }: { item: QueueEntry; index: number }) {
   );
 }
 
-/**
- * One backend.
- *
- * No online flag and no latency, because there is nothing to dial: judging is
- * pulled, so a backend has no inbound address and being "reachable" is not a
- * property it has. The runner count answers the question those were a proxy
- * for — processes that actually asked for work in the last minute.
- */
 function JudgeCard({ status }: { status: BackendQueueStatus }) {
   const queued = status.items.filter((item) => item.state === "queued");
   const judging = status.items.filter((item) => item.state === "judging");
 
-  // A queue with nobody to work it is the failure this board exists to show.
   const stranded = status.runners === 0 && status.queued > 0;
 
   return (

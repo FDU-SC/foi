@@ -9,11 +9,6 @@ import {
   type ActionState,
 } from "./actions";
 
-/**
- * Suspending asks for a reason inline rather than behind a dialog. The reason
- * is written to the row and is the only record of why somebody was locked out,
- * so the field being unavoidable is the point.
- */
 export function ModerateForm({
   handle,
   suspended,

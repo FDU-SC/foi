@@ -5,7 +5,6 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-/** What Caddy leaves behind: the peer it saw, appended to whatever arrived. */
 function forwarded(chain: string): Headers {
   return new Headers({ "x-forwarded-for": chain });
 }
@@ -20,9 +19,6 @@ describe("sourceFrom", () => {
   it("调用方自己塞的 x-forwarded-for 不算数", () => {
     vi.stubEnv("FOI_TRUSTED_PROXY_HOPS", "1");
 
-    // The sender wrote "1.2.3.4"; Caddy appended the address it actually saw.
-    // Reading the left end — which is what this used to do — would have let
-    // one machine present itself as an unlimited number of them.
     expect(sourceFrom(forwarded("1.2.3.4, 203.0.113.9"))).toBe("203.0.113.9");
     expect(sourceFrom(forwarded("a, b, c, 203.0.113.9"))).toBe("203.0.113.9");
   });
@@ -86,12 +82,6 @@ describe("sourceFrom", () => {
   });
 });
 
-/**
- * The sentinels have to be recognisable as "no source", not merely happen to
- * be unusual strings. A gate that keyed on them would put every caller in one
- * bucket, which is a different control from the one intended and a much worse
- * one — see the note in `./gate.ts`.
- */
 describe("isResolvedSource", () => {
   it("真实地址算解析出来了", () => {
     expect(isResolvedSource("203.0.113.9")).toBe(true);

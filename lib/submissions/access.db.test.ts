@@ -7,14 +7,6 @@ import { accounts, problems, submissions } from "@/lib/db/schema";
 import { submissionFor, submissionsFor } from "./access";
 import { viewerWith } from "@/test/content-shapes";
 
-/**
- * The submission gate needs rows, so this runs against a real Postgres and
- * skips itself when there is none.
- *
- * The case that matters most is the last one in "列表范围": it is the exact
- * shape of the bug this module exists to prevent — a player asking the list
- * endpoint for everything and getting it.
- */
 const OWNER = "subaccess-owner";
 const OTHER = "subaccess-other";
 const SLUG = "subaccess-problem";
@@ -139,9 +131,7 @@ describeDb("提交门禁", () => {
     });
 
     it("不给任何过滤条件时，选手拿到的仍然只有自己的", async () => {
-      // The original leak: the list endpoint answered for the whole site when
-      // no scoping argument was supplied. Scope now comes from the viewer, so
-      // there is no argument to omit.
+
       const rows = await submissionsFor(otherViewer);
       expect(rows.every((r) => r.handle === OTHER)).toBe(true);
     });

@@ -23,20 +23,10 @@ export interface ContestStandings {
   problems: ContestProblem[];
   ruleset: AnyRuleset;
   standings: Standings<unknown>;
-  /**
-   * True when the contest is inside its freeze window but this board was
-   * computed without it. Nothing depends on it but the label — a board that
-   * silently differs from the one everyone else is looking at is a good way to
-   * misread a contest.
-   */
+
   freezeBypassed: boolean;
 }
 
-/**
- * The contest, its problem set and its roster all come from the registry; the
- * database is queried only for the submissions, so the standings reflect the
- * repository rather than whatever a past administrator clicked.
- */
 async function loadAndCompute(
   slug: string,
   ignoreFreeze: boolean,
@@ -44,8 +34,6 @@ async function loadAndCompute(
   const contest = contestBySlug(slug);
   if (!contest) return null;
 
-  // The registry refused to load a contest without a resolvable format, so
-  // this only fires if the two disagree.
   const ruleset = rulesetFor(contest.slug, contest.ruleset.id);
   if (!ruleset) {
     throw new Error(`比赛 "${contest.slug}" 没有可用的赛制`);
@@ -73,9 +61,6 @@ async function loadAndCompute(
 
   const declared = await resolveParticipants(contest);
 
-  // A contest with `participants: { mode: "open" }` names no field, so anyone
-  // who submitted counts. This keeps casual contests usable with no entry step
-  // at all.
   const participants: Participant[] =
     declared === null
       ? deriveParticipants(submissionRows)
@@ -84,9 +69,6 @@ async function loadAndCompute(
           displayName: entrant.displayName,
         }));
 
-  // Withholding the freeze is expressed by handing the ruleset a contest that
-  // has none. No format has to know this option exists, and none can get it
-  // half right — the freeze is entirely a function of `freezeAt`.
   const freezeAt = ignoreFreeze ? null : (contest.freezeAt ?? null);
 
   const input = {
@@ -102,12 +84,6 @@ async function loadAndCompute(
     submissions: submissionRows satisfies SubmissionRecord[],
   };
 
-  // The window is the kernel's, so this asks the kernel for it rather than
-  // spelling the comparison out inline to match what a shipped ruleset does —
-  // that has the dependency backwards. `[freezeAt, endsAt]` is defined on
-  // `ContestPhase`, the loader refuses a `freezeAt` outside `[startsAt,
-  // endsAt)`, and a format applying a different interval is the thing that is
-  // wrong.
   const wouldFreeze = contestPhase(contest) === "frozen";
 
   return {
@@ -119,11 +95,6 @@ async function loadAndCompute(
   };
 }
 
-/**
- * An open contest has no declared entry list, so whoever submitted competes.
- * Their display name rode along on the join above, which is what keeps this a
- * pure function of the rows it was handed.
- */
 function deriveParticipants(
   rows: { handle: string; displayName: string }[],
 ): Participant[] {
@@ -138,19 +109,6 @@ function deriveParticipants(
   return [...seen.values()];
 }
 
-/**
- * The board this viewer should see.
- *
- * Reading through a freeze is its own capability, `standings.viewFrozen`. In
- * practice `submission.readAny` already implies it — somebody who can open
- * every submission can add them up — but the question an operator asks is
- * "who sees through the freeze", and an answer they have to derive from
- * another capability is one they will get wrong under pressure.
- *
- * Both forms are cached, under different keys. Serving one where the other was
- * asked for would either leak a live board mid-freeze or hide results from the
- * person running the contest.
- */
 export function standingsFor(
   slug: string,
   viewer: Viewer,

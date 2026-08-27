@@ -6,17 +6,6 @@ import { accounts, authTokens } from "@/lib/db/schema";
 import type { MailMessage } from "./transport";
 import { sendPasswordReset } from "./notify";
 
-/**
- * What `sendPasswordReset` does to the rows around a send, which is the part
- * neither the token suite nor the two callers can see. The tokens next door
- * are tested against their own module; the actions under `app/` are tested
- * nowhere, by design. The ordering between minting, sending and retiring only
- * exists here.
- *
- * The relay is the one thing that has to be faked — a test cannot make a real
- * one refuse — so `deliver` is wrapped and everything else in `./transport`
- * left alone. Needs a real Postgres for the same reason the token suite does.
- */
 const HANDLE = "resetmailtest";
 
 const TO = {
@@ -57,7 +46,6 @@ if (!online) {
   console.warn("[test] 数据库不可达，跳过重置邮件集成用例");
 }
 
-/** The link as the person in front of the inbox would have it. */
 function tokenFromLastMail(): string {
   const last = relay.sent.at(-1);
   if (!last) throw new Error("没有邮件发出");
@@ -70,7 +58,6 @@ function tokenFromLastMail(): string {
   return token;
 }
 
-/** Past the per-account resend cooldown, so a test can send a second one. */
 async function pastCooldown(): Promise<void> {
   await db.execute(
     sql`update auth_tokens set created_at = created_at - interval '61 seconds' where handle = ${HANDLE}`,
@@ -109,10 +96,6 @@ describeDb("sendPasswordReset", () => {
     relay.refuse = true;
     await expect(sendPasswordReset(TO)).rejects.toThrow("中继拒收");
 
-    // 第二封根本没离开这个进程，所以第一封那个链接必须还活着。先作废再
-    // 发信的写法在这里会把这个人锁在外面：手上剩一个点开就说「链接无效」
-    // 的链接，而要换一封得等中继恢复、冷却也过去——而中继下线恰恰是那个
-    // 旧链接最要紧的时候。
     await expect(redeemToken(first, "password_reset")).resolves.toEqual({
       ok: true,
       handle: HANDLE,

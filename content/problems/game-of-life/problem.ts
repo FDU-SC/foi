@@ -13,7 +13,7 @@ export const problem = {
     kind: "inline",
     judge: judgeOutputOnly,
     config: {
-      // 第 100 代活细胞数（用程序模拟得到，手算不现实）。
+
       cases: [
         { name: "场景 1", expected: "14" },
         { name: "场景 2", expected: "12" },

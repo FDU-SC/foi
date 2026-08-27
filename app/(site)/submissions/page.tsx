@@ -22,10 +22,8 @@ export default async function SubmissionsPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login?next=/submissions");
 
-  // Scoped by the viewer, not by an argument this page has to remember.
   const rows = await submissionsFor(viewerFor(user), { limit: 50 });
 
-  // One sweep of the judges covers every unfinished row on the page.
   const positions = await locateInQueues(
     rows.filter((row) => !isSettled(row.state)).map((row) => row.id),
   );

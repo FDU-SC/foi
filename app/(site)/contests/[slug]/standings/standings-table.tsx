@@ -20,13 +20,6 @@ function DefaultTotal({ row }: { row: { total: number } }) {
   );
 }
 
-/**
- * Renders whatever the contest's ruleset produced.
- *
- * The kernel lays out rows, ranks and problem columns; how a single cell reads
- * is entirely the ruleset's business, which is why `render.Cell` is called
- * here rather than switched on a format enum.
- */
 export function StandingsTable({ data }: { data: ContestStandings }) {
   const { standings, problems, ruleset } = data;
   const Cell = ruleset.render?.Cell ?? DefaultCell;

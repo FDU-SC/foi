@@ -25,19 +25,6 @@ const STATUS: Record<string, { label: string; tone: "ok" | "err" }> = {
   suspended: { label: "已封禁", tone: "err" },
 };
 
-/**
- * What the four audit columns say, which depends on `status` and nothing else.
- *
- * Suspended reads them as the current decision; active reads the same columns
- * as a closed episode, and that second case is the whole reason `reinstatedAt`
- * exists. Without it a reinstated row would either show nothing — losing the
- * record a reinstatement used to erase outright — or show a reason with no way
- * to say it is over.
- *
- * Only the most recent episode. A second suspension overwrites the first, so
- * this is deliberately not a timeline; see `reinstateAccount` for why an
- * events table is a bigger claim than the console makes.
- */
 function ModerationNote({ row }: { row: AccountRow | undefined }) {
   if (!row?.suspendedAt) return null;
 
@@ -74,12 +61,6 @@ export default async function AdminAccountsPage({
 }: PageProps<"/admin/accounts">) {
   const viewer = await getViewer();
 
-  // Null when the console itself is closed to them, the same way the other
-  // three pages here learn it. Both capabilities are still asked, just not by
-  // this file: the shell answers to `admin.access` and the directory inside it
-  // to `account.read`, because it is the one page here showing personal data
-  // rather than platform state. `proxy.ts` guards the URL prefix, which is not
-  // the same thing as guarding the data.
   const [directory, params] = await Promise.all([
     adminAccountsFor(viewer),
     searchParams,
@@ -192,12 +173,7 @@ export default async function AdminAccountsPage({
                     {account.handle}
                   </td>
                   <td className="text-fg px-4 py-2.5">{account.displayName}</td>
-                  {/*
-                    No "unverified" badge: both ways in prove the address
-                    before writing the row — the form with a code, the CLI by
-                    an operator typing it — so an account with an address has a
-                    verified one. The dash is for rows predating that.
-                  */}
+
                   <td className="px-4 py-2.5">
                     {account.email ? (
                       <span className="text-fg-muted font-mono text-xs">
@@ -250,9 +226,7 @@ export default async function AdminAccountsPage({
                             hasPassword={row?.passwordSetAt != null}
                           />
                         ) : null}
-                        {/* `suspendAccountAction` refuses a privileged target,
-                            so drawing the button anyway would be an invitation
-                            to discover that the hard way. */}
+
                         {canModerate && !hasPrivilege(account.groups) ? (
                           <ModerateForm
                             handle={account.handle}

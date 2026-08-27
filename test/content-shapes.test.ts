@@ -9,27 +9,12 @@ import {
   retiredProblem,
 } from "./content-shapes";
 
-/**
- * That whatever `content/` is mounted can hold the kernel's suites up.
- *
- * Every finder throws a sentence naming the shape it wanted, so this file's
- * job is only to call them: a deployment missing one gets a single failure
- * that says which mechanism is going untested, instead of a dozen failures
- * scattered across `lib/` that look like the kernel broke.
- *
- * It is the reason the shapes are worth writing down at all. The kernel's
- * tests run against the live registries on purpose — a fixture registry would
- * agree with a gate that had drifted — and the price of that is a contract
- * with `content/`. This is the contract, stated in one place and checked
- * before anything depends on it.
- */
 describe("挂载的 content 能撑起内核用例", () => {
   it("有一场按 group 限制参赛、且第一道题覆盖了 rateLimit 的比赛", () => {
     const { contest, entry, group } = contestWithGroupEntry();
     expect(entry.rateLimit).toBeDefined();
     expect(group).toBeTruthy();
-    // And something outside it, which is what separates "this round does not
-    // contain that problem" from "you are not in this round".
+
     expect(
       publicProblemOutside(contest, new Date(contest.startsAt.getTime() + 1)),
     ).toBeDefined();

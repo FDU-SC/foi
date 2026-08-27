@@ -11,10 +11,6 @@ function Item({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-/**
- * Renders the limits box at the top of a statement. Extra key/value pairs can
- * be passed through `extra` for problem types with unusual constraints.
- */
 export function Constraints({
   time,
   memory,

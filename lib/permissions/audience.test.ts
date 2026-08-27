@@ -34,9 +34,7 @@ describe("inAudience", () => {
   });
 
   it("能力不参与这个判断——越权是调用方另外问的", () => {
-    // `inAudience` answers "is this for you". Whether somebody may look past
-    // that answer is a separate question, asked with `viewer.can(...)`, so
-    // that the two axes stay legible where they are combined.
+
     const admin = viewerWith("problem.viewAll", "root");
     expect(inAudience(["校队"], admin)).toBe(false);
   });
@@ -80,8 +78,7 @@ describe("audienceCovers", () => {
 
 describe("比赛受众不得超出题目受众", () => {
   it("这正是「公开比赛塞一道校队题」被拒的判据", () => {
-    // The leak it prevents: the contest page would print that problem's title
-    // and link for somebody the problem itself answers 404 to.
+
     const contestForEveryone = undefined;
     const problemForTeam = ["校队"];
     expect(audienceCovers(problemForTeam, contestForEveryone)).toBe(false);

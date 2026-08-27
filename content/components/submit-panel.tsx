@@ -11,7 +11,6 @@ import { Input, Select, Textarea } from "@/components/ui/field";
 import { useSubmit } from "@/lib/submissions/use-submit";
 import { problemUi, type SubmitKind } from "./ui-config";
 
-/** Display names for the languages this deployment's code submitter offers. */
 const LANGUAGES: Record<string, string> = {
   c: "C",
   cpp: "C++",
@@ -24,24 +23,6 @@ const LANGUAGES: Record<string, string> = {
 
 const DEFAULT_LANGUAGES = ["cpp", "python"];
 
-/**
- * The stock submitter, registered globally so a statement can just write
- * `<SubmitPanel />`. It covers code and single-value submissions; problems
- * needing anything else set `ui.submit` to `"none"` and render their own
- * component built on `useSubmit()`.
- *
- * A template, not the kernel. `useSubmit` posts whatever object it is handed
- * and `POST /api/submissions` stores it without looking inside, so the three
- * payload shapes below — `{ language, source }`, `{ flag }`, `{ text }` — are
- * this deployment's convention and nothing else has to agree with them. They
- * used to be spelled out in `problemConfigSchema`, which made them the
- * platform's. The half that reads them back is
- * `content/problems/_shared/views/submitted.tsx`.
- *
- * The verdict below goes through the kernel's `VerdictBody`, which asks the
- * problem how to draw its own `detail` — this panel serves every problem and
- * has no business choosing for any of them.
- */
 export function SubmitPanel({ kind: kindOverride }: { kind?: SubmitKind }) {
   const { config, canAct } = useProblem();
   const { submit, submission, submitting, error } = useSubmit();
@@ -157,12 +138,6 @@ export function SubmitPanel({ kind: kindOverride }: { kind?: SubmitKind }) {
           </form>
         )}
 
-        {/*
-          The badge above says only 评测中断. This line is the one place a
-          runner's "I cannot judge this" is told apart from the kernel deciding
-          nobody is coming, because that difference lives in the text rather
-          than in the state — see `failureReason`.
-        */}
         {submission?.reason ? (
           <p className="text-err bg-err-subtle mt-4 rounded-md px-3 py-2 text-sm">
             {submission.reason}

@@ -65,9 +65,6 @@ export default async function StandingsPage({
 
   const contest = view.config;
 
-  // The board renders one column per problem, labelled and titled, so before
-  // the start it gives away exactly what the contest page withholds. There is
-  // nothing to rank yet either.
   if (!isContestProblemSetVisibleTo(contest, viewer)) {
     return <UpcomingNotice contest={contest} />;
   }

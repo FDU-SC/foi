@@ -7,29 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/content/components/copy-button";
 
-/** What `spawn` and `poll` both answer with. See this problem's backend. */
 type InstanceView =
   | { status: "pulling"; instanceId: string }
   | { status: "ready"; instanceId: string; endpoint: string; expiresAt: number }
   | { status: "gone" };
 
-/** How often to ask whether the container is up yet, once one is starting. */
 const POLL_INTERVAL_MS = 1500;
 
-/**
- * Per-problem infrastructure control.
- *
- * Spawning and destroying containers is not the kernel's business, and this
- * component does not ask it to be: it posts to `/action/<name>`, which relays
- * the call to whatever service `backend.id` names without looking inside.
- *
- * It goes through the kernel rather than straight at that service for two
- * reasons. The request has to be signed, and the shared secret cannot leave
- * the server. And the person making it has to be somebody the problem is
- * actually open to — this component used to call the backend directly with no
- * credentials at all, so anyone who could load the page, signed in or not,
- * could start containers on it.
- */
 export function InstanceControl() {
   const { config, contestSlug, canAct } = useProblem();
   const [view, setView] = useState<InstanceView | null>(null);
@@ -60,10 +44,6 @@ export function InstanceControl() {
     return body as InstanceView;
   };
 
-  // Follows a starting container to ready. The backend answers `spawn` before
-  // the image has finished pulling — holding the request open until it had
-  // would make a slow pull indistinguishable from a dead backend — so the
-  // endpoint arrives here rather than in the spawn response.
   useEffect(() => {
     if (!pulling) return;
 
@@ -107,8 +87,7 @@ export function InstanceControl() {
   const destroy = async () => {
     setBusy(true);
     try {
-      // Cleared regardless: a backend that says the instance is already gone
-      // has told us the same thing as one that just removed it.
+
       await call("destroy");
       setView(null);
     } finally {

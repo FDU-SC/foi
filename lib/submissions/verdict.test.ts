@@ -2,11 +2,6 @@ import { describe, expect, it } from "vitest";
 import { allProblems } from "@/lib/problems/registry";
 import { verdictColumns } from "./verdict";
 
-/**
- * The boundary where a backend's reply stops being a message and becomes the
- * kernel's own data. Everything downstream reads the columns, so a mistake
- * here is invisible until a scoreboard disagrees with a submission page.
- */
 const someProblem = allProblems()[0]!;
 
 describe("verdictColumns", () => {
@@ -30,11 +25,7 @@ describe("verdictColumns", () => {
   });
 
   it("调用方也给不出分母时留空，而不是编一个出来", () => {
-    // Which submissions have no denominator to fall back on is the caller's
-    // question — a late report against a problem that has since left the
-    // repository is one of them. What this function owes is only that it does
-    // not answer it on the caller's behalf: a guessed denominator silently
-    // rescores whatever it lands on.
+
     const columns = verdictColumns({ status: "accepted", score: 1 }, null);
 
     expect(columns.maxScore).toBeNull();

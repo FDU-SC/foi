@@ -22,7 +22,6 @@ const ENTRIES = [
   },
 ] as const;
 
-// Which problems are listed depends on the clock and on who is asking.
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {

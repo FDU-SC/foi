@@ -8,7 +8,7 @@ import {
 } from "@/lib/standings/types";
 
 const configSchema = z.object({
-  /** "best" scores the highest submission, "last" scores the final one. */
+
   take: z.enum(["best", "last"]).default("best"),
 });
 
@@ -16,7 +16,7 @@ export interface OiCell {
   score: number;
   maxScore: number;
   attempts: number;
-  /** Milliseconds from contest start for the submission that counted. */
+
   at: number | null;
 }
 
@@ -36,30 +36,15 @@ function OiCellView({ cell }: { cell: OiCell | undefined }) {
   );
 }
 
-/**
- * OI scoring: sum per-problem scores, taking each problem's best (or last)
- * submission. Ties break on how early the deciding submissions came in.
- */
 export const ruleset: Ruleset<OiCell> = {
   id: "oi",
   name: "OI",
   description: "每题取最高分（或最后一次提交），按总分排名。",
 
-  // No `supportsFreeze`, which the kernel reads as "does not freeze" and which
-  // is the honest answer: a frozen score-based board would need a cell state
-  // meaning "there is a newer submission you cannot see", and this format has
-  // none. Adding one is a change to the format, not a flag flip — so a
-  // contest that names `freezeAt` against this ruleset fails to load rather
-  // than running with a board that never stops updating.
   computeStandings(input: StandingsInput) {
     const { take } = configSchema.parse(input.config ?? {});
     const start = input.contest.startsAt.getTime();
 
-    // What a problem is worth on *this* board, which is not what the backend
-    // scored it out of. A contest may reweight a problem with `points`, and
-    // the backend knows nothing about that — so the raw score is rescaled
-    // below rather than dropped into a column with a different denominator.
-    // Getting this wrong showed up as full marks reading "100/200".
     const worth = new Map(
       input.problems.map((problem) => [
         problem.slug,
@@ -86,9 +71,6 @@ export const ruleset: Ruleset<OiCell> = {
       cells.set(submission.problemSlug, cell);
       cell.attempts += 1;
 
-      // A backend that reported no score at all counts as zero rather than as
-      // no attempt: the person did submit, and a scored format has nothing
-      // else to say about a submission it cannot score.
       const raw = submission.score ?? 0;
       const outOf = submission.maxScore;
       const score =
@@ -96,8 +78,6 @@ export const ruleset: Ruleset<OiCell> = {
           ? (raw / outOf) * maxScore
           : raw;
 
-      // Submissions arrive oldest first, so "last" simply overwrites and
-      // "best" keeps the first submission that reached the highest score.
       if (take === "last" || score > cell.score) {
         cell.score = score;
         cell.at = submission.createdAt.getTime() - start;

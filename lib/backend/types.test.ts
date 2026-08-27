@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { verdictSchema } from "./types";
 
-/**
- * A backend may reply with nothing but a status label, so the badge has to
- * stay sensible without a score to grade itself on.
- */
 describe("verdictSchema", () => {
   it("只要 status 就是合法的回传", () => {
     expect(verdictSchema.safeParse({ status: "checked" }).success).toBe(true);

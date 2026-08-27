@@ -10,7 +10,6 @@ build
 !.env.example
 
 *.md
-!README.md
 
 .DS_Store
 *.log

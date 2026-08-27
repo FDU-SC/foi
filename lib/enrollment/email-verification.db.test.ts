@@ -12,21 +12,9 @@ import {
   verifyCode,
 } from "./email-verification";
 
-/**
- * Like the token suite next door, this cannot be a unit test: the attempt cap
- * and the resend cooldown are properties of the SQL statements, not of the
- * TypeScript wrapped around them. Runs against a real Postgres and skips
- * itself when there is none.
- */
 const EMAIL = "verify-test@example.test";
 const OTHER = "verify-other@example.test";
 
-/**
- * The digest is keyed, so these cases need a key. Stubbed here rather than
- * taken from the environment for the reason `vitest.config.mts` gives: CI
- * hands the test step a `DATABASE_URL` and nothing else, so a suite that
- * needs more of a deployment says so itself.
- */
 const SECRET = "verification-suite-signing-key-32b";
 
 async function reachable(): Promise<boolean> {
@@ -45,7 +33,6 @@ if (!online) {
   console.warn("[test] 数据库不可达，跳过邮箱验证码集成用例");
 }
 
-/** Time travel. Both deadlines live on the row, so both move together. */
 async function age(email: string, ms: number): Promise<void> {
   const [row] = await db
     .select()
@@ -61,7 +48,6 @@ async function age(email: string, ms: number): Promise<void> {
     .where(eq(emailVerifications.email, email));
 }
 
-/** Past the cooldown, so a test can mint a second code without waiting. */
 async function issueFresh(email: string): Promise<string> {
   const first = await issueCode(email);
   if (first.ok) return first.code;
@@ -133,8 +119,6 @@ describeDb("邮箱验证码", () => {
   it("并发猜测不会突破上限", async () => {
     await issueFresh(EMAIL);
 
-    // 一起打进来的 20 次猜测，只应该消耗掉上限那么多次尝试。先读后写的
-    // 计数在这里会全部放行，这正是要防的。
     await Promise.all(
       Array.from({ length: 20 }, (_, i) =>
         verifyCode(EMAIL, String(i).padStart(6, "0")),
@@ -217,8 +201,6 @@ describeDb("邮箱验证码", () => {
       .from(emailVerifications)
       .where(eq(emailVerifications.email, EMAIL));
 
-    // 六位码的空间只有一百万。裸摘要意味着谁读到这张表，谁就能在一秒内把
-    // 每一行的码都算回来——而行上正写着这个码发给了哪个邮箱。
     expect(row.codeHash).not.toBe(
       createHash("sha256").update(`${EMAIL}:${code}`).digest("hex"),
     );
@@ -227,7 +209,6 @@ describeDb("邮箱验证码", () => {
   it("换一把 AUTH_SECRET，原先发出去的码就不再算数", async () => {
     const code = await issueFresh(EMAIL);
 
-    // 密钥真的参与了摘要，而不只是被拼进去看着像参与了。
     vi.stubEnv("AUTH_SECRET", "a-different-verification-key-32b");
 
     await expect(verifyCode(EMAIL, code)).resolves.toMatchObject({
@@ -243,8 +224,7 @@ describeDb("邮箱验证码", () => {
       ok: true,
       matched: true,
     });
-    // 仍然是 ok——按第二下按钮不算错——但这一次走的是捷径，什么都没比对，
-    // 所以 matched 是 false。
+
     await expect(verifyCode(EMAIL, code)).resolves.toEqual({
       ok: true,
       matched: false,
@@ -256,17 +236,11 @@ describeDb("邮箱验证码", () => {
     const code = await issueFresh(EMAIL);
     await verifyCode(EMAIL, code);
 
-    // 这是注册证明越权签发的第一环。已验证且未过期的行会让 verifyCode 走
-    // 捷径，根本不读验证码；它要是把这一路也答成「验证通过」，注册页就会
-    // 给发问的这个浏览器签发注册证明——而「已验证的行 + 本浏览器的证明」
-    // 正是 register 建号的全部条件。于是任何人只要撞上别人那 30 分钟的
-    // 窗口，随手一个错码就能把号注册到自己名下。
     await expect(verifyCode(EMAIL, "000000")).resolves.toEqual({
       ok: true,
       matched: false,
     });
 
-    // 走的是捷径，所以这一问既没有消耗次数，也没有动过那一行。
     const [row] = await db
       .select({ attempts: emailVerifications.attempts })
       .from(emailVerifications)

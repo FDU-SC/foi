@@ -13,18 +13,6 @@ import {
   enrollmentViewFor,
 } from "./access";
 
-/**
- * The gate the console did not have.
- *
- * Two of the four admin pages checked `admin.access` and two did not, and the
- * one that mattered was `/admin/enrollment`: its data came straight from the
- * registries, so nothing else stood between a viewer and the rules naming
- * everybody who holds privilege. These cases exist so that regression cannot
- * come back silently — every entry point here has to refuse.
- *
- * Reads the account table for the hit counts, so it runs against a real
- * Postgres and skips itself when there is none.
- */
 async function reachable(): Promise<boolean> {
   try {
     await db.execute(sql`select 1`);
@@ -44,12 +32,6 @@ if (!online) {
 const admin = viewerWith("admin.access", "adminaccess-admin");
 const player = viewerFor({ handle: "adminaccess-player", groups: [] });
 
-/**
- * Somebody the repository never named — which is what a suspended
- * administrator resolves to, since `getResolvedUser()` returns null for a
- * suspended account and `viewerFor(null)` has no groups at all. `proxy.ts`
- * would have let them through to `/admin`, because it reads the token.
- */
 const suspended = AS_PLAYER;
 
 describeDb("运维台门禁", () => {
@@ -86,11 +68,6 @@ describeDb("运维台门禁", () => {
       expect(await adminAccountsFor(suspended)).toBeNull();
     });
 
-    /**
-     * The split the wrapper exists to keep: `admin.access` opens the page,
-     * `account.read` fills it. Collapsing the two would either 404 an operator
-     * entitled to the console or hand the addresses to everybody who is.
-     */
     it("只有 admin.access 时拿到页面，但表是空的", async () => {
       const consoleOnly: typeof admin = {
         handle: "adminaccess-setter",
@@ -128,12 +105,6 @@ describeDb("运维台门禁", () => {
       expect(await enrollmentViewFor(player)).toBeNull();
     });
 
-    /**
-     * The case that was actually reachable before this layer existed: a live
-     * JWT gets past `proxy.ts`, the page had no second check, and the rules
-     * are the most sensitive configuration on the platform — the ones naming
-     * handles are the list of who to go after.
-     */
     it("被封禁的管理员拿到 null，而不是一整页规则", async () => {
       expect(await enrollmentViewFor(suspended)).toBeNull();
     });
@@ -147,12 +118,6 @@ describeDb("运维台门禁", () => {
       expect(view?.untagged).not.toBeNull();
     });
 
-    /**
-     * The capability split the console is supposed to support, and the thing
-     * nothing exercised while the only declared group held all ten: the rules
-     * are platform state and answer to `admin.access`, the counts are derived
-     * from addresses and answer to `account.read`.
-     */
     it("只有 admin.access 时给规则不给命中数", async () => {
       const consoleOnly: typeof admin = {
         handle: "adminaccess-setter",
@@ -172,8 +137,6 @@ describeDb("运维台门禁", () => {
     it("命中数只统计 active 账号", async () => {
       const view = await enrollmentViewFor(admin);
 
-      // Every count is bounded by the active directory it was computed from,
-      // which is what rules out a suspended signup inflating a cohort.
       for (const count of view?.ruleMatches ?? []) {
         expect(count).toBeGreaterThanOrEqual(0);
       }

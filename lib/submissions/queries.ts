@@ -5,21 +5,6 @@ import { accounts, problems, submissions } from "@/lib/db/schema";
 import type { SubmissionRow } from "@/lib/db/schema";
 import type { SubmissionListItem, SubmissionView } from "./types";
 
-/**
- * The columns a view is made of, spelled out instead of taken as a whole row.
- *
- * `error` is in the list for `failureReason` rather than for the view, which
- * has no field of that name. What is deliberately *not* in it is `payload`:
- * capped at 512 KiB, genuinely that big when the submission is a file of
- * answers rather than a program, never sent to anybody by the function below,
- * and fifty to a page in `listSubmissions`. Narrowing here is what lets that
- * query stop asking for it, and keeping the two in step is the type checker's
- * job — a field added to `SubmissionView` and read off the row will not
- * compile until both this list and that `select` know about it.
- *
- * Every other caller passes a full `SubmissionRow`, which still satisfies this
- * structurally.
- */
 export function toView(
   row: Pick<
     SubmissionRow,
@@ -66,14 +51,6 @@ export async function getSubmissionRow(
   return row;
 }
 
-/**
- * The row a client's nonce already produced, if it produced one.
- *
- * Keyed by both columns because the unique index is: a nonce is a client's
- * private counter, and one person's must not be able to name another's
- * submission. Serves the read before the insert and the recovery after a lost
- * race on it — see `submissions.clientNonce`.
- */
 export async function findSubmissionByNonce(
   handle: string,
   clientNonce: string,
@@ -107,9 +84,6 @@ export async function listSubmissions(options: {
       : undefined,
   ].filter((clause) => clause !== undefined);
 
-  // The display name is a join rather than a lookup: people supply their own,
-  // so the authoritative copy is one table over and the foreign key guarantees
-  // the row is there.
   const rows = await db
     .select({
       submission: {

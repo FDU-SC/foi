@@ -13,40 +13,6 @@ import {
 import type { JobDetails, JobTicket, Verdict } from "../lib/backend/types";
 import { backends } from "./backends";
 
-/**
- * A reference runner, and half a backend.
- *
- * Content, not platform, and it lives here rather than in `scripts/` for the
- * reason the whole directory exists: this file knows what a `config.mode` of
- * `interactive` means, that a `config.image` is a container to hand out, and
- * which queues to sign as. Every one of those is a fact about the problems
- * beside it. A kernel script that knew them would be the platform having
- * opinions about a deployment's problem set — and deleting `content/` would
- * leave a runner behind with nothing to run.
- *
- * It is mostly a client: it asks FOI for work, fetches what it needs, says it
- * is still alive while it evaluates, and reports a result. No queue lives in
- * here and there is no `/queue` endpoint to describe one, because the queue is
- * FOI's.
- *
- * The HTTP server that remains exists for one reason: `leaky-bucket` hands out
- * containers, and `spawn`/`poll`/`destroy` are requests a player sets off
- * synchronously. Those cannot be pulled, so that half stays inbound.
- *
- * Read it as the worked example of the protocol. Everything a real runner has
- * to do is here and nothing else is: claim, fetch, heartbeat, report.
- */
-
-// Before anything else: this runner compiles and runs submitted code on the
-// host with no sandbox (see judgeInteractive/judgePerformance), which is an
-// acceptable shortcut for local development and nothing else. Refuse to boot
-// rather than become a remote code execution endpoint.
-//
-// The condition reads as "production" and blocks rather more than that: the
-// Dockerfile sets NODE_ENV=production and all three deployed environments run
-// that same image, so dev and staging are refused too. That is the intent — an
-// unsandboxed evaluator is a way in from wherever it is reachable, and the
-// tailnet is not a sandbox.
 if (process.env.NODE_ENV === "production") {
   throw new Error(
     "mock 评测机没有沙箱，会在宿主机上直接编译并运行提交的代码，仅供本地开发；" +
@@ -54,25 +20,11 @@ if (process.env.NODE_ENV === "production") {
   );
 }
 
-/** Where FOI is. The runner reaches the platform now, not the other way round. */
 const KERNEL_URL =
   process.env.MOCK_KERNEL_URL ??
   process.env.FOI_PUBLIC_URL ??
   "http://localhost:3000";
 
-/**
- * Which queues this process serves. Every backend this deployment declares,
- * unless told otherwise.
- *
- * One runner for all of them, which a real deployment would not do — but it is
- * what makes a fresh checkout able to submit anything at all, and it
- * demonstrates the thing worth demonstrating: a runner picks its queues, and
- * the platform's only say in the matter is which keys it holds.
- *
- * Read off `./backends.ts` rather than written out, so this file and the
- * roster beside it cannot disagree: a fifth backend added to one and not the
- * other is a queue nobody serves, discovered by a submission sitting in it.
- */
 const BACKEND_IDS = (
   process.env.MOCK_BACKEND_IDS ?? Object.keys(backends).join(",")
 )
@@ -80,69 +32,23 @@ const BACKEND_IDS = (
   .map((id) => id.trim())
   .filter(Boolean);
 
-/**
- * This process's name for itself, unverified and only ever a label.
- *
- * The pid is in it so two mocks started side by side show up as two runners on
- * `/judges` rather than one flickering between them.
- */
 const RUNNER_ID = process.env.MOCK_RUNNER_ID ?? `mock-${hostname()}-${process.pid}`;
 
-/**
- * How many jobs this runner holds at once, per backend.
- *
- * The whole of prefetching, and note what it took: nothing. A runner takes what
- * it can handle and the protocol has no opinion, where the push model would
- * have needed the platform to know this number and honour it.
- */
 const CAPACITY = Number(process.env.MOCK_BACKEND_CAPACITY ?? 2);
 
-/** Short polling. One to two seconds is what the protocol is sized for. */
 const POLL_INTERVAL_MS = Number(process.env.MOCK_POLL_INTERVAL ?? 1000);
 
-/**
- * How often a held job says it is still alive.
- *
- * Comfortably under the platform's `HEARTBEAT_LAPSE_MS`, because missing the
- * deadline means losing the job to somebody else mid-evaluation. Several
- * heartbeats per lapse rather than one, so a single dropped request is not
- * enough to do it.
- */
 const HEARTBEAT_INTERVAL_MS = Number(process.env.MOCK_HEARTBEAT_INTERVAL ?? 20_000);
 
 const PORT = Number(process.env.MOCK_BACKEND_PORT ?? 4100);
 const JUDGE_DELAY_MS = Number(process.env.MOCK_BACKEND_DELAY ?? 1500);
 
-/**
- * How long a spawned container pretends to be pulling its image.
- *
- * Non-zero by default so the two-phase spawn is actually exercised in
- * development: with an instantly-ready instance the `poll` branch would never
- * run and the statement's component could quietly regress to expecting an
- * endpoint straight out of `spawn`.
- */
 const SPAWN_DELAY_MS = Number(process.env.MOCK_SPAWN_DELAY ?? 3000);
 
 const VERSION = "2.0.0";
 
-/**
- * `--go-silent` claims work and then says nothing at all — no heartbeat, no
- * result.
- *
- * Exercises the whole recovery path: the heartbeat stops, the reaper takes the
- * job back, and the next claim — from this process or another — picks it up.
- * Run one of these alongside a normal one to watch a job move between them.
- */
 const GO_SILENT = process.argv.includes("--go-silent");
 
-/**
- * The key this runner authenticates with, per backend.
- *
- * Mirrors `resolveBackend` exactly, including the fallback, because the two
- * have to agree on what key a given backend uses or nothing verifies. In
- * development every entry falls through to the shared one, which is why a
- * single mock can serve all four.
- */
 function secretFor(backendId: string): string {
   const name = backendId.replace(/-/g, "_").toUpperCase();
   const secret =
@@ -168,16 +74,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * One signed request to the platform.
- *
- * The path that gets signed is `new URL(path, base).pathname` plus its search —
- * which discards any prefix in `KERNEL_URL`, and so produces exactly the
- * strings FOI verifies against. That is deliberate on both sides: a reverse
- * proxy stripping a prefix would otherwise leave the two signing different
- * things, and every report would fail for a reason nothing in the logs
- * explains.
- */
 async function call(
   backendId: string,
   method: string,
@@ -203,16 +99,6 @@ async function call(
   });
 }
 
-/**
- * Asks for one job. 204 means the queue is empty, which is the usual answer.
- *
- * A fresh `nonce` every time, which is the whole of what the protocol asks of
- * a runner here and the reason the field exists: everything else in a claim is
- * constant — these two fields against a constant path — so without it one
- * captured signature would be good for a job a second for the whole timestamp
- * window. Any unpredictable string of the right length does; 16 random bytes
- * as hex is 32 characters and needs no state to generate.
- */
 async function claim(backendId: string): Promise<JobTicket | null> {
   const res = await call(backendId, "POST", "/api/runner/jobs/request", {
     backendId,
@@ -228,14 +114,6 @@ async function claim(backendId: string): Promise<JobTicket | null> {
   return (await res.json()) as JobTicket;
 }
 
-/**
- * Fetches what to evaluate.
- *
- * A separate request from the claim, and it costs nothing: the platform's reply
- * to a claim never has to grow a field, and a runner that wanted to prefetch
- * ten jobs and fetch their details in parallel could, without the protocol
- * knowing.
- */
 async function fetchDetails(
   backendId: string,
   ticket: JobTicket,
@@ -248,8 +126,6 @@ async function fetchDetails(
 
   if (res.ok) return (await res.json()) as JobDetails;
 
-  // 409 is the platform saying this job is no longer ours — the heartbeat
-  // lapsed, or an administrator rejudged it. Drop it rather than retry.
   console.error(`  取详情失败 ${ticket.id} -> ${res.status}`);
   return null;
 }
@@ -277,14 +153,6 @@ async function report(
   return true;
 }
 
-/**
- * Claims, evaluates and reports one job.
- *
- * The heartbeat runs on its own timer for the whole of the evaluation, carrying
- * whatever the judge last said about itself. Those strings are the runner's to
- * choose — FOI stores and displays them and reads none of them — so a judge
- * with five phases says five things, and one with none says nothing.
- */
 async function work(backendId: string, ticket: JobTicket): Promise<void> {
   if (GO_SILENT) {
     console.log(`  [go-silent] 领走 ${ticket.id} 之后什么都不做`);
@@ -308,9 +176,7 @@ async function work(backendId: string, ticket: JobTicket): Promise<void> {
   }, HEARTBEAT_INTERVAL_MS);
 
   try {
-    // The delay is what makes the queue visible during development: without it
-    // every submission is judged before the page has finished rendering, and
-    // nothing on `/judges` ever has anything in it.
+
     say("排队等待评测槽位");
     await sleep(JUDGE_DELAY_MS);
 
@@ -324,10 +190,7 @@ async function work(backendId: string, ticket: JobTicket): Promise<void> {
       `  完成 ${details.id} -> ${verdict.status} ${verdict.score}/${verdict.maxScore}`,
     );
   } catch (error) {
-    // `failed`, not a `system_error` verdict. The distinction is the whole
-    // point of the state existing: this says "I could not evaluate this", which
-    // lands the row in `disrupted` and keeps it out of the standings, where a
-    // verdict would have scored the submitter zero for our own crash.
+
     const reason = error instanceof Error ? error.message : "评测异常";
     await report(backendId, ticket, {
       state: "failed",
@@ -340,13 +203,6 @@ async function work(backendId: string, ticket: JobTicket): Promise<void> {
   }
 }
 
-/**
- * One loop per backend, each taking as many jobs as it has room for.
- *
- * Per backend so a long performance evaluation cannot stop traditional
- * submissions being picked up, and the inner loop is the prefetch: keep asking
- * until the queue is empty or this runner is full.
- */
 async function serve(backendId: string): Promise<void> {
   let held = 0;
 
@@ -376,18 +232,6 @@ interface RunResult {
   killed: boolean;
 }
 
-/**
- * Runs a child process without blocking the event loop.
- *
- * Every compile and every execution below goes through this, and that is the
- * whole point of it existing. This file used `execFileSync`, which meant a
- * performance submission — a warmup plus three timed runs at an eight-second
- * limit, against a baseline run the same way — left the process unable to do
- * anything for the better part of a minute. It matters as much in the pull
- * model as it did in the push one, for a different reason: the heartbeat timer
- * is on this event loop, so a synchronous evaluation stops the runner saying it
- * is alive and gets its own job taken away mid-run.
- */
 function run(
   file: string,
   args: string[],
@@ -419,7 +263,6 @@ function run(
   });
 }
 
-/** What a judge calls to describe itself. Opaque to FOI — see `runnerStatus`. */
 type Say = (status: string) => void;
 
 function judgeCode(config: unknown, payload: unknown, say: Say): Verdict {
@@ -429,8 +272,6 @@ function judgeCode(config: unknown, payload: unknown, say: Say): Verdict {
       { name: "全部数据", score: 100 },
     ];
 
-  // Stand-in for real evaluation: a solution that mentions a queue is treated
-  // as the intended BFS, anything non-empty gets partial credit.
   const looksCorrect = /queue|bfs|deque/i.test(source);
   const hasContent = source.trim().length > 0;
 
@@ -462,33 +303,18 @@ function judgeCode(config: unknown, payload: unknown, say: Say): Verdict {
   };
 }
 
-/**
- * Containers this backend has handed out, and the flag inside each.
- *
- * Here rather than in a separate service, and that is the whole demonstration.
- * A flag that is the same for everybody is solved once and then posted in a
- * group chat, so a real container problem mints a fresh one per instance —
- * which means the only party that can check a flag is the party that created
- * the container. Splitting orchestration from checking would leave two
- * services needing to agree on this map.
- *
- * In memory because it is a mock. A real one would persist it, and would have
- * had to anyway in order to survive a restart — which is also what makes
- * running several runners against one such backend work, since they would then
- * be sharing the same durable state rather than each holding half of it.
- */
 interface Instance {
   id: string;
   handle: string;
   endpoint: string;
   flag: string;
-  /** When the image finishes pulling and the endpoint starts answering. */
+
   readyAt: number;
   expiresAt: number;
 }
 
 const instances = new Map<string, Instance>();
-/** Flag back to its instance, so checking a submission is one lookup. */
+
 const flagOwners = new Map<string, string>();
 
 function instanceKey(slug: string, handle: string): string {
@@ -502,13 +328,6 @@ function dropInstance(key: string): void {
   instances.delete(key);
 }
 
-/**
- * What `spawn` and `poll` both answer with.
- *
- * One shape for both so the statement's component has one thing to read, and
- * so the endpoint appears at exactly the moment it starts working rather than
- * being promised early.
- */
 function instanceView(instance: Instance): Record<string, unknown> {
   if (Date.now() < instance.readyAt) {
     return { instanceId: instance.id, status: "pulling" };
@@ -531,20 +350,6 @@ function liveInstance(key: string): Instance | undefined {
   return existing;
 }
 
-/**
- * Hands this person a container, or the one they already have.
- *
- * Returns immediately, before the image has finished pulling, because that is
- * what the protocol asks of every action: answer promptly and let a `poll`
- * action follow up. Pulling an image the first time takes longer than any
- * request should be held open, and a backend that blocks until it is done is
- * one the kernel cannot tell apart from a backend that has died.
- *
- * Idempotent because the kernel's rate limit bounds how often somebody may
- * ask, not how many they end up with: two clicks a minute apart should not
- * leave a container orphaned. The per-person cap is one, and it is enforced
- * here because this is the only place that knows what a container costs.
- */
 function spawnInstance(body: ActionRequestBody): Instance {
   const key = instanceKey(body.problem.slug, body.user.handle);
 
@@ -565,9 +370,7 @@ function spawnInstance(body: ActionRequestBody): Instance {
 
   instances.set(key, instance);
   flagOwners.set(instance.flag, key);
-  // The flag is printed because there is no container to read it out of. A
-  // real backend would put it inside the instance and never log it; here the
-  // console is the only way the demo problem is solvable at all.
+
   console.log(
     `  启动实例 ${body.problem.slug} for ${body.user.handle} -> ${instance.endpoint}`,
   );
@@ -575,15 +378,6 @@ function spawnInstance(body: ActionRequestBody): Instance {
   return instance;
 }
 
-/**
- * Checks a flag against the instance it came from.
- *
- * Two failures that look the same to the player but are not: a flag nobody was
- * ever issued, and somebody else's flag. The second is the one dynamic flags
- * exist to catch, so it is worth a distinct log line even though the verdict
- * is the same — telling the submitter which it was would confirm that the flag
- * is real and merely stolen.
- */
 function judgeInstanceFlag(job: JobDetails): Verdict {
   const submitted = String((job.payload as { flag?: unknown })?.flag ?? "").trim();
 
@@ -614,13 +408,6 @@ interface InteractiveConfig {
   timeLimitMs?: number;
 }
 
-/**
- * Interactive judging: the submission is spliced into a grader that exposes
- * `query()`/`answer()` and drives `solve()`, then the whole thing is compiled
- * and run for real. This is the reference implementation for what a real
- * interactive judge does — sandboxing and resource limits are the parts a
- * production judge must add on top.
- */
 async function judgeInteractive(
   config: unknown,
   payload: unknown,
@@ -633,7 +420,6 @@ async function judgeInteractive(
   const timeLimitMs = cfg.timeLimitMs ?? 2000;
   const source = String((payload as { source?: unknown })?.source ?? "");
 
-  // Deterministic LCG pick of the hidden answer; the player never sees it.
   let state = seed >>> 0;
   state = (state * 48271) % 2147483647;
   const answer = (state % n) + 1;
@@ -754,11 +540,6 @@ interface PerformanceConfig {
   compileFlags?: string;
 }
 
-/**
- * The baseline for the performance problem: plain i-j-k matrix multiplication.
- * Compiled once per runner process and reused across submissions, so the
- * baseline reflects this machine's speed, not a hard-coded constant.
- */
 const NAIVE_MATMUL_SOURCE = `#include <bits/stdc++.h>
 using namespace std;
 int main() {
@@ -786,7 +567,6 @@ int main() {
   return 0;
 }`;
 
-/** Long-lived asset dir (naive binary etc.) — never deleted for the process. */
 const ASSET_DIR = mkdtempSync(join(tmpdir(), "foi-judge-assets-"));
 let naiveMatmulBinary: string | null = null;
 
@@ -805,7 +585,6 @@ async function compileNaiveMatmul(compileFlags: string): Promise<string> {
   return out;
 }
 
-/** Deterministic n×n matrices so naive and submission see identical input. */
 function genMatmulInput(n: number): string {
   const rows: string[] = [String(n)];
   const emit = (f: (i: number, j: number) => number) => {
@@ -841,19 +620,6 @@ async function runTimed(
   };
 }
 
-/**
- * Performance judging: compile the submission, time the built-in baseline,
- * then time the submission (warmup + best of N timed runs), byte-compare the
- * output against the baseline and score by speedup.
- *
- * score = min(100, floor(50 * baseline / time)) — a 2× speedup is full marks,
- * an unoptimized copy of the baseline scores about 50.
- *
- * The long one, and the reason the heartbeat exists at all: this can run for a
- * minute, and every phase of it says so. Under the old model the same duration
- * needed a thirty-minute `abandonAfterMs` configured against this backend,
- * because elapsed time was all the kernel had to go on.
- */
 async function judgePerformance(
   config: unknown,
   payload: unknown,
@@ -874,10 +640,7 @@ async function judgePerformance(
     say("编译基线");
     naiveBin = await compileNaiveMatmul(compileFlags);
   } catch (error) {
-    // Rethrown rather than turned into a `system_error` verdict: the baseline
-    // failing to build is this runner being broken, not the submission being
-    // wrong, and `work` reports that as `failed` so the row lands in
-    // `disrupted` and stays out of the standings.
+
     throw new Error(error instanceof Error ? error.message : "基线不可用");
   }
 
@@ -980,24 +743,9 @@ async function judgePerformance(
   }
 }
 
-/**
- * Dispatches by config shape, mirroring how a real runner would branch on the
- * backend it is serving: interactive and performance problems say so in their
- * config, a problem handing out containers has an `image`, everything else is
- * treated as code.
- *
- * Shorter than it was. The branches for static flags, output-only comparison,
- * the oscillator Special Judge and the daily roulette are gone, because those
- * problems never reach a runner — they are judged in the kernel by
- * `content/problems/_shared/judge/`. Nothing there needed isolation, resources
- * or state, which is exactly the test for whether a problem belongs out here.
- */
 async function evaluate(job: JobDetails, say: Say): Promise<Verdict> {
   const config = (job.problem.config ?? {}) as Record<string, unknown>;
 
-  // A problem that hands out containers has no static answer to compare
-  // against — the flag belongs to one instance and one person, and only the
-  // process that minted it knows which.
   if (config.image !== undefined) {
     return judgeInstanceFlag(job);
   }
@@ -1016,31 +764,10 @@ async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-/**
- * The half that cannot be pulled.
- *
- * `POST /action/<name>` only. `/judge`, `/queue` and `/status/<ref>` are gone
- * with the push model: the platform holds the queue, so there is nothing for
- * this process to report about one, and nobody dispatches anything to it.
- *
- * A player clicking "启动实例" is a synchronous request the platform makes on
- * their behalf, which is why this stays inbound and why `leaky-bucket` is the
- * one backend that still needs an address. That is not a leftover — a
- * competitor is going to connect into the container, so the machine has to be
- * reachable regardless.
- */
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
   const raw = await readBody(req);
 
-  // Verified before anything routes on the path, and the path is part of what
-  // is verified. Those two together are what make the path-based dispatch below
-  // safe: the action cannot have been rewritten in transit, so reading it off
-  // the path is as trustworthy as reading it out of the signed body.
-  //
-  // Tried against every key this runner holds, because one process here serves
-  // several backends and the request does not say which one it is for. A real
-  // deployment serving one backend has one key and one attempt.
   const attempts = BACKEND_IDS.map((id) =>
     verifySignature({
       secret: secretFor(id),
@@ -1069,10 +796,6 @@ const server = createServer(async (req, res) => {
     const action = decodeURIComponent(url.pathname.slice("/action/".length));
     const body = JSON.parse(raw) as ActionRequestBody;
 
-    // Two-phase, and the shape every slow action should take: `spawn` answers
-    // at once with something `poll` can follow up on. The endpoint is withheld
-    // until the container is actually up, so a player never gets an address
-    // that refuses connections.
     if (action === "spawn") {
       const instance = spawnInstance(body);
       res.writeHead(200, { "content-type": "application/json" });

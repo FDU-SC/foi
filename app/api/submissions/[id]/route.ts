@@ -23,9 +23,6 @@ export async function GET(
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
 
-  // This is the endpoint the client polls while a verdict is outstanding, and
-  // every call runs a queue lookup on top of the row read. Bounded above what
-  // a few tabs backing off from 800ms legitimately produce.
   const rule = ROUTE_LIMITS["GET /api/submissions/[id]"];
   const limited = rateLimit(
     `submission:${user.handle}`,

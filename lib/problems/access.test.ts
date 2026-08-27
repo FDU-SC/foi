@@ -17,18 +17,8 @@ import {
   problemsFor,
 } from "./access";
 
-/**
- * Run against the real `content/` registries rather than fixtures: the gate is
- * only worth anything if it holds for the problems this deployment actually
- * ships, and a fixture would not catch a contest file that forgot a problem.
- *
- * The clock is the only input moved around, which is exactly the freedom the
- * gate is built on — a problem opens because time passed, not because somebody
- * deployed.
- */
 const contests = allContests();
-/** Any round this deployment ships: these cases need one to exist, not a
- * particular one. */
+
 const demo = contests[0];
 
 const PREVIEW = viewerWith("problem.viewAll", "an-admin");
@@ -62,14 +52,7 @@ describe("viewerFor", () => {
   });
 
   it("viewer 的答案与 capabilitiesOf 逐项一致，没有第二份定义", () => {
-    // The property the whole refactor exists to hold: a viewer derives every
-    // answer from the declared groups, so there is nowhere for a capability to
-    // be added and then forgotten.
-    //
-    // Compared against `capabilitiesOf` rather than against `group.capabilities`
-    // because the two are no longer the same set — `IMPLIES` adds to it, and
-    // asserting the raw declaration would make this fail for a group that holds
-    // an implying capability without its implied one.
+
     for (const group of listGroups()) {
       const viewer = viewerFor({ handle: "x", groups: [group.id] });
       const granted = capabilitiesOf([group.id]);
@@ -147,15 +130,6 @@ describe("problemVisibility", () => {
     ).toBe(true);
   });
 
-  /**
-   * `visibleTo: []` is how a problem says "nobody, ever", and the gate answers
-   * it as an audience refusal — the `hidden` tag this used to assert has not
-   * existed since the two booleans became one audience.
-   *
-   * Nothing in `content/` is staged that way today, so this skips rather than
-   * sitting inside an `if` that is always false: an assertion nobody can see
-   * never running is worse than no assertion, because it reads as coverage.
-   */
   const staged = allProblems().find(
     (problem) =>
       problem.visibleTo?.length === 0 && contestsUsing(problem.slug).length === 0,
@@ -169,11 +143,6 @@ describe("problemVisibility", () => {
     });
   });
 
-  /**
-   * A gate whose default is "yes" is the wrong shape to export. `problemFor`
-   * checks for the config first so nothing sees a difference today, which is
-   * exactly why this is worth pinning: the next caller might not.
-   */
   it("不存在的 slug 被拒，而不是默认可见", () => {
     expect(problemVisibility("no-such-problem", PREVIEW).visible).toBe(false);
     expect(problemVisibility("no-such-problem", AS_PLAYER).visible).toBe(false);
@@ -212,8 +181,7 @@ describe("problemsFor", () => {
   });
 
   it("没有任何参数能让选手视角看到被封禁的题目", () => {
-    // The only widening argument is the viewer, and a player's viewer has no
-    // knob. This is the property the split into two accessors exists to hold.
+
     const player = problemsFor(viewerFor({ handle: "player", groups: [] }));
     expect(player.every((entry) => entry.gate.visible)).toBe(true);
   });
@@ -289,26 +257,8 @@ describe("题库列表与门禁一致", () => {
   });
 });
 
-/**
- * "Seeing a round means seeing its problems", and the half of it that must not
- * hold.
- *
- * Stated as two invariants over the real registries rather than as cases,
- * because the shape they guard against is a content edit away and neither
- * direction is worth anything without the other. The forward one on its own
- * would be satisfied by dropping the phase condition from
- * `reachableViaContest` — which is precisely the bug, and the reverse one is
- * what fails when somebody does.
- *
- * Nothing shipped today can distinguish the two: `audienceCovers` refuses a
- * contest that reaches past its problems at load, so an audience alone cannot
- * produce "sees the round, not the problem", and every problem in the
- * repository is public. The forward case is therefore true for uninteresting
- * reasons right now and becomes load-bearing the moment a private round is
- * added.
- */
 describe("能看到比赛与能看到题目的关系", () => {
-  /** Enough shapes to cover both override axes and neither. */
+
   const VIEWERS: Viewer[] = [
     AS_PLAYER,
     viewerFor({ handle: "player", groups: ["一个普通分组"] }),
@@ -321,13 +271,6 @@ describe("能看到比赛与能看到题目的关系", () => {
     },
   ];
 
-  /**
-   * In the round's audience and holding nothing at all.
-   *
-   * `can` is stubbed rather than resolved from a group, because the point is a
-   * viewer with no capability whatever the deployment hands its groups — this
-   * is the person the embargo exists for.
-   */
   function insiderOf(contest: ContestConfig): Viewer {
     return {
       handle: "insider",
@@ -362,15 +305,11 @@ describe("能看到比赛与能看到题目的关系", () => {
       const at = before(contest.startsAt);
       const insider = insiderOf(contest);
 
-      // The dangerous shape spelled out: they can reach the round, and the
-      // round has not opened. Dropping `hasContestStarted` from
-      // `reachableViaContest` hands them every statement in it.
       if (contest.visibleTo?.length === 0) continue;
       expect(contestFor(contest.slug, insider)).toBeDefined();
 
       for (const entry of contest.problems) {
-        // Only problems this round alone holds: one that another, already
-        // started round also uses is public for that reason.
+
         if (contestsUsing(entry.slug).length !== 1) continue;
 
         expect(
@@ -382,10 +321,7 @@ describe("能看到比赛与能看到题目的关系", () => {
   });
 
   it("经由比赛读到的题不进题库列表，也交不了", () => {
-    // Neither override touches `gate` or `open`, so `problemsFor`'s filter
-    // drops both for anybody without `problem.viewAll`, and `submitFor` reads
-    // the same `open`. Asserted over every viewer shape because a list is
-    // where a widening goes unnoticed — nobody checks a page for absences.
+
     for (const viewer of VIEWERS) {
       if (viewer.can("problem.viewAll")) continue;
       for (const entry of problemsFor(viewer)) {
@@ -397,11 +333,6 @@ describe("能看到比赛与能看到题目的关系", () => {
   });
 });
 
-/**
- * The axis that does not touch visibility. A retired problem stays readable by
- * whoever it was written for — that is what lets somebody review a round they
- * competed in — while nothing new may be sent to it.
- */
 describe("下架与可见性正交", () => {
   const retired = allProblems().filter((problem) => problem.retired);
 
@@ -438,8 +369,7 @@ describe("下架与可见性正交", () => {
   });
 
   it("没下架的题目里，open 与 gate.visible 一致", () => {
-    // The invariant that keeps `open` from quietly becoming a second gate:
-    // retirement is the only thing that may separate the two.
+
     for (const problem of allProblems()) {
       if (problem.retired) continue;
       const view = problemFor(problem.slug, PREVIEW);
@@ -474,36 +404,13 @@ describe("problemStatus", () => {
   });
 });
 
-/**
- * The two axes composed, asserted through the gate itself.
- *
- * This block used to recompute `visibleTo.some(...)` inline and assert on
- * that. Nothing in it reached `problemVisibility`, so the first two cases were
- * a test of `Array.prototype.some`: swapping the order of the two axes inside
- * the gate, or dropping one of them, would have left this green. The same
- * shape as the `if (orphan)` case above, and worth no more.
- *
- * Every problem in `content/problems/` is public today, so the audience axis
- * cannot be made to refuse with real content and the case that needs it skips
- * rather than hiding behind a condition that never holds. The phase axis is
- * exercised by moving the clock, which is the one input this file is free to
- * move.
- */
 describe("受众与阶段的组合", () => {
-  // Two ordinary viewers in different groups. Which groups is immaterial —
-  // what the cases below need is that neither carries a capability.
+
   const inTeam = viewerFor({ handle: "t", groups: ["无能力的组-甲"] });
   const outsider = viewerFor({ handle: "o", groups: ["无能力的组-乙"] });
 
-  /** A problem this deployment has actually given to some group. */
   const gated = allProblems().find((problem) => problem.visibleTo?.length);
 
-  /**
-   * And one a contest also holds, which is the only shape that can tell the
-   * order of the two axes apart. With no round behind it there is no embargo
-   * for an audience refusal to win over, so both orders answer `audience` and
-   * the case would prove nothing about which was asked first.
-   */
   const contested =
     gated && contestsUsing(gated.slug).length > 0 ? gated : undefined;
 
@@ -520,8 +427,6 @@ describe("受众与阶段的组合", () => {
       });
     }
 
-    // The same problem, past the same axis, for somebody in it — so the case
-    // above is about the viewer and not about the problem being unreachable.
     expect(
       problemVisibility(gated!.slug, member, new Date("2100-01-01")).visible,
     ).toBe(true);
@@ -533,10 +438,6 @@ describe("受众与阶段的组合", () => {
       .map((contest) => contest.startsAt)
       .reduce((earliest, at) => (at < earliest ? at : earliest));
 
-    // Inside the embargo window, so both axes refuse and the reported reason
-    // is the one that was asked first. Reversing them answers `embargo` here,
-    // which is what makes this an assertion about the order rather than about
-    // the audience.
     expect(problemVisibility(contested!.slug, excluded, before(opensAt))).toEqual(
       {
         visible: false,
@@ -550,9 +451,6 @@ describe("受众与阶段的组合", () => {
     if (!demo) return;
     const slug = demo.problems[0].slug;
 
-    // Both viewers are in different groups and both pass the audience axis,
-    // because the problem declares no audience — which is what makes this a
-    // test of the phase axis on its own.
     for (const viewer of [outsider, inTeam]) {
       expect(problemVisibility(slug, viewer, before(demo.startsAt))).toEqual({
         visible: false,
@@ -569,10 +467,6 @@ describe("受众与阶段的组合", () => {
     const slug = demo.problems[0].slug;
     const now = before(demo.startsAt);
 
-    // The override is checked by `problemFor`, not by the gate, so the gate
-    // keeps reporting *why* something is withheld even for a holder. That is
-    // what lets a console mark a problem as unreleased rather than render it
-    // as an ordinary one.
     expect(problemVisibility(slug, PREVIEW, now).visible).toBe(false);
     expect(problemFor(slug, PREVIEW, now)?.reachedVia).toBe("problem.viewAll");
     expect(problemFor(slug, outsider, now)).toBeUndefined();

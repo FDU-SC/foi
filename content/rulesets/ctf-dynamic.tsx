@@ -11,16 +11,16 @@ import {
 const configSchema = z.object({
   initial: z.number().positive().default(500),
   minimum: z.number().nonnegative().default(100),
-  /** Larger values make a problem's value decay more slowly. */
+
   decay: z.number().positive().default(20),
-  /** Multipliers applied to first, second and third blood. */
+
   bloodBonus: z.array(z.number()).default([0.1, 0.05, 0.02]),
 });
 
 export interface CtfCell {
   score: number;
   solvedAt: number | null;
-  /** 1-indexed order of solve, used for blood highlighting. */
+
   blood: number | null;
   attempts: number;
 }
@@ -58,24 +58,11 @@ function CtfCellView({ cell }: { cell: CtfCell | undefined }) {
   );
 }
 
-/**
- * CTF dynamic scoring: a problem is worth less the more teams solve it, so
- * every solve changes everyone's total. Values are computed in two passes —
- * count solves per problem, then award points — which is why the ruleset
- * interface takes all submissions at once rather than one at a time.
- *
- * The decay curve matches CTFd's, so values are comparable with what players
- * are used to.
- */
 export const ruleset: Ruleset<CtfCell> = {
   id: "ctf-dynamic",
   name: "CTF 动态分值",
   description: "题目分值随解出人数衰减，前三名解出者获得一/二/三血加成。",
 
-  // No `supportsFreeze`. Dynamic scoring makes freezing awkward rather than
-  // merely unimplemented: withholding one solve changes what every other team
-  // is worth, so a frozen board would have to show scores that are wrong for
-  // everyone, not just incomplete for one.
   computeStandings(input: StandingsInput) {
     const config = configSchema.parse(input.config ?? {});
     const start = input.contest.startsAt.getTime();
@@ -87,18 +74,6 @@ export const ruleset: Ruleset<CtfCell> = {
       cellsByUser.set(participant.handle, {});
     }
 
-    // Pass 1: earliest accepted submission per (user, problem) — competitors
-    // only, and the roster check belongs here rather than at the award because
-    // both of the numbers this pass produces are shared. `list.length` is the
-    // divisor the entire format turns on, and a position in `list` is a blood
-    // slot. A solve from outside the roster used to devalue the problem for
-    // everyone inside it and occupy a blood slot that pass 2 then declined to
-    // award to anybody, rather than passing it down to the next solver.
-    //
-    // The roster is not a fixed thing to be outside of: `mode: "group"`
-    // resolves it on every read, so editing one routing rule re-ranks a contest
-    // that finished months ago. `acm.tsx` filters in its single loop for the
-    // same reason.
     const solves = new Map<string, { handle: string; at: number }[]>();
     const attempts = new Map<string, number>();
     const solvedKeys = new Set<string>();
@@ -121,14 +96,12 @@ export const ruleset: Ruleset<CtfCell> = {
       solves.set(submission.problemSlug, list);
     }
 
-    // Pass 2: value each problem from its solve count, then award.
     for (const problem of input.problems) {
       const list = (solves.get(problem.slug) ?? []).sort((a, b) => a.at - b.at);
       const value = decayedValue(config, list.length);
 
       list.forEach((solve, index) => {
-        // Pass 1 recorded roster members only, so this narrows rather than
-        // filters.
+
         const cells = cellsByUser.get(solve.handle);
         if (!cells) return;
         const bonus = config.bloodBonus[index] ?? 0;
@@ -141,7 +114,6 @@ export const ruleset: Ruleset<CtfCell> = {
       });
     }
 
-    // Unsolved problems still need a cell so failed attempts are visible.
     for (const [key, count] of attempts) {
       const [handle, slug] = splitKey(key);
       const cells = cellsByUser.get(handle);

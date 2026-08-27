@@ -1,11 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-/**
- * The contract `next build` relies on: loading this module must not read
- * `DATABASE_URL`. First use still throws the same error the eager pool used
- * to throw at import, so a request that somehow outran `assertEnv` fails the
- * same way.
- */
 describe("lib/db 惰性初始化", () => {
   afterEach(() => {
     vi.unstubAllEnvs();

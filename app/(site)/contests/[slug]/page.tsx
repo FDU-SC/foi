@@ -39,9 +39,6 @@ export default async function ContestPage({
   const contest = view.config;
   const ruleset = rulesetFor(contest.slug, contest.ruleset.id);
 
-  // One clock read for the page. The phase badge and the problem list are two
-  // answers about the same `startsAt`, and a request that lands across it
-  // should not draw a 未开始 header over an open problem list.
   const now = new Date();
   const phase = contestPhase(contest, now);
   const problemSetVisible = isContestProblemSetVisibleTo(contest, viewer, now);
@@ -74,10 +71,7 @@ export default async function ContestPage({
 
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-fg text-lg font-semibold">题目</h2>
-        {/* `phase`, not `!problemSetVisible` — the override has already
-            flipped that one true. What the badge reports is *which* of the
-            two reasons opened the list, so a proofreader can tell their view
-            from a competitor's. */}
+
         {phase === "upcoming" && preview ? (
           <Badge tone="warn">预览 · 尚未对选手公开</Badge>
         ) : null}

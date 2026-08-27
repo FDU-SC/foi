@@ -8,7 +8,7 @@ export const problem = {
   backend: {
     id: "performance",
     config: {
-      // mode 标记告诉评测机这是一道性能题：编译运行 + 与内置基线对比计时。
+
       mode: "performance",
       n: 512,
       warmupRuns: 1,

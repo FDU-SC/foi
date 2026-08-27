@@ -3,14 +3,6 @@ import type { ProblemBackend } from "@/lib/backend/types";
 import { backends } from "@/lib/backend/registry";
 import { resolveBackend } from "./resolve";
 
-/**
- * `resolveBackend` needed no change to support per-backend keys — the
- * `entry.secret || FOI_BACKEND_SECRET` chain was written for them long before
- * `content/backends.ts` ever filled `secret` in. Pinned here because that makes
- * the precedence load-bearing rather than incidental: get it backwards and
- * every deployment silently keeps signing with the shared value while its
- * per-backend keys sit configured and unused.
- */
 describe("密钥优先级", () => {
   const id = Object.keys(backends)[0];
   let saved: ProblemBackend;

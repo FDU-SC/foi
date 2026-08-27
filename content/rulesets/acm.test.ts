@@ -13,10 +13,6 @@ import {
 import type { AcmCell } from "./acm";
 import { ruleset as acmRuleset } from "./acm";
 
-/**
- * `computeStandings` reads `Date.now()` to decide whether the board is frozen,
- * so every case here pins the clock. The default is mid-contest.
- */
 function compute(
   options: Parameters<typeof input>[0],
   now: Date = at(120),
@@ -64,7 +60,6 @@ describe("acm 罚时", () => {
       ],
     });
 
-    // 30 分钟解出 + 2 次错误 × 20 分钟
     expect(standings.rows[0].tiebreak).toBe(70);
   });
 
@@ -119,13 +114,6 @@ describe("acm 罚时", () => {
   });
 });
 
-/**
- * The other half of `pending`, and the one that has nothing to do with a
- * freeze: ICPC's cell says "sent, result not shown", and a submission still in
- * the queue is exactly that. It used to be invisible — `scoredSubmissions`
- * dropped it — so a cell went from empty straight to solved or rejected with
- * nothing in between.
- */
 describe("acm 未判完的提交", () => {
   it("排队中的提交记 pending，不记 attempts，也不影响总分", () => {
     const standings = compute({
@@ -170,11 +158,6 @@ describe("acm 未判完的提交", () => {
     expect(judged.rows[0].tiebreak).toBe(50);
   });
 
-  /**
-   * `disrupted` means the judging produced no conclusion and none is coming,
-   * explicitly not charged to the submitter. Counting it as pending would put
-   * a cell on the board that never resolves.
-   */
   it("disrupted 既不记 pending 也不记 attempts", () => {
     const standings = compute({
       participants: participants("alice"),
@@ -245,14 +228,6 @@ describe("acm 封榜", () => {
     expect(cell(standings, "alice", "b")?.pending).toBe(1);
   });
 
-  /**
-   * `contestPhase` calls the freeze window `[freezeAt, endsAt]` and reports
-   * `frozen` at `endsAt` itself, for the same reason it reports `running`
-   * there when no freeze is declared: the sequence a contest walks must never
-   * go backwards. This format writes that comparison out again — nothing in
-   * `content/` inherits the exhaustive switch that keeps the kernel's phase
-   * callers honest — so the right edge being closed is this suite's to hold.
-   */
   it("结束当刻仍算封榜，和 contestPhase 的闭区间对齐", () => {
     expect(compute(frozenContest, END).frozen).toBe(true);
   });
@@ -289,14 +264,14 @@ describe("acm 排名", () => {
       problems,
       config: { penaltyMinutes: 20 },
       submissions: [
-        // alice：两题，罚时 10 + 60
+
         solve("alice", "a", 10),
         solve("alice", "b", 60),
-        // bob：两题但有一次错误，罚时更高
+
         fail("bob", "a", 5),
         solve("bob", "a", 10),
         solve("bob", "b", 60),
-        // carol：一题
+
         solve("carol", "a", 1),
       ],
     });

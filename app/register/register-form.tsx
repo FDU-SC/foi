@@ -12,11 +12,6 @@ import {
   type RegisterState,
 } from "./actions";
 
-/**
- * The account was created but the session was not. Registration succeeded, so
- * this must not look like a failure — the only thing left is a login the
- * person can do themselves.
- */
 function NeedsLogin() {
   return (
     <div className="space-y-4">
@@ -35,11 +30,6 @@ function NeedsLogin() {
 
 type Phase = "idle" | "sent" | "verified";
 
-/**
- * Both numbers arrive as props rather than being imported here: they live
- * beside the code they describe in `lib/enrollment/email-verification.ts`, which
- * reaches the database, and this is a client component.
- */
 export function RegisterForm({
   codeTtlMinutes,
   resendCooldownMs,
@@ -54,10 +44,7 @@ export function RegisterForm({
 
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  // Always starts at `idle`. There was a `requireVerification` prop that could
-  // start it at `verified`, mirroring a policy flag that let a deployment skip
-  // proving the address; `register()` no longer offers that, so a form that
-  // pretended otherwise would only get people to the last step and refused.
+
   const [phase, setPhase] = useState<Phase>("idle");
   const [notice, setNotice] = useState<{ tone: "ok" | "err"; text: string }>();
   const [cooldown, setCooldown] = useState(0);
@@ -69,11 +56,6 @@ export function RegisterForm({
     return () => clearTimeout(timer);
   }, [cooldown]);
 
-  // How long the resend button stays disabled, taken from the cooldown the
-  // server enforces on the row rather than from a number that merely happened
-  // to match it. Only so the button reads as unavailable rather than as broken
-  // — the server still decides — and rounded up, because re-enabling a moment
-  // early would produce nothing but a refusal.
   const resendSeconds = Math.ceil(resendCooldownMs / 1000);
 
   if (state.createdNeedsLogin) return <NeedsLogin />;
@@ -107,9 +89,6 @@ export function RegisterForm({
     });
   }
 
-  // Editing the address after a code went to the old one invalidates what is
-  // on screen, so the form drops back to the start rather than leaving a code
-  // box that silently belongs to a different mailbox.
   function changeEmail(next: string) {
     setEmail(next);
     if (phase !== "idle") {
@@ -140,8 +119,6 @@ export function RegisterForm({
         <Input name="displayName" autoComplete="name" required maxLength={64} />
       </Field>
 
-      {/* The button sits outside the label: inside one, clicking it would also
-          activate the label and pull focus back into the input. */}
       <div className="space-y-1.5">
         <label
           htmlFor="register-email"

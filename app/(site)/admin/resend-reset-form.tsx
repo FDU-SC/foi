@@ -4,14 +4,6 @@ import { useActionState } from "react";
 import { ActionResult, PendingSubmit } from "@/components/form";
 import { resendPasswordResetAction, type ActionState } from "./actions";
 
-/**
- * Mails a password reset to one account.
- *
- * There is deliberately nothing to copy here. The predecessor of this button
- * printed a setup code on screen for an administrator to relay by hand; the
- * link now goes to the account's own inbox, so the only feedback needed is
- * whether it went out.
- */
 export function ResendResetForm({
   handle,
   hasPassword,

@@ -30,13 +30,6 @@ describe("createConcurrency", () => {
     expect(held.acquire("bob", 1)).not.toBeNull();
   });
 
-  /**
-   * The property the SSE route depends on. A stream can be closed by the
-   * verdict arriving, by the client going away, and by the runtime tearing the
-   * response down, and more than one of those happens on an ordinary request.
-   * A release that decremented each time would hand out slots that were never
-   * taken.
-   */
   it("重复释放只算一次", () => {
     const held = createConcurrency();
 
@@ -52,8 +45,7 @@ describe("createConcurrency", () => {
   });
 
   it("全部释放后不留下零计数的条目", () => {
-    // Otherwise the map keeps one entry per person who ever opened a stream,
-    // which is a leak that just takes longer to notice.
+
     const held = createConcurrency();
 
     const release = held.acquire("alice", 1)!;

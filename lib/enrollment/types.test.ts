@@ -1,21 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { enrollmentPolicySchema, retiredPolicyKey } from "./types";
 
-/**
- * What a policy file carrying a setting that no longer exists is told.
- *
- * Zod strips unknown keys without complaining, so nothing about parsing would
- * mention it — and for `requireEmailVerification: false` the silence would
- * cover a change to who can register. `lib/enrollment/registry.ts` asks this
- * before parsing so the answer can name the file.
- */
 describe("retiredPolicyKey", () => {
   it("认出 requireEmailVerification 并说清该怎么办", () => {
     const complaint = retiredPolicyKey({ requireEmailVerification: false });
 
     expect(complaint).toContain("requireEmailVerification");
-    // The two things a person holding this file needs: that verification is
-    // now unconditional, and where the legitimate "no mail" case went.
+
     expect(complaint).toContain("一律要求验证码");
     expect(complaint).toContain("enabled: false");
   });
@@ -37,11 +28,6 @@ describe("retiredPolicyKey", () => {
   });
 });
 
-/**
- * The schema itself no longer knows the key. Pinned because the failure this
- * guards against is silent: `z.object` would strip it and parse happily, so
- * without an assertion nothing distinguishes "removed" from "still honoured".
- */
 describe("enrollmentPolicySchema", () => {
   it("解析结果里不再有 requireEmailVerification", () => {
     const parsed = enrollmentPolicySchema.parse({});

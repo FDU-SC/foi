@@ -8,19 +8,6 @@ import { undeclaredBackends } from "@/lib/backend/access";
 import { isInlineBackend } from "@/lib/problems/types";
 import { viewsFor } from "@/lib/problems/views";
 
-/**
- * That *this* content is coherent, and that it exercises the kernel.
- *
- * The kernel's own suites look problems up by shape rather than by name (see
- * `test/content-shapes.ts`). The shapes they need are asserted below, so a
- * deployment that stops providing one is told directly instead of finding out
- * through a `lib/` test failing for reasons that are not about `lib/`.
- *
- * Facts particular to this competition — that the demo round is scored ACM
- * with twenty penalty minutes, that its window is in the past — are the second
- * half.
- */
-
 describe("内核测试需要的形状", () => {
   it("有一场按 group 限制参赛、且第一道题覆盖了 rateLimit 的比赛", () => {
     const round = allContests().find(
@@ -48,11 +35,6 @@ describe("内核测试需要的形状", () => {
     expect(inline.length, "提交当次同步判完这条路径靠它").toBeGreaterThan(0);
   });
 
-  // 封榜赛制与声明了 actions 的题目不在这份清单上，尽管这套 content 两样都有。
-  // 用到它们的两组用例各自开头就断言了自己遍历的集合非空——`freeze.test.ts` 与
-  // `actions.test.ts`——那句话说得出「空在哪里」，这里再抄一遍只会多一处要跟着
-  // 改的地方。这一节列的是内核用例向 content **索取样本**的那几样。
-
   it("有带能力的组", () => {
     const privileged = listGroups().filter(
       (group) => group.capabilities.length > 0,
@@ -67,8 +49,7 @@ describe("这套 content 自身自洽", () => {
   });
 
   it("登记的后端都有题目路由过来", () => {
-    // Not `orphanedBackends()`, which is the same question asked of the
-    // registry: spelled out here so a failure names the entry.
+
     const routed = new Set(externallyJudged().map((p) => p.backend.id));
     for (const id of Object.keys(backends)) {
       expect(routed.has(id), `没有题目使用后端 ${id}`).toBe(true);
@@ -79,11 +60,6 @@ describe("这套 content 自身自洽", () => {
     expect(enrollmentPolicy.mailDelivery).toBe("console");
   });
 
-  /**
-   * `problems/views.ts` 找不到不会报错，只会让每道题的提交内容与评测详情静悄悄
-   * 回落成 JSON——那正是「没登记」的合法形态。以前这条路径要十份文件同时消失才
-   * 走得到，现在一处 glob 漂移就够，所以在这里钉一下。
-   */
   it("problems/views.ts 真的被 content/problem-view-modules 找到了", () => {
     const declared = allProblems().filter(
       (problem) => viewsFor(problem.slug).PayloadView !== undefined,

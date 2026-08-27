@@ -7,13 +7,6 @@ import { accounts } from "@/lib/db/schema";
 import { accountDirectoryFor, accountsFor } from "./access";
 import { viewerWith } from "@/test/content-shapes";
 
-/**
- * The one access layer that had no tests, which is a poor place for the gap to
- * have been: this is the module that decides who reads the email addresses.
- *
- * Needs rows, so it runs against a real Postgres and skips itself when there
- * is none.
- */
 const ACTIVE = "acctaccess-active";
 const SUSPENDED = "acctaccess-suspended";
 
@@ -73,11 +66,6 @@ describeDb("账号目录门禁", () => {
       expect(directory.awaitingReset).toBeInstanceOf(Set);
     });
 
-    /**
-     * What `accountColumns` is for. These rows are rendered in a server
-     * component and some of them are handed to client components, which would
-     * serialise every field they carry into the RSC payload.
-     */
     it("目录里的行不带 passwordHash", async () => {
       const directory = await accountDirectoryFor(reader);
 
@@ -86,11 +74,6 @@ describeDb("账号目录门禁", () => {
       }
     });
 
-    /**
-     * Empty rather than an exception, matching the other access layers: a page
-     * that somehow reaches this without the capability renders an empty console
-     * instead of a stack trace, and there is no partial state to reason about.
-     */
     it("选手拿到的是空目录，而不是异常", async () => {
       const directory = await accountDirectoryFor(player);
 
@@ -102,11 +85,6 @@ describeDb("账号目录门禁", () => {
       expect((await accountDirectoryFor(AS_PLAYER)).accounts).toEqual([]);
     });
 
-    /**
-     * The reason this module answers to `account.read` rather than to
-     * `admin.access`: it is the one place the console shows personal data, so
-     * the addresses must not be reachable through the console capability alone.
-     */
     it("只有 admin.access 而没有 account.read 时读不到邮箱", async () => {
       const consoleOnly = viewerFor({ handle: "x", groups: [] });
       expect(consoleOnly.can("admin.access")).toBe(false);

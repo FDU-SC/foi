@@ -4,15 +4,6 @@ import { useActionState } from "react";
 import { ActionResult, PendingSubmit } from "@/components/form";
 import { rejudgeSubmissionAction, type ActionState } from "./actions";
 
-/**
- * The opt-in is a checkbox rather than a second button, because the thing being
- * confirmed is a consequence rather than an alternative action: rejudging a
- * passing submission may take the pass away, and the operator should have to
- * say they know that before the one button they were going to press does it.
- *
- * Rendered only for a row that is finished and not inline — the page decides
- * that, so a button that cannot do anything is never drawn.
- */
 export function RejudgeForm({ id }: { id: string }) {
   const [state, formAction] = useActionState<ActionState, FormData>(
     rejudgeSubmissionAction,

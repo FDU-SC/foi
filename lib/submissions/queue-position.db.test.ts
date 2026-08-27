@@ -6,27 +6,10 @@ import { externallyJudged } from "@/lib/problems/registry";
 import { MAX_ATTEMPTS } from "@/lib/runner/queue";
 import { locateInQueues, locateOne } from "./queue-position";
 
-/**
- * Where a submission sits in its backend's queue.
- *
- * Exact is the entire claim, and it is what holding the queue here bought over
- * matching against whatever a backend last reported about itself. So these
- * cases are about the two ways a count can be exactly wrong: taking the
- * ordering from the column that says when somebody submitted rather than when
- * they joined the queue, and counting rows no runner will ever be handed. Both
- * misreport somebody else's wait, and a position that does not fall the way the
- * queue drains is read as a stuck queue.
- *
- * Against a real Postgres because the answer is two statements against the same
- * set `claimJob` selects from, and the point of the assertions is that the two
- * agree.
- */
 const HANDLE = "queue-lookup-alice";
 
-/** This suite's own queue — `lib/runner/queue.db.test.ts` says why. */
 const BACKEND = "queue-lookup-fixture";
 
-/** A second one, for the cases about queues not bleeding into each other. */
 const OTHER_BACKEND = "queue-lookup-fixture-other";
 
 const PROBLEM = externallyJudged()[0]!;
@@ -85,14 +68,6 @@ describeDb("排队位次", () => {
     expect(found.get(third)).toMatchObject({ state: "queued", ahead: 2 });
   });
 
-  /**
-   * A position is a fact about one queue, and the second statement now names
-   * the backends it reads instead of taking every queue in the table. Asking
-   * about two at once is the shape both halves of that narrowing fail in: name
-   * too few and the row on the omitted queue reports an empty queue in front
-   * of it, name too many — or filter nowhere at all — and each row inherits
-   * the other's backlog.
-   */
   it("两个后端一起问，各数各的队列", async () => {
     const here = await enqueue("sub_ql_here", { queuedAt: ago(30_000) });
     await enqueue("sub_ql_here_ahead", { queuedAt: ago(90_000) });
@@ -117,12 +92,6 @@ describeDb("排队位次", () => {
     });
   });
 
-  /**
-   * The same disagreement `claimJob` orders on. A requeued submission keeps its
-   * original `created_at` and takes a fresh `queued_at`, so counting by the
-   * former put it at the head of a queue it had just joined — and told everyone
-   * it actually landed behind that there was one fewer ahead of them.
-   */
   it("按进队列的时间数，而不是按提交的时间", async () => {
     await enqueue("sub_ql_fresh", {
       createdAt: ago(60_000),
@@ -136,12 +105,6 @@ describeDb("排队位次", () => {
     await expect(locateOne(requeued)).resolves.toMatchObject({ ahead: 1 });
   });
 
-  /**
-   * Rows at the attempt cap are deliberately left `queued` for the reaper to
-   * write off rather than disrupted from inside `claimJob`, so for up to one
-   * tick the table holds work nobody will ever be offered. Counting it promised
-   * the person behind it a wait that was not there.
-   */
   it("attempts 用尽的行不算在前面——claimJob 本来也不会把它发出去", async () => {
     await enqueue("sub_ql_doomed", {
       queuedAt: ago(90_000),

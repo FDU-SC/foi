@@ -9,27 +9,8 @@ import { orphanedBackends } from "@/lib/backend/access";
 import { reaperHealth, recentDisruptions } from "@/lib/runner/reaper";
 import { allProblems } from "@/lib/problems/registry";
 
-/**
- * What the operations console is for, now that it cannot edit anything.
- *
- * The interesting question is not "what should I change" but "where has
- * reality drifted from what the repository says". Each finding names a
- * specific divergence and how to resolve it.
- *
- * A credential with no roster entry is not one of them — that is what an
- * ordinary competitor looks like. The mirror image is: the rules are code and
- * the addresses are data, so a rule that has fallen behind its intake shows up
- * as people quietly belonging to nothing.
- */
 export type DriftSeverity = "info" | "warn";
 
-/**
- * How far back the disrupted count below looks.
- *
- * An hour, because the finding is about a rate rather than a total: it should
- * appear while a bad runner is still bad and disappear once it has been fixed,
- * without an operator having to remember what the number was yesterday.
- */
 const DISRUPTION_WINDOW_MS = 60 * 60 * 1000;
 
 export interface DriftFinding {
@@ -45,27 +26,14 @@ export interface AdminOverview {
   problemCount: number;
   contestCount: number;
   submissionCount: number;
-  /** Distinct handles that have ever submitted. */
+
   activeHandles: number;
-  /**
-   * Problems and contests that have ever been submitted to.
-   *
-   * Not "how much of the registry is mirrored" — nothing pushes the registry
-   * into these tables any more. A row appears when a submission first
-   * references it, so the count is a floor on how much of the repository has
-   * seen use, and the difference from `problemCount` is problems nobody has
-   * tried yet.
-   */
+
   mirroredProblems: number;
   mirroredContests: number;
   findings: DriftFinding[];
 }
 
-/**
- * Ungated on purpose: this counts every account and every mirror row, so it is
- * not a thing a page may call. `adminOverviewFor` in `./access` is the way in,
- * and it is the only caller.
- */
 export async function loadAdminOverview(): Promise<AdminOverview> {
   const registryProblems = allProblems();
   const registryContests = allContests();
@@ -99,12 +67,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     });
   }
 
-  // The rules are code and the addresses are data, so this is where the two
-  // fall out of step: a new intake whose address format nobody added a rule
-  // for lands here, silently in no cohort, entered in no contest.
-  //
-  // The same pass the console's enrolment page runs, which is what keeps the
-  // handles listed here and the number shown there from being two answers.
   const { untagged } = tallyCohorts(
     accountRows.filter((row) => row.status === "active"),
   );
@@ -119,12 +81,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     });
   }
 
-  // A rule naming a handle is a membership waiting for somebody to claim it,
-  // and it is also the only shape that can carry privilege. Before they
-  // register there is nobody to give it to, which is normal for a day and a
-  // typo if it lasts — the bootstrap administrator is created by
-  // `scripts/create-account.cjs` and named here afterwards, so this is where a
-  // mistyped handle shows up in between.
   const unclaimed = named.filter((handle) => !accountHandles.has(handle));
 
   if (unclaimed.length > 0) {
@@ -137,9 +93,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     });
   }
 
-  // Mirror rows are written when a submission first references a problem or a
-  // contest, so a row with no registry entry means the definition was removed
-  // from the repository while its submissions remain.
   const registryProblemSlugs = new Set(registryProblems.map((p) => p.slug));
   const registryContestSlugs = new Set(registryContests.map((c) => c.slug));
 
@@ -152,13 +105,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       .map((row) => `比赛 ${row.slug}`),
   ];
 
-  // The one failure with no other outward sign. If the reaper stops, a runner
-  // that dies takes its jobs with it — they sit in `judging` for good — while
-  // pages render, submissions are accepted, and the database is reachable, so
-  // every other check stays green.
-  //
-  // This answers for *this* process, which is the right scope while the loop
-  // runs inside it; see `reaperRanAt`.
   const reaper = reaperHealth();
   if (!reaper.ok) {
     findings.push({
@@ -174,11 +120,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     });
   }
 
-  // The cheapest stand-in for the internal-error console this deliberately does
-  // not have. One disrupted submission is visible on its own row and an
-  // administrator can rejudge it; what nothing else would show is a runner
-  // failing everything it touches, which looks exactly like a quiet afternoon
-  // until somebody complains.
   const disrupted = await recentDisruptions(DISRUPTION_WINDOW_MS);
   if (disrupted > 0) {
     findings.push({
@@ -190,9 +131,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     });
   }
 
-  // A judge nothing routes to is invisible to players by design — the gate
-  // shows a judge only to somebody who can see a problem on it — so an
-  // unreferenced one would otherwise sit there unnoticed, healthy and unused.
   const unusedJudges = orphanedBackends();
   if (unusedJudges.length > 0) {
     findings.push({

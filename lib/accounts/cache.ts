@@ -2,31 +2,6 @@ import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
 import type { AccountStatus } from "@/lib/db/schema";
 
-/**
- * A process-local snapshot of who exists, so that rendering a page does not
- * turn one query into hundreds.
- *
- * Submission lists and the standings computation resolve display names in
- * bulk, so without this each becomes a join per listing and a batched fetch
- * inside the computation. Holding the whole table for a few seconds follows
- * the same reasoning as `lib/standings/cache.ts`: at the scale this platform
- * is for, recomputing everything is cheaper than invalidating anything
- * precisely.
- *
- * The rule that makes this safe: **authorisation never reads the snapshot.**
- * A suspension has to take effect on the next request, so anything deciding
- * whether somebody may act calls `getAccount` and reads one row by primary
- * key. What the snapshot serves is presentation — the display name next to a
- * submission — and cohort membership when building a contest's participant
- * list. Both tolerate being a few seconds stale; neither grants access.
- *
- * Writes go through `lib/accounts/queries.ts`, which invalidates. The TTL is
- * the backstop for a second process having done the writing.
- *
- * There is deliberately no per-handle accessor. Callers ask for the whole map
- * once and index it; a page that resolves names one await at a time is the
- * shape this cache exists to avoid.
- */
 export interface AccountSummary {
   handle: string;
   displayName: string;
@@ -74,7 +49,6 @@ async function load(): Promise<Snapshot> {
 export async function accountSnapshot(): Promise<Map<string, AccountSummary>> {
   if (snapshot && snapshot.expiresAt > Date.now()) return snapshot.byHandle;
 
-  // Collapse concurrent misses so a burst of viewers triggers one query.
   if (!inflight) {
     inflight = load().finally(() => {
       inflight = undefined;

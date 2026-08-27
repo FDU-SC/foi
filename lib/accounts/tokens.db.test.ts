@@ -10,12 +10,6 @@ import {
   revokeTokens,
 } from "./tokens";
 
-/**
- * Token handling is the one part of the auth surface that cannot be tested as
- * a pure function: single-use is a property of the SQL statement, not of the
- * TypeScript around it. These run against a real Postgres and are skipped
- * when there is none, so the unit suite stays runnable on a bare checkout.
- */
 const HANDLE = "tokentest";
 
 async function reachable(): Promise<boolean> {
@@ -123,7 +117,6 @@ describeDb("auth tokens", () => {
       revokePrior: false,
     });
 
-    // 两个都活着，正是「先铸出来、送到了再作废旧的」中间那一刻的样子。
     await expect(
       redeemToken(first.token, "password_reset"),
     ).resolves.toMatchObject({ ok: true });
@@ -148,16 +141,6 @@ describeDb("auth tokens", () => {
     ).resolves.toMatchObject({ ok: true });
   });
 
-  /**
-   * The property `resetPasswordAction` rests on, checked here rather than
-   * there: the action lives under `app/`, which neither vitest project
-   * includes, and what it needs from this module is exactly this — a
-   * redemption that unwinds with the write it was paired with.
-   *
-   * Without it the one unrecoverable outcome is reachable: the link is spent,
-   * the password is unchanged, and the only way forward is a mail the person
-   * has to ask for again.
-   */
   it("同一事务里回滚时 token 没有被花掉，链接还能再用一次", async () => {
     const { token } = await issueToken(HANDLE, "password_reset");
 
@@ -165,12 +148,11 @@ describeDb("auth tokens", () => {
     await expect(
       db.transaction(async (tx) => {
         redeemed = await redeemToken(token, "password_reset", tx);
-        // 站在 setPassword 的位置上失败。
+
         throw new Error("写密码故意失败");
       }),
     ).rejects.toThrow("写密码故意失败");
 
-    // 回滚之前它确实被消费了，所以下面那条断言不是「压根没跑到」。
     expect(redeemed).toEqual({ ok: true, handle: HANDLE });
 
     await expect(redeemToken(token, "password_reset")).resolves.toEqual({
@@ -198,7 +180,7 @@ describeDb("auth tokens", () => {
       );
 
     expect(await mine()).toHaveLength(0);
-    // 行本身还在，只是不再算作「待用」。
+
     const stored = await db
       .select()
       .from(authTokens)

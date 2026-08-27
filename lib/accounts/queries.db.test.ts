@@ -4,17 +4,6 @@ import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
 import { getAccount, reinstateAccount, suspendAccount } from "./queries";
 
-/**
- * Suspension is the one thing this application keeps in the database rather
- * than in the repository, and until now the pair of functions that writes it
- * had no tests at all. What they get wrong is not the happy path — it is the
- * bookkeeping on either side of it, which is invisible until somebody asks the
- * row a question months later.
- *
- * The four audit columns are the subject. They describe the most recent
- * episode rather than the current state, so every assertion below is about
- * whether an episode stays internally consistent across a transition.
- */
 const HANDLE = "queries-moderation";
 const MODERATOR = "queries-moderator";
 
@@ -62,11 +51,6 @@ describeDb("封禁与解封的审计列", () => {
     expect(row?.reinstatedAt).toBeNull();
   });
 
-  /**
-   * The regression this column was added for. Clearing the three on
-   * reinstatement erased the whole record; keeping them without a fourth said
-   * a suspension had happened but not that it was over.
-   */
   it("解封保留封禁记录，并记下放出来的时间", async () => {
     await suspendAccount(HANDLE, MODERATOR, "刷题机器人");
     const row = await reinstateAccount(HANDLE);
@@ -80,12 +64,6 @@ describeDb("封禁与解封的审计列", () => {
     );
   });
 
-  /**
-   * The ordering that must stay unrepresentable. Without the clear in
-   * `suspendAccount`, a re-suspended row would carry a reinstatement older
-   * than the suspension it supposedly ended — two halves of different
-   * episodes, and no reader could tell which.
-   */
   it("再次封禁清空解封时间，四列因此始终描述同一次处置", async () => {
     await suspendAccount(HANDLE, MODERATOR, "第一次");
     await reinstateAccount(HANDLE);
@@ -96,11 +74,6 @@ describeDb("封禁与解封的审计列", () => {
     expect(row?.reinstatedAt).toBeNull();
   });
 
-  /**
-   * `status` is the only predicate, which is what makes keeping the audit
-   * columns safe. Asserted here rather than left to prose because the whole
-   * argument for not clearing them rests on it.
-   */
   it("解封后 status 是唯一能回答「此刻封着没有」的列", async () => {
     await suspendAccount(HANDLE, MODERATOR, "刷题机器人");
     await reinstateAccount(HANDLE);

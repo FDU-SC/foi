@@ -3,23 +3,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
-/**
- * The last thing between an unhandled server error and a blank page.
- *
- * **Cannot branch on the error, and never will be able to.** This component
- * runs on the client, and Next replaces the message of anything thrown on the
- * server with a generic one before it crosses that boundary, leaving only
- * `error.digest`. Anything that needs to tell a refusal from a fault has to do
- * it on the server, before the throw escapes — which is what the three console
- * actions do with `ForbiddenError`.
- *
- * Placed at `app/` rather than inside `app/(site)/` so it also covers the
- * signed-out pages, which have no layout of their own. It does not wrap the
- * root layout — nothing but `global-error.tsx` can — and that is fine here: a
- * failure in `app/layout.tsx` means the document itself is broken, which the
- * default screen already reports honestly. The frame below is self-contained
- * because this page replaces the header and footer along with everything else.
- */
 export default function AppError({
   error,
   retry,
@@ -38,12 +21,6 @@ export default function AppError({
         </p>
       </div>
 
-      {/*
-        Shown rather than hidden: the digest is a hash of the error, carries
-        nothing about the request, and is the only handle this page shares with
-        the server log. Absent when the throw happened on the client, where
-        there is no server log to point at.
-      */}
       {error.digest ? (
         <p className="text-fg-subtle text-xs">
           报错编号{" "}

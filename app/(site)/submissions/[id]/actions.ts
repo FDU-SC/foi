@@ -14,35 +14,16 @@ export interface ActionState {
 
 const rejudgeSchema = z.object({
   id: z.string().min(1, "缺少提交 id"),
-  /**
-   * A checkbox, so it arrives as `"on"` or not at all. Read as a presence test
-   * rather than parsed, because the default has to be "no" for anything the
-   * form did not send — including a form posted by something that is not this
-   * page.
-   */
+
   includeAccepted: z.boolean(),
 });
 
-/**
- * Sends one submission back to the queue — the whole of the administrative
- * side of judging, and deliberately so: no cancel, no pinning to a runner, no
- * internal-error console.
- *
- * Bulk rejudge is the obvious next thing and is not here on purpose: the
- * accepted-submissions default below matters far more when the operation
- * covers a whole round, so it needs its own confirmation rather than this
- * checkbox.
- */
 export async function rejudgeSubmissionAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const actor = await requireCapability("submission.rejudge");
 
-  // The one privileged action here whose cost lands on somebody else's machine:
-  // every press puts real work back on a runner. Sized well above an operator
-  // clearing up after a bad round and well below anything that could occupy the
-  // pool.
   const rule = ACTION_LIMITS.rejudgeSubmissionAction;
   const limited = rateLimit(
     `rejudge:${actor.handle}`,
@@ -66,9 +47,6 @@ export async function rejudgeSubmissionAction(
   const row = await submissionStateOf(parsed.data.id);
   if (!row) return { error: "提交不存在" };
 
-  // Answered before the write rather than inferred from a zero count, because
-  // the three ways this does nothing call for three different sentences and a
-  // count of zero cannot tell them apart.
   if (row.state === "queued" || row.state === "judging") {
     return { error: "这条提交还没有评测完，不需要重判。" };
   }
@@ -99,8 +77,7 @@ export async function rejudgeSubmissionAction(
   }
 
   if (result.requeued === 0) {
-    // The row moved between the read above and the write. Nothing failed and
-    // nothing is wrong — the state it is in now is the answer.
+
     revalidatePath(`/submissions/${parsed.data.id}`);
     return { error: "这条提交的状态刚刚变了，没有改动任何东西，请刷新后再看。" };
   }

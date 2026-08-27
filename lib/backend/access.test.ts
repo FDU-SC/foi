@@ -16,14 +16,6 @@ import {
 
 const PREVIEW = viewerWith("problem.viewAll", "an-admin");
 
-/**
- * Sees unreleased problems but not the infrastructure.
- *
- * Built by hand because no shipped role holds that combination — which is the
- * point of the case: `problem.viewAll` and `backend.inspect` have to stay
- * independent, so that a deployment adding such a role gets the behaviour
- * without also having to touch the gate.
- */
 const SETTER: Viewer = {
   handle: "setter",
   groups: ["出题人"],
@@ -61,11 +53,6 @@ describe("题目后端→题目 反向索引", () => {
     }
   });
 
-  /**
-   * An inline problem has no backend to name, and the index must not invent
-   * one for it — a placeholder key would make `orphanedBackends` miss a real
-   * orphan, and the audience gate would hand out a queue nobody serves.
-   */
   it("内联判题的题目不进反向索引", () => {
     const inline = allProblems().filter((p) => isInlineBackend(p.backend));
     expect(inline.length).toBeGreaterThan(0);
@@ -107,8 +94,6 @@ describe("canSeeBackend", () => {
       .id;
     if (!backendId) return;
 
-    // Pick a moment before the contest opens, and only assert when this backend
-    // serves nothing else — otherwise another problem legitimately reveals it.
     const at = before(demo.startsAt);
     const others = problemsServedBy(backendId).filter((s) => s !== slug);
     const otherVisible = others.some(
@@ -118,7 +103,7 @@ describe("canSeeBackend", () => {
     if (!otherVisible) {
       expect(canSeeBackend(backendId, AS_PLAYER, at)).toBe(false);
     }
-    // A setter sees the problem, so seeing its backend reveals nothing further.
+
     expect(canSeeBackend(backendId, SETTER, at)).toBe(true);
   });
 });

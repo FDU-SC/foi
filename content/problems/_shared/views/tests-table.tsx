@@ -23,7 +23,6 @@ function toneFor(test: TestLike): BadgeTone {
   return test.status ? "err" : "neutral";
 }
 
-/** Recognises the conventional `{ tests: [...] }` shape, if present. */
 function extractTests(detail: unknown): TestLike[] | null {
   if (typeof detail !== "object" || detail === null) return null;
   const tests = (detail as { tests?: unknown }).tests;
@@ -37,20 +36,6 @@ function extractMessage(detail: unknown): string | null {
   return typeof message === "string" && message.length > 0 ? message : null;
 }
 
-/**
- * `verdict.detail` as `{ tests, message }`, which is what the backends behind
- * these problems report.
- *
- * A convention between a set of problems and the services that judge them, not
- * part of the protocol — `verdictSchema` says `detail: z.unknown()` and means
- * it. So this lives beside the problems that share it and each one names it in
- * its own `views.tsx`; a problem whose backend answers with something else
- * writes its own, and one that names nothing gets the kernel's dump.
- *
- * Anything it does not recognise still collapses to JSON here, because a
- * backend may add a shape mid-round and a competitor should see whatever came
- * back rather than nothing.
- */
 export function VerdictDetail({ verdict }: { verdict: Verdict }) {
   const [expanded, setExpanded] = useState(false);
   const tests = extractTests(verdict.detail);

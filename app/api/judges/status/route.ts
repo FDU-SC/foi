@@ -18,10 +18,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
 
-  // Nothing goes outbound here: the queue is the kernel's, so this is two
-  // indexed reads against our own database rather than a fan-out to every
-  // backend. The bound is for the work per poll on this side — a session read,
-  // those queries and a render — since the board polls.
   const rule = ROUTE_LIMITS["GET /api/judges/status"];
   const limited = rateLimit(
     `judges:${user.handle}`,
@@ -30,8 +26,6 @@ export async function GET(request: Request) {
   );
   if (!limited.ok) return tooManyRequests(limited.retryAfterMs);
 
-  // Which judges, and how much of each, are one question answered in one
-  // place. The route decides neither.
   return NextResponse.json(await judgeQueuesFor(viewerFor(user)), {
     headers: { "cache-control": "no-store" },
   });

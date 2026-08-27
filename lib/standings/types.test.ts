@@ -146,11 +146,6 @@ describe("scoredSubmissions", () => {
   });
 });
 
-/**
- * The set a format asks for when it has something to say about a submission
- * that has not been judged yet — ICPC's pending cell. Same window and same
- * ordering as `scoredSubmissions`, one state filter fewer.
- */
 describe("submissionsInWindow", () => {
   const base = {
     participants: participants("alice"),
@@ -176,11 +171,6 @@ describe("submissionsInWindow", () => {
     ]);
   });
 
-  /**
-   * The one state it does drop. A disrupted submission will never get a
-   * verdict and is explicitly not charged to whoever sent it, so a format
-   * counting it as pending would draw a cell that never resolves.
-   */
   it("剔除 disrupted", () => {
     const rows = submissionsInWindow(
       input({
@@ -248,11 +238,6 @@ describe("isAccepted", () => {
     ).toBe(false);
   });
 
-  /**
-   * The case the derivation gets wrong, and the reason `accepted` exists: a
-   * performance task can pass well below full marks, or withhold a pass at
-   * full marks. Only the backend knows, so what it says wins.
-   */
   it("评测机说了算：声明不通过时，满分也不算通过", () => {
     expect(
       isAccepted(

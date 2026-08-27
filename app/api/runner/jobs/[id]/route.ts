@@ -14,23 +14,10 @@ import {
   reportFailed,
 } from "@/lib/runner/queue";
 
-// Signature verification uses node:crypto, so this must not run on Edge.
 export const runtime = "nodejs";
 
-/**
- * Generous, because a verdict's `detail` carries whatever the backend wants to
- * show — a compile log, a diff, a per-test breakdown — and bounded anyway,
- * because nothing below this line runs until the body has fit.
- */
 const MAX_BODY_BYTES = 1024 * 1024;
 
-/**
- * Which backend a job belongs to, or null when there is no such job.
- *
- * Both endpoints below need this before they can verify anything, because the
- * signing key is the one belonging to the backend the row names — there is no
- * caller-supplied backend id here to trust or to check.
- */
 async function backendOf(id: string): Promise<string | null> {
   const [row] = await db
     .select({ backendId: submissions.backendId })
@@ -40,45 +27,8 @@ async function backendOf(id: string): Promise<string | null> {
   return row?.backendId ?? null;
 }
 
-/**
- * The one thing an unproven caller is ever told, on either branch.
- *
- * Deliberately the same wording `verifySignature` gives a forgery, so that
- * "your signature is wrong" and "there is no such submission" are the same
- * sentence.
- */
 const UNPROVEN = "签名不匹配";
 
-/**
- * Whether this caller may act on this id, and what to say when it may not.
- *
- * Both endpoints below have to look the row up before they can verify
- * anything, because the key a signature is checked against belongs to the
- * backend the *row* names — there is no caller-supplied backend id here to
- * trust. Write the refusal for a missing id in one place and the refusal for a
- * bad signature in another, and the two disagree:
- *
- *   - no signature headers, id does not exist → 401 `{"error":"签名不匹配"}`
- *   - no signature headers, id exists         → 401 `{"error":"缺少签名头"}`
- *
- * Submission ids are time-ordered ULIDs, so that difference is an
- * unauthenticated enumeration of who submitted when — precisely what the
- * not-found branch exists to prevent, defeated by the branch above it. A clock
- * outside the skew window splits the same way and for the same reason: the
- * reason string is chosen by whichever check ran first, and which ran first
- * depends on the row.
- *
- * One rule instead, applied to both: a caller that has proved it holds a
- * configured key gets the diagnosis it needs, and everybody else gets one
- * fixed 401 that reveals nothing about whether the row is there.
- *
- * The cost is `verifySignature`'s "you are still on the old signature format",
- * which only the right key can provoke and so reaches nobody here — proving
- * key possession takes a *current*-format signature. A runner reaches these
- * two endpoints only after claiming a job, and `POST /api/runner/jobs/request`
- * still answers that one verbatim, because it takes the backend id from its
- * own body and has no row existence to give away.
- */
 async function authorizeJob(
   request: Request,
   id: string,
@@ -90,33 +40,17 @@ async function authorizeJob(
     const signature = verifyRunner(backendId, request, signed);
     if (signature.ok) return null;
 
-    // Signed with somebody's key, just not this row's: an operator whose
-    // runner is pointed at the wrong queue, and worth telling.
     const reason = signedByAnyBackend(request, signed)
       ? signature.reason
       : UNPROVEN;
     return NextResponse.json({ error: reason }, { status: 401 });
   }
 
-  // A runner asking about a job this deployment has no row for is an
-  // environment mismatch worth diagnosing — once it has shown it belongs here.
   return signedByAnyBackend(request, signed)
     ? NextResponse.json({ error: "提交不存在" }, { status: 404 })
     : NextResponse.json({ error: UNPROVEN }, { status: 401 });
 }
 
-/**
- * What to evaluate.
- *
- * Separate from the claim because the claim's shape then never has to change,
- * and because this is where the lease earns its keep: without a holder check
- * here, one compromised evaluator could walk the id space and read every
- * competitor's submission.
- *
- * The lease travels in the query string rather than a header because the
- * signature covers the path *and its search*, and covers no headers at all. A
- * GET has no body to put it in, so the query is the only place it is protected.
- */
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -127,9 +61,6 @@ export async function GET(
   const { id } = await params;
   const url = new URL(request.url);
 
-  // The canonical pathname plus the search exactly as it arrived: a
-  // prefix-stripping proxy rewrites the former and never the latter, which is
-  // why only one of the two is reconstructed. See `jobPath`.
   const signed = { method: "GET", path: jobPath(id) + url.search, body: "" };
 
   const refused = await authorizeJob(request, id, signed);
@@ -138,10 +69,6 @@ export async function GET(
   const lease = url.searchParams.get("lease");
   const details = lease ? await jobDetails(id, lease) : null;
 
-  // 409 rather than 404, and the distinction is what a runner acts on: the job
-  // exists, it is simply not this caller's any more. Stop evaluating it — the
-  // heartbeat lapsed, or an administrator rejudged it, and something else is
-  // holding it now.
   if (!details) {
     return NextResponse.json(
       { error: "lease 已失效，这份提交不再由你持有" },
@@ -154,14 +81,6 @@ export async function GET(
   });
 }
 
-/**
- * The three things a holder can say: still here, here is the verdict, I cannot
- * do this.
- *
- * One endpoint because all three are the same act — the holder of a lease
- * reporting on it — and all three are refused the same way when the lease is no
- * longer current.
- */
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -214,10 +133,6 @@ export async function PUT(
             report.backendVersion,
           );
 
-  // The same 409 the details endpoint gives, and it means the same thing: a
-  // runner that gets this should drop the job rather than retry. Retrying is
-  // what a 5xx invites, and a stale holder retrying forever is precisely the
-  // loop the lease exists to cut.
   if (!accepted) {
     return NextResponse.json(
       { error: "lease 已失效，这次上报没有被采纳" },

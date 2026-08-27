@@ -13,8 +13,7 @@ export const problem = {
     kind: "inline",
     judge: judgeRoulette,
     config: {
-      // 结果由 HMAC(AUTH_SECRET, handle|日期) 派生：每人每天一个私有轮盘，
-      // 选手算不出来，服务端不用存。押中数字 100 分 / 颜色 30 分 / 大小 10 分。
+
       scoreNumber: 100,
       scoreColor: 30,
       scoreSize: 10,
@@ -26,7 +25,7 @@ export const problem = {
     tags: ["签到", "运气"],
   } satisfies ProblemUi,
   submit: {
-    // 签到：约 24 小时可以来一次。
+
     rateLimit: { max: 1, windowSeconds: 86400 },
   },
   order: 6,

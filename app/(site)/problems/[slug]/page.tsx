@@ -14,13 +14,6 @@ import { toPublicConfig } from "@/lib/problems/types";
 
 export const dynamicParams = false;
 
-/**
- * The gate below is evaluated per request, which only works while this page
- * renders per request. It already does — it reads the session — but that is a
- * side effect of one call, and removing that call would silently turn the page
- * static and the gate off, with nothing failing to say so. Pinning it here
- * costs nothing and states the dependency.
- */
 export const dynamic = "force-dynamic";
 
 const gateFormatter = new Intl.DateTimeFormat("zh-CN", {
@@ -28,11 +21,6 @@ const gateFormatter = new Intl.DateTimeFormat("zh-CN", {
   timeStyle: "short",
 });
 
-/**
- * Raw on purpose: this decides which slugs route at all, not what anybody may
- * read. Gating here would make an embargoed problem 404 for its own author
- * too, and the gate below already answers the question that matters.
- */
 export function generateStaticParams() {
   return allProblems().map((problem) => ({ slug: problem.slug }));
 }
@@ -42,9 +30,6 @@ export async function generateMetadata({
 }: PageProps<"/problems/[slug]">): Promise<Metadata> {
   const { slug } = await params;
 
-  // Goes through the same accessor as the body, so a gated title cannot leak
-  // through `<title>` — the page body is not the only thing that says what a
-  // round contains.
   const view = problemFor(slug, viewerFor(await getResolvedUser()));
   return { title: view?.config.title ?? "题目" };
 }
@@ -57,9 +42,6 @@ export default async function ProblemPage({
   const user = await getResolvedUser();
   const viewer = viewerFor(user);
 
-  // Undefined covers both "no such problem" and "not yours to see", and 404 is
-  // the right answer to both: confirming that a slug exists but is embargoed
-  // tells a player how many problems the round has and what they are called.
   const view = problemFor(slug, viewer);
   if (!view) notFound();
 
@@ -67,11 +49,6 @@ export default async function ProblemPage({
   const Statement = await loadStatement(slug);
   if (!Statement) notFound();
 
-  // `?contest=` is the client's claim and every fact behind it is re-derived,
-  // by the same function the submission gate and the action route use. Somebody
-  // outside the entry rule is not turned away — they lose the contest context
-  // and their submission counts as practice, which is what `null` means to the
-  // panel below.
   const requested = (await searchParams).contest;
   const round =
     typeof requested === "string"
@@ -84,9 +61,7 @@ export default async function ProblemPage({
       value={{
         config: toPublicConfig(config),
         contestSlug: contest?.slug ?? null,
-        // A preview holder reads the statement but still cannot submit, and
-        // neither can anybody on a retired problem. Who is looking does not
-        // change either answer, which is why both live in `open`.
+
         canAct: Boolean(user) && view.open,
       }}
     >
@@ -105,13 +80,6 @@ export default async function ProblemPage({
           </div>
         ) : null}
 
-        {/* Two overrides reach a statement the gate refused, and they are
-            different situations to be in: a proofreader is reading something
-            not released yet, while somebody here through a round is reading
-            something released to other people and not to them. Which one it
-            was is `reachedVia`'s answer, asked at the gate rather than by
-            re-deriving the capability here. Both end the same way — the submit
-            box below is disabled — and without a notice that reads as broken. */}
         {!gate.visible && view.reachedVia === "problem.viewAll" ? (
           <div className="border-warn/40 bg-warn/10 mb-4 rounded-lg border px-4 py-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -137,9 +105,7 @@ export default async function ProblemPage({
                 这道题目不对你开放，你是通过比赛权限读到它的
               </span>
             </div>
-            {/* Always the `audience` reason here. An embargo means no round
-                using this problem has started, and a started round is exactly
-                what carried this viewer in. */}
+
             <p className="text-fg-muted mt-1.5 text-xs leading-5">
               {gate.reason === "audience"
                 ? `题目的 visibleTo 是 ${describeAudience(gate.audience)}，你不在其中；`

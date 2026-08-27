@@ -1,18 +1,12 @@
 import { countDistinct } from "drizzle-orm";
 import { listAccounts } from "@/lib/accounts/queries";
-import { tier } from "@/lib/boot/deployment";
+import { savedBootWarnings } from "@/lib/boot/checks";
 import { allContests } from "@/lib/contests/registry";
 import { db } from "@/lib/db";
 import { contests, problems, submissions } from "@/lib/db/schema";
 import { enumeratedHandles, tallyCohorts } from "@/lib/enrollment/registry";
 import { orphanedBackends } from "@/lib/backend/access";
-import {
-  backendsMissingActionUrl,
-  backendsOnLoopback,
-  backendsSharingSecret,
-} from "@/lib/backend/boot";
 import { reaperHealth, recentDisruptions } from "@/lib/runner/reaper";
-import { mailDeliveryUnmet } from "@/lib/mail/transport";
 import { allProblems } from "@/lib/problems/registry";
 
 /**
@@ -94,37 +88,14 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
 
   const findings: DriftFinding[] = [];
 
-  // First, because it is the only one here that means a whole feature is dead
-  // rather than that some rows need attention.
-  //
-  // The failure is not that codes and reset links end up in the container log.
-  // Reading that log takes a shell on the deploy host, and whoever has one
-  // already has the `.env`, the database and `scripts/set-password.cjs` — the
-  // log tells them nothing new. It is that registration and recovery are dead
-  // ends that announce themselves as working: the page says a code was sent,
-  // every individual send succeeds, and the person waiting on the mail has no
-  // way to find out why it will never arrive. Nothing else in the product is
-  // in a position to say so, which is why this is the one place that can.
-  //
-  // Asked of the mail module rather than of `FOI_SMTP_HOST`, which is the
-  // whole reason `policy.mailDelivery` exists: where mail goes is a
-  // declaration, not an inference from an absent variable. Reading the
-  // variable tells a deployment that wrote `mailDelivery: "console"` on
-  // purpose to fix a decision it made, at every visit, and a list whose first
-  // entry can never be resolved is a list that gets skimmed past.
-  //
-  // Barely reachable on prod, because the boot check refuses that tier. So this
-  // mostly repeats a startup warning, for the reason the shared-key finding
-  // below does: a startup warning scrolled past weeks ago, in a log that has
-  // since rotated. On staging it is the ordinary case rather than a near-miss —
-  // that tier falls back to the console on purpose.
-  if (mailDeliveryUnmet()) {
+  const bootWarnings = savedBootWarnings();
+  if (bootWarnings.length > 0) {
     findings.push({
       severity: "warn",
-      title: "声明了要发信，却没有可用的 SMTP 中继",
+      title: "启动时发现的配置提醒",
       detail:
-        'content/enrollment/ 的 policy 声明了 mailDelivery: "smtp"，但没有设置 FOI_SMTP_HOST——注册的验证码、找回密码的链接都只会打印到服务端日志里，用户看到「已发送」，然后永远等不到。设置 FOI_SMTP_HOST 等变量，或者在 policy 里明确写上 mailDelivery: "console"。同样的组合在生产环境会直接拒绝启动，所以看到它说明这是开发或测试环境。',
-      items: [],
+        "以下提醒在启动时已报告过，列在此处方便查看。",
+      items: bootWarnings,
     });
   }
 
@@ -180,60 +151,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       .filter((row) => !registryContestSlugs.has(row.slug))
       .map((row) => `比赛 ${row.slug}`),
   ];
-
-  // Said at startup too, and worth repeating here for the reason every startup
-  // warning is easy to miss: it scrolled past weeks ago, in a container whose
-  // log has since rotated. This is the surface somebody actually looks at.
-  const sharingSecret = backendsSharingSecret();
-  if (sharingSecret.length > 0) {
-    findings.push({
-      severity: "warn",
-      title: "有多台题目后端共用同一个签名密钥",
-      detail:
-        "拉模型下这把密钥是评测机进来的凭证：拿到它就能领走该后端队列里的任意提交、读到里面所有人的代码、写任意评测结果。几台共用一把，等于其中任何一台被攻破，另外几台的队列也一起丢。为每台服务设置各自的 FOI_BACKEND_<名字>_SECRET 并同步到后端本身；确实由同一套评测机服务的多个条目，填相同的值即可。生产环境会因为这一条直接拒绝启动，所以看到它说明这是开发或测试环境。",
-      items: sharingSecret,
-    });
-  }
-
-  // Not fatal here for the same reason the loopback finding is not: on `dev` a
-  // missing address falls back to the local mock, which is what a checkout
-  // looks like. On prod the boot check has already refused, so this can only
-  // appear where it is survivable.
-  const missingActionUrl = backendsMissingActionUrl();
-  if (missingActionUrl.length > 0) {
-    findings.push({
-      severity: "warn",
-      title: "有题目声明了交互动作，但后端没有地址",
-      detail:
-        "评测本身不需要后端地址——评测机自己来平台领活。但题目声明的交互动作是平台代选手同步发起的，拉不了，所以承载它们的后端仍然必须可达。缺地址时这些动作会直接失败，选手看到的是一个点不动的按钮。",
-      items: missingActionUrl,
-    });
-  }
-
-  // Only in a deployment. Every backend is the local mock during `pnpm dev`,
-  // and a finding that stands on every developer's console is one nobody reads
-  // by the time it appears on a real one — the same reason the shared-key
-  // warning above counts services rather than entries.
-  //
-  // What this catches is the half `assertEnv` cannot. It can insist the
-  // address variable was set; it cannot tell an address apart from a leftover,
-  // and the leftover this deployment shape produces is `localhost`, which
-  // inside the app container is the app container.
-  //
-  // Staging counts as a deployment here even though it is not `prod`: a copied
-  // `localhost` breaks a spawn button there exactly as it does on the real one,
-  // and staging exists to find that before prod does.
-  const loopback = tier() === "dev" ? [] : backendsOnLoopback();
-
-  if (loopback.length > 0) {
-    findings.push({
-      severity: "warn",
-      title: "有题目后端的地址指向本机",
-      detail:
-        "容器里的 localhost 就是这个应用自己，那里没有题目后端在听。这个地址只用于题目声明的交互动作，所以受影响的是那几道题的按钮，而不是评测——多半是 .env.example 的开发用地址被抄进了部署。改成后端真正的地址（宿主机上的用 host.docker.internal，同网络的容器用容器名）；后端确实与应用共处一台机器时，可以忽略这一条。",
-      items: loopback,
-    });
-  }
 
   // The one failure with no other outward sign. If the reaper stops, a runner
   // that dies takes its jobs with it — they sit in `judging` for good — while

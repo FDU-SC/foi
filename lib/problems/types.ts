@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { audienceSchema } from "@/lib/permissions/audience";
+import { SLUG_PATTERN } from "@/lib/utils";
 // Types only: `PublicProblemConfig` is handed to client components, so nothing
 // here may pull a runtime dependency on the backend layer into a browser chunk.
 import type { BackendUser, Verdict } from "@/lib/backend/types";
@@ -202,7 +203,7 @@ export const problemConfigSchema = z.object({
   slug: z
     .string()
     .min(1)
-    .regex(/^[a-z0-9-]+$/, "slug 只能包含小写字母、数字和连字符"),
+    .regex(SLUG_PATTERN, "slug 只能包含小写字母、数字和连字符"),
   title: z.string().min(1),
   maxScore: z.number().positive().default(100),
 

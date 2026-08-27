@@ -70,18 +70,6 @@ export function sign(
   return digest(secret, canonical(timestamp, request));
 }
 
-/**
- * The form this protocol used before the path and the method were covered.
- *
- * Never accepted — it exists so that a rejection can say which of the two
- * things went wrong. A backend that has not been upgraded and a backend
- * holding the wrong secret both fail with "signature does not match", and they
- * need opposite fixes.
- */
-function legacyDigest(secret: string, timestamp: number, body: string): string {
-  return digest(secret, `${timestamp}.${body}`);
-}
-
 function matches(expected: string, actual: string): boolean {
   const left = Buffer.from(expected);
   const right = Buffer.from(actual);
@@ -107,17 +95,6 @@ export function verifySignature(options: {
   }
 
   if (matches(sign(secret, ts, request), signature)) return { ok: true };
-
-  // Diagnosis only, and reached only once the request has already been
-  // refused. Saying "still on the old signature format" costs one more HMAC
-  // and saves an operator from checking a secret that was never wrong.
-  if (matches(legacyDigest(secret, ts, request.body), signature)) {
-    return {
-      ok: false,
-      reason:
-        "签名用的是旧格式（只签了 body），未覆盖 method 与 path。请把题目后端升级到同一版本的签名规范。",
-    };
-  }
 
   return { ok: false, reason: "签名不匹配" };
 }

@@ -4,8 +4,6 @@ import { backends } from "@/lib/backend/registry";
 import { externallyJudged } from "@/lib/problems/registry";
 import { problemsServedBy, orphanedBackends } from "./access";
 import {
-  backendActionUrlComplaints,
-  backendSecretComplaints,
   backendsMissingActionUrl,
   backendsOnLoopback,
   backendsSharingSecret,
@@ -51,16 +49,15 @@ describe("共用签名密钥的题目后端", () => {
     for (const id of inUse) patch(id, { secret: `secret-for-${id}` });
 
     expect(backendsSharingSecret()).toEqual([]);
-    expect(backendSecretComplaints()).toEqual([]);
   });
 
   it("两台以上回落到共享密钥时，把它们都点出来", () => {
     if (inUse.length < 2) return;
     scatter();
 
-    expect(backendsSharingSecret().sort()).toEqual([...inUse].sort());
-    expect(backendSecretComplaints()).toHaveLength(1);
-    expect(backendSecretComplaints()[0]).toContain(inUse[0]);
+    const complaints = backendsSharingSecret();
+    expect(complaints).toHaveLength(1);
+    for (const id of inUse) expect(complaints[0]).toContain(id);
   });
 
   it("只剩一台回落时不报——和谁都没共用就不算共用", () => {
@@ -85,7 +82,9 @@ describe("共用签名密钥的题目后端", () => {
       patch(id, { secret: undefined, url: "http://localhost:4100" });
     }
 
-    expect(backendsSharingSecret().sort()).toEqual([...inUse].sort());
+    const complaints = backendsSharingSecret();
+    expect(complaints).toHaveLength(1);
+    for (const id of inUse) expect(complaints[0]).toContain(id);
   });
 
   it("没有题目指向的后端从不参与，哪怕它也没有密钥", () => {
@@ -94,9 +93,10 @@ describe("共用签名密钥的题目后端", () => {
       patch(id, { secret: undefined, url: `http://orphan-${id}:4100` });
     }
 
-    const reported = backendsSharingSecret();
+    const complaints = backendsSharingSecret();
+    const joined = complaints.join("\n");
     for (const id of orphanedBackends()) {
-      expect(reported).not.toContain(id);
+      expect(joined).not.toContain(id);
     }
   });
 
@@ -127,25 +127,12 @@ describe("共用签名密钥的题目后端", () => {
     patch(inUse[0], { secret: "shared-key" });
     for (const id of inUse.slice(2)) patch(id, { secret: `secret-for-${id}` });
 
-    expect(backendsSharingSecret().sort()).toEqual([inUse[0], inUse[1]].sort());
+    const complaints = backendsSharingSecret();
+    expect(complaints).toHaveLength(1);
+    expect(complaints[0]).toContain(inUse[0]);
+    expect(complaints[0]).toContain(inUse[1]);
   });
 
-  /**
-   * Legacy `FOI_JUDGE_SECRET` is the same fallback under an older name, so a
-   * value copied out of it collides just as thoroughly. Still read, here and
-   * in `withLegacyNames` in `lib/env.ts` — see `sharedSecret` in `./env.ts`
-   * for why the two have to agree.
-   */
-  it("回落到旧名 FOI_JUDGE_SECRET 时也一样比得出来", () => {
-    if (inUse.length < 2) return;
-    vi.stubEnv("FOI_BACKEND_SECRET", undefined);
-    vi.stubEnv("FOI_JUDGE_SECRET", "legacy-key");
-    scatter();
-    patch(inUse[0], { secret: "legacy-key" });
-    for (const id of inUse.slice(2)) patch(id, { secret: `secret-for-${id}` });
-
-    expect(backendsSharingSecret().sort()).toEqual([inUse[0], inUse[1]].sort());
-  });
 });
 
 /**
@@ -276,13 +263,13 @@ describe("拒绝启动级别的发现", () => {
     vi.unstubAllEnvs();
   });
 
-  describe("backendSecretComplaints", () => {
+  describe("backendsSharingSecret", () => {
     it("几台共用一把密钥就报，并点名是哪几台", () => {
       if (inUse.length < 2) return;
       vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
       for (const id of inUse) patch(id, { secret: undefined });
 
-      const complaints = backendSecretComplaints();
+      const complaints = backendsSharingSecret();
       expect(complaints).toHaveLength(1);
       for (const id of inUse) expect(complaints[0]).toContain(id);
     });
@@ -291,7 +278,7 @@ describe("拒绝启动级别的发现", () => {
       vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
       for (const id of inUse) patch(id, { secret: `secret-for-${id}` });
 
-      expect(backendSecretComplaints()).toEqual([]);
+      expect(backendsSharingSecret()).toEqual([]);
     });
 
     /**
@@ -305,19 +292,20 @@ describe("拒绝启动级别的发现", () => {
       vi.stubEnv("FOI_BACKEND_SECRET", "shared-key");
       for (const id of inUse) patch(id, { secret: undefined });
 
-      expect(backendSecretComplaints()).toHaveLength(1);
+      expect(backendsSharingSecret()).toHaveLength(1);
     });
   });
 
-  describe("backendActionUrlComplaints", () => {
+  describe("backendsMissingActionUrl", () => {
     it("有题目声明了动作、后端却没有地址时，点名该填哪个变量", () => {
       if (withActions.length === 0) return;
       for (const id of withActions) patch(id, { url: undefined });
 
-      const complaints = backendActionUrlComplaints();
+      const complaints = backendsMissingActionUrl();
       expect(complaints.length).toBeGreaterThan(0);
-      for (const variable of backendsMissingActionUrl()) {
-        expect(complaints.join("\n")).toContain(variable);
+      const joined = complaints.join("\n");
+      for (const id of withActions) {
+        expect(joined).toContain(`FOI_BACKEND_${id.toUpperCase().replace(/-/g, "_")}_URL`);
       }
     });
 
@@ -327,7 +315,6 @@ describe("拒绝启动级别的发现", () => {
       }
 
       expect(backendsMissingActionUrl()).toEqual([]);
-      expect(backendActionUrlComplaints()).toEqual([]);
     });
 
     /**
@@ -344,7 +331,7 @@ describe("拒绝启动级别的发现", () => {
         });
       }
 
-      expect(backendActionUrlComplaints()).toEqual([]);
+      expect(backendsMissingActionUrl()).toEqual([]);
     });
   });
 });

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import type { SignedRequest } from "@/lib/backend/signature";
 import { jobReportSchema } from "@/lib/backend/types";
-import { readTextBody } from "@/lib/body-limit";
+import { readJsonBody } from "@/lib/body-limit";
 import { db } from "@/lib/db";
 import { submissions } from "@/lib/db/schema";
 import { guardRequest } from "@/lib/ratelimit/gate";
@@ -171,17 +171,16 @@ export async function PUT(
 
   const { id } = await params;
 
-  const read = await readTextBody(request, MAX_BODY_BYTES);
+  const read = await readJsonBody(request, MAX_BODY_BYTES);
   if (!read.ok) {
-    return NextResponse.json({ error: "上报内容过大" }, { status: 413 });
+    switch (read.reason) {
+      case "too-large":
+        return NextResponse.json({ error: "上报内容过大" }, { status: 413 });
+      case "invalid-json":
+        return NextResponse.json({ error: "请求体不是合法 JSON" }, { status: 400 });
+    }
   }
-
-  let body: unknown;
-  try {
-    body = JSON.parse(read.text);
-  } catch {
-    return NextResponse.json({ error: "请求体不是合法 JSON" }, { status: 400 });
-  }
+  const { body } = read;
 
   const parsed = jobReportSchema.safeParse(body);
   if (!parsed.success) {
@@ -191,7 +190,7 @@ export async function PUT(
   const signed = {
     method: "PUT",
     path: jobPath(id) + new URL(request.url).search,
-    body: read.text,
+    body: read.raw,
   };
 
   const refused = await authorizeJob(request, id, signed);

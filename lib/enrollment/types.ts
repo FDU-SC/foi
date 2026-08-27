@@ -13,7 +13,7 @@ import { handleSchema } from "@/lib/accounts/types";
  * One array rather than two, because a grant is a rule whose condition happens
  * to be "this exact handle". The safety property is therefore stated against
  * the *condition* rather than against which array something was written in —
- * see `privilegeAllowed` below.
+ * see `isHandlesRule` below.
  */
 
 /** What the groups of a matched rule are, literal or computed from captures. */
@@ -67,17 +67,6 @@ export type HandlesRule = z.infer<typeof handlesRuleSchema>;
 
 export function isHandlesRule(rule: EnrollmentRule): rule is HandlesRule {
   return "handles" in rule;
-}
-
-/**
- * Whether this rule's condition is one the repository can vouch for.
- *
- * A checked property rather than a structural accident. There is no `disabled`
- * counterpart: suspending an account is a moderation decision and lives in the
- * database, so that banning a spam signup does not require a commit.
- */
-export function privilegeAllowed(rule: EnrollmentRule): boolean {
-  return isHandlesRule(rule);
 }
 
 export const enrollmentPolicySchema = z.object({

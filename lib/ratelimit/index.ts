@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { createFixedWindow, type RateLimitResult } from "./window";
 import { isResolvedSource, sourceFrom } from "./source";
 
@@ -90,29 +89,4 @@ export function rateLimitBySource(
 ): RateLimitResult {
   if (!isResolvedSource(source)) return { ok: true };
   return rateLimit(`${activity}:${source}`, limit, windowMs);
-}
-
-/**
- * The same bound, for a caller that can ask the framework who is on the line.
- *
- * Deliberately not a bare "who is on the line" helper handing back a source
- * string: that leaves every Server Action to build a key out of it, and the
- * sentinel case then has to be remembered at each one. The argument above is
- * written on the function that takes the source for the same reason.
- *
- * `authorize` in `auth.ts` cannot use this one and calls `rateLimitBySource`
- * directly: it is handed the `Request` and must work wherever Auth.js invokes
- * the provider, which is not necessarily somewhere `next/headers` resolves.
- */
-export async function rateLimitByCaller(
-  activity: string,
-  limit: number,
-  windowMs: number,
-): Promise<RateLimitResult> {
-  return rateLimitBySource(
-    activity,
-    sourceFrom(await headers()),
-    limit,
-    windowMs,
-  );
 }

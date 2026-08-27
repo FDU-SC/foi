@@ -1,7 +1,7 @@
 "use server";
 
 import { AuthError } from "next-auth";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { z } from "zod";
 import { signIn } from "@/auth";
 import { findAccountByEmail } from "@/lib/accounts/queries";
@@ -24,7 +24,7 @@ import {
 } from "@/lib/enrollment/register";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import { sendVerificationCode } from "@/lib/mail/notify";
-import { rateLimitByCaller } from "@/lib/ratelimit";
+import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 
 /**
  * Registration in three steps, because proving the address comes first. The
@@ -73,8 +73,9 @@ export async function sendCodeAction(
     return { error: "这个邮箱已经注册过了。如果是你本人，请用「找回密码」。" };
   }
 
-  const limit = await rateLimitByCaller(
+  const limit = rateLimitBySource(
     "send-code",
+    sourceFrom(await headers()),
     enrollmentPolicy.registrationsPerIpPerHour,
     60 * 60 * 1000,
   );
@@ -136,8 +137,9 @@ export async function verifyCodeAction(
   // labour is also what makes standing this one aside safe when there is no
   // source: `verifyCode` still burns the code after `maxAttempts` wrong
   // guesses at it, whoever is guessing.
-  const limit = await rateLimitByCaller(
+  const limit = rateLimitBySource(
     "verify-code",
+    sourceFrom(await headers()),
     enrollmentPolicy.registrationsPerIpPerHour * maxAttempts,
     60 * 60 * 1000,
   );
@@ -262,8 +264,9 @@ export async function registerAction(
     return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
   }
 
-  const limit = await rateLimitByCaller(
+  const limit = rateLimitBySource(
     "register",
+    sourceFrom(await headers()),
     enrollmentPolicy.registrationsPerIpPerHour,
     60 * 60 * 1000,
   );

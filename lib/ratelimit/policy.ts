@@ -447,31 +447,3 @@ export const ACTION_LIMITS = {
 export const SOURCE_GATE = { max: 300, windowSeconds: 60 } as const;
 
 export type RouteKey = keyof typeof ROUTE_LIMITS;
-
-/** Narrowed accessor, so a caller cannot read a bound off the wrong shape. */
-export function fixedRule(
-  rule: RateLimitRule,
-): { max: number; windowSeconds: number } {
-  if (rule.kind !== "fixed") {
-    throw new Error("这条入口的限流不是内核固定值，不能从这里取");
-  }
-  return { max: rule.max, windowSeconds: rule.windowSeconds };
-}
-
-/**
- * The same for an entry's second bound.
- *
- * A separate call rather than a field on the result above, because a caller
- * that wants both wants them in two named variables — `PER_HANDLE` and
- * `PER_SOURCE` in `auth.ts` read as the two different questions they are —
- * and a caller that only knows about one should get an error rather than
- * quietly the wrong number.
- */
-export function alsoRule(
-  rule: RateLimitRule,
-): { max: number; windowSeconds: number } {
-  if (rule.kind === "unlimited" || rule.also === undefined) {
-    throw new Error("这条入口没有第二重限流");
-  }
-  return { max: rule.also.max, windowSeconds: rule.also.windowSeconds };
-}

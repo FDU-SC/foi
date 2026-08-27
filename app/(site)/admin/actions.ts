@@ -9,7 +9,7 @@ import { hasPrivilege } from "@/lib/permissions/groups";
 import type { Viewer } from "@/lib/permissions/viewer";
 import { sendPasswordReset } from "@/lib/mail/notify";
 import { rateLimit } from "@/lib/ratelimit";
-import { ACTION_LIMITS, fixedRule } from "@/lib/ratelimit/policy";
+import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
 
 export interface ActionState {
   error?: string;
@@ -77,7 +77,7 @@ export async function resendPasswordResetAction(
    * this, a stolen `credential.manage` session sends one message per account
    * per minute, from this deployment's domain, for as long as it lasts.
    */
-  const rule = fixedRule(ACTION_LIMITS.resendPasswordResetAction);
+  const rule = ACTION_LIMITS.resendPasswordResetAction;
   const limited = rateLimit(
     `resend-reset:${actor.handle}`,
     rule.max,

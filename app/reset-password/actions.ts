@@ -1,13 +1,14 @@
 "use server";
 
+import { headers } from "next/headers";
 import { z } from "zod";
 import { setPassword } from "@/lib/accounts/password";
 import { getAccount } from "@/lib/accounts/queries";
 import { resolveFromRow } from "@/lib/accounts/resolve";
 import { redeemToken } from "@/lib/accounts/tokens";
 import { db } from "@/lib/db";
-import { rateLimitByCaller } from "@/lib/ratelimit";
-import { ACTION_LIMITS, fixedRule } from "@/lib/ratelimit/policy";
+import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
+import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
 
 export interface ResetState {
   error?: string;
@@ -50,9 +51,10 @@ export async function resetPasswordAction(
   // from an endpoint that needs no session to reach. Which is also why it is
   // the least costly of the six to lose when no source can be established:
   // nothing is sent, nothing is created, and the work it meters is our own.
-  const rule = fixedRule(ACTION_LIMITS.resetPasswordAction);
-  const limit = await rateLimitByCaller(
+  const rule = ACTION_LIMITS.resetPasswordAction;
+  const limit = rateLimitBySource(
     "reset",
+    sourceFrom(await headers()),
     rule.max,
     rule.windowSeconds * 1000,
   );

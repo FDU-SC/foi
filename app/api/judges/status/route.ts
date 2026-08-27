@@ -4,7 +4,7 @@ import { viewerFor } from "@/lib/permissions/viewer";
 import { judgeQueuesFor } from "@/lib/backend/board";
 import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest, tooManyRequests } from "@/lib/ratelimit/gate";
-import { fixedRule, ROUTE_LIMITS } from "@/lib/ratelimit/policy";
+import { ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   // indexed reads against our own database rather than a fan-out to every
   // backend. The bound is for the work per poll on this side — a session read,
   // those queries and a render — since the board polls.
-  const rule = fixedRule(ROUTE_LIMITS["GET /api/judges/status"]);
+  const rule = ROUTE_LIMITS["GET /api/judges/status"];
   const limited = rateLimit(
     `judges:${user.handle}`,
     rule.max,

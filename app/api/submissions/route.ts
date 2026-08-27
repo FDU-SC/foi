@@ -1,10 +1,10 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ulid } from "ulid";
 import { getResolvedUser, getSessionUser } from "@/auth";
 import type { DbOrTx } from "@/lib/accounts/queries";
 import { viewerFor } from "@/lib/permissions/viewer";
-import { readTextBody } from "@/lib/body-limit";
+import { readJsonBody } from "@/lib/body-limit";
 import { releaseSha } from "@/lib/boot/deployment";
 import { db } from "@/lib/db";
 import { ensureContest, ensureProblem } from "@/lib/db/mirror";
@@ -13,7 +13,6 @@ import { resolveBackend, type ResolvedBackend } from "@/lib/backend/resolve";
 import {
   INLINE_BACKEND_ID,
   INLINE_BACKEND_VERSION,
-  NON_TERMINAL_STATES,
 } from "@/lib/backend/types";
 import {
   isInlineBackend,
@@ -24,7 +23,7 @@ import { invalidateStandings } from "@/lib/standings/cache";
 import { verdictColumns } from "@/lib/submissions/verdict";
 import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest, tooManyRequests } from "@/lib/ratelimit/gate";
-import { alsoRule, fixedRule, ROUTE_LIMITS } from "@/lib/ratelimit/policy";
+import { ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { publish } from "@/lib/submissions/events";
 import { submitFor, type SubmitGate } from "@/lib/submissions/gate";
 import { createSubmissionSchema } from "@/lib/submissions/types";
@@ -45,11 +44,11 @@ const MAX_PAYLOAD_BYTES = 512 * 1024;
  * copies still look maintained. Why this floor exists at all, and why it sits
  * where a real person never reaches it, is argued with the entry.
  *
- * `alsoRule` throws when an entry has no second bound, and it is called at
- * import so that losing one is a startup failure rather than an endpoint
- * quietly running unmetered.
+ * The type system enforces this entry has a second bound at compile time —
+ * removing it from the policy table is a type error rather than a silent
+ * omission.
  */
-const FLOOD_CAP = alsoRule(ROUTE_LIMITS["POST /api/submissions"]);
+const FLOOD_CAP = ROUTE_LIMITS["POST /api/submissions"].also;
 
 /**
  * One wording for both of this handler's bounds, so a client cannot tell which
@@ -94,18 +93,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
 
-  const read = await readTextBody(request, MAX_PAYLOAD_BYTES);
+  const read = await readJsonBody(request, MAX_PAYLOAD_BYTES);
   if (!read.ok) {
-    return NextResponse.json({ error: "提交内容过大" }, { status: 413 });
+    switch (read.reason) {
+      case "too-large":
+        return NextResponse.json({ error: "提交内容过大" }, { status: 413 });
+      case "invalid-json":
+        return NextResponse.json({ error: "请求体不是合法 JSON" }, { status: 400 });
+    }
   }
-  const raw = read.text;
-
-  let body: unknown;
-  try {
-    body = JSON.parse(raw);
-  } catch {
-    return NextResponse.json({ error: "请求体不是合法 JSON" }, { status: 400 });
-  }
+  const { body } = read;
 
   const parsed = createSubmissionSchema.safeParse(body);
   if (!parsed.success) {
@@ -328,20 +325,10 @@ export async function POST(request: Request) {
       const [created] = await enqueue(tx);
       if (!created) return { created, settled: undefined };
 
-      // The guard cannot fail on this path — the row was inserted by this very
-      // transaction, and until it commits nothing outside can see the row, let
-      // alone write to it. Kept because a write that states the invariant it
-      // depends on is cheaper to keep right than one that relies on the
-      // caller's reading of the surrounding code.
       const [settled] = await tx
         .update(submissions)
         .set(settlement(backend))
-        .where(
-          and(
-            eq(submissions.id, id),
-            inArray(submissions.state, NON_TERMINAL_STATES),
-          ),
-        )
+        .where(eq(submissions.id, id))
         .returning();
 
       return { created, settled };
@@ -409,7 +396,7 @@ export async function GET(request: Request) {
 
   // Fifty rows joined and rendered per call, and nothing about the shape of
   // the request says how often it may be asked for.
-  const rule = fixedRule(ROUTE_LIMITS["GET /api/submissions"]);
+  const rule = ROUTE_LIMITS["GET /api/submissions"];
   const limited = rateLimit(
     `submissions:${user.handle}`,
     rule.max,

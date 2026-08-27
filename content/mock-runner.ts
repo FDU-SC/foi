@@ -147,8 +147,7 @@ function secretFor(backendId: string): string {
   const name = backendId.replace(/-/g, "_").toUpperCase();
   const secret =
     process.env[`FOI_BACKEND_${name}_SECRET`] ||
-    process.env.FOI_BACKEND_SECRET ||
-    process.env.FOI_JUDGE_SECRET;
+    process.env.FOI_BACKEND_SECRET;
   if (!secret) {
     throw new Error(`缺少 ${backendId} 的签名密钥：设置 FOI_BACKEND_SECRET`);
   }

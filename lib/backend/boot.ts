@@ -1,5 +1,5 @@
 import { externallyJudged } from "@/lib/problems/registry";
-import { problemsServedBy, undeclaredBackends } from "./access";
+import { problemsServedBy } from "./access";
 import { envFragment, sharedSecret } from "./env";
 import { backends } from "./registry";
 import { effectiveSecret } from "./resolve";
@@ -21,15 +21,6 @@ import { effectiveSecret } from "./resolve";
  * that still renders.
  */
 
-/** Said at startup, next to the enrollment and contest warnings. */
-export function backendRegistryWarnings(): string[] {
-  return undeclaredBackends().map(
-    (id) =>
-      `题目 ${problemsServedBy(id).join("、")} 指向了没有登记的题目后端 "${id}"，` +
-      `提交到这些题会失败。在 content/backends.ts 里补一个条目，或改掉题目的 backend.id`,
-  );
-}
-
 /**
  * Backends carrying real traffic that end up signing with the shared key,
  * reported only when that actually weakens something.
@@ -50,51 +41,34 @@ export function backendRegistryWarnings(): string[] {
  * index in `./access.ts` is. Requiring every entry to be filled in would mean
  * configuring a key for a backend nothing routes to, and would make
  * `.env.example` a second list to keep in step with `content/backends.ts`.
+ *
+ * Returns a formatted complaint string naming the offenders, or empty when
+ * there is nothing to say. Refused in production and merely said elsewhere —
+ * one wording rather than two that can drift, now that the tier decides the
+ * severity instead of each call site.
  */
 export function backendsSharingSecret(): string[] {
   const onSharedValue = Object.keys(backends).filter(
     (id) => problemsServedBy(id).length > 0 && effectiveSecret(id) === sharedSecret(),
   );
 
-  // Every entry on this value named it, which is the deployment saying one
-  // runner really does serve them all — the arrangement the message below asks
-  // for. Only a borrower makes it accidental.
   const borrowed = onSharedValue.some((id) => !backends[id].secret);
   if (!borrowed) return [];
+  if (onSharedValue.length <= 1) return [];
 
-  return onSharedValue.length > 1 ? onSharedValue : [];
-}
-
-const SHARED_SECRET_MESSAGE =
-  `都在使用共享的 FOI_BACKEND_SECRET：拉模型下这把密钥是评测机进来的凭证，` +
-  `拿到它就能领走该后端队列里的任意提交、读到里面所有人的代码、写任意评测结果。` +
-  `几台共用一把，等于其中任何一台被攻破，另外几台的队列也一起丢。` +
-  `为每台服务设置各自的 FOI_BACKEND_<名字>_SECRET，并同步到后端本身` +
-  `（确实由同一套评测机服务的多个条目，把它们填成相同的值）。`;
-
-/**
- * A shared signing key, worded once.
- *
- * Refused in production and merely said elsewhere, but the sentence is the same
- * either way — one wording rather than two that can drift, now that the tier
- * decides the severity instead of each call site.
- *
- * Worth refusing over because the key authenticates a runner to us: it lives on
- * whatever machine somebody runs a runner on — donated hardware, a laptop
- * behind a NAT — and it buys its holder a whole queue's worth of other people's
- * source. Outside production every backend shares the mock's key, which is
- * simply what a checkout looks like.
- */
-export function backendSecretComplaints(): string[] {
-  const sharing = backendsSharingSecret();
-  if (sharing.length === 0) return [];
-
-  return [`题目后端 ${sharing.join("、")} ${SHARED_SECRET_MESSAGE}`];
+  return [
+    `题目后端 ${onSharedValue.join("、")} ` +
+      `都在使用共享的 FOI_BACKEND_SECRET：拉模型下这把密钥是评测机进来的凭证，` +
+      `拿到它就能领走该后端队列里的任意提交、读到里面所有人的代码、写任意评测结果。` +
+      `几台共用一把，等于其中任何一台被攻破，另外几台的队列也一起丢。` +
+      `为每台服务设置各自的 FOI_BACKEND_<名字>_SECRET，并同步到后端本身` +
+      `（确实由同一套评测机服务的多个条目，把它们填成相同的值）。`,
+  ];
 }
 
 /**
  * Backends a problem declares an interactive action on but that have no
- * address, named by the variable to set.
+ * address, one complaint per missing variable.
  *
  * Deliberately not "every entry needs a URL": only actions go outward, and
  * which backends have actions is a fact about `content/problems/*`, so the
@@ -110,17 +84,14 @@ export function backendsMissingActionUrl(): string[] {
     .map((problem) => problem.backend.id)
     .filter((id, index, ids) => ids.indexOf(id) === index)
     .filter((id) => !backends[id]?.url)
-    .map((id) => `FOI_BACKEND_${envFragment(id)}_URL`);
-}
-
-/** An interactive backend with nowhere to call, one complaint per variable. */
-export function backendActionUrlComplaints(): string[] {
-  return backendsMissingActionUrl().map(
-    (variable) =>
-      `${variable}: 未设置。评测不需要地址（评测机自己来领活），` +
-      `但交互动作是平台代选手同步发起的，拉不了。` +
-      `填上它的地址；这套部署不开这道题，就把题目的 actions 去掉`,
-  );
+    .map((id) => {
+      const variable = `FOI_BACKEND_${envFragment(id)}_URL`;
+      return (
+        `${variable}: 未设置。评测不需要地址（评测机自己来领活），` +
+        `但交互动作是平台代选手同步发起的，拉不了。` +
+        `填上它的地址；这套部署不开这道题，就把题目的 actions 去掉`
+      );
+    });
 }
 
 /** `localhost`, any `127.x`, and the v6 spelling `new URL` hands back. */
@@ -135,7 +106,7 @@ function isLoopback(hostname: string): boolean {
 /**
  * Backends with an address that points back at this process.
  *
- * `backendActionUrlComplaints` can prove `FOI_BACKEND_<NAME>_URL` was set; it
+ * `backendsMissingActionUrl` can prove `FOI_BACKEND_<NAME>_URL` was set; it
  * cannot prove the address means anything, and the way a deployment goes wrong
  * is by copying the line out of `.env.example`. Inside the app container
  * `localhost:4100` is the app container, and an action posted there gets a

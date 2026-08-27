@@ -44,10 +44,6 @@ export function tier(): Tier {
   return process.env.NODE_ENV === "production" ? "prod" : "dev";
 }
 
-/** The tier where a misconfiguration is refused rather than reported. */
-export function isProd(): boolean {
-  return tier() === "prod";
-}
 
 /**
  * The commit this image was built from, recorded on every submission it files.

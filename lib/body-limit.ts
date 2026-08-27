@@ -110,3 +110,21 @@ export async function readTextBody(
 
   return { ok: true, text: Buffer.concat(chunks, total).toString("utf8") };
 }
+
+export type JsonBodyResult =
+  | { ok: true; body: unknown; raw: string }
+  | { ok: false; reason: "too-large" | "invalid-json" };
+
+export async function readJsonBody(
+  message: TextBody,
+  maxBytes: number,
+): Promise<JsonBodyResult> {
+  const read = await readTextBody(message, maxBytes);
+  if (!read.ok) return { ok: false, reason: "too-large" };
+  if (read.text.length === 0) return { ok: true, body: null, raw: "" };
+  try {
+    return { ok: true, body: JSON.parse(read.text), raw: read.text };
+  } catch {
+    return { ok: false, reason: "invalid-json" };
+  }
+}

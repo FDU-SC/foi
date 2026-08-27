@@ -41,15 +41,6 @@ describe("assertEnv", () => {
     );
   });
 
-  it("只设置了改名前的 FOI_JUDGE_SECRET 也算数", () => {
-    expect(
-      check({
-        FOI_BACKEND_SECRET: undefined,
-        FOI_JUDGE_SECRET: VALID.FOI_BACKEND_SECRET,
-      }),
-    ).not.toThrow();
-  });
-
   it("一次报出全部问题，而不是只报第一个", () => {
     let message = "";
     try {

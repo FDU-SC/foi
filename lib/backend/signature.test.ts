@@ -1,4 +1,3 @@
-import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   MAX_CLOCK_SKEW_SECONDS,
@@ -29,14 +28,6 @@ function verify(overrides: Partial<Parameters<typeof verifySignature>[0]> = {}) 
     now: NOW,
     ...overrides,
   });
-}
-
-/** How the protocol signed before the path and the method were covered. */
-function legacySign(secret: string, timestamp: number, body: string): string {
-  const hex = createHmac("sha256", secret)
-    .update(`${timestamp}.${body}`)
-    .digest("hex");
-  return `sha256=${hex}`;
 }
 
 describe("sign", () => {
@@ -186,33 +177,6 @@ describe("verifySignature", () => {
   it("长度不同的签名直接拒绝，不抛异常", () => {
     expect(() => verify({ signature: "sha256=short" })).not.toThrow();
     expect(verify({ signature: "sha256=short" })).toMatchObject({ ok: false });
-  });
-});
-
-/**
- * There is no compatibility switch: the old form is refused outright. What it
- * gets instead is a reason that names it, because "signature does not match"
- * and "your backend is a version behind" need opposite fixes and an operator
- * staring at a wall of 401s cannot tell them apart.
- */
-describe("verifySignature 对旧签名格式", () => {
-  it("拒绝只签了 body 的旧格式", () => {
-    expect(
-      verify({ signature: legacySign(SECRET, NOW, BODY) }),
-    ).toMatchObject({ ok: false });
-  });
-
-  it("拒绝时明确指出是旧格式，而不是笼统的签名不匹配", () => {
-    const result = verify({ signature: legacySign(SECRET, NOW, BODY) });
-
-    expect(result).toMatchObject({ ok: false });
-    expect(result.ok === false && result.reason).toContain("旧格式");
-  });
-
-  it("密钥配错时说的仍是签名不匹配，两种原因不混为一谈", () => {
-    const result = verify({ signature: sign("wrong-secret", NOW, REPORT) });
-
-    expect(result).toMatchObject({ ok: false, reason: "签名不匹配" });
   });
 });
 

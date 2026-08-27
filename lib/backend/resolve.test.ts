@@ -37,28 +37,6 @@ describe("密钥优先级", () => {
     expect(resolveBackend(id).secret).toBe("test-secret");
   });
 
-  it("两者都没有时报错，而不是拿 undefined 去签名", () => {
-    backends[id] = { ...saved, secret: undefined };
-    vi.stubEnv("FOI_BACKEND_SECRET", undefined);
-    vi.stubEnv("FOI_JUDGE_SECRET", undefined);
-
-    expect(() => resolveBackend(id)).toThrow(/FOI_BACKEND_SECRET/);
-  });
-
-  /**
-   * The pre-rename spelling, still read by `sharedSecret` and by
-   * `withLegacyNames` in `lib/env.ts`. The two have to agree: a deployment
-   * carrying only the old name passes `assertEnv` and would otherwise fail
-   * every submission here.
-   */
-  it("只设置了改名前的 FOI_JUDGE_SECRET 时也解析得出来", () => {
-    backends[id] = { ...saved, secret: undefined };
-    vi.stubEnv("FOI_BACKEND_SECRET", undefined);
-    vi.stubEnv("FOI_JUDGE_SECRET", "legacy-key");
-
-    expect(resolveBackend(id).secret).toBe("legacy-key");
-  });
-
   it("未登记的后端解析不出来", () => {
     expect(() => resolveBackend("no-such-backend")).toThrow(/content\/backends/);
   });

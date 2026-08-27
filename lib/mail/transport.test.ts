@@ -4,7 +4,6 @@ import {
   defaultedMailDeliveryComplaints,
   mailDeliveryComplaints,
   mailDeliveryUnmet,
-  mailIsConfigured,
   mailSink,
   relayOptions,
 } from "./transport";
@@ -56,13 +55,6 @@ describe("未配置中继时", () => {
     withEnv({});
 
     expect(relayOptions()).toBeNull();
-    expect(mailIsConfigured()).toBe(false);
-  });
-
-  it("只有 host 决定配没配，端口和账号都不算", () => {
-    withEnv({ FOI_SMTP_PORT: "465", FOI_SMTP_USER: "someone" });
-
-    expect(mailIsConfigured()).toBe(false);
   });
 });
 

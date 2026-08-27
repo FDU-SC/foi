@@ -1,6 +1,6 @@
 import { createTransport, type Transporter } from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
-import { isProd } from "@/lib/boot/deployment";
+import { tier } from "@/lib/boot/deployment";
 import {
   enrollmentDeclared,
   enrollmentPolicy,
@@ -93,15 +93,6 @@ function transporter(): Transporter | null {
   return built;
 }
 
-/**
- * Whether a relay is configured. Answers about the environment only — for
- * where mail actually ends up, which the policy also has a say in, ask
- * `mailSink`; for whether the two contradict each other, `mailDeliveryUnmet`.
- */
-export function mailIsConfigured(): boolean {
-  return Boolean(process.env.FOI_SMTP_HOST);
-}
-
 type MailDelivery = EnrollmentPolicy["mailDelivery"];
 
 const COMPLAINT =
@@ -169,7 +160,7 @@ export function mailSink(
   delivery: MailDelivery = enrollmentPolicy.mailDelivery,
 ): "smtp" | "console" {
   if (delivery === "console") return "console";
-  if (mailIsConfigured()) return "smtp";
+  if (relayOptions() !== null) return "smtp";
 
   // Declared `smtp` with nothing behind it. On prod the boot check has already
   // refused this, so arriving here means the process was started some other
@@ -180,7 +171,7 @@ export function mailSink(
   // distinction: the image pins `NODE_ENV=production` for staging too, so on
   // `NODE_ENV` a staging deployment could not fall back to the console no
   // matter what it declared.
-  if (isProd()) throw new Error(COMPLAINT);
+  if (tier() === "prod") throw new Error(COMPLAINT);
   return "console";
 }
 
@@ -202,7 +193,7 @@ export function mailSink(
 export function mailDeliveryUnmet(
   delivery: MailDelivery = enrollmentPolicy.mailDelivery,
 ): boolean {
-  return delivery === "smtp" && !mailIsConfigured();
+  return delivery === "smtp" && relayOptions() === null;
 }
 
 /**

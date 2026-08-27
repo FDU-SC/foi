@@ -20,7 +20,7 @@ import {
  * One of these keys lets its holder drain a queue, read every competitor's
  * source and write verdicts, from whatever machine runs a runner — which is
  * why production refuses to boot on a shared one. See
- * `backendSecretComplaints` in `lib/backend/boot.ts`.
+ * `backendsSharingSecret` in `lib/backend/boot.ts`.
  */
 
 /**

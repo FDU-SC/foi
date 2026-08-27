@@ -18,7 +18,7 @@ import { TIERS } from "@/lib/boot/deployment";
  * Backend addresses are deliberately not here. Judging is pulled, so a backend
  * needs no address; what does need one is a backend some problem declares an
  * interactive action on, and *that* refuses a production boot through
- * `backendActionUrlComplaints`. It has to live over there because answering it
+ * `backendsMissingActionUrl`. It has to live over there because answering it
  * means reading the problem registry, and this file is deliberately incapable
  * of knowing anything about content — which is also why `lib/boot/checks.ts`
  * loads those checks dynamically, after this one has passed.
@@ -53,7 +53,7 @@ const schema = z.object({
   // The fallback key, for backends given none of their own. Still mandatory
   // because `effectiveSecret` reaches for it, though in production every
   // backend carrying traffic is now required to have its own instead — see
-  // `backendSecretComplaints` in `lib/backend/boot.ts`.
+  // `backendsSharingSecret` in `lib/backend/boot.ts`.
   FOI_BACKEND_SECRET: z
     .string("未设置。用 openssl rand -hex 32 生成，并与题目后端保持一致")
     .min(16, "太短。用 openssl rand -hex 32 生成，并与题目后端保持一致"),
@@ -105,33 +105,6 @@ const schema = z.object({
 });
 
 /**
- * Accepts the pre-rename spelling of the shared secret.
- *
- * Normalised here rather than in the schema so that everything downstream sees
- * one name, and so the fallback is a single line to delete once the deployed
- * environments have been updated. `sharedSecret` in `lib/backend/env.ts` reads
- * the same pair, and the two have to be deleted together: this one accepting a
- * name that one does not would boot a deployment whose every submission then
- * fails to resolve a backend.
- *
- * `||` rather than `??`, so that an empty value reads as absent — the same
- * rule `sharedSecret` and `content/backends.ts` already apply, and the reason
- * they give for it holds here twice over. A `.env` carrying an unfilled
- * `FOI_BACKEND_SECRET=` next to a filled `FOI_JUDGE_SECRET` is a mid-rename
- * deployment, which is precisely the case this fallback exists for; `??` would
- * keep the `""`, skip the fallback, and refuse the boot naming the variable
- * the operator had *not* left blank.
- */
-function withLegacyNames(
-  env: Record<string, string | undefined>,
-): Record<string, string | undefined> {
-  return {
-    ...env,
-    FOI_BACKEND_SECRET: env.FOI_BACKEND_SECRET || env.FOI_JUDGE_SECRET,
-  };
-}
-
-/**
  * Checks the environment, throwing with every problem at once.
  *
  * All of them rather than the first: fixing one variable, redeploying, and
@@ -140,7 +113,7 @@ function withLegacyNames(
 export function assertEnv(
   env: Record<string, string | undefined> = process.env,
 ): void {
-  const parsed = schema.safeParse(withLegacyNames(env));
+  const parsed = schema.safeParse(env);
 
   // Each prefixed with the variable name. Without it a missing value reports
   // Zod's own "expected string, received undefined", which tells an operator

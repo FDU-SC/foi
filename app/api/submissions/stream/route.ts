@@ -8,7 +8,7 @@ import {
   streamConcurrency,
 } from "@/lib/ratelimit/concurrency";
 import { guardRequest } from "@/lib/ratelimit/gate";
-import { fixedRule, ROUTE_LIMITS } from "@/lib/ratelimit/policy";
+import { ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { subscribe } from "@/lib/submissions/events";
 import { submissionFor } from "@/lib/submissions/access";
 import { toView } from "@/lib/submissions/queries";
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
 
-  const opens = fixedRule(ROUTE_LIMITS["GET /api/submissions/stream"]);
+  const opens = ROUTE_LIMITS["GET /api/submissions/stream"];
   if (
     !rateLimit(
       `stream:${user.handle}`,

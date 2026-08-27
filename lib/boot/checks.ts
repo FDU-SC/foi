@@ -40,9 +40,10 @@ const NEVER = [] as const;
  * working boot.
  */
 async function loadChecks(): Promise<Check[]> {
-  const [backend, mail, mailTemplates, enrollment, contests, problems] =
+  const [backend, access, mail, mailTemplates, enrollment, contests, problems] =
     await Promise.all([
       import("@/lib/backend/boot"),
+      import("@/lib/backend/access"),
       import("@/lib/mail/transport"),
       import("@/lib/mail/registry"),
       import("@/lib/enrollment/registry"),
@@ -62,11 +63,11 @@ async function loadChecks(): Promise<Check[]> {
 
     // Two backends on one key means compromising the softer of them yields the
     // other's whole queue.
-    { complaints: backend.backendSecretComplaints, fatalIn: ONLY_PROD },
+    { complaints: backend.backendsSharingSecret, fatalIn: ONLY_PROD },
 
     // A player pressing 「启动实例」 against a backend with no address gets a
     // 500 they cannot act on, and nothing says so until they do.
-    { complaints: backend.backendActionUrlComplaints, fatalIn: ONLY_PROD },
+    { complaints: backend.backendsMissingActionUrl, fatalIn: ONLY_PROD },
 
     // Below here: legal configurations that are probably not what somebody
     // meant. Said everywhere, refused nowhere — the CLI can still recover a
@@ -75,7 +76,15 @@ async function loadChecks(): Promise<Check[]> {
     { complaints: enrollment.enrollmentWarnings, fatalIn: NEVER },
     { complaints: contests.contestWarnings, fatalIn: NEVER },
     { complaints: problems.problemGateWarnings, fatalIn: NEVER },
-    { complaints: backend.backendRegistryWarnings, fatalIn: NEVER },
+    {
+      complaints: () =>
+        access.undeclaredBackends().map(
+          (id) =>
+            `题目 ${access.problemsServedBy(id).join("、")} 指向了没有登记的题目后端 "${id}"，` +
+            `提交到这些题会失败。在 content/backends.ts 里补一个条目，或改掉题目的 backend.id`,
+        ),
+      fatalIn: NEVER,
+    },
     { complaints: mailTemplates.mailTemplateWarnings, fatalIn: NEVER },
   ];
 }
@@ -88,6 +97,16 @@ async function loadChecks(): Promise<Check[]> {
  * operator reading a failed deploy wants the whole picture, not the first
  * sentence of it.
  */
+declare global {
+  // eslint-disable-next-line no-var
+  var __foiBootWarnings: string[] | undefined;
+}
+
+/** Warnings produced during boot, available for later consumption (e.g. drift report). */
+export function savedBootWarnings(): string[] {
+  return globalThis.__foiBootWarnings ?? [];
+}
+
 export async function assertBootConfiguration(): Promise<void> {
   assertEnv();
 
@@ -105,6 +124,8 @@ export async function assertBootConfiguration(): Promise<void> {
     const into = check.fatalIn.includes(current) ? refusals : warnings;
     into.push(...check.complaints());
   }
+
+  globalThis.__foiBootWarnings = warnings;
 
   for (const warning of warnings) console.warn(`[foi] ${warning}`);
 

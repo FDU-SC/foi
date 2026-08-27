@@ -22,11 +22,7 @@ export const REGISTRATION_PROOF_COOKIE = "foi_reg_proof";
 export const REGISTRATION_PROOF_TTL_MS = 30 * 60 * 1000;
 
 function secret(): string {
-  const value = process.env.AUTH_SECRET;
-  if (!value) {
-    throw new Error("AUTH_SECRET is not set");
-  }
-  return value;
+  return process.env.AUTH_SECRET!;
 }
 
 function macFor(email: string, exp: number): string {

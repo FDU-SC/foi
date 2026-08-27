@@ -6,7 +6,6 @@ import {
   enrollmentPolicySchema,
   enrollmentRuleSchema,
   isHandlesRule,
-  privilegeAllowed,
   retiredPolicyKey,
   type EnrollmentPolicy,
   type EnrollmentRule,
@@ -94,7 +93,7 @@ function buildRegistry(): Registry {
         // cannot be inspected here, so `groupsFor` filters those at
         // resolution; a literal list is caught now, in review, where it is
         // cheapest to fix.
-        if (!privilegeAllowed(rule) && Array.isArray(rule.groups)) {
+        if (!isHandlesRule(rule) && Array.isArray(rule.groups)) {
           const privileged = rule.groups.filter(isPrivileged);
           if (privileged.length > 0) {
             throw new Error(
@@ -195,7 +194,7 @@ export function groupsFor(handle: string, email: string | null): string[] {
         typeof rule.groups === "function" ? rule.groups(match) : rule.groups;
     }
 
-    const mayGrantPrivilege = privilegeAllowed(rule);
+    const mayGrantPrivilege = isHandlesRule(rule);
     for (const id of produced) {
       if (!mayGrantPrivilege && isPrivileged(id)) {
         console.warn(

@@ -1,5 +1,6 @@
 import { backendModules } from "@/content/backend-modules";
 import { loadSingletonModule, requiredExport } from "@/lib/singleton-module";
+import { SLUG_PATTERN } from "@/lib/utils";
 import { INLINE_BACKEND_ID, type ProblemBackend } from "./types";
 
 /**
@@ -44,7 +45,7 @@ function buildRegistry(): {
   // rule a problem slug gets applies here: anything else produces a variable
   // name nobody can set.
   for (const id of Object.keys(exported)) {
-    if (!/^[a-z0-9-]+$/.test(id)) {
+    if (!SLUG_PATTERN.test(id)) {
       throw new Error(
         `${path} 里的后端 id "${id}" 只能包含小写字母、数字和连字符：` +
           `这个名字会拼进 FOI_BACKEND_<名字>_SECRET`,

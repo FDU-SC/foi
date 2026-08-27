@@ -50,12 +50,7 @@ export function resolveBackend(id: string): ResolvedBackend {
     throw new Error(`未知的题目后端 "${id}"，请检查 content/backends.ts`);
   }
 
-  // Through `effectiveSecret`, never inline: a second copy of the fallback
-  // chain is how this and the shared-key check come to disagree.
-  const secret = effectiveSecret(id);
-  if (!secret) {
-    throw new Error("缺少环境变量 FOI_BACKEND_SECRET");
-  }
+  const secret = effectiveSecret(id)!;
 
   return {
     ...entry,

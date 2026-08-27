@@ -1,13 +1,14 @@
 "use server";
 
+import { headers } from "next/headers";
 import { z } from "zod";
 import { findAccountByEmail, getAccount } from "@/lib/accounts/queries";
 import { resolveFromRow } from "@/lib/accounts/resolve";
 import { normalizeEmail } from "@/lib/accounts/types";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import { sendPasswordReset, type Recipient } from "@/lib/mail/notify";
-import { rateLimitByCaller } from "@/lib/ratelimit";
-import { ACTION_LIMITS, fixedRule } from "@/lib/ratelimit/policy";
+import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
+import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
 
 export interface ForgotState {
   error?: string;
@@ -47,9 +48,10 @@ export async function requestPasswordReset(
   // durable per-recipient cooldown in `lib/accounts/tokens.ts`: one link per
   // account per minute, which bounds what any single mailbox can be made to
   // receive but not how many mailboxes can be aimed at in an hour.
-  const rule = fixedRule(ACTION_LIMITS.requestPasswordReset);
-  const limit = await rateLimitByCaller(
+  const rule = ACTION_LIMITS.requestPasswordReset;
+  const limit = rateLimitBySource(
     "forgot",
+    sourceFrom(await headers()),
     rule.max,
     rule.windowSeconds * 1000,
   );

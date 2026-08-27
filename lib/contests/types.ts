@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { audienceSchema } from "@/lib/permissions/audience";
 import { actionRateLimitSchema } from "@/lib/problems/types";
+import { SLUG_PATTERN } from "@/lib/utils";
 
 /**
  * Contests carry absolute instants, so a bare `2026-01-15T13:00` would mean
@@ -63,7 +64,7 @@ export const contestConfigSchema = z
     slug: z
       .string()
       .min(1)
-      .regex(/^[a-z0-9-]+$/, "标识只能包含小写字母、数字和连字符"),
+      .regex(SLUG_PATTERN, "标识只能包含小写字母、数字和连字符"),
     title: z.string().min(1),
     description: z.string().optional(),
 
@@ -202,18 +203,9 @@ export function contestPhase(
   return "running";
 }
 
-/**
- * The mechanical safeguard the predicates below are built on.
- *
- * Adding a phase to the union breaks nothing the compiler can see when callers
- * compare against a string literal: `!== "running"` keeps typechecking and
- * quietly closes submissions for the last hour of every frozen round. Routing
- * each question through an exhaustive switch is what turns the next added
- * phase into a build failure instead of an outage.
- */
-function assertNever(phase: never): never {
-  throw new Error(`未处理的比赛相位: ${String(phase)}`);
-}
+const OPEN_PHASES: ContestPhase[] = ["running", "frozen"];
+const STARTED_PHASES: ContestPhase[] = ["running", "frozen", "ended"];
+const ENDED_PHASES: ContestPhase[] = ["ended"];
 
 /**
  * Whether anything may still be sent to this round.
@@ -225,17 +217,7 @@ export function isContestOpen(
   contest: ContestClock,
   now = new Date(),
 ): boolean {
-  const phase = contestPhase(contest, now);
-  switch (phase) {
-    case "running":
-    case "frozen":
-      return true;
-    case "upcoming":
-    case "ended":
-      return false;
-    default:
-      return assertNever(phase);
-  }
+  return OPEN_PHASES.includes(contestPhase(contest, now));
 }
 
 /**
@@ -249,17 +231,7 @@ export function hasContestStarted(
   contest: ContestClock,
   now = new Date(),
 ): boolean {
-  const phase = contestPhase(contest, now);
-  switch (phase) {
-    case "running":
-    case "frozen":
-    case "ended":
-      return true;
-    case "upcoming":
-      return false;
-    default:
-      return assertNever(phase);
-  }
+  return STARTED_PHASES.includes(contestPhase(contest, now));
 }
 
 /** Whether the round is over. */
@@ -267,17 +239,7 @@ export function hasContestEnded(
   contest: ContestClock,
   now = new Date(),
 ): boolean {
-  const phase = contestPhase(contest, now);
-  switch (phase) {
-    case "ended":
-      return true;
-    case "upcoming":
-    case "running":
-    case "frozen":
-      return false;
-    default:
-      return assertNever(phase);
-  }
+  return ENDED_PHASES.includes(contestPhase(contest, now));
 }
 
 export const PHASE_LABEL: Record<ContestPhase, string> = {

@@ -35,7 +35,7 @@ export interface ProblemBackend {
   /**
    * Read from `FOI_BACKEND_<NAME>_SECRET`. Falls back to the shared
    * `FOI_BACKEND_SECRET` in `resolveBackend` when a backend has none — outside
-   * production, where `backendSecretComplaints` refuses the boot instead.
+   * production, where `backendsSharingSecret` refuses the boot instead.
    */
   secret?: string;
   /**

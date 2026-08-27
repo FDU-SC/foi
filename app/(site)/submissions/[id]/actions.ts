@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireCapability } from "@/auth";
 import { rateLimit } from "@/lib/ratelimit";
-import { ACTION_LIMITS, fixedRule } from "@/lib/ratelimit/policy";
+import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
 import { rejudgeSubmissions, submissionStateOf } from "@/lib/submissions/rejudge";
 
 export interface ActionState {
@@ -43,7 +43,7 @@ export async function rejudgeSubmissionAction(
   // every press puts real work back on a runner. Sized well above an operator
   // clearing up after a bad round and well below anything that could occupy the
   // pool.
-  const rule = fixedRule(ACTION_LIMITS.rejudgeSubmissionAction);
+  const rule = ACTION_LIMITS.rejudgeSubmissionAction;
   const limited = rateLimit(
     `rejudge:${actor.handle}`,
     rule.max,

@@ -3,7 +3,7 @@ import { getResolvedUser } from "@/auth";
 import { viewerFor } from "@/lib/permissions/viewer";
 import { callBackendAction } from "@/lib/backend/client";
 import { resolveBackend } from "@/lib/backend/resolve";
-import { readTextBody } from "@/lib/body-limit";
+import { readJsonBody } from "@/lib/body-limit";
 import { contestEntryFor } from "@/lib/contests/access";
 import { actionFor } from "@/lib/problems/actions";
 import { rateLimit } from "@/lib/ratelimit";
@@ -63,25 +63,16 @@ export async function POST(
     return tooManyRequests(verdict.retryAfterMs, "操作过于频繁，请稍后再试");
   }
 
-  const read = await readTextBody(request, MAX_PAYLOAD_BYTES);
+  const read = await readJsonBody(request, MAX_PAYLOAD_BYTES);
   if (!read.ok) {
-    return NextResponse.json({ error: "请求内容过大" }, { status: 413 });
-  }
-  const raw = read.text;
-
-  // An empty body is the common case — `spawn` needs no arguments — so it means
-  // no payload rather than a malformed request.
-  let payload: unknown = null;
-  if (raw.length > 0) {
-    try {
-      payload = JSON.parse(raw);
-    } catch {
-      return NextResponse.json(
-        { error: "请求体不是合法 JSON" },
-        { status: 400 },
-      );
+    switch (read.reason) {
+      case "too-large":
+        return NextResponse.json({ error: "请求内容过大" }, { status: 413 });
+      case "invalid-json":
+        return NextResponse.json({ error: "请求体不是合法 JSON" }, { status: 400 });
     }
   }
+  const payload = read.body;
 
   // Re-derived rather than trusted, by the same function the submission gate
   // and the statement page use: a client naming a contest is asking for
@@ -97,28 +88,20 @@ export async function POST(
     : null;
   const contestSlug = round?.ok ? round.contest.slug : null;
 
-  let backend;
+  let response;
   try {
-    backend = resolveBackend(resolved.backendId);
+    const backend = resolveBackend(resolved.backendId);
+    response = await callBackendAction(backend, {
+      action,
+      user: { handle: user.handle, groups: user.groups },
+      problem: { slug: problem.slug, config: problem.backend.config },
+      contestSlug,
+      payload,
+    });
   } catch (error) {
-    // The message is written for whoever configured the deployment: it names
-    // the environment variable that is missing, or `content/backends.ts`. That
-    // is the right text to have and the wrong audience to hand it to — the
-    // caller here is a player who pressed a button, and this route is reachable
-    // by anyone who can see the problem. Same split `/api/health` makes for an
-    // unreachable database: the diagnosis goes to the log, the caller gets a
-    // status code and a sentence.
     console.error("[foi] 题目后端配置错误，无法发起交互动作", error);
     return NextResponse.json({ error: "题目后端配置错误" }, { status: 500 });
   }
-
-  const response = await callBackendAction(backend, {
-    action,
-    user: { handle: user.handle, groups: user.groups },
-    problem: { slug: problem.slug, config: problem.backend.config },
-    contestSlug,
-    payload,
-  });
 
   // The body is the problem's to define; the content type is not. It has been
   // narrowed to something a browser will not render as a document, and

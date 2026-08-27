@@ -13,7 +13,7 @@ import {
 import type { Capability } from "@/lib/permissions/policy";
 import { viewerFor, type SessionUser, type Viewer } from "@/lib/permissions/viewer";
 import { rateLimit, rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
-import { ACTION_LIMITS, alsoRule, fixedRule } from "@/lib/ratelimit/policy";
+import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
 
 const credentialsSchema = z.object({
   handle: z.string().min(1),
@@ -29,8 +29,8 @@ const credentialsSchema = z.object({
  * instead of a second place to keep in step. Why there are two of them, and
  * why they are set where they are, is argued on the entry.
  */
-const PER_HANDLE = fixedRule(ACTION_LIMITS.login);
-const PER_SOURCE = alsoRule(ACTION_LIMITS.login);
+const PER_HANDLE = ACTION_LIMITS.login;
+const PER_SOURCE = ACTION_LIMITS.login.also;
 
 function withinLoginRate(handle: string, request: Request | undefined): boolean {
   if (

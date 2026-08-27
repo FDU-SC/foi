@@ -64,9 +64,7 @@ const CODE_DIGITS = 6;
  * without one is a boot that should not have happened.
  */
 function pepper(): string {
-  const value = process.env.AUTH_SECRET;
-  if (!value) throw new Error("AUTH_SECRET is not set");
-  return value;
+  return process.env.AUTH_SECRET!;
 }
 
 /**

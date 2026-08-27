@@ -73,7 +73,7 @@ export function backendUrl(id: string): string | undefined {
  * this, so holding it drains that backend's queue, reads every submission in it
  * and writes whatever verdicts it likes. Sharing one across backends makes all
  * of that transitive. Production refuses to boot on it — see
- * `backendSecretComplaints` in `./boot.ts`, and `lib/boot/checks.ts` for the
+ * `backendsSharingSecret` in `./boot.ts`, and `lib/boot/checks.ts` for the
  * tier that turns it from a warning into a refusal.
  *
  * Undefined rather than falling back to the shared key here. The difference
@@ -97,21 +97,12 @@ export function backendSecret(id: string): string | undefined {
 /**
  * The key a backend signs with when it has been given none of its own.
  *
- * `FOI_JUDGE_SECRET` is the pre-rename spelling and is still read, here and in
- * `withLegacyNames` in `lib/env.ts` — the two have to agree, because a
- * deployment carrying only the old name would otherwise pass the boot check
- * and then fail every submission at `resolveBackend`. It is not read for the
- * per-backend variables: `FOI_JUDGE_<NAME>_URL` and `FOI_JUDGE_<NAME>_SECRET`
- * really are gone, and only this one shared name survives the rename.
- *
  * `||` and the trailing `undefined` so that a blank line in an `.env` reads as
  * absent here too — the same rule `backendSecret` above applies, and every
  * reader of these variables now agrees with it.
  */
 export function sharedSecret(): string | undefined {
-  return (
-    process.env.FOI_BACKEND_SECRET || process.env.FOI_JUDGE_SECRET || undefined
-  );
+  return process.env.FOI_BACKEND_SECRET || undefined;
 }
 
 /**

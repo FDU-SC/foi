@@ -68,10 +68,10 @@ export function orphanedBackends(): string[] {
  * gets a 500 from `resolveBackend` naming a backend nobody meant to have.
  *
  * A warning rather than a refusal, because the blast radius is one problem and
- * the deployment around it works — see `backendRegistryWarnings` in
- * `./boot.ts`. `backendActionUrlComplaints` is the harder cousin, and it is
- * harder because a missing address cannot be told apart from a backend that
- * legitimately needs none.
+ * the deployment around it works — see `lib/boot/checks.ts` where the
+ * formatted warning is inlined. `backendsMissingActionUrl` is the harder
+ * cousin, and it is harder because a missing address cannot be told apart
+ * from a backend that legitimately needs none.
  */
 export function undeclaredBackends(): string[] {
   return [...problemsByBackend.keys()].filter((id) => !backends[id]);

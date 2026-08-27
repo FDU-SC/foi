@@ -68,7 +68,6 @@ describe.skipIf(!target)("交互端点的配置错误不回传原文", () => {
   beforeEach(() => {
     // Otherwise the shared key resolves and there is no failure to observe.
     vi.stubEnv("FOI_BACKEND_SECRET", undefined);
-    vi.stubEnv("FOI_JUDGE_SECRET", undefined);
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 

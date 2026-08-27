@@ -32,8 +32,7 @@ _shared/
     copy-button.tsx     Copy-to-clipboard button
   leaderboards/    Leaderboard display templates (passed to platform via renderers.Board)
     problem-grid.tsx  "Rank | Name | Total | per-problem columns" table
-  verdicts.ts      Global verdict translation table (AC/WA/TLE/MLE/RE/CE/...)
-  presentation.tsx Assembly file — wires templates into the Presentation interface
+  verdicts.ts      Standard verdict translation table (AC/WA/TLE/MLE/RE/CE/...)
 ```
 
 ## Shell + Template Pattern
@@ -68,7 +67,8 @@ Each problem's `views.tsx` picks view templates for displaying submissions:
 
 - `PayloadView` — how to render the submitted content on the detail page
 - `VerdictDetail` — how to render evaluation details (test cases, messages)
-- `verdicts` — optional per-problem verdict label overrides
+- `verdicts` — verdict label overrides (typically import from `_shared/verdicts`)
+- `Badges` — problem list badge component (typically import `ProblemBadges` from `_shared/ui/problem-badges`)
 
 ## Adding New Templates
 
@@ -76,5 +76,5 @@ To add a new submission type (e.g., file upload):
 
 1. Create `_shared/ui/file-upload-input.tsx` — consumes submit context, produces `{ fileUrl }`
 2. Create `_shared/views/file-payload.tsx` — renders `{ fileUrl }` on the detail page
-3. Register the MDX component in `_shared/presentation.tsx`
+3. Import the component in each problem's `statement.mdx` that uses it
 4. Use in problem statements: `<SubmitPanel><FileUploadInput /></SubmitPanel>`

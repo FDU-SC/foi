@@ -15,12 +15,11 @@ Each file here either uses `import.meta.glob` to auto-discover content, or re-ex
 | `backends.ts` | re-export `../backends` | External backend connections | `lib/backend/registry.ts` |
 | `enrollment.ts` | glob `../enrollment/*.ts` | Groups, policies, routing rules | `lib/enrollment/modules.ts` |
 | `emails.ts` | glob `../emails/index.ts` | Email templates | `lib/mail/registry.ts` |
-| `presentation.ts` | re-export `../_shared/presentation` | MDX components, verdicts, ProblemBadges | `lib/presentation.ts` |
 | `site.ts` | re-export `../site` | Site config (brand, locale, navigation) | `lib/site.ts` |
 
 ## Conventions
 
-- Files using `import.meta.glob` are marked `server-only` (except `problem-views.ts` and `presentation.ts`, which need client-side rendering)
+- Files using `import.meta.glob` are marked `server-only` (except `problem-views.ts`, which needs client-side rendering)
 - Glob-discovered modules must export a specific named constant (`problem`, `contest`, `ruleset`, `views`, etc.)
 - The slug/id must match the directory or file name (enforced by the platform registry)
 - Validation errors throw at boot time, not at request time

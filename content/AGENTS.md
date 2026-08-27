@@ -26,9 +26,13 @@ content/
 3. Create `content/problems/<slug>/views.tsx` — export `views` satisfying `ProblemViews` (auto-discovered by glob)
 4. The problem is automatically registered via `_modules/problems.ts` glob
 
-In `statement.mdx`, compose the submission UI from templates:
+In `statement.mdx`, import and compose the submission UI from templates:
 
 ```tsx
+import { Constraints } from "@/content/_shared/mdx/constraints";
+import { SubmitPanel } from "@/content/_shared/ui/submit-panel";
+import { CodeInput } from "@/content/_shared/ui/code-input";
+
 <SubmitPanel><CodeInput /></SubmitPanel>    // code submission
 <SubmitPanel><FlagInput /></SubmitPanel>    // flag submission
 <SubmitPanel><TextInput /></SubmitPanel>    // text submission
@@ -40,18 +44,22 @@ In `views.tsx`, compose display templates:
 ```typescript
 import { CodePayloadView } from "@/content/_shared/views/code-payload";
 import { VerdictDetail } from "@/content/_shared/views/tests-table";
-export const views: ProblemViews = { PayloadView: CodePayloadView, VerdictDetail };
+import { verdicts } from "@/content/_shared/verdicts";
+import { ProblemBadges } from "@/content/_shared/ui/problem-badges";
+export const views: ProblemViews = { PayloadView: CodePayloadView, VerdictDetail, verdicts, Badges: ProblemBadges };
 ```
 
-For custom verdict labels, add a `verdicts` field to views:
+For custom verdict labels, override the `verdicts` field:
 
 ```typescript
 export const views: ProblemViews = {
   PayloadView: CodePayloadView,
   VerdictDetail,
   verdicts: {
+    ...standardVerdicts,
     optimal: { label: "最优解", short: "OPT", tone: "ok" },
   },
+  Badges: ProblemBadges,
 };
 ```
 
@@ -116,9 +124,8 @@ The `result` object shape is your decision. The platform stores it as opaque JSO
 
 `result.status` (by convention) is mapped to human-readable labels. Lookup order:
 
-1. Problem-level `verdicts` in `views.tsx` (if defined)
-2. Global `_shared/verdicts.ts`
-3. Fallback: display raw status string
+1. Problem-level `verdicts` in `views.tsx`
+2. Fallback: display raw status string
 
 ## Site Configuration
 

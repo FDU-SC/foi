@@ -1,6 +1,5 @@
 import type { MDXComponents } from "mdx/types";
 import type { ComponentPropsWithoutRef } from "react";
-import { presentation } from "@/lib/presentation";
 import { cn } from "@/lib/utils";
 
 type Props<T extends keyof React.JSX.IntrinsicElements> =
@@ -128,11 +127,6 @@ const elements: MDXComponents = {
   ),
 };
 
-const components: MDXComponents = {
-  ...elements,
-  ...presentation.mdxComponents,
-};
-
 export function useMDXComponents(): MDXComponents {
-  return components;
+  return elements;
 }

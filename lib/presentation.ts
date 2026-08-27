@@ -1,7 +1,3 @@
-import type { MDXComponents } from "mdx/types";
-import type { ComponentType } from "react";
-import { presentation as declared } from "@/content/_modules/presentation";
-import type { PublicProblemConfig } from "@/lib/problems/types";
 import { viewsFor } from "@/lib/problems/views";
 
 export type BadgeTone =
@@ -19,18 +15,7 @@ export interface VerdictPreset {
   tone: BadgeTone;
 }
 
-export interface Presentation {
-
-  mdxComponents?: MDXComponents;
-
-  verdicts?: Record<string, VerdictPreset>;
-
-  ProblemBadges?: ComponentType<{ config: PublicProblemConfig }>;
-}
-
-export const presentation: Presentation = declared;
-
-/** Lookup order: problem-level verdicts → global verdicts → raw status string. */
+/** Lookup order: problem-level verdicts → raw status string. */
 export function describeVerdict(
   problemSlug: string | undefined,
   result: Record<string, unknown> | null,
@@ -43,8 +28,7 @@ export function describeVerdict(
     const problemVerdicts = problemSlug
       ? viewsFor(problemSlug).verdicts
       : undefined;
-    const preset =
-      problemVerdicts?.[status] ?? presentation.verdicts?.[status];
+    const preset = problemVerdicts?.[status];
     if (preset) return preset;
   }
 

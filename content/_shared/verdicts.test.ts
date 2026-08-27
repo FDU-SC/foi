@@ -11,9 +11,9 @@ describe("verdicts", () => {
     }
   });
 
-  it("登记过的 status 经内核翻译成缩写", () => {
+  it("注册了 verdicts 的题目经内核翻译成缩写", () => {
     expect(
-      describeVerdict(undefined, { status: "accepted" }),
+      describeVerdict("maze-runner", { status: "accepted" }),
     ).toMatchObject({ short: "AC", tone: "ok" });
   });
 });

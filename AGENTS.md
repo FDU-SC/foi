@@ -34,7 +34,7 @@ lib/            Platform core — defines contracts (types), registries, and mec
   lib/site.ts         Site config contract (SiteConfig type) — consumed from content
   lib/standings/      Ruleset contract, standings computation, freeze-as-permission
   lib/problems/       Problem registry, views interface (ProblemViews)
-  lib/presentation.ts Verdict translation (describeVerdict), Presentation interface
+  lib/presentation.ts Verdict translation (describeVerdict), BadgeTone/VerdictPreset types
   lib/backend/        Verdict schema ({ result, detail }), runner protocol
   lib/db/             Drizzle schema — submissions have result + detail JSONB, nothing else
 content/        All contest-specific code — see content/AGENTS.md
@@ -42,7 +42,7 @@ content/        All contest-specific code — see content/AGENTS.md
 
 ## Platform → Content Boundary
 
-The platform discovers content exclusively through `content/_modules/` (currently 9 registries). The `app/` and `components/` layers NEVER import from `content/` directly. Only `lib/` imports from `content/_modules/`.
+The platform discovers content exclusively through `content/_modules/` (currently 8 registries). The `app/` and `components/` layers NEVER import from `content/` directly. Only `lib/` imports from `content/_modules/`.
 
 ## Key Contracts
 
@@ -57,7 +57,6 @@ When writing content, you implement these platform-defined interfaces:
 | Enrollment policy | `EnrollmentPolicyInput` | `_modules/enrollment.ts` (glob) |
 | Email templates | `EmailTemplates` | `_modules/emails.ts` (glob) |
 | Backend connections | `Record<string, ProblemBackend>` | `_modules/backends.ts` |
-| Presentation config | `Presentation` | `_modules/presentation.ts` |
 | Site config | `SiteConfig` | `_modules/site.ts` |
 
 ## Do NOT

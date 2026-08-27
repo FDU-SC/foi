@@ -72,7 +72,7 @@ export default async function StandingsPage({
   const data = await standingsFor(contest.slug, viewer);
   if (!data) notFound();
 
-  const totalRows = data.boards[0]?.full.rows.length ?? 0;
+  const totalRows = data.boards[0]?.standings.rows.length ?? 0;
 
   return (
     <div className="space-y-5">
@@ -92,9 +92,6 @@ export default async function StandingsPage({
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-fg text-2xl font-bold tracking-tight">排行榜</h1>
         {data.frozen ? <Badge tone="warn">已封榜</Badge> : null}
-        {data.freezeBypassed ? (
-          <Badge tone="info">封榜中 · 你看到的是完整排名</Badge>
-        ) : null}
         <span className="text-fg-subtle ml-auto text-xs">
           共 {totalRows} 人
         </span>

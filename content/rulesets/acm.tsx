@@ -2,6 +2,7 @@ import { z } from "zod";
 import { formatDuration } from "@/lib/utils";
 import {
   assignRanks,
+  hasResult,
   submissionsInWindow,
   type Ruleset,
   type StandingsInput,
@@ -10,7 +11,6 @@ import {
 } from "@/lib/standings/types";
 
 function isAccepted(submission: SubmissionRecord): boolean {
-  if (submission.state !== "completed") return false;
   const result = submission.result as { accepted?: boolean } | null;
   return result?.accepted === true;
 }
@@ -95,7 +95,7 @@ export const ruleset: Ruleset<AcmCell> = {
 
       if (cell.solvedAt !== null) continue;
 
-      if (submission.state !== "completed") {
+      if (!hasResult(submission)) {
         cell.pending += 1;
         continue;
       }

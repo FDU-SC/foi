@@ -1,7 +1,8 @@
 import { z } from "zod";
 import {
   assignRanks,
-  scoredSubmissions,
+  hasResult,
+  submissionsInWindow,
   type Ruleset,
   type StandingsInput,
   type StandingsRow,
@@ -17,12 +18,19 @@ export interface OiCell {
   score: number;
   maxScore: number;
   attempts: number;
+  pending: number;
   at: number | null;
 }
 
 export function OiCellView({ cell }: { cell: OiCell | undefined }) {
-  if (!cell || cell.attempts === 0) {
+  if (!cell || (cell.attempts === 0 && cell.pending === 0)) {
     return <span className="text-fg-subtle">·</span>;
+  }
+
+  if (cell.attempts === 0) {
+    return (
+      <span className="text-info font-mono text-xs tabular-nums">?</span>
+    );
   }
 
   const full = cell.score >= cell.maxScore;
@@ -30,8 +38,9 @@ export function OiCellView({ cell }: { cell: OiCell | undefined }) {
   const tone = full ? "text-ok" : zero ? "text-err" : "text-partial";
 
   return (
-    <span className={`font-mono text-xs font-medium tabular-nums ${tone}`}>
-      {Math.round(cell.score)}
+    <span className="inline-flex items-center gap-0.5 font-mono text-xs font-medium tabular-nums">
+      <span className={tone}>{Math.round(cell.score)}</span>
+      {cell.pending > 0 ? <span className="text-info">?</span> : null}
     </span>
   );
 }
@@ -67,7 +76,7 @@ export const ruleset: Ruleset<OiCell> = {
       byUser.set(participant.uid, new Map());
     }
 
-    for (const submission of scoredSubmissions(input)) {
+    for (const submission of submissionsInWindow(input)) {
       const cells = byUser.get(submission.uid);
       if (!cells) continue;
 
@@ -76,9 +85,16 @@ export const ruleset: Ruleset<OiCell> = {
         score: 0,
         maxScore,
         attempts: 0,
+        pending: 0,
         at: null,
       };
       cells.set(submission.problemSlug, cell);
+
+      if (!hasResult(submission)) {
+        cell.pending += 1;
+        continue;
+      }
+
       cell.attempts += 1;
 
       const r = submission.result as OiResult | null;

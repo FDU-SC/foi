@@ -27,10 +27,7 @@ export interface LeaderboardStandings {
   leaderboard: LeaderboardConfig;
   ruleset: AnyRuleset;
   renderers: RulesetRenderers;
-  /** Full standings (all submissions, admin view). */
-  full: ComputedStandings<unknown>;
-  /** Public standings (pre-freeze submissions only). null when no freeze is active. */
-  public: ComputedStandings<unknown> | null;
+  standings: ComputedStandings<unknown>;
 }
 
 export interface ContestStandings {
@@ -38,7 +35,6 @@ export interface ContestStandings {
   problems: ContestProblem[];
   boards: LeaderboardStandings[];
   frozen: boolean;
-  freezeBypassed: boolean;
 }
 
 async function loadAndCompute(
@@ -79,6 +75,13 @@ async function loadAndCompute(
   const isFrozen = phase === "frozen";
   const shouldFreeze = isFrozen && !ignoreFreeze && !!contest.freezeAt;
 
+  // Mask results of post-freeze submissions so rulesets treat them as pending.
+  const effectiveSubmissions: SubmissionRecord[] = shouldFreeze
+    ? submissionRows.map((s) =>
+        s.createdAt >= contest.freezeAt! ? { ...s, result: null } : s,
+      )
+    : submissionRows;
+
   const boards: LeaderboardStandings[] = contest.leaderboards.map((lb) => {
     const ruleset = rulesetFor(lb.ruleset.id);
     if (!ruleset) {
@@ -87,7 +90,7 @@ async function loadAndCompute(
       );
     }
 
-    const baseInput = {
+    const standings = ruleset.compute({
       config: lb.ruleset.config,
       contest: {
         slug: contest.slug,
@@ -96,28 +99,14 @@ async function loadAndCompute(
       },
       problems: problemRows,
       participants,
-      submissions: submissionRows satisfies SubmissionRecord[],
-    };
-
-    const full = ruleset.compute(baseInput);
-
-    let publicBoard: ComputedStandings<unknown> | null = null;
-    if (shouldFreeze) {
-      const preFreezeSubmissions = submissionRows.filter(
-        (s) => s.createdAt < contest.freezeAt!,
-      );
-      publicBoard = ruleset.compute({
-        ...baseInput,
-        submissions: preFreezeSubmissions,
-      });
-    }
+      submissions: effectiveSubmissions,
+    });
 
     return {
       leaderboard: lb,
       ruleset,
       renderers: renderersFor(lb.ruleset.id),
-      full,
-      public: publicBoard,
+      standings,
     };
   });
 
@@ -126,7 +115,6 @@ async function loadAndCompute(
     problems: problemRows,
     boards,
     frozen: isFrozen,
-    freezeBypassed: ignoreFreeze && isFrozen,
   };
 }
 

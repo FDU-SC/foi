@@ -112,6 +112,11 @@ export function submissionsInWindow(
 
 export function scoredSubmissions(input: StandingsInput): SubmissionRecord[] {
   return submissionsInWindow(input).filter(
-    (submission) => submission.state === "completed",
+    (submission) => submission.state === "completed" && submission.result != null,
   );
+}
+
+/** True when the submission has a usable result (completed with non-null result). */
+export function hasResult(submission: SubmissionRecord): boolean {
+  return submission.state === "completed" && submission.result != null;
 }

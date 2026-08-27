@@ -22,12 +22,6 @@ function DefaultTotal({ row }: { row: { total: number } }) {
   );
 }
 
-function PendingCell() {
-  return (
-    <span className="text-info font-mono text-xs tabular-nums">?</span>
-  );
-}
-
 export interface StandingsTableProps {
   board: LeaderboardStandings;
   problems: ContestProblem[];
@@ -44,8 +38,7 @@ export function StandingsTable({
   const Cell = CellView ?? DefaultCell;
   const Total = TotalView ?? DefaultTotal;
 
-  const standings = board.public ?? board.full;
-  const fullRows = board.public ? board.full.rows : null;
+  const { standings } = board;
 
   if (standings.rows.length === 0) {
     return (
@@ -54,10 +47,6 @@ export function StandingsTable({
       </p>
     );
   }
-
-  const fullCellIndex = fullRows
-    ? new Map(fullRows.map((r) => [r.participant.uid, r.cells]))
-    : null;
 
   return (
     <div className="border-border overflow-x-auto rounded-lg border">
@@ -85,49 +74,28 @@ export function StandingsTable({
           </tr>
         </thead>
         <tbody className="divide-border divide-y">
-          {standings.rows.map((row) => {
-            const fullCells = fullCellIndex?.get(row.participant.uid);
-            return (
-              <tr key={row.participant.uid} className="hover:bg-surface-2/60">
-                <td className="text-fg-muted px-3 py-2 text-right font-mono text-xs tabular-nums">
-                  {row.rank}
+          {standings.rows.map((row) => (
+            <tr key={row.participant.uid} className="hover:bg-surface-2/60">
+              <td className="text-fg-muted px-3 py-2 text-right font-mono text-xs tabular-nums">
+                {row.rank}
+              </td>
+              <td className="px-3 py-2">
+                <span className="text-fg font-medium">
+                  {row.participant.nickname}
+                </span>
+              </td>
+              <td className="px-3 py-2 text-center">
+                <Total row={row} />
+              </td>
+              {problems.map((problem) => (
+                <td key={problem.slug} className="px-2 py-2 text-center">
+                  <Cell cell={row.cells[problem.slug]} problem={problem} />
                 </td>
-                <td className="px-3 py-2">
-                  <span className="text-fg font-medium">
-                    {row.participant.nickname}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-center">
-                  <Total row={row} />
-                </td>
-                {problems.map((problem) => {
-                  const publicCell = row.cells[problem.slug];
-                  const isPending =
-                    fullCells &&
-                    cellChanged(publicCell, fullCells[problem.slug]);
-
-                  return (
-                    <td key={problem.slug} className="px-2 py-2 text-center">
-                      {isPending ? (
-                        <PendingCell />
-                      ) : (
-                        <Cell cell={publicCell} problem={problem} />
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
+              ))}
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
   );
-}
-
-function cellChanged(publicCell: unknown, fullCell: unknown): boolean {
-  if (publicCell === fullCell) return false;
-  if (publicCell === undefined && fullCell !== undefined) return true;
-  if (publicCell !== undefined && fullCell === undefined) return false;
-  return JSON.stringify(publicCell) !== JSON.stringify(fullCell);
 }

@@ -9,37 +9,29 @@ import {
   participants,
   problem,
   solve,
+  fail,
 } from "@/test/standings-support";
 import { listRulesets } from "./registry";
-import type { AnyRuleset, StandingsInput } from "./types";
+import type { AnyRuleset, StandingsInput, SubmissionRecord } from "./types";
 
 const allRulesets = listRulesets();
 
 const problems = [problem("a", "A"), problem("b", "B")];
-const submissions = [solve(1, "a", 10), solve(1, "b", 250)];
 
-function dualCompute(
-  ruleset: AnyRuleset,
-  freezeAt: Date | null,
-  baseInput: StandingsInput,
-) {
-  const full = ruleset.compute(baseInput);
-
-  let publicBoard = null;
-  if (freezeAt) {
-    const preFreezeSubmissions = baseInput.submissions.filter(
-      (s) => s.createdAt < freezeAt,
-    );
-    publicBoard = ruleset.compute({
-      ...baseInput,
-      submissions: preFreezeSubmissions,
-    });
-  }
-
-  return { full, public: publicBoard };
+/**
+ * Simulate the freeze masking that `loadAndCompute` applies:
+ * submissions after `freezeAt` get `result: null`.
+ */
+function maskResults(
+  subs: SubmissionRecord[],
+  freezeAt: Date,
+): SubmissionRecord[] {
+  return subs.map((s) =>
+    s.createdAt >= freezeAt ? { ...s, result: null } : s,
+  );
 }
 
-describe("封榜：任何赛制都支持双次计算", () => {
+describe("封榜：result 屏蔽后赛制行为", () => {
   it("至少有一种赛制可测", () => {
     expect(allRulesets.length).toBeGreaterThan(0);
   });
@@ -47,61 +39,146 @@ describe("封榜：任何赛制都支持双次计算", () => {
   const freezeAt = at(240);
 
   it.each(allRulesets.map((r) => ({ ruleset: r, id: r.id })))(
-    "$id：带 freezeAt 时，public 榜过滤掉了封榜后的提交",
+    "$id：封榜后的提交被屏蔽后，公开分 ≤ 全量分",
     ({ ruleset }) => {
+      const subs = [solve(1, "a", 10), solve(1, "b", 250)];
       const base = input({
         participants: participants(1),
         problems,
-        freezeAt,
-        submissions,
+        submissions: subs,
       });
 
-      const { full, public: pub } = dualCompute(ruleset, freezeAt, base);
+      const full = ruleset.compute(base);
 
-      expect(pub).not.toBeNull();
-      expect(full.rows[0].total).toBeGreaterThanOrEqual(
-        pub!.rows[0].total,
+      const masked = input({
+        participants: participants(1),
+        problems,
+        submissions: maskResults(subs, freezeAt),
+      });
+      const pub = ruleset.compute(masked);
+
+      expect(full.rows[0].total).toBeGreaterThanOrEqual(pub.rows[0].total);
+    },
+  );
+
+  it.each(allRulesets.map((r) => ({ ruleset: r, id: r.id })))(
+    "$id：封榜前的提交不受影响",
+    ({ ruleset }) => {
+      const subs = [solve(1, "a", 10), solve(1, "b", 60)];
+      const base = input({
+        participants: participants(1),
+        problems,
+        submissions: subs,
+      });
+
+      const masked = input({
+        participants: participants(1),
+        problems,
+        submissions: maskResults(subs, freezeAt),
+      });
+
+      const shape = (b: { rows: { total: number; tiebreak: number }[] }) =>
+        b.rows.map((r) => [r.total, r.tiebreak]);
+
+      expect(shape(ruleset.compute(masked))).toEqual(
+        shape(ruleset.compute(base)),
       );
     },
   );
 
   it.each(allRulesets.map((r) => ({ ruleset: r, id: r.id })))(
-    "$id：不带 freezeAt 时没有 public 榜",
+    "$id：管理员视角（不屏蔽）看到完整分数",
     ({ ruleset }) => {
+      const subs = [solve(1, "a", 10), solve(1, "b", 250)];
       const base = input({
         participants: participants(1),
         problems,
-        submissions,
+        submissions: subs,
       });
 
-      const { public: pub } = dualCompute(ruleset, null, base);
-      expect(pub).toBeNull();
+      const full = ruleset.compute(base);
+      expect(full.rows[0].total).toBeGreaterThan(0);
+    },
+  );
+});
+
+describe("封榜 pending 语义（赛制 Cell 含 pending 字段的）", () => {
+  const freezeAt = at(240);
+
+  // Find rulesets whose cells expose { pending, attempts } — test them specifically.
+  function cellShape(ruleset: AnyRuleset) {
+    const base = input({
+      participants: participants(1),
+      problems,
+      submissions: [solve(1, "a", 10)],
+    });
+    const cell = ruleset.compute(base).rows[0]?.cells["a"];
+    return cell && typeof (cell as Record<string, unknown>).pending === "number";
+  }
+
+  const withPending = allRulesets.filter(cellShape);
+
+  it("至少有一种赛制的 Cell 含 pending 字段", () => {
+    expect(withPending.length).toBeGreaterThan(0);
+  });
+
+  it.each(withPending.map((r) => ({ ruleset: r, id: r.id })))(
+    "$id：封榜后的 AC 提交在公开视角下标记为 pending",
+    ({ ruleset }) => {
+      const subs = [solve(1, "a", 250)];
+      const base = input({
+        participants: participants(1),
+        problems,
+        submissions: maskResults(subs, freezeAt),
+      });
+
+      const result = ruleset.compute(base);
+      const cell = result.rows[0].cells["a"] as {
+        pending: number;
+        attempts: number;
+      };
+      expect(cell.pending).toBe(1);
+      expect(cell.attempts).toBe(0);
     },
   );
 
-  it.each(allRulesets.map((r) => ({ ruleset: r, id: r.id })))(
-    "$id：全量计算与无封榜计算结果一致",
+  it.each(withPending.map((r) => ({ ruleset: r, id: r.id })))(
+    "$id：封榜前的提交正常计分，pending 为 0",
     ({ ruleset }) => {
+      const subs = [solve(1, "a", 10)];
       const base = input({
         participants: participants(1),
         problems,
-        freezeAt,
-        submissions,
+        submissions: maskResults(subs, freezeAt),
       });
 
-      const noFreeze = input({
+      const result = ruleset.compute(base);
+      const cell = result.rows[0].cells["a"] as {
+        pending: number;
+        attempts: number;
+      };
+      expect(cell.pending).toBe(0);
+      expect(cell.attempts).toBeGreaterThanOrEqual(1);
+    },
+  );
+
+  it.each(withPending.map((r) => ({ ruleset: r, id: r.id })))(
+    "$id：封榜前 WA + 封榜后 AC → 公开视角：有失败 + 有 pending",
+    ({ ruleset }) => {
+      const subs = [fail(1, "a", 100), solve(1, "a", 250)];
+      const base = input({
         participants: participants(1),
         problems,
-        submissions,
+        submissions: maskResults(subs, freezeAt),
       });
 
-      const { full } = dualCompute(ruleset, freezeAt, base);
-      const plain = ruleset.compute(noFreeze);
-
-      const shape = (b: { rows: { participant: { uid: number }; total: number; tiebreak: number }[] }) =>
-        b.rows.map((row) => [row.participant.uid, row.total, row.tiebreak]);
-
-      expect(shape(full)).toEqual(shape(plain));
+      const result = ruleset.compute(base);
+      const cell = result.rows[0].cells["a"] as {
+        pending: number;
+        attempts: number;
+      };
+      expect(cell.attempts).toBeGreaterThanOrEqual(1);
+      expect(cell.pending).toBe(1);
     },
   );
 });

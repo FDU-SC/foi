@@ -1,7 +1,8 @@
 import { z } from "zod";
 import {
   assignRanks,
-  scoredSubmissions,
+  hasResult,
+  submissionsInWindow,
   type Ruleset,
   type StandingsInput,
   type StandingsRow,
@@ -9,7 +10,6 @@ import {
 } from "@/lib/standings/types";
 
 function isAccepted(submission: SubmissionRecord): boolean {
-  if (submission.state !== "completed") return false;
   const result = submission.result as { accepted?: boolean } | null;
   return result?.accepted === true;
 }
@@ -26,18 +26,24 @@ export interface CtfCell {
   solvedAt: number | null;
   blood: number | null;
   attempts: number;
+  pending: number;
 }
 
 const BLOOD_LABEL = ["一血", "二血", "三血"];
 
 export function CtfCellView({ cell }: { cell: CtfCell | undefined }) {
-  if (!cell || cell.attempts === 0) {
+  if (!cell || (cell.attempts === 0 && cell.pending === 0)) {
     return <span className="text-fg-subtle">·</span>;
   }
   if (cell.solvedAt === null) {
     return (
-      <span className="text-err font-mono text-xs tabular-nums">
-        −{cell.attempts}
+      <span className="font-mono text-xs tabular-nums">
+        {cell.attempts > 0 ? (
+          <span className="text-err">−{cell.attempts}</span>
+        ) : null}
+        {cell.pending > 0 ? (
+          <span className="text-info">?</span>
+        ) : null}
       </span>
     );
   }
@@ -80,8 +86,6 @@ export const ruleset: Ruleset<CtfCell> = {
     const config = configSchema.parse(input.config ?? {});
     const start = input.contest.startsAt.getTime();
 
-    const submissions = scoredSubmissions(input);
-
     const cellsByUser = new Map<number, Record<string, CtfCell>>();
     for (const participant of input.participants) {
       cellsByUser.set(participant.uid, {});
@@ -89,13 +93,19 @@ export const ruleset: Ruleset<CtfCell> = {
 
     const solves = new Map<string, { uid: number; at: number }[]>();
     const attempts = new Map<string, number>();
+    const pendingCounts = new Map<string, number>();
     const solvedKeys = new Set<string>();
 
-    for (const submission of submissions) {
+    for (const submission of submissionsInWindow(input)) {
       if (!cellsByUser.has(submission.uid)) continue;
 
       const key = `${submission.uid}:${submission.problemSlug}`;
       if (solvedKeys.has(key)) continue;
+
+      if (!hasResult(submission)) {
+        pendingCounts.set(key, (pendingCounts.get(key) ?? 0) + 1);
+        continue;
+      }
 
       attempts.set(key, (attempts.get(key) ?? 0) + 1);
       if (!isAccepted(submission)) continue;
@@ -117,11 +127,13 @@ export const ruleset: Ruleset<CtfCell> = {
         const cells = cellsByUser.get(solve.uid);
         if (!cells) return;
         const bonus = config.bloodBonus[index] ?? 0;
+        const key = `${solve.uid}:${problem.slug}`;
         cells[problem.slug] = {
           score: value * (1 + bonus),
           solvedAt: solve.at,
           blood: index < config.bloodBonus.length ? index + 1 : null,
-          attempts: attempts.get(`${solve.uid}:${problem.slug}`) ?? 1,
+          attempts: attempts.get(key) ?? 1,
+          pending: pendingCounts.get(key) ?? 0,
         };
       });
     }
@@ -130,7 +142,26 @@ export const ruleset: Ruleset<CtfCell> = {
       const [uidStr, slug] = splitKey(key);
       const cells = cellsByUser.get(Number(uidStr));
       if (!cells || cells[slug]) continue;
-      cells[slug] = { score: 0, solvedAt: null, blood: null, attempts: count };
+      cells[slug] = {
+        score: 0,
+        solvedAt: null,
+        blood: null,
+        attempts: count,
+        pending: pendingCounts.get(key) ?? 0,
+      };
+    }
+
+    for (const [key, count] of pendingCounts) {
+      const [uidStr, slug] = splitKey(key);
+      const cells = cellsByUser.get(Number(uidStr));
+      if (!cells || cells[slug]) continue;
+      cells[slug] = {
+        score: 0,
+        solvedAt: null,
+        blood: null,
+        attempts: 0,
+        pending: count,
+      };
     }
 
     const rows = input.participants.map((participant) => {

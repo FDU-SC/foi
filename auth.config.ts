@@ -7,6 +7,9 @@ interface FoiClaims {
 }
 
 export const authConfig = {
+  basePath: "/api/auth",
+  trustHost: !!process.env.FOI_PUBLIC_URL,
+
   pages: {
     signIn: "/login",
   },

@@ -74,11 +74,11 @@ describe("这套 content 自身自洽", () => {
     expect(mailSink()).toBe("console");
   });
 
-  it("problems/views.ts 真的被 content/problem-view-modules 找到了", () => {
+  it("per-problem views.tsx 真的被 glob 自动发现了", () => {
     const declared = allProblems().filter(
       (problem) => viewsFor(problem.slug).PayloadView !== undefined,
     );
-    expect(declared.length, "没有一道题拿到渲染，八成是那份表没被扫到").toBeGreaterThan(0);
+    expect(declared.length, "没有一道题拿到渲染，八成是 glob 没扫到").toBeGreaterThan(0);
   });
 });
 

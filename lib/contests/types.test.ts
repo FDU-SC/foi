@@ -17,7 +17,7 @@ function contest(overrides: Record<string, unknown> = {}): ContestConfig {
   return contestConfigSchema.parse({
     slug: "test",
     title: "Test",
-    ruleset: { id: "some-ruleset" },
+    leaderboards: [{ id: "main", title: "排行榜", ruleset: { id: "some-ruleset" } }],
     startsAt: STARTS,
     endsAt: ENDS,
     problems: [],
@@ -116,7 +116,7 @@ describe("freezeAt 的加载期校验", () => {
     const parsed = contestConfigSchema.safeParse({
       slug: "test",
       title: "Test",
-      ruleset: { id: "some-ruleset" },
+      leaderboards: [{ id: "main", title: "排行榜", ruleset: { id: "some-ruleset" } }],
       startsAt: STARTS,
       endsAt: ENDS,
       problems: [],

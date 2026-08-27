@@ -15,6 +15,8 @@ export const site: SiteConfig = {
     { href: "/admin", label: "管理", capability: "admin.access" },
   ],
 
+  passwordMinLength: 8,
+
   homeEntries: [
     {
       href: "/problems",

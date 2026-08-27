@@ -58,15 +58,7 @@ export const contestConfigSchema = z
     title: z.string().min(1),
     description: z.string().optional(),
 
-    /** @deprecated Use `leaderboards` instead. Kept as sugar: auto-expands to a single leaderboard. */
-    ruleset: z
-      .object({
-        id: z.string().min(1),
-        config: z.unknown().optional(),
-      })
-      .optional(),
-
-    leaderboards: z.array(leaderboardSchema).optional(),
+    leaderboards: z.array(leaderboardSchema).min(1, "至少需要一个排行榜"),
 
     startsAt: zonedDateTime,
     endsAt: zonedDateTime,
@@ -77,20 +69,6 @@ export const contestConfigSchema = z
 
     problems: z.array(contestProblemSchema).default([]),
     participants: participantsSchema,
-  })
-  .transform((raw) => {
-    const leaderboards =
-      raw.leaderboards ??
-      (raw.ruleset
-        ? [{ id: "main", title: "排行榜", ruleset: raw.ruleset }]
-        : undefined);
-
-    const { ruleset: _ignored, ...rest } = raw;
-    return { ...rest, leaderboards: leaderboards! };
-  })
-  .refine((c) => c.leaderboards && c.leaderboards.length > 0, {
-    path: ["leaderboards"],
-    message: "至少需要一个排行榜（或提供 ruleset 语法糖）",
   })
   .superRefine((contest, ctx) => {
     if (contest.endsAt <= contest.startsAt) {

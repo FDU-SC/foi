@@ -9,7 +9,7 @@ function contest(
   return contestConfigSchema.parse({
     slug: "test",
     title: "Test",
-    ruleset: { id: "some-ruleset" },
+    leaderboards: [{ id: "main", title: "排行榜", ruleset: { id: "some-ruleset" } }],
     startsAt: "2026-01-15T13:00:00+08:00",
     endsAt: "2026-01-15T18:00:00+08:00",
     problems: [],

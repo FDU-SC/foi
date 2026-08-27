@@ -1,5 +1,5 @@
 import type { Capability } from "@/lib/permissions/policy";
-import { site as declared } from "@/content/_modules/site";
+import { site as declared } from "@/content/site";
 
 export interface NavItem {
   href: string;

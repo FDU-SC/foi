@@ -1,5 +1,5 @@
 {
-  "id": "b4c057f9-0344-488f-a3d0-7d36d71eec97",
+  "id": "2a51947f-0485-4f78-a735-1e0443368157",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -639,12 +639,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "max_score": {
-          "name": "max_score",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
         "release_sha": {
           "name": "release_sha",
           "type": "text",
@@ -658,27 +652,15 @@
           "notNull": true,
           "default": "'pending'"
         },
-        "verdict": {
-          "name": "verdict",
+        "result": {
+          "name": "result",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
-        "score": {
-          "name": "score",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "accepted": {
-          "name": "accepted",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "outcome": {
-          "name": "outcome",
-          "type": "text",
+        "detail": {
+          "name": "detail",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },

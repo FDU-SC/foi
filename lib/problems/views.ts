@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { problemViews } from "@/content/problem-view-modules";
+import { problemViews } from "@/content/_modules/problem-views";
 import type { Verdict } from "@/lib/backend/types";
 
 export interface ProblemViews {

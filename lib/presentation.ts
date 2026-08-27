@@ -1,6 +1,6 @@
 import type { MDXComponents } from "mdx/types";
 import type { ComponentType } from "react";
-import { presentation as declared } from "@/content/presentation-modules";
+import { presentation as declared } from "@/content/_modules/presentation";
 import type { PublicProblemConfig } from "@/lib/problems/types";
 
 export type BadgeTone =

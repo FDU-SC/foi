@@ -12,7 +12,7 @@ import {
 } from "../lib/backend/signature";
 import { effectiveSecretFromEnv } from "../lib/backend/env";
 import type { JobDetails, JobTicket, Verdict } from "../lib/backend/types";
-import { backends } from "./backends";
+import { backends } from "../content/backends";
 
 if (process.env.NODE_ENV === "production") {
   throw new Error(

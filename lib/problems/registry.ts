@@ -2,7 +2,7 @@ import type { ComponentType } from "react";
 import {
   problemConfigModules,
   problemStatementModules,
-} from "@/content/problem-modules";
+} from "@/content/_modules/problems";
 import { slugFromGlobPath } from "@/lib/slug-from-path";
 import {
   isInlineBackend,

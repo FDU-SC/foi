@@ -18,6 +18,7 @@ const SKIP = new Set([
   "drizzle",
   "node_modules",
   "public",
+  "scripts",
 ]);
 
 const SOURCE = /\.(?:[cm]?[jt]sx?)$/;
@@ -32,9 +33,12 @@ function sourceFiles(dir: string, found: string[] = []): string[] {
 
     const path = join(dir, entry.name);
     if (entry.name === "content") {
-      for (const file of readdirSync(path)) {
-        if (file.endsWith("-modules.ts")) found.push(join(path, file));
-      }
+      const modulesDir = join(path, "_modules");
+      try {
+        for (const file of readdirSync(modulesDir)) {
+          if (SOURCE.test(file)) found.push(join(modulesDir, file));
+        }
+      } catch {}
       continue;
     }
     if (SKIP.has(entry.name)) continue;

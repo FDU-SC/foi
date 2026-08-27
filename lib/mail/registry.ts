@@ -1,4 +1,4 @@
-import { emailModules } from "@/content/email-modules";
+import { emailModules } from "@/content/_modules/emails";
 import { loadSingletonModule } from "@/lib/singleton-module";
 import { escapeHtml } from "./html";
 import type {

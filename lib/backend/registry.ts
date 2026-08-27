@@ -1,4 +1,4 @@
-import { backends as declared } from "@/content/backend-modules";
+import { backends as declared } from "@/content/_modules/backends";
 import { SLUG_PATTERN } from "@/lib/utils";
 import { INLINE_BACKEND_ID, type ProblemBackend } from "./types";
 

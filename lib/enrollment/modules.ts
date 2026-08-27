@@ -1,4 +1,4 @@
-import { enrollmentModules } from "@/content/enrollment-modules";
+import { enrollmentModules } from "@/content/_modules/enrollment";
 
 export interface EnrollmentSource {
 

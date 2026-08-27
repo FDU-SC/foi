@@ -1,4 +1,4 @@
-import { rulesetModules } from "@/content/ruleset-modules";
+import { rulesetModules } from "@/content/_modules/rulesets";
 import type { AnyRuleset } from "./types";
 
 function idFromPath(path: string): string | null {

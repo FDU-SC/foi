@@ -13,7 +13,7 @@ describe("verdicts", () => {
 
   it("登记过的 status 经内核翻译成缩写", () => {
     expect(
-      describeVerdict({
+      describeVerdict(undefined, {
         outcome: "accepted",
         score: null,
         maxScore: null,

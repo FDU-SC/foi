@@ -2,6 +2,7 @@ import type { MDXComponents } from "mdx/types";
 import type { ComponentType } from "react";
 import { presentation as declared } from "@/content/_modules/presentation";
 import type { PublicProblemConfig } from "@/lib/problems/types";
+import { viewsFor } from "@/lib/problems/views";
 
 export type BadgeTone =
   | "neutral"
@@ -29,17 +30,27 @@ export interface Presentation {
 
 export const presentation: Presentation = declared;
 
-export function describeVerdict(result: {
-  outcome: string | null;
-  score: number | null;
-  maxScore: number | null;
-  accepted: boolean | null;
-}): VerdictPreset {
+export function describeVerdict(
+  problemSlug: string | undefined,
+  result: {
+    outcome: string | null;
+    score: number | null;
+    maxScore: number | null;
+    accepted: boolean | null;
+  },
+): VerdictPreset {
   const label = result.outcome ?? "已评测";
-  const preset = result.outcome
-    ? presentation.verdicts?.[result.outcome]
-    : undefined;
-  if (preset) return preset;
+
+  if (result.outcome) {
+    // Problem-level verdicts take priority over global verdicts
+    const problemVerdicts = problemSlug
+      ? viewsFor(problemSlug).verdicts
+      : undefined;
+    const preset =
+      problemVerdicts?.[result.outcome] ??
+      presentation.verdicts?.[result.outcome];
+    if (preset) return preset;
+  }
 
   const tone: BadgeTone =
     result.accepted !== null

@@ -3,6 +3,7 @@ import { STATE_PRESETS, type SubmissionState } from "@/lib/backend/types";
 import { describeVerdict } from "@/lib/presentation";
 
 export interface VerdictBadgeSubject {
+  problemSlug: string;
   state: SubmissionState;
   outcome: string | null;
   score: number | null;
@@ -30,7 +31,7 @@ export function VerdictBadge({
     );
   }
 
-  const { short, label, tone } = describeVerdict(submission);
+  const { short, label, tone } = describeVerdict(submission.problemSlug, submission);
   const { score, maxScore } = submission;
 
   const scored = score !== null && maxScore !== null && maxScore > 1;

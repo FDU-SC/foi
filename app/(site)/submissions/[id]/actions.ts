@@ -5,7 +5,11 @@ import { z } from "zod";
 import { requireCapability } from "@/auth";
 import { rateLimit } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
-import { rejudgeSubmissions, submissionStateOf } from "@/lib/submissions/rejudge";
+import {
+  rejudgeSubmissions,
+  submissionStateOf,
+  type RejudgeSkipFilter,
+} from "@/lib/submissions/rejudge";
 
 export interface ActionState {
   error?: string;
@@ -51,8 +55,16 @@ export async function rejudgeSubmissionAction(
     return { error: "这条提交还没有评测完，不需要重判。" };
   }
 
+  const skipAccepted: RejudgeSkipFilter | undefined =
+    parsed.data.includeAccepted
+      ? undefined
+      : (row) => {
+          const r = row.result as { accepted?: boolean } | null;
+          return row.state === "completed" && r?.accepted === true;
+        };
+
   const result = await rejudgeSubmissions([parsed.data.id], {
-    includeAccepted: parsed.data.includeAccepted,
+    skipFilter: skipAccepted,
   });
 
   if (result.skippedInline > 0) {
@@ -69,7 +81,7 @@ export async function rejudgeSubmissionAction(
     };
   }
 
-  if (result.keptAccepted > 0) {
+  if (result.skippedByFilter > 0) {
     return {
       error:
         "这条提交已经通过，默认不重判。确实要覆盖它的结果，请勾选「连已通过的一起重判」。",

@@ -92,7 +92,6 @@ export function input(options: {
       slug: "test",
       startsAt: START,
       endsAt: options.endsAt ?? END,
-      freezeAt: options.freezeAt ?? null,
     },
     problems: options.problems,
     participants: options.participants,

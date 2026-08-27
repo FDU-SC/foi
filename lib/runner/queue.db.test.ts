@@ -314,7 +314,6 @@ describeDb("runner 领活与上报", () => {
           slug: CONTEST,
           startsAt: new Date(Date.now() - 3_600_000),
           endsAt: new Date(Date.now() + 3_600_000),
-          freezeAt: null,
         },
         problems: [],
         participants: [],

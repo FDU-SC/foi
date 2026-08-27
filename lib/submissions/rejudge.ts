@@ -18,7 +18,7 @@ export interface RejudgeResult {
 
   requeued: number;
 
-  keptAccepted: number;
+  skippedByFilter: number;
 
   skippedInline: number;
 
@@ -30,13 +30,19 @@ function stillDispatched(problemSlug: string): boolean {
   return problem !== undefined && !isInlineBackend(problem.backend);
 }
 
+export type RejudgeSkipFilter = (row: {
+  id: string;
+  state: SubmissionRecordState;
+  result: Record<string, unknown> | null;
+}) => boolean;
+
 export async function rejudgeSubmissions(
   ids: string[],
-  options: { includeAccepted?: boolean } = {},
+  options: { skipFilter?: RejudgeSkipFilter } = {},
 ): Promise<RejudgeResult> {
   const empty: RejudgeResult = {
     requeued: 0,
-    keptAccepted: 0,
+    skippedByFilter: 0,
     skippedInline: 0,
     skippedNotDispatched: 0,
   };
@@ -61,19 +67,16 @@ export async function rejudgeSubmissions(
   const strandedIds = new Set(notDispatched.map((row) => row.id));
   const routed = external.filter((row) => !strandedIds.has(row.id));
 
-  const accepted = options.includeAccepted
-    ? []
-    : routed.filter((row) => {
-        const r = row.result as { accepted?: boolean } | null;
-        return row.state === "completed" && r?.accepted === true;
-      });
-  const acceptedIds = new Set(accepted.map((row) => row.id));
-  const targets = routed.filter((row) => !acceptedIds.has(row.id));
+  const filtered = options.skipFilter
+    ? routed.filter((row) => options.skipFilter!(row))
+    : [];
+  const filteredIds = new Set(filtered.map((row) => row.id));
+  const targets = routed.filter((row) => !filteredIds.has(row.id));
 
   if (targets.length === 0) {
     return {
       requeued: 0,
-      keptAccepted: accepted.length,
+      skippedByFilter: filtered.length,
       skippedInline: inline.length,
       skippedNotDispatched: notDispatched.length,
     };
@@ -124,7 +127,7 @@ export async function rejudgeSubmissions(
 
   return {
     requeued: requeued.length,
-    keptAccepted: accepted.length,
+    skippedByFilter: filtered.length,
     skippedInline: inline.length,
     skippedNotDispatched: notDispatched.length,
   };

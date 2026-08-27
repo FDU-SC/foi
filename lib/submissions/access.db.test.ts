@@ -1,23 +1,17 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/test/auth-support";
-import { viewerFor } from "@/lib/auth/viewer";
+import { viewerFor } from "@/lib/permissions/viewer";
 import { db } from "@/lib/db";
 import { accounts, problems, submissions } from "@/lib/db/schema";
 import { submissionFor, submissionsFor } from "./access";
 import { viewerWith } from "@/test/content-shapes";
 
-/**
- * The submission gate needs rows, so this runs against a real Postgres and
- * skips itself when there is none.
- *
- * The case that matters most is the last one in "列表范围": it is the exact
- * shape of the bug this module exists to prevent — a player asking the list
- * endpoint for everything and getting it.
- */
-const OWNER = "subaccess-owner";
-const OTHER = "subaccess-other";
 const SLUG = "subaccess-problem";
+
+let OWNER_UID = 0;
+let OTHER_UID = 0;
+let ADMIN_UID = 0;
 
 async function reachable(): Promise<boolean> {
   try {
@@ -35,46 +29,62 @@ if (!online) {
   console.warn("[test] 数据库不可达，跳过提交门禁集成用例");
 }
 
-const ownerViewer = viewerFor({ handle: OWNER, groups: [] });
-const otherViewer = viewerFor({ handle: OTHER, groups: [] });
-const adminViewer = viewerWith("submission.readAny", "subaccess-admin");
-
 async function cleanup() {
-  for (const handle of [OWNER, OTHER, "subaccess-admin"]) {
-    await db.delete(submissions).where(eq(submissions.handle, handle));
-    await db.delete(accounts).where(eq(accounts.handle, handle));
+  for (const uid of [OWNER_UID, OTHER_UID, ADMIN_UID]) {
+    if (uid) {
+      await db.delete(submissions).where(eq(submissions.uid, uid));
+      await db.delete(accounts).where(eq(accounts.uid, uid));
+    }
   }
   await db.delete(problems).where(eq(problems.slug, SLUG));
 }
 
 describeDb("提交门禁", () => {
+  let ownerViewer: ReturnType<typeof viewerFor>;
+  let otherViewer: ReturnType<typeof viewerFor>;
+  let adminViewer: ReturnType<typeof viewerFor>;
+
   beforeAll(async () => {
     await cleanup();
     await db.insert(problems).values({ slug: SLUG, title: "Access Fixture" });
-    for (const handle of [OWNER, OTHER, "subaccess-admin"]) {
-      await db.insert(accounts).values({
-        handle,
-        displayName: handle,
-        source: "registration",
-      });
-    }
+
+    const [owner] = await db
+      .insert(accounts)
+      .values({ username: "subaccess-owner", nickname: "subaccess-owner" })
+      .returning({ uid: accounts.uid });
+    OWNER_UID = owner.uid;
+
+    const [other] = await db
+      .insert(accounts)
+      .values({ username: "subaccess-other", nickname: "subaccess-other" })
+      .returning({ uid: accounts.uid });
+    OTHER_UID = other.uid;
+
+    const [admin] = await db
+      .insert(accounts)
+      .values({ username: "subaccess-admin", nickname: "subaccess-admin" })
+      .returning({ uid: accounts.uid });
+    ADMIN_UID = admin.uid;
+
+    ownerViewer = viewerFor({ uid: OWNER_UID, groups: [] });
+    otherViewer = viewerFor({ uid: OTHER_UID, groups: [] });
+    adminViewer = viewerWith("submission.readAny");
+
     await db.insert(submissions).values([
       {
         id: "sub_access_owner",
-        handle: OWNER,
+        uid: OWNER_UID,
         problemSlug: SLUG,
         payload: {},
         backendId: "queue-a",
-        maxScore: 100,
         state: "completed",
       },
       {
         id: "sub_access_other",
-        handle: OTHER,
+        uid: OTHER_UID,
         problemSlug: SLUG,
         payload: {},
         backendId: "queue-a",
-        maxScore: 100,
         state: "completed",
       },
     ]);
@@ -114,36 +124,36 @@ describeDb("提交门禁", () => {
   describe("列表范围", () => {
     it("选手只拿到自己的", async () => {
       const rows = await submissionsFor(ownerViewer, { problemSlug: SLUG });
-      expect(rows.map((r) => r.handle)).toEqual([OWNER]);
+      expect(rows.map((r) => r.uid)).toEqual([OWNER_UID]);
     });
 
     it("持有 readAny 的人拿到全部", async () => {
       const rows = await submissionsFor(adminViewer, { problemSlug: SLUG });
-      expect(rows.map((r) => r.handle).sort()).toEqual([OTHER, OWNER]);
+      expect(rows.map((r) => r.uid).sort()).toEqual(
+        [OTHER_UID, OWNER_UID].sort(),
+      );
     });
 
-    it("readAny 可以按 handle 收窄", async () => {
+    it("readAny 可以按 uid 收窄", async () => {
       const rows = await submissionsFor(adminViewer, {
         problemSlug: SLUG,
-        handle: OTHER,
+        uid: OTHER_UID,
       });
-      expect(rows.map((r) => r.handle)).toEqual([OTHER]);
+      expect(rows.map((r) => r.uid)).toEqual([OTHER_UID]);
     });
 
-    it("选手点名他人的 handle 不会放宽，仍然只拿到自己的", async () => {
+    it("选手点名他人的 uid 不会放宽，仍然只拿到自己的", async () => {
       const rows = await submissionsFor(ownerViewer, {
         problemSlug: SLUG,
-        handle: OTHER,
+        uid: OTHER_UID,
       });
-      expect(rows.map((r) => r.handle)).toEqual([OWNER]);
+      expect(rows.map((r) => r.uid)).toEqual([OWNER_UID]);
     });
 
     it("不给任何过滤条件时，选手拿到的仍然只有自己的", async () => {
-      // The original leak: the list endpoint answered for the whole site when
-      // no scoping argument was supplied. Scope now comes from the viewer, so
-      // there is no argument to omit.
+
       const rows = await submissionsFor(otherViewer);
-      expect(rows.every((r) => r.handle === OTHER)).toBe(true);
+      expect(rows.every((r) => r.uid === OTHER_UID)).toBe(true);
     });
 
     it("匿名视角拿不到任何提交", async () => {

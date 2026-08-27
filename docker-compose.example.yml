@@ -1,156 +1,37 @@
-# 编排模板。和 .env.example 同一个道理：模板进仓库，实例不进。
-#
-#   cp docker-compose.example.yml docker-compose.yml
-#   cp .env.example .env
-#
-# 两份实例都在 .gitignore 里。服务器上那份由部署工作流从这个模板生成，每次部署
-# 原样覆盖，所以不要在服务器上改它——要改就改这里。
-#
-# 一份模板，四种用法：本机开发、开发站、测试站、正式站。三个部署环境的编排
-# **完全相同**，差异一行不在这里，全部在各自的 .env 里。这不是为了少几个文件——
-# 覆盖层的问题是它把「这一层有没有叠那一层」变成了另一处要记得对齐的配置，而那处
-# 配置一旦和 FOI_ENV 说的话不一致，没有任何一步会报错。
-#
-# 于是这里没有条件，只有取值：端口发布规格、数据卷叫什么、要不要保护它，各环境
-# 在 .env 里自己说。见 .env.example。
-#
-# COMPOSE_PROFILES 决定起哪些服务：
-#   local   postgres + mailpit —— 应用由 `pnpm dev` 在容器外跑
-#   deploy  postgres + app + backup
-#
-# 部署由 .github/workflows/deploy.yml 驱动，它把这个文件连同 deploy/ 下的脚本一起
-# 送到主机，然后执行 运维脚本。服务器上的 .env 从不被部署改写，
-# 密钥因此设一次就一直有效。
-
 services:
   app:
-    profiles: [deploy]
-    # 部署时由工作流按 digest 钉住并从环境覆盖掉这里。.env 里的值是给主机上手工
-    # 敲 `docker compose` 时用的，所以让它指向本环境的移动 tag。
-    image: ${FOI_IMAGE:?FOI_IMAGE 未设置}
-    # Caddy 按这个名字反向代理，同一台主机上必须各不相同。
-    container_name: ${FOI_APP_NAME:-foi-app}
+    image: ${FOI_IMAGE:?FOI_IMAGE is not set}
     restart: unless-stopped
     env_file: .env
     environment:
-      # Fixed by the compose network, so it is not left to the .env file.
-      DATABASE_URL: postgres://${POSTGRES_USER:-foi}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 未设置}@postgres:5432/${POSTGRES_DB:-foi}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     depends_on:
       postgres:
         condition: service_healthy
-    # 整个端口规格交给 .env，因为三层在这一点上的需求不同而编排不该因此分叉：
-    # 正式站绑回环、由 Caddy 转发，另两层绑 tailnet 地址直接访问。
-    # docker 发布端口会绕过 ufw，所以不要在这里写死 0.0.0.0。
     ports:
-      - "${FOI_PUBLISH:?FOI_PUBLISH 未设置}"
+      - "${FOI_PORT:-8080}:3000"
     networks:
       - internal
-      - caddy
-    # Lets FOI_BACKEND_*_URL point at backends running on the host itself.
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-foi}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 未设置}
-      POSTGRES_DB: ${POSTGRES_DB:-foi}
-    # 一律绑回环，各环境用不同端口。本机开发要它是因为应用在容器外跑；部署环境
-    # 用得上是因为 psql 和快照都从宿主机发起。绑回环意味着这不比
-    # `docker compose exec postgres psql` 多暴露任何东西。
-    ports:
-      - "${POSTGRES_PUBLISH:-127.0.0.1:5433:5432}"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # Read-only, and only so that a restore can be driven from this
-      # container: `pg_restore` has to see the archive, and this is the
-      # container that already has the database socket.
-      - ${FOI_BACKUP_DIR:-./backups}:/backups:ro
     networks:
       - internal
     healthcheck:
-      test:
-        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-foi} -d ${POSTGRES_DB:-foi}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h 127.0.0.1"]
       interval: 5s
       timeout: 5s
       retries: 12
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # Dumps the database on a timer. Reuses the postgres image so no extra layer
-  # is pulled, and so pg_dump always matches the server version.
-  backup:
-    profiles: [deploy]
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      PGHOST: postgres
-      PGUSER: ${POSTGRES_USER:-foi}
-      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 未设置}
-      PGDATABASE: ${POSTGRES_DB:-foi}
-      FOI_BACKUP_INTERVAL_SECONDS: ${FOI_BACKUP_INTERVAL_SECONDS:-86400}
-      FOI_BACKUP_KEEP: ${FOI_BACKUP_KEEP:-14}
-    volumes:
-      # A host directory, not a named volume: the whole point is to survive
-      # `docker compose down -v` and to be reachable by whatever copies it off
-      # this machine.
-      - ${FOI_BACKUP_DIR:-./backups}:/backups
-      - ./运维脚本:/usr/local/bin/backup.sh:ro
-    entrypoint: ["/bin/sh", "/usr/local/bin/backup.sh"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - internal
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # A mailbox for development, in the same spirit as a mock problem backend:
-  # registration and password recovery both end in a link that arrives by
-  # email, and neither is much use if reading it needs a real relay. Point
-  # FOI_SMTP_HOST at localhost:1025 and read what was sent at
-  # http://localhost:8025. Leave it unset and messages go to the console.
-  mailpit:
-    profiles: [local]
-    image: axllent/mailpit:latest
-    container_name: foi-mailpit
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:1025:1025"
-      - "127.0.0.1:8025:8025"
 
 networks:
   internal:
-  caddy:
-    external: true
-    name: ${CADDY_NETWORK:-caddy-network}
 
 volumes:
-  # 两个变量而不是两份文件。正式站把 FOI_PGDATA_EXTERNAL 设成 true，compose 于是
-  # 拒绝创建这个卷、也就拒绝删除它——`down -v` 报一句 external 然后跳过。另两层
-  # 留 false，卷照常由 compose 管理。
-  #
-  # 提交记录是这套系统里唯一无法从仓库重建的东西，而毁掉它的命令与一次普通重启
-  # 只差两个字符。
-  #
-  # 卷名每个环境都要显式给，两个理由。一是 compose **不给 external 卷加项目名
-  # 前缀**，正式站留空会让同机的几套栈一起解析到一个叫 pgdata 的卷，也就是一个库
-  # 同时服务三个环境。二是留空根本跑不起来：`docker compose config` 会把空的 name
-  # 键悄悄丢掉、看着一切正常，而 `up` 会在建卷那一步报
-  # `invalid volume name or ID: value is empty`。
   pgdata:
-    external: ${FOI_PGDATA_EXTERNAL:-false}
-    name: ${FOI_PGDATA_VOLUME:?FOI_PGDATA_VOLUME 未设置}

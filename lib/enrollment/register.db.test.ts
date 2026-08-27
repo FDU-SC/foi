@@ -1,45 +1,24 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { getAccount } from "@/lib/accounts/queries";
-import { reservedHandle } from "@/test/content-shapes";
-import { issueCode, verifyCode } from "@/lib/auth/email-verification";
-import { issueRegistrationProof } from "@/lib/auth/registration-proof";
+import { getAccountByUsername } from "@/lib/accounts/queries";
 import { db } from "@/lib/db";
-import { accounts, credentials, emailVerifications } from "@/lib/db/schema";
+import { accounts } from "@/lib/db/schema";
+import { issueToken } from "@/lib/tokens/stateless";
 import { register } from "./register";
 
-/**
- * The invariant this whole flow exists for: no proof of the address, no
- * account. It is enforced in `register()` rather than in the form, so this is
- * where it has to be checked — a test that went through the form would only
- * establish that the form does what the form does.
- *
- * Reads the real `content/enrollment/example.ts` policy, which is why the
- * addresses below are `@example.test` and the reserved handles are its.
- */
 const EMAIL = "regtest@example.test";
-const HANDLE = "regtest";
-const TAKEN = "regtest-taken";
+const USERNAME = "regtest";
+const TAKEN_USERNAME = "regtest-taken";
 
-/**
- * A switch for making the middle of the three writes fail.
- *
- * `setPassword` is the only one that can be made to fail without inventing a
- * database error: the other two are an upsert and a delete against rows these
- * tests own, and both succeed by construction. Wrapped rather than replaced so
- * every other case in this file goes on exercising the real one — a stub that
- * never writes a hash would make the successful paths prove less than they
- * look like they prove.
- */
-const credentialsHook = vi.hoisted(() => ({ failSetPassword: false }));
+const passwordHook = vi.hoisted(() => ({ failSetPassword: false }));
 
-vi.mock("@/lib/auth/credentials", async (importOriginal) => {
+vi.mock("@/lib/accounts/password", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("@/lib/auth/credentials")>();
+    await importOriginal<typeof import("@/lib/accounts/password")>();
   return {
     ...actual,
     setPassword: async (...args: Parameters<typeof actual.setPassword>) => {
-      if (credentialsHook.failSetPassword) throw new Error("写密码故意失败");
+      if (passwordHook.failSetPassword) throw new Error("写密码故意失败");
       return actual.setPassword(...args);
     },
   };
@@ -61,38 +40,26 @@ if (!online) {
   console.warn("[test] 数据库不可达，跳过注册集成用例");
 }
 
-async function prove(email: string): Promise<string> {
-  const issued = await issueCode(email);
-  if (!issued.ok) throw new Error("发码被节流");
-  await verifyCode(email, issued.code);
-  return issueRegistrationProof(email);
+function mintToken(email: string): string {
+  return issueToken({ purpose: "email-verify", subject: email, ttlMs: 30 * 60 * 1000 });
 }
 
 async function cleanup(): Promise<void> {
-  const handles = [HANDLE, TAKEN];
-  await db.delete(credentials).where(inArray(credentials.handle, handles));
-  await db.delete(accounts).where(inArray(accounts.handle, handles));
-  await db.delete(emailVerifications).where(eq(emailVerifications.email, EMAIL));
+  await db.delete(accounts).where(inArray(accounts.username, [USERNAME, TAKEN_USERNAME]));
 }
 
-/**
- * A filled-in form with no proof cookie attached, which is what a request that
- * skipped the verify step looks like. Cases that did verify spread a proof
- * over the top. `proof` is spelled out rather than omitted because `register`
- * requires the field: a caller with nothing to offer says so.
- */
 const FORM = {
-  handle: HANDLE,
-  displayName: "注册测试",
+  username: USERNAME,
+  nickname: "注册测试",
   email: EMAIL,
   password: "correct-horse-battery",
-  proof: undefined,
+  token: "",
 };
 
 describeDb("register", () => {
   beforeEach(() => {
     vi.stubEnv("AUTH_SECRET", "register-suite-signing-key-32b");
-    credentialsHook.failSetPassword = false;
+    passwordHook.failSetPassword = false;
     return cleanup();
   });
   afterAll(async () => {
@@ -100,134 +67,76 @@ describeDb("register", () => {
     vi.unstubAllEnvs();
   });
 
-  it("邮箱没验证过就不建号", async () => {
+  it("没有 token 就不建号", async () => {
     await expect(register(FORM)).resolves.toEqual({
       ok: false,
       reason: "email-unverified",
     });
 
-    expect(await getAccount(HANDLE)).toBeUndefined();
+    expect(await getAccountByUsername(USERNAME)).toBeUndefined();
   });
 
-  it("只发了码但没验证，同样不建号", async () => {
-    const issued = await issueCode(EMAIL);
-    expect(issued.ok).toBe(true);
+  it("token 的邮箱和表单邮箱不匹配时拒绝", async () => {
+    const token = mintToken("other@example.test");
 
-    await expect(register(FORM)).resolves.toMatchObject({
+    await expect(register({ ...FORM, token })).resolves.toMatchObject({
       ok: false,
       reason: "email-unverified",
     });
-    expect(await getAccount(HANDLE)).toBeUndefined();
+    expect(await getAccountByUsername(USERNAME)).toBeUndefined();
   });
 
-  it("验证过之后建号，并且一建就是 active", async () => {
-    const proof = await prove(EMAIL);
+  it("有效 token 建号成功", async () => {
+    const token = mintToken(EMAIL);
 
-    await expect(register({ ...FORM, proof })).resolves.toMatchObject({
+    await expect(register({ ...FORM, token })).resolves.toMatchObject({
       ok: true,
-      handle: HANDLE,
+      username: USERNAME,
     });
 
-    const account = await getAccount(HANDLE);
+    const account = await getAccountByUsername(USERNAME);
     expect(account).toMatchObject({ status: "active", email: EMAIL });
-    expect(account?.emailVerifiedAt).toBeInstanceOf(Date);
   });
 
-  it("建号之后验证行被消费掉，不能拿来再注册一个", async () => {
-    const proof = await prove(EMAIL);
-    await register({ ...FORM, proof });
-
-    const rows = await db
-      .select()
-      .from(emailVerifications)
-      .where(eq(emailVerifications.email, EMAIL));
-    expect(rows).toHaveLength(0);
-  });
-
-  it("用户名撞车不会浪费掉这次验证", async () => {
-    // 这正是发码/验证要和最终提交分开的理由：换个用户名就能接着注册，
-    // 不必为一个和邮箱无关的错误再跑一趟收件箱。
+  it("用户名撞车时不消耗 token（可用同一 token 换名重试）", async () => {
     await db.insert(accounts).values({
-      handle: TAKEN,
-      displayName: "占位",
-      source: "registration",
+      username: TAKEN_USERNAME,
+      nickname: "占位",
       status: "active",
     });
-    const proof = await prove(EMAIL);
+    const token = mintToken(EMAIL);
 
-    await expect(register({ ...FORM, handle: TAKEN, proof })).resolves.toEqual({
+    await expect(register({ ...FORM, username: TAKEN_USERNAME, token })).resolves.toEqual({
       ok: false,
-      reason: "handle-taken",
+      reason: "username-taken",
     });
 
-    await expect(register({ ...FORM, proof })).resolves.toMatchObject({
+    await expect(register({ ...FORM, token })).resolves.toMatchObject({
       ok: true,
     });
-  });
-
-  it("保留用户名即使验证过也拒绝", async () => {
-    // Taken off the policy rather than spelled out. Naming one meant that a
-    // deployment reserving a different set — or none — did not fail here; it
-    // created the account and left it behind, and the next case along failed
-    // instead with the address already taken.
-    const proof = await prove(EMAIL);
-
-    await expect(
-      register({ ...FORM, handle: reservedHandle(), proof }),
-    ).resolves.toEqual({
-      ok: false,
-      reason: "handle-reserved",
-    });
-  });
-
-  it("邮箱已验证但没有本浏览器的证明，不建号", async () => {
-    await prove(EMAIL);
-
-    await expect(register(FORM)).resolves.toEqual({
-      ok: false,
-      reason: "email-unverified",
-    });
-    expect(await getAccount(HANDLE)).toBeUndefined();
-  });
-
-  it("别人邮箱的证明不能拿来注册这个邮箱", async () => {
-    await prove(EMAIL);
-    const other = issueRegistrationProof("someone-else@example.test");
-
-    await expect(register({ ...FORM, proof: other })).resolves.toEqual({
-      ok: false,
-      reason: "email-unverified",
-    });
-    expect(await getAccount(HANDLE)).toBeUndefined();
   });
 
   it("域名不在允许范围内的邮箱直接拒绝", async () => {
+    const token = mintToken("someone@elsewhere.invalid");
     await expect(
-      register({ ...FORM, email: "someone@elsewhere.invalid" }),
+      register({ ...FORM, email: "someone@elsewhere.invalid", token }),
     ).resolves.toEqual({ ok: false, reason: "email-domain" });
   });
 
   it("写密码失败时整笔回滚，不留下一个登不进去的账号", async () => {
-    const proof = await prove(EMAIL);
-    credentialsHook.failSetPassword = true;
+    const token = mintToken(EMAIL);
+    passwordHook.failSetPassword = true;
 
-    await expect(register({ ...FORM, proof })).rejects.toThrow(
+    await expect(register({ ...FORM, token })).rejects.toThrow(
       "写密码故意失败",
     );
 
-    // 账号行是在抛错之前就插进去的，所以它现在不在，只可能是回滚的结果。
-    // 没有事务的时候留下的正是这一行：账号存在、没有凭据、登不进去，而且
-    // 注册页会告诉这个人用户名已被占用——占用者是他自己。
-    expect(await getAccount(HANDLE)).toBeUndefined();
-    await expect(
-      db.select().from(credentials).where(eq(credentials.handle, HANDLE)),
-    ).resolves.toHaveLength(0);
+    expect(await getAccountByUsername(USERNAME)).toBeUndefined();
 
-    // 邮箱证明也没被花掉，所以重试一次就能过，不必再跑一趟收件箱。
-    credentialsHook.failSetPassword = false;
-    await expect(register({ ...FORM, proof })).resolves.toMatchObject({
+    passwordHook.failSetPassword = false;
+    await expect(register({ ...FORM, token })).resolves.toMatchObject({
       ok: true,
-      handle: HANDLE,
+      username: USERNAME,
     });
   });
 });

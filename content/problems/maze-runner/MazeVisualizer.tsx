@@ -30,7 +30,6 @@ interface Frame {
   path: Set<number> | null;
 }
 
-/** Breadth-first search recorded frame by frame so it can be replayed. */
 function search(grid: Cell[][]): { frames: Frame[]; distance: number | null } {
   const rows = grid.length;
   const cols = grid[0].length;
@@ -109,8 +108,6 @@ export function MazeVisualizer() {
   const frame = frames[Math.min(step, frames.length - 1)];
   const atEnd = step >= frames.length - 1;
 
-  // Playback stops by simply not scheduling the next frame, which avoids
-  // calling setState from an effect just to flip `playing` off at the end.
   useEffect(() => {
     if (!playing || step >= frames.length - 1) return;
     const timer = setTimeout(() => setStep((current) => current + 1), 220);

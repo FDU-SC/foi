@@ -1,40 +1,20 @@
 import { countDistinct } from "drizzle-orm";
 import { listAccounts } from "@/lib/accounts/queries";
+import { savedBootWarnings } from "@/lib/boot/checks";
 import { allContests } from "@/lib/contests/registry";
 import { db } from "@/lib/db";
 import { contests, problems, submissions } from "@/lib/db/schema";
-import { enumeratedHandles, tallyCohorts } from "@/lib/enrollment/registry";
-import { orphanedBackends } from "@/lib/backend/access";
-import {
-  backendsMissingActionUrl,
-  backendsOnLoopback,
-  backendsSharingSecret,
-} from "@/lib/backend/boot";
+import { enumeratedUids, tallyCohorts } from "@/lib/enrollment/registry";
+import { orphanedBackends, problemsServedBy } from "@/lib/backend/access";
+import { sharedSecret } from "@/lib/backend/env";
+import { backends } from "@/lib/backend/registry";
+import { effectiveSecret } from "@/lib/backend/resolve";
+import { declaredDelivery, relayOptions } from "@/lib/mail/transport";
 import { reaperHealth, recentDisruptions } from "@/lib/runner/reaper";
-import { mailDeliveryUnmet } from "@/lib/mail/transport";
 import { allProblems } from "@/lib/problems/registry";
 
-/**
- * What the operations console is for, now that it cannot edit anything.
- *
- * The interesting question is not "what should I change" but "where has
- * reality drifted from what the repository says". Each finding names a
- * specific divergence and how to resolve it.
- *
- * A credential with no roster entry is not one of them — that is what an
- * ordinary competitor looks like. The mirror image is: the rules are code and
- * the addresses are data, so a rule that has fallen behind its intake shows up
- * as people quietly belonging to nothing.
- */
 export type DriftSeverity = "info" | "warn";
 
-/**
- * How far back the disrupted count below looks.
- *
- * An hour, because the finding is about a rate rather than a total: it should
- * appear while a bad runner is still bad and disappear once it has been fixed,
- * without an operator having to remember what the number was yesterday.
- */
 const DISRUPTION_WINDOW_MS = 60 * 60 * 1000;
 
 export interface DriftFinding {
@@ -50,31 +30,18 @@ export interface AdminOverview {
   problemCount: number;
   contestCount: number;
   submissionCount: number;
-  /** Distinct handles that have ever submitted. */
-  activeHandles: number;
-  /**
-   * Problems and contests that have ever been submitted to.
-   *
-   * Not "how much of the registry is mirrored" — nothing pushes the registry
-   * into these tables any more. A row appears when a submission first
-   * references it, so the count is a floor on how much of the repository has
-   * seen use, and the difference from `problemCount` is problems nobody has
-   * tried yet.
-   */
+
+  activeUids: number;
+
   mirroredProblems: number;
   mirroredContests: number;
   findings: DriftFinding[];
 }
 
-/**
- * Ungated on purpose: this counts every account and every mirror row, so it is
- * not a thing a page may call. `adminOverviewFor` in `./access` is the way in,
- * and it is the only caller.
- */
 export async function loadAdminOverview(): Promise<AdminOverview> {
   const registryProblems = allProblems();
   const registryContests = allContests();
-  const named = enumeratedHandles();
+  const namedUids = enumeratedUids();
 
   const [accountRows, problemRows, contestRows, submissionStats] =
     await Promise.all([
@@ -84,54 +51,59 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       db
         .select({
           total: countDistinct(submissions.id),
-          handles: countDistinct(submissions.handle),
+          uids: countDistinct(submissions.uid),
         })
         .from(submissions),
     ]);
 
-  const accountHandles = new Set(accountRows.map((row) => row.handle));
+  const accountUids = new Set(accountRows.map((row) => row.uid));
 
   const findings: DriftFinding[] = [];
 
-  // First, because it is the only one here that means a whole feature is dead
-  // rather than that some rows need attention.
-  //
-  // The failure is not that codes and reset links end up in the container log.
-  // Reading that log takes a shell on the deploy host, and whoever has one
-  // already has the `.env`, the database and `scripts/set-password.cjs` — the
-  // log tells them nothing new. It is that registration and recovery are dead
-  // ends that announce themselves as working: the page says a code was sent,
-  // every individual send succeeds, and the person waiting on the mail has no
-  // way to find out why it will never arrive. Nothing else in the product is
-  // in a position to say so, which is why this is the one place that can.
-  //
-  // Asked of the mail module rather than of `FOI_SMTP_HOST`, which is the
-  // whole reason `policy.mailDelivery` exists: where mail goes is a
-  // declaration, not an inference from an absent variable. Reading the
-  // variable tells a deployment that wrote `mailDelivery: "console"` on
-  // purpose to fix a decision it made, at every visit, and a list whose first
-  // entry can never be resolved is a list that gets skimmed past.
-  //
-  // Barely reachable in production, because `assertMailDelivery` refuses that
-  // boot. So this mostly repeats a startup warning, for the reason the
-  // shared-key finding below does: a startup warning scrolled past weeks ago,
-  // in a log that has since rotated.
-  if (mailDeliveryUnmet()) {
+  const bootWarnings = savedBootWarnings();
+  if (bootWarnings.length > 0) {
     findings.push({
       severity: "warn",
-      title: "声明了要发信，却没有可用的 SMTP 中继",
+      title: "启动时发现的配置提醒",
       detail:
-        'content/enrollment/ 的 policy 声明了 mailDelivery: "smtp"，但没有设置 FOI_SMTP_HOST——注册的验证码、找回密码的链接都只会打印到服务端日志里，用户看到「已发送」，然后永远等不到。设置 FOI_SMTP_HOST 等变量，或者在 policy 里明确写上 mailDelivery: "console"。同样的组合在生产环境会直接拒绝启动，所以看到它说明这是开发或测试环境。',
+        "以下提醒在启动时已报告过，列在此处方便查看。",
+      items: bootWarnings,
+    });
+  }
+
+  if (declaredDelivery() === "smtp" && relayOptions() === null) {
+    findings.push({
+      severity: "warn",
+      title: "SMTP 中继未配置",
+      detail:
+        "FOI_MAIL_DELIVERY 设为 smtp（默认），但 FOI_SMTP_HOST 未设置。" +
+        "邮件无法投递。设置 FOI_SMTP_HOST，或改为 FOI_MAIL_DELIVERY=console。",
       items: [],
     });
   }
 
-  // The rules are code and the addresses are data, so this is where the two
-  // fall out of step: a new intake whose address format nobody added a rule
-  // for lands here, silently in no cohort, entered in no contest.
-  //
-  // The same pass the console's enrolment page runs, which is what keeps the
-  // handles listed here and the number shown there from being two answers.
+  const shared = sharedSecret();
+  const inUseBackends = Object.keys(backends).filter(
+    (id) => problemsServedBy(id).length > 0,
+  );
+  const onShared = inUseBackends.filter(
+    (id) =>
+      problemsServedBy(id).length > 0 &&
+      effectiveSecret(id) === shared,
+  );
+  const anyBorrowed = onShared.some((id) => !backends[id].secret);
+  if (anyBorrowed && onShared.length >= 2) {
+    findings.push({
+      severity: "warn",
+      title: "多个题目后端共用签名密钥",
+      detail:
+        "这些题目后端都在使用共享的 FOI_BACKEND_SECRET。" +
+        "任何一台被攻破，另外几台的评测队列也一起暴露。" +
+        "为每台服务单独设置 FOI_BACKEND_<名字>_SECRET。",
+      items: onShared,
+    });
+  }
+
   const { untagged } = tallyCohorts(
     accountRows.filter((row) => row.status === "active"),
   );
@@ -142,31 +114,22 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       title: "有账号的邮箱不匹配任何分流规则",
       detail:
         "他们不属于任何标签，因此进不了任何 tag 制比赛。多半是 content/enrollment/ 里的规则没跟上新的邮箱格式。",
-      items: untagged,
+      items: untagged.map(String),
     });
   }
 
-  // A rule naming a handle is a membership waiting for somebody to claim it,
-  // and it is also the only shape that can carry privilege. Before they
-  // register there is nobody to give it to, which is normal for a day and a
-  // typo if it lasts — the bootstrap administrator is created by
-  // `scripts/create-account.cjs` and named here afterwards, so this is where a
-  // mistyped handle shows up in between.
-  const unclaimed = named.filter((handle) => !accountHandles.has(handle));
+  const unclaimed = namedUids.filter((uid) => !accountUids.has(uid));
 
   if (unclaimed.length > 0) {
     findings.push({
       severity: "info",
-      title: "有规则点名的用户名还没有账号",
+      title: "有规则点名的 uid 还没有对应账号",
       detail:
-        "这些用户名在 content/enrollment/ 的规则里被点名，但还没有人注册使用。它们已被注册流程预留，确认拼写无误，或等本人完成注册。",
-      items: unclaimed,
+        "这些 uid 在 content/enrollment/ 的规则里被点名，但数据库中不存在。确认 uid 填写无误。",
+      items: unclaimed.map(String),
     });
   }
 
-  // Mirror rows are written when a submission first references a problem or a
-  // contest, so a row with no registry entry means the definition was removed
-  // from the repository while its submissions remain.
   const registryProblemSlugs = new Set(registryProblems.map((p) => p.slug));
   const registryContestSlugs = new Set(registryContests.map((c) => c.slug));
 
@@ -179,64 +142,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       .map((row) => `比赛 ${row.slug}`),
   ];
 
-  // Said at startup too, and worth repeating here for the reason every startup
-  // warning is easy to miss: it scrolled past weeks ago, in a container whose
-  // log has since rotated. This is the surface somebody actually looks at.
-  const sharingSecret = backendsSharingSecret();
-  if (sharingSecret.length > 0) {
-    findings.push({
-      severity: "warn",
-      title: "有多台题目后端共用同一个签名密钥",
-      detail:
-        "拉模型下这把密钥是评测机进来的凭证：拿到它就能领走该后端队列里的任意提交、读到里面所有人的代码、写任意评测结果。几台共用一把，等于其中任何一台被攻破，另外几台的队列也一起丢。为每台服务设置各自的 FOI_BACKEND_<名字>_SECRET 并同步到后端本身；确实由同一套评测机服务的多个条目，填相同的值即可。生产环境会因为这一条直接拒绝启动，所以看到它说明这是开发或测试环境。",
-      items: sharingSecret,
-    });
-  }
-
-  // Not fatal here for the same reason the loopback finding is not: outside
-  // production a missing address falls back to the local mock, which is what a
-  // checkout looks like. In production `assertBackendActionUrls` has already
-  // refused the boot, so this can only appear where it is survivable.
-  const missingActionUrl = backendsMissingActionUrl();
-  if (missingActionUrl.length > 0) {
-    findings.push({
-      severity: "warn",
-      title: "有题目声明了交互动作，但后端没有地址",
-      detail:
-        "评测本身不需要后端地址——评测机自己来平台领活。但题目声明的交互动作是平台代选手同步发起的，拉不了，所以承载它们的后端仍然必须可达。缺地址时这些动作会直接失败，选手看到的是一个点不动的按钮。",
-      items: missingActionUrl,
-    });
-  }
-
-  // Only in a deployment. Every backend is the local mock during `pnpm dev`,
-  // and a finding that stands on every developer's console is one nobody reads
-  // by the time it appears on a real one — the same reason the shared-key
-  // warning above counts services rather than entries.
-  //
-  // What this catches is the half `assertEnv` cannot. It can insist the
-  // address variable was set; it cannot tell an address apart from a leftover,
-  // and the leftover this deployment shape produces is `localhost`, which
-  // inside the app container is the app container.
-  const loopback =
-    process.env.NODE_ENV === "production" ? backendsOnLoopback() : [];
-
-  if (loopback.length > 0) {
-    findings.push({
-      severity: "warn",
-      title: "有题目后端的地址指向本机",
-      detail:
-        "容器里的 localhost 就是这个应用自己，那里没有题目后端在听。这个地址只用于题目声明的交互动作，所以受影响的是那几道题的按钮，而不是评测——多半是 .env.example 的开发用地址被抄进了部署。改成后端真正的地址（宿主机上的用 host.docker.internal，同网络的容器用容器名）；后端确实与应用共处一台机器时，可以忽略这一条。",
-      items: loopback,
-    });
-  }
-
-  // The one failure with no other outward sign. If the reaper stops, a runner
-  // that dies takes its jobs with it — they sit in `judging` for good — while
-  // pages render, submissions are accepted, and the database is reachable, so
-  // every other check stays green.
-  //
-  // This answers for *this* process, which is the right scope while the loop
-  // runs inside it; see `reaperRanAt`.
   const reaper = reaperHealth();
   if (!reaper.ok) {
     findings.push({
@@ -252,11 +157,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     });
   }
 
-  // The cheapest stand-in for the internal-error console this deliberately does
-  // not have. One disrupted submission is visible on its own row and an
-  // administrator can rejudge it; what nothing else would show is a runner
-  // failing everything it touches, which looks exactly like a quiet afternoon
-  // until somebody complains.
   const disrupted = await recentDisruptions(DISRUPTION_WINDOW_MS);
   if (disrupted > 0) {
     findings.push({
@@ -268,9 +168,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     });
   }
 
-  // A judge nothing routes to is invisible to players by design — the gate
-  // shows a judge only to somebody who can see a problem on it — so an
-  // unreferenced one would otherwise sit there unnoticed, healthy and unused.
   const unusedJudges = orphanedBackends();
   if (unusedJudges.length > 0) {
     findings.push({
@@ -299,7 +196,7 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     problemCount: registryProblems.length,
     contestCount: registryContests.length,
     submissionCount: submissionStats[0]?.total ?? 0,
-    activeHandles: submissionStats[0]?.handles ?? 0,
+    activeUids: submissionStats[0]?.uids ?? 0,
     mirroredProblems: problemRows.length,
     mirroredContests: contestRows.length,
     findings,

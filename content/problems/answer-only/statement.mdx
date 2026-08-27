@@ -1,4 +1,8 @@
 import { DownloadInputs } from "./DownloadInputs";
+import { Callout } from "@/content/_shared/mdx/callout";
+import { Constraints } from "@/content/_shared/mdx/constraints";
+import { SubmitPanel } from "@/content/_shared/ui/submit-panel";
+import { TextInput } from "@/content/_shared/ui/text-input";
 
 <Constraints extra={{ 分类: "提交答案", 场景: "3", 计分: "按场景" }} />
 
@@ -31,4 +35,4 @@ import { DownloadInputs } from "./DownloadInputs";
 
 </Callout>
 
-<SubmitPanel />
+<SubmitPanel><TextInput /></SubmitPanel>

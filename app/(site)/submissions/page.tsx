@@ -5,27 +5,23 @@ import { getSessionUser } from "@/auth";
 import { ProblemRef } from "@/components/problem/problem-ref";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
-import { viewerFor } from "@/lib/auth/viewer";
+import { viewerFor } from "@/lib/permissions/viewer";
 import { isSettled } from "@/lib/backend/types";
+import { dateFormatter } from "@/lib/format";
 import { submissionsFor } from "@/lib/submissions/access";
 import { locateInQueues } from "@/lib/submissions/queue-position";
 
 export const metadata: Metadata = { title: "提交记录" };
 export const dynamic = "force-dynamic";
 
-const formatter = new Intl.DateTimeFormat("zh-CN", {
-  dateStyle: "short",
-  timeStyle: "medium",
-});
+const formatter = dateFormatter({ dateStyle: "short", timeStyle: "medium" });
 
 export default async function SubmissionsPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login?next=/submissions");
 
-  // Scoped by the viewer, not by an argument this page has to remember.
   const rows = await submissionsFor(viewerFor(user), { limit: 50 });
 
-  // One sweep of the judges covers every unfinished row on the page.
   const positions = await locateInQueues(
     rows.filter((row) => !isSettled(row.state)).map((row) => row.id),
   );

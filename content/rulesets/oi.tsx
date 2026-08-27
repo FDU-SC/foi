@@ -1,14 +1,16 @@
 import { z } from "zod";
 import {
   assignRanks,
-  scoredSubmissions,
+  hasResult,
+  submissionsInWindow,
   type Ruleset,
   type StandingsInput,
   type StandingsRow,
 } from "@/lib/standings/types";
 
+interface OiResult { score: number; maxScore: number }
+
 const configSchema = z.object({
-  /** "best" scores the highest submission, "last" scores the final one. */
   take: z.enum(["best", "last"]).default("best"),
 });
 
@@ -16,13 +18,19 @@ export interface OiCell {
   score: number;
   maxScore: number;
   attempts: number;
-  /** Milliseconds from contest start for the submission that counted. */
+  pending: number;
   at: number | null;
 }
 
-function OiCellView({ cell }: { cell: OiCell | undefined }) {
-  if (!cell || cell.attempts === 0) {
+export function OiCellView({ cell }: { cell: OiCell | undefined }) {
+  if (!cell || (cell.attempts === 0 && cell.pending === 0)) {
     return <span className="text-fg-subtle">·</span>;
+  }
+
+  if (cell.attempts === 0) {
+    return (
+      <span className="text-info font-mono text-xs tabular-nums">?</span>
+    );
   }
 
   const full = cell.score >= cell.maxScore;
@@ -30,36 +38,34 @@ function OiCellView({ cell }: { cell: OiCell | undefined }) {
   const tone = full ? "text-ok" : zero ? "text-err" : "text-partial";
 
   return (
-    <span className={`font-mono text-xs font-medium tabular-nums ${tone}`}>
-      {Math.round(cell.score)}
+    <span className="inline-flex items-center gap-0.5 font-mono text-xs font-medium tabular-nums">
+      <span className={tone}>{Math.round(cell.score)}</span>
+      {cell.pending > 0 ? <span className="text-info">?</span> : null}
     </span>
   );
 }
 
-/**
- * OI scoring: sum per-problem scores, taking each problem's best (or last)
- * submission. Ties break on how early the deciding submissions came in.
- */
+export function OiTotalView({ row }: { row: StandingsRow<OiCell> }) {
+  return (
+    <span className="text-fg font-mono font-semibold tabular-nums">
+      {Math.round(row.total)}
+    </span>
+  );
+}
+
+import { ProblemGridBoard } from "@/content/_shared/leaderboards/problem-grid";
+
+export const renderers = { Cell: OiCellView, Total: OiTotalView, Board: ProblemGridBoard };
+
 export const ruleset: Ruleset<OiCell> = {
   id: "oi",
   name: "OI",
   description: "每题取最高分（或最后一次提交），按总分排名。",
 
-  // No `supportsFreeze`, which the kernel reads as "does not freeze" and which
-  // is the honest answer: a frozen score-based board would need a cell state
-  // meaning "there is a newer submission you cannot see", and this format has
-  // none. Adding one is a change to the format, not a flag flip — so a
-  // contest that names `freezeAt` against this ruleset fails to load rather
-  // than running with a board that never stops updating.
-  computeStandings(input: StandingsInput) {
+  compute(input: StandingsInput) {
     const { take } = configSchema.parse(input.config ?? {});
     const start = input.contest.startsAt.getTime();
 
-    // What a problem is worth on *this* board, which is not what the backend
-    // scored it out of. A contest may reweight a problem with `points`, and
-    // the backend knows nothing about that — so the raw score is rescaled
-    // below rather than dropped into a column with a different denominator.
-    // Getting this wrong showed up as full marks reading "100/200".
     const worth = new Map(
       input.problems.map((problem) => [
         problem.slug,
@@ -67,13 +73,13 @@ export const ruleset: Ruleset<OiCell> = {
       ]),
     );
 
-    const byUser = new Map<string, Map<string, OiCell>>();
+    const byUser = new Map<number, Map<string, OiCell>>();
     for (const participant of input.participants) {
-      byUser.set(participant.handle, new Map());
+      byUser.set(participant.uid, new Map());
     }
 
-    for (const submission of scoredSubmissions(input)) {
-      const cells = byUser.get(submission.handle);
+    for (const submission of submissionsInWindow(input)) {
+      const cells = byUser.get(submission.uid);
       if (!cells) continue;
 
       const maxScore = worth.get(submission.problemSlug) ?? 0;
@@ -81,23 +87,26 @@ export const ruleset: Ruleset<OiCell> = {
         score: 0,
         maxScore,
         attempts: 0,
+        pending: 0,
         at: null,
       };
       cells.set(submission.problemSlug, cell);
+
+      if (!hasResult(submission)) {
+        cell.pending += 1;
+        continue;
+      }
+
       cell.attempts += 1;
 
-      // A backend that reported no score at all counts as zero rather than as
-      // no attempt: the person did submit, and a scored format has nothing
-      // else to say about a submission it cannot score.
-      const raw = submission.score ?? 0;
-      const outOf = submission.maxScore;
+      const r = submission.result as OiResult | null;
+      const raw = r?.score ?? 0;
+      const outOf = r?.maxScore;
       const score =
         outOf && outOf > 0 && outOf !== maxScore
           ? (raw / outOf) * maxScore
           : raw;
 
-      // Submissions arrive oldest first, so "last" simply overwrites and
-      // "best" keeps the first submission that reached the highest score.
       if (take === "last" || score > cell.score) {
         cell.score = score;
         cell.at = submission.createdAt.getTime() - start;
@@ -105,7 +114,7 @@ export const ruleset: Ruleset<OiCell> = {
     }
 
     const rows = input.participants.map((participant) => {
-      const cells = Object.fromEntries(byUser.get(participant.handle) ?? []);
+      const cells = Object.fromEntries(byUser.get(participant.uid) ?? []);
       let total = 0;
       let lastAt = 0;
 
@@ -122,16 +131,6 @@ export const ruleset: Ruleset<OiCell> = {
     return {
       rows: assignRanks<OiCell>(rows),
       totalLabel: "总分",
-      frozen: false,
     };
-  },
-
-  render: {
-    Cell: OiCellView,
-    Total: ({ row }: { row: StandingsRow<OiCell> }) => (
-      <span className="text-fg font-mono font-semibold tabular-nums">
-        {Math.round(row.total)}
-      </span>
-    ),
   },
 };

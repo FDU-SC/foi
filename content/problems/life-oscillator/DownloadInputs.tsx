@@ -3,7 +3,6 @@
 import { Button } from "@/components/ui/button";
 import { inputs } from "./data";
 
-/** 场景要求下载（尺寸上限与周期 k）。 */
 export function DownloadInputs() {
   const download = (name: string, content: string) => {
     const url = URL.createObjectURL(

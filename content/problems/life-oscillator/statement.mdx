@@ -1,5 +1,9 @@
 import { DownloadInputs } from "./DownloadInputs";
-import { GameOfLifeBoard } from "../_shared/GameOfLifeBoard";
+import { GameOfLifeBoard } from "../game-of-life/GameOfLifeBoard";
+import { Callout } from "@/content/_shared/mdx/callout";
+import { Constraints } from "@/content/_shared/mdx/constraints";
+import { SubmitPanel } from "@/content/_shared/ui/submit-panel";
+import { TextInput } from "@/content/_shared/ui/text-input";
 
 <Constraints extra={{ 分类: "提交答案 · 特判", 场景: "3" }} />
 
@@ -55,4 +59,4 @@ import { GameOfLifeBoard } from "../_shared/GameOfLifeBoard";
 
 </Callout>
 
-<SubmitPanel />
+<SubmitPanel><TextInput /></SubmitPanel>

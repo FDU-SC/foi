@@ -1,58 +1,25 @@
 #!/usr/bin/env node
-/**
- * Creates an account from a shell, which is the only way to get the first one.
- *
- * Everybody else registers: the form proves the address, picks a handle and
- * writes the row. That cannot produce the first administrator, because a fresh
- * deployment has no administrator to name and — more to the point — because
- * naming somebody in `content/enrollment/` is a commit, and a commit cannot
- * reference an account that does not exist yet. So the order is: create the
- * account here, then add a rule naming its handle, then deploy.
- *
- * Startup used to do this instead, materialising accounts declared in the
- * repository. It meant every boot wrote to the database, and it put a
- * `displayName` field in the enrollment file that had nothing to do with
- * authorisation.
- *
- *   printf '%s' 'your-password' | docker compose exec -T app \
- *     node scripts/create-account.cjs admin --name '管理员' \
- *       --email admin@example.edu
- *
- *   # with nothing piped in, a strong password is generated and printed once
- *   docker compose exec -T app node scripts/create-account.cjs admin \
- *     --name '管理员' --email admin@example.edu
- *
- * The address is required and recorded as verified: an operator typing it at a
- * shell is a stronger check than a mailed code, and it means this account can
- * use the ordinary password reset afterwards rather than needing a second trip
- * through here. `policy.emailDomains` is deliberately not consulted — the
- * allowlist gates self-registration, and the reason to reach for this script
- * includes the external competitor whose address is not on it. Anyone who can
- * run this could write the row by hand anyway.
- */
 
 const crypto = require("node:crypto");
 const { hash } = require("@node-rs/argon2");
 const { Client } = require("pg");
 
-// See the note in set-password.cjs: fed through `node -`, a relative require
-// resolves against the working directory rather than against this file.
 const ARGON2_OPTIONS = (() => {
   try {
-    return require("./argon2-options.cjs");
+    return require("../lib/accounts/argon2-options.cjs");
   } catch {
-    return require("./scripts/argon2-options.cjs");
+    return require("./lib/accounts/argon2-options.cjs");
   }
 })();
 
 const USAGE = `用法:
-  node scripts/create-account.cjs <handle> --name <显示名> --email <邮箱>
+  node scripts/create-account.cjs <username> --nick <昵称> --email <邮箱>
 
 密码从 stdin 读取；不传则自动生成并打印一次。
 
 这个脚本只用于开局和救援：第一个管理员没法通过注册页产生，因为给谁提权是
-content/enrollment/ 里的一次提交，而提交没法引用一个还不存在的账号。建完之后
-把这个 handle 写进一条 handles 规则，重新部署即可。
+content/enrollment/ 里的一次提交，而提交没法引用一个还不存在的账号的 uid。
+建完之后把返回的 uid 写进一条 uids 规则，重新部署即可。
 
 改密码用 scripts/set-password.cjs。`;
 
@@ -75,30 +42,29 @@ function readStdin() {
     stdin.on("data", (chunk) => (data += chunk));
     stdin.on("end", finish);
     stdin.on("error", finish);
-    // See the note in set-password.cjs: fed through `node -`, stdin may never
-    // emit 'end'.
+
     setTimeout(finish, 300);
   });
 }
 
 function parseArgs(argv) {
-  let handle;
-  let name;
+  let username;
+  let nick;
   let email;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--help" || arg === "-h") return { help: true };
-    if (arg === "--name") {
-      name = argv[(i += 1)];
+    if (arg === "--nick") {
+      nick = argv[(i += 1)];
     } else if (arg === "--email") {
       email = argv[(i += 1)];
-    } else if (!handle) {
-      handle = arg;
+    } else if (!username) {
+      username = arg;
     }
   }
 
-  return { handle, name, email };
+  return { username, nick, email };
 }
 
 function fail(message) {
@@ -107,24 +73,19 @@ function fail(message) {
 }
 
 async function main() {
-  const { help, handle, name, email } = parseArgs(process.argv.slice(2));
+  const { help, username, nick, email } = parseArgs(process.argv.slice(2));
 
-  if (help || !handle) {
+  if (help || !username) {
     console.error(USAGE);
     process.exit(help ? 0 : 1);
   }
-  if (!/^[a-zA-Z0-9_-]{2,32}$/.test(handle)) {
-    fail("handle 只能包含字母、数字、下划线和连字符，长度 2-32");
+  if (!/^[a-zA-Z0-9_-]{2,32}$/.test(username)) {
+    fail("username 只能包含字母、数字、下划线和连字符，长度 2-32");
   }
-  if (!name) fail("缺少 --name，账号需要一个显示名");
+  if (!nick) fail("缺少 --nick，账号需要一个昵称");
   if (!email) fail("缺少 --email");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail("邮箱格式不正确");
 
-  // Both normalised the way the application does. Sub-addresses are left alone
-  // here: `policy.stripSubaddress` is about one mailbox not becoming several
-  // cohorts through the registration form, and an operator typing an address
-  // at a shell means the address they typed.
-  const normalizedHandle = handle.trim().toLowerCase();
   const normalizedEmail = email.trim().toLowerCase();
 
   let password = await readStdin();
@@ -144,49 +105,48 @@ async function main() {
     await client.query("begin");
 
     const clash = await client.query(
-      "select handle from accounts where handle = $1 or email = $2",
-      [normalizedHandle, normalizedEmail],
+      "select uid, username from accounts where lower(username) = lower($1) or email = $2",
+      [username, normalizedEmail],
     );
     if (clash.rows.length > 0) {
-      const taken = clash.rows[0].handle;
+      const taken = clash.rows[0];
       fail(
-        taken === normalizedHandle
-          ? `用户名 ${normalizedHandle} 已被占用。要改它的密码，用 scripts/set-password.cjs。`
-          : `邮箱 ${normalizedEmail} 已经属于账号 ${taken}。`,
+        taken.username.toLowerCase() === username.toLowerCase()
+          ? `用户名 ${username} 已被占用（uid=${taken.uid}）。要改它的密码，用 scripts/set-password.cjs。`
+          : `邮箱 ${normalizedEmail} 已经属于账号 uid=${taken.uid}（${taken.username}）。`,
       );
     }
 
-    await client.query(
+    const result = await client.query(
       `insert into accounts
-         (handle, display_name, email, email_verified_at, source, status)
-       values ($1, $2, $3, now(), 'bootstrap', 'active')`,
-      [normalizedHandle, name, normalizedEmail],
-    );
-    await client.query(
-      "insert into credentials (handle, password_hash) values ($1, $2)",
-      [normalizedHandle, passwordHash],
+         (username, nickname, email, status,
+          password_hash, password_set_at)
+       values ($1, $2, $3, 'active', $4, now())
+       returning uid`,
+      [username, nick, normalizedEmail, passwordHash],
     );
 
+    const uid = result.rows[0].uid;
+
     await client.query("commit");
+
+    console.log(`已创建账号 uid=${uid}（${username}，${nick}，${normalizedEmail}）`);
+    if (generated) {
+      console.log(`密码: ${password}`);
+      console.log("这是唯一一次显示，请立即保存。");
+    }
+
+    console.log(
+      `\n它现在还没有任何权限。在 content/enrollment/ 加一条规则，把它放进一个带` +
+        ` admin.access 能力的组，然后重新部署：\n` +
+        `  { label: "…", uids: [${uid}], groups: ["…"] }`,
+    );
   } catch (error) {
     await client.query("rollback").catch(() => {});
     throw error;
   } finally {
     await client.end();
   }
-
-  console.log(`已创建账号 ${normalizedHandle}（${name}，${normalizedEmail}）`);
-  if (generated) {
-    console.log(`密码: ${password}`);
-    console.log("这是唯一一次显示，请立即保存。");
-  }
-  // 组 id 是那套 content 自己定义的，这个脚本一个也不认识——它连 registry 都不
-  // 加载。所以这里给形状，不给名字。
-  console.log(
-    `\n它现在还没有任何权限。在 content/enrollment/ 加一条规则，把它放进一个带` +
-      ` admin.access 能力的组，然后重新部署：\n` +
-      `  { label: "…", handles: ["${normalizedHandle}"], groups: ["…"] }`,
-  );
 }
 
 main().catch((error) => {

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/auth";
-import { viewerFor } from "@/lib/auth/viewer";
+import { viewerFor } from "@/lib/permissions/viewer";
 import { isSettled } from "@/lib/backend/types";
 import { rateLimit } from "@/lib/ratelimit";
-import { guardRequest, tooManyRequests } from "@/lib/ratelimit/gate";
-import { fixedRule, ROUTE_LIMITS } from "@/lib/ratelimit/policy";
+import { guardRequest, tooManyRequests } from "@/lib/server/guard";
+import { ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { submissionFor } from "@/lib/submissions/access";
-import { toView } from "@/lib/submissions/queries";
+import { getQueueInfo, toView } from "@/lib/submissions/queries";
 import { locateOne } from "@/lib/submissions/queue-position";
 
 export const runtime = "nodejs";
@@ -23,12 +23,9 @@ export async function GET(
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
 
-  // This is the endpoint the client polls while a verdict is outstanding, and
-  // every call runs a queue lookup on top of the row read. Bounded above what
-  // a few tabs backing off from 800ms legitimately produce.
-  const rule = fixedRule(ROUTE_LIMITS["GET /api/submissions/[id]"]);
+  const rule = ROUTE_LIMITS["GET /api/submissions/[id]"];
   const limited = rateLimit(
-    `submission:${user.handle}`,
+    `submission:${user.uid}`,
     rule.max,
     rule.windowSeconds * 1000,
   );
@@ -40,8 +37,9 @@ export async function GET(
     return NextResponse.json({ error: "提交不存在" }, { status: 404 });
   }
 
-  const view = toView(row);
-  if (!isSettled(row.state)) {
+  const queueInfo = row.state === "pending" ? await getQueueInfo(row.id) : null;
+  const view = toView(row, queueInfo);
+  if (!isSettled(view.state)) {
     view.queue = await locateOne(row.id);
   }
 

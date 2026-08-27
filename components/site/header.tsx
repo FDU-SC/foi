@@ -1,19 +1,14 @@
 import Link from "next/link";
 import { getSessionUser } from "@/auth";
-import { groupName } from "@/lib/auth/groups";
-import { viewerFor } from "@/lib/auth/viewer";
+import { groupName } from "@/lib/permissions/groups";
+import { viewerFor } from "@/lib/permissions/viewer";
+import { site } from "@/lib/site";
 import { ThemeToggle } from "@/components/site/theme-toggle";
 import { UserMenu } from "@/components/site/user-menu";
 
-const NAV = [
-  { href: "/problems", label: "题库" },
-  { href: "/contests", label: "比赛" },
-  { href: "/submissions", label: "提交记录" },
-  { href: "/judges", label: "评测机" },
-] as const;
-
 export async function Header() {
   const user = await getSessionUser();
+  const viewer = viewerFor(user);
 
   return (
     <header className="border-border bg-bg/85 sticky top-0 z-40 border-b backdrop-blur">
@@ -22,27 +17,21 @@ export async function Header() {
           href="/"
           className="text-fg shrink-0 text-base font-bold tracking-tight"
         >
-          FOI
+          {site.name}
         </Link>
 
         <nav className="flex items-center gap-1 text-sm">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="text-fg-muted hover:text-fg hover:bg-surface-2 rounded-md px-2.5 py-1.5 transition-colors"
-            >
-              {item.label}
-            </Link>
-          ))}
-          {viewerFor(user).can("admin.access") ? (
-            <Link
-              href="/admin"
-              className="text-fg-muted hover:text-fg hover:bg-surface-2 rounded-md px-2.5 py-1.5 transition-colors"
-            >
-              管理
-            </Link>
-          ) : null}
+          {site.navigation
+            .filter((item) => !item.capability || viewer.can(item.capability))
+            .map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="text-fg-muted hover:text-fg hover:bg-surface-2 rounded-md px-2.5 py-1.5 transition-colors"
+              >
+                {item.label}
+              </Link>
+            ))}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">

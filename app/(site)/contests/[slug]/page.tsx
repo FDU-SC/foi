@@ -9,7 +9,9 @@ import {
 } from "@/lib/contests/access";
 import { resolveContestProblems } from "@/lib/contests/resolve";
 import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
+import { dateFormatter } from "@/lib/format";
 import { rulesetFor } from "@/lib/standings/registry";
+import type { LeaderboardConfig } from "@/lib/contests/types";
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +23,7 @@ export async function generateMetadata({
   return { title: view?.config.title ?? "比赛" };
 }
 
-const formatter = new Intl.DateTimeFormat("zh-CN", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
 export default async function ContestPage({
   params,
@@ -37,11 +36,9 @@ export default async function ContestPage({
   if (!view) notFound();
 
   const contest = view.config;
-  const ruleset = rulesetFor(contest.slug, contest.ruleset.id);
+  const primaryLb: LeaderboardConfig = contest.leaderboards[0];
+  const ruleset = rulesetFor(primaryLb.ruleset.id);
 
-  // One clock read for the page. The phase badge and the problem list are two
-  // answers about the same `startsAt`, and a request that lands across it
-  // should not draw a 未开始 header over an open problem list.
   const now = new Date();
   const phase = contestPhase(contest, now);
   const problemSetVisible = isContestProblemSetVisibleTo(contest, viewer, now);
@@ -52,7 +49,7 @@ export default async function ContestPage({
       <header className="border-border border-b pb-5">
         <div className="mb-2 flex items-center gap-2">
           <Badge tone={PHASE_TONE[phase]}>{PHASE_LABEL[phase]}</Badge>
-          <Badge>{ruleset?.name ?? contest.ruleset.id}</Badge>
+          <Badge>{ruleset?.name ?? primaryLb.ruleset.id}</Badge>
         </div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">
           {contest.title}
@@ -74,10 +71,7 @@ export default async function ContestPage({
 
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-fg text-lg font-semibold">题目</h2>
-        {/* `phase`, not `!problemSetVisible` — the override has already
-            flipped that one true. What the badge reports is *which* of the
-            two reasons opened the list, so a proofreader can tell their view
-            from a competitor's. */}
+
         {phase === "upcoming" && preview ? (
           <Badge tone="warn">预览 · 尚未对选手公开</Badge>
         ) : null}

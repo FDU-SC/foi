@@ -1,11 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { site } from "@/lib/site";
 
-/**
- * The frame around every page that is reached while signed out — logging in,
- * registering, asking for a password reset, setting the new one. There are
- * four of them, and they only differ in the form in the middle.
- */
 export function AuthShell({
   children,
   footer,
@@ -20,7 +16,7 @@ export function AuthShell({
           href="/"
           className="text-fg mb-8 block text-center text-2xl font-bold tracking-tight"
         >
-          FOI
+          {site.name}
         </Link>
         {children}
         {footer ? (

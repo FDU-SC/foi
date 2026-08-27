@@ -5,8 +5,8 @@ import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { adminOverviewFor } from "@/lib/admin/access";
-import { capabilitiesOf, listGroups } from "@/lib/auth/groups";
-import { CAPABILITY_LABELS } from "@/lib/auth/policy";
+import { capabilitiesOf, listGroups } from "@/lib/permissions/groups";
+import { CAPABILITY_LABELS } from "@/lib/permissions/policy";
 import { listRulesets } from "@/lib/standings/registry";
 
 export const metadata: Metadata = { title: "管理" };
@@ -66,16 +66,7 @@ export default async function AdminPage() {
       <Card>
         <CardHeader title="仓库与数据库一致性" />
         <CardBody className="space-y-3">
-          {/* This used to claim every problem and contest was mirrored, which
-              stopped being a state worth reporting when the startup sync went:
-              rows appear on the submission path, so a mirror table trailing the
-              repository is the ordinary case rather than a clean bill. What is
-              left is the list of checks `loadAdminOverview` actually runs, and
-              the note below says what the two counts mean. Keep this in step
-              with `findings.push` in `lib/admin/drift.ts`: a check that runs
-              but goes unnamed here reads as one that was never made. The
-              loopback clause is hedged because that check only runs in
-              production — elsewhere the address is *expected* to be local. */}
+
           {overview.findings.length === 0 ? (
             <p className="text-fg-muted text-sm leading-6">
               没有发现偏差：邮件通道已配置，有邮箱的在用账号都能匹配到分流规则，规则点名的用户名都已有人注册，每台题目后端都持有各自的签名密钥、都有题目指向、生产环境下地址也都没有指向本机，镜像表里也没有仓库中已删除的条目。
@@ -132,7 +123,7 @@ export default async function AdminPage() {
             纯分组不需要声明，出现在规则或授权里即可使用。列出的是
             <strong className="text-fg font-medium">实际生效</strong>
             的能力，鼠标悬停看中文说明；蓝色那些是文件里没写、由别的能力蕴含而来的
-            （见 <code className="font-mono">lib/auth/policy.ts</code> 的{" "}
+            （见 <code className="font-mono">lib/permissions/policy.ts</code> 的{" "}
             <code className="font-mono">IMPLIES</code>）。
           </p>
           <div className="border-border overflow-hidden rounded-md border">
@@ -208,11 +199,6 @@ export default async function AdminPage() {
                 <code className="text-fg-subtle font-mono text-xs">
                   {ruleset.id}
                 </code>
-                {ruleset.supportsFreeze ? (
-                  <Badge tone="info">支持封榜</Badge>
-                ) : (
-                  <Badge>不支持封榜</Badge>
-                )}
               </div>
               <p className="text-fg-muted text-xs leading-5">
                 {ruleset.description}

@@ -1,10 +1,5 @@
 "use client";
 
-/**
- * No React state here on purpose: the current theme lives in a class on
- * `<html>`, so reading it into state would mean a synchronous setState in an
- * effect. CSS variants render the right icon straight off that class.
- */
 export function ThemeToggle() {
   const toggle = () => {
     const next = !document.documentElement.classList.contains("dark");

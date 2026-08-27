@@ -3,7 +3,7 @@ import { defineConfig } from "drizzle-kit";
 try {
   process.loadEnvFile(".env.local");
 } catch {
-  // Falls back to the ambient environment (CI, production).
+
 }
 
 export default defineConfig({

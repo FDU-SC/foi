@@ -10,7 +10,6 @@ import {
 } from "@/test/standings-support";
 import {
   assignRanks,
-  isAccepted,
   scoredSubmissions,
   submissionsInWindow,
 } from "./types";
@@ -19,12 +18,12 @@ describe("assignRanks", () => {
   function ranked(rows: { total: number; tiebreak: number }[]) {
     return assignRanks(
       rows.map((row, index) => ({
-        participant: { handle: `u${index}`, displayName: `u${index}` },
+        participant: { uid: index, nickname: `u${index}` },
         total: row.total,
         tiebreak: row.tiebreak,
         cells: {},
       })),
-    ).map((row) => ({ handle: row.participant.handle, rank: row.rank }));
+    ).map((row) => ({ uid: row.participant.uid, rank: row.rank }));
   }
 
   it("按 total 降序、tiebreak 升序排列", () => {
@@ -35,9 +34,9 @@ describe("assignRanks", () => {
         { total: 3, tiebreak: 20 },
       ]),
     ).toEqual([
-      { handle: "u2", rank: 1 },
-      { handle: "u1", rank: 2 },
-      { handle: "u0", rank: 3 },
+      { uid: 2, rank: 1 },
+      { uid: 1, rank: 2 },
+      { uid: 0, rank: 3 },
     ]);
   });
 
@@ -68,7 +67,7 @@ describe("assignRanks", () => {
 
 describe("scoredSubmissions", () => {
   const base = {
-    participants: participants("alice"),
+    participants: participants(1),
     problems: [problem("a", "A")],
   };
 
@@ -77,16 +76,16 @@ describe("scoredSubmissions", () => {
       input({
         ...base,
         submissions: [
-          submission({ handle: "alice", problemSlug: "a", minutes: 5, score: 100 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 5, score: 100 }),
           submission({
-            handle: "alice",
+            uid: 1,
             problemSlug: "a",
             minutes: 6,
             score: 0,
-            state: "judging",
+            state: "pending",
           }),
           submission({
-            handle: "alice",
+            uid: 1,
             problemSlug: "a",
             minutes: 7,
             score: 0,
@@ -105,9 +104,9 @@ describe("scoredSubmissions", () => {
       input({
         ...base,
         submissions: [
-          submission({ handle: "alice", problemSlug: "a", minutes: -1, score: 100 }),
-          submission({ handle: "alice", problemSlug: "a", minutes: 10, score: 100 }),
-          submission({ handle: "alice", problemSlug: "a", minutes: 999, score: 100 }),
+          submission({ uid: 1, problemSlug: "a", minutes: -1, score: 100 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 10, score: 100 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 999, score: 100 }),
         ],
       }),
     );
@@ -120,8 +119,8 @@ describe("scoredSubmissions", () => {
       input({
         ...base,
         submissions: [
-          submission({ handle: "alice", problemSlug: "a", minutes: 0, score: 100 }),
-          submission({ handle: "alice", problemSlug: "a", minutes: 300, score: 100 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 0, score: 100 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 300, score: 100 }),
         ],
         endsAt: END,
       }),
@@ -135,9 +134,9 @@ describe("scoredSubmissions", () => {
       input({
         ...base,
         submissions: [
-          submission({ handle: "alice", problemSlug: "a", minutes: 30, score: 0 }),
-          submission({ handle: "alice", problemSlug: "a", minutes: 10, score: 0 }),
-          submission({ handle: "alice", problemSlug: "a", minutes: 20, score: 0 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 30, score: 0 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 10, score: 0 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 20, score: 0 }),
         ],
       }),
     );
@@ -146,14 +145,9 @@ describe("scoredSubmissions", () => {
   });
 });
 
-/**
- * The set a format asks for when it has something to say about a submission
- * that has not been judged yet — ICPC's pending cell. Same window and same
- * ordering as `scoredSubmissions`, one state filter fewer.
- */
 describe("submissionsInWindow", () => {
   const base = {
-    participants: participants("alice"),
+    participants: participants(1),
     problems: [problem("a", "A")],
   };
 
@@ -162,30 +156,25 @@ describe("submissionsInWindow", () => {
       input({
         ...base,
         submissions: [
-          submission({ handle: "alice", problemSlug: "a", minutes: 5, score: 100 }),
-          unjudged("alice", "a", 6),
-          unjudged("alice", "a", 7, "judging"),
+          submission({ uid: 1, problemSlug: "a", minutes: 5, score: 100 }),
+          unjudged(1, "a", 6),
+          unjudged(1, "a", 7, "pending"),
         ],
       }),
     );
 
     expect(rows.map((row) => row.state)).toEqual([
       "completed",
-      "queued",
-      "judging",
+      "pending",
+      "pending",
     ]);
   });
 
-  /**
-   * The one state it does drop. A disrupted submission will never get a
-   * verdict and is explicitly not charged to whoever sent it, so a format
-   * counting it as pending would draw a cell that never resolves.
-   */
   it("剔除 disrupted", () => {
     const rows = submissionsInWindow(
       input({
         ...base,
-        submissions: [unjudged("alice", "a", 5, "disrupted")],
+        submissions: [unjudged(1, "a", 5, "disrupted")],
       }),
     );
 
@@ -196,10 +185,10 @@ describe("submissionsInWindow", () => {
     const built = input({
       ...base,
       submissions: [
-        submission({ handle: "alice", problemSlug: "a", minutes: -1, score: 100 }),
-        submission({ handle: "alice", problemSlug: "a", minutes: 30, score: 0 }),
-        submission({ handle: "alice", problemSlug: "a", minutes: 10, score: 0 }),
-        submission({ handle: "alice", problemSlug: "a", minutes: 999, score: 100 }),
+          submission({ uid: 1, problemSlug: "a", minutes: -1, score: 100 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 30, score: 0 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 10, score: 0 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 999, score: 100 }),
       ],
       endsAt: END,
     });
@@ -212,88 +201,3 @@ describe("submissionsInWindow", () => {
   });
 });
 
-describe("isAccepted", () => {
-  const record = (score: number, maxScore: number) =>
-    submission({
-      handle: "alice",
-      problemSlug: "a",
-      minutes: 1,
-      score,
-      maxScore,
-    });
-
-  it("满分算通过", () => {
-    expect(isAccepted(record(100, 100))).toBe(true);
-  });
-
-  it("部分分不算通过", () => {
-    expect(isAccepted(record(99, 100))).toBe(false);
-  });
-
-  it("超过满分也算通过", () => {
-    expect(isAccepted(record(120, 100))).toBe(true);
-  });
-
-  it("还没判完不算通过", () => {
-    expect(
-      isAccepted(
-        submission({
-          handle: "alice",
-          problemSlug: "a",
-          minutes: 1,
-          score: 100,
-          state: "queued",
-        }),
-      ),
-    ).toBe(false);
-  });
-
-  /**
-   * The case the derivation gets wrong, and the reason `accepted` exists: a
-   * performance task can pass well below full marks, or withhold a pass at
-   * full marks. Only the backend knows, so what it says wins.
-   */
-  it("评测机说了算：声明不通过时，满分也不算通过", () => {
-    expect(
-      isAccepted(
-        submission({
-          handle: "alice",
-          problemSlug: "a",
-          minutes: 1,
-          score: 100,
-          accepted: false,
-        }),
-      ),
-    ).toBe(false);
-  });
-
-  it("评测机说了算：声明通过时，零分也算通过", () => {
-    expect(
-      isAccepted(
-        submission({
-          handle: "alice",
-          problemSlug: "a",
-          minutes: 1,
-          score: 0,
-          accepted: true,
-        }),
-      ),
-    ).toBe(true);
-  });
-
-  it("评测机什么分都没报时不算通过", () => {
-    expect(
-      isAccepted({
-        id: "s_noscore",
-        handle: "alice",
-        problemSlug: "a",
-        state: "completed",
-        verdict: { status: "checked" },
-        score: null,
-        maxScore: null,
-        accepted: null,
-        createdAt: at(1),
-      }),
-    ).toBe(false);
-  });
-});

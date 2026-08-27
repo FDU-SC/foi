@@ -1,27 +1,11 @@
 import { createTransport, type Transporter } from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
-import {
-  enrollmentDeclared,
-  enrollmentPolicy,
-} from "@/lib/enrollment/registry";
-import type { EnrollmentPolicy } from "@/lib/enrollment/types";
+import { tier } from "@/lib/boot/deployment";
+import { site } from "@/lib/site";
 import type { MailBody } from "./types";
 
-/**
- * Handing a message to the mail server, and nothing more.
- *
- * There is no outbox table and no retry loop here, for the same reason the
- * kernel does not queue submissions: an SMTP relay is already a queue with
- * retries and a bounce policy, and putting a second one in front of it makes
- * the two fight over backpressure while splitting the delivery record across
- * two systems. FOI hands the message over once and reports what happened.
- *
- * Mail may also go to stdout instead, and which of the two happens must be a
- * declared decision rather than a side effect of the environment — see
- * `policy.mailDelivery` in `lib/enrollment/types.ts`. A fresh checkout runs the
- * whole registration flow with no mail server standing by; a production box
- * has to say it means that.
- */
+export type MailDelivery = "smtp" | "console";
+
 export interface MailMessage extends MailBody {
   to: string;
 }
@@ -31,30 +15,9 @@ declare global {
 }
 
 function readFrom(): string {
-  return process.env.FOI_MAIL_FROM || "FOI <foi@localhost>";
+  return process.env.FOI_MAIL_FROM || `${site.name} <noreply@localhost>`;
 }
 
-/**
- * Whether this deployment has excused its relay from encrypting.
- *
- * An opt-out rather than an opt-in, so a deployment that never heard of this
- * variable gets the safe posture. What it is for is the local Mailpit, which
- * speaks no STARTTLS at all: without an escape hatch, requiring the upgrade
- * would turn the one mail setup a fresh checkout is told to use into a
- * connection error.
- */
-function relayMaySkipTls(): boolean {
-  return process.env.FOI_SMTP_ALLOW_INSECURE === "true";
-}
-
-/**
- * What nodemailer is handed, or null when no relay is configured — which is
- * what selects the console sink.
- *
- * Split out from `buildTransporter` so the TLS posture can be asserted without
- * standing a transport up: nodemailer types a `Transporter`'s `.options` as
- * the *message* defaults, so what was passed in is not readable back off it.
- */
 export function relayOptions(): SMTPTransport.Options | null {
   const host = process.env.FOI_SMTP_HOST;
   if (!host) return null;
@@ -62,26 +25,14 @@ export function relayOptions(): SMTPTransport.Options | null {
   const user = process.env.FOI_SMTP_USER;
   const pass = process.env.FOI_SMTP_PASSWORD;
 
-  // Implicit TLS, which is port 465 and nothing else.
   const secure = process.env.FOI_SMTP_SECURE === "true";
 
   return {
     host,
     port: Number(process.env.FOI_SMTP_PORT ?? 587),
     secure,
-    // Left to itself, nodemailer upgrades only when the server advertises
-    // STARTTLS — so anything on the path strips the advertisement and watches
-    // a password reset link, a verification code and the relay's own password
-    // go by in the clear, with the send reporting success either way. This
-    // issues STARTTLS regardless of what was advertised and refuses to send if
-    // the upgrade fails, which is the whole difference between opportunistic
-    // and required.
-    //
-    // Left off under implicit TLS for the same reason nodemailer's own
-    // condition is: on 465 the socket is encrypted from the first byte, so
-    // there is no plaintext phase to protect and the flag is read and ignored.
-    // Saying so here keeps the intent legible rather than resting on that.
-    requireTLS: !secure && !relayMaySkipTls(),
+
+    requireTLS: !secure,
     auth: user ? { user, pass } : undefined,
   };
 }
@@ -99,136 +50,45 @@ function transporter(): Transporter | null {
   return built;
 }
 
-/**
- * Whether a relay is configured. Answers about the environment only — for
- * where mail actually ends up, which the policy also has a say in, ask
- * `mailSink`; for whether the two contradict each other, `mailDeliveryUnmet`.
- */
-export function mailIsConfigured(): boolean {
-  return Boolean(process.env.FOI_SMTP_HOST);
+export function declaredDelivery(): MailDelivery {
+  const explicit = process.env.FOI_MAIL_DELIVERY;
+  if (explicit === "console" || explicit === "smtp") return explicit;
+  return "smtp";
 }
 
-type MailDelivery = EnrollmentPolicy["mailDelivery"];
+export function mailDeliveryComplaints(): string[] {
+  if (declaredDelivery() !== "smtp") return [];
+  if (relayOptions() !== null) return [];
 
-const COMPLAINT =
-  "邮件投递配置不完整，拒绝启动:\n" +
-  '  注册策略声明了 mailDelivery: "smtp"，但没有设置 FOI_SMTP_HOST。\n' +
-  "  请设置 FOI_SMTP_HOST（以及需要的 FOI_SMTP_PORT / FOI_SMTP_USER / FOI_SMTP_PASSWORD），\n" +
-  '  或者在 content/enrollment/ 的 policy 里显式写上 mailDelivery: "console"。\n' +
-  "  后者会把验证码和重置链接打印到服务端日志，只适合本地开发，" +
-  "或者还没有用户的首次部署。";
-
-/**
- * Refuses to boot a deployment that says it sends mail but cannot.
- *
- * Called from `instrumentation.ts` right after `assertEnv`, and separate from
- * it for the reason `backendSecretWarnings` is separate: this reads content,
- * and `lib/env.ts` deliberately knows nothing about content. The timing is the
- * same argument though — a deployment whose registration and recovery are dead
- * ends should say so while the health check is still watching, not at the
- * first person who cannot get their verification code.
- *
- * Fatal only in production. `content/enrollment/example.ts` declares no
- * `mailDelivery` and so inherits `smtp`, which would make a fresh checkout
- * with no relay refuse to start — the exact setup the README tells a newcomer
- * to use. Elsewhere this is a warning and `deliver` falls back to the console.
- *
- * And fatal only for a deployment that shipped enrolment content at all. The
- * refusal rests on `smtp` being what somebody *chose*, whether by writing it
- * or by writing a policy and leaving the default in place. With no
- * `content/enrollment/` nothing was declared — the value comes from
- * `enrollmentPolicySchema`, which is to say from the kernel — so refusing
- * would refuse over a decision the platform made on the deployment's behalf,
- * and would stop an empty `content/` from starting at all. See the
- * `content-absent` job.
- *
- * Not softened to a warning everywhere: a deployment that ships rules and
- * forgets its relay is the case this exists for, and it keeps the refusal.
- *
- * Both inputs are parameters defaulting to the registry, the way `assertEnv`
- * takes `process.env`: what is being checked is a *combination* of a declared
- * delivery and an environment, and a test cannot edit `content/enrollment/`
- * to reach one half of it.
- */
-export function assertMailDelivery(
-  delivery: MailDelivery = enrollmentPolicy.mailDelivery,
-  declared: boolean = enrollmentDeclared,
-): void {
-  if (delivery === "console" || mailIsConfigured()) return;
-
-  if (process.env.NODE_ENV === "production" && declared) {
-    throw new Error(COMPLAINT);
-  }
-
-  if (!declared) {
-    console.warn(
-      "[foi] 没有找到 content/enrollment/，注册策略全部取的是内核默认值，" +
-        'mailDelivery 因此是 "smtp"，而 FOI_SMTP_HOST 没有设置——' +
-        "验证码与重置链接都发不出去。这套部署一旦要接待用户，" +
-        "就该补一个 content/enrollment/，在它的 policy 里把这件事说清楚。",
-    );
-    return;
-  }
-
-  console.warn(
-    "[foi] 未设置 FOI_SMTP_HOST，邮件只会打印到控制台。" +
-      "同样的配置在生产环境会直接拒绝启动；" +
-      '如果这套部署本就不发信，请在 content/enrollment/ 的 policy 里写 mailDelivery: "console"。',
-  );
+  return [
+    "FOI_MAIL_DELIVERY 是 smtp（默认），但 FOI_SMTP_HOST 没有设置。" +
+      "请设置 FOI_SMTP_HOST（以及需要的 FOI_SMTP_PORT / FOI_SMTP_USER / FOI_SMTP_PASSWORD），" +
+      '或者设置 FOI_MAIL_DELIVERY=console——后者会把验证码和重置链接打印到服务端日志，' +
+      "只适合本地开发或还没有用户的首次部署。",
+  ];
 }
 
-/**
- * Which of the two sinks a message goes to.
- *
- * The console branch is reached by declaring it, not by leaving a variable
- * unset — that is the whole point of `policy.mailDelivery`. The one exception
- * is the development fallback, which keeps a checkout with no relay working.
- */
-export function mailSink(
-  delivery: MailDelivery = enrollmentPolicy.mailDelivery,
-): "smtp" | "console" {
+export function mailSink(): "smtp" | "console" {
+  const delivery = declaredDelivery();
   if (delivery === "console") return "console";
-  if (mailIsConfigured()) return "smtp";
+  if (relayOptions() !== null) return "smtp";
 
-  // Declared `smtp` with nothing behind it. `assertMailDelivery` has already
-  // refused this boot in production, so arriving here means the process was
-  // started some other way — throw rather than print a reset link to the log,
-  // which is the failure the pair of them exists to stop.
-  if (process.env.NODE_ENV === "production") throw new Error(COMPLAINT);
+  if (tier() === "prod") {
+    throw new Error(
+      "FOI_MAIL_DELIVERY 是 smtp（默认），但 FOI_SMTP_HOST 没有设置，" +
+        "生产环境拒绝回落到控制台。",
+    );
+  }
   return "console";
 }
 
-/**
- * The disagreement itself: this deployment says it sends mail and has nothing
- * to send it with.
- *
- * The same condition `assertMailDelivery` refuses to boot on and `mailSink`
- * refuses to answer for, asked by something that only wants to report it. Both
- * refusals are right where they are — a caller one line away from printing a
- * reset link should not be handed a quiet fallback — and both are wrong for
- * the operations console, whose entire job is to name drift like this and
- * which cannot do it from a page that throws instead of rendering.
- *
- * Takes the delivery for the reason `assertMailDelivery` does: what is being
- * checked is a *combination* of a declared delivery and an environment, and a
- * test cannot edit `content/enrollment/` to reach one half of it.
- */
-export function mailDeliveryUnmet(
-  delivery: MailDelivery = enrollmentPolicy.mailDelivery,
-): boolean {
-  return delivery === "smtp" && !mailIsConfigured();
+export function mailDeliveryUnmet(): boolean {
+  return declaredDelivery() === "smtp" && relayOptions() === null;
 }
 
-/**
- * Throws when the relay refuses the message. Callers surface that to the
- * person waiting on the email rather than swallowing it — a registration that
- * silently sends nothing is worse than one that fails loudly and can be
- * retried.
- */
 export async function deliver(message: MailMessage): Promise<void> {
   const from = readFrom();
-  // The sink is asked first, because it is what may refuse: a deployment that
-  // declared `smtp` with no relay behind it must not quietly get the console.
+
   const smtp = mailSink() === "smtp" ? transporter() : null;
 
   if (!smtp) {

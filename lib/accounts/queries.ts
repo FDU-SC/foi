@@ -1,51 +1,44 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, desc, eq, sql } from "drizzle-orm";
 import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import type { PgDatabase } from "drizzle-orm/pg-core";
+import { ulid } from "ulid";
 import { db } from "@/lib/db";
-import { accounts } from "@/lib/db/schema";
+import {
+  accountColumns,
+  accounts,
+  accountSuspensions,
+} from "@/lib/db/schema";
 import type * as schema from "@/lib/db/schema";
-import type { AccountRow, AccountSource, AccountStatus } from "@/lib/db/schema";
+import type {
+  AccountRow,
+  AccountStatus,
+  AccountSuspensionRow,
+} from "@/lib/db/schema";
 import { invalidateAccounts } from "./cache";
-import { normalizeHandle } from "./types";
+import { normalizeUsername } from "./types";
 
-/**
- * Every write to `accounts` goes through here, because every write has to
- * invalidate the snapshot in `./cache.ts`. Reads that decide whether somebody
- * may act go through `getAccount`, which never consults that snapshot.
- *
- * The ones registration and password reset need take an optional `DbOrTx` so
- * they can be pulled into a transaction with the writes in `lib/auth/`. Read
- * that way the account is the one the same transaction is about to act on;
- * written that way the invalidation fires before the commit does, which at
- * worst leaves the snapshot a few seconds behind a row that is about to exist
- * — the staleness the TTL already allows, and never a decision about access,
- * which reads its own row.
- */
-
-/**
- * A pool-backed handle or a transaction on one, spelled as the type both are.
- *
- * `typeof db` will not do: what `drizzle()` returns carries a `$client` that
- * the transaction object has no equivalent of. Naming their common supertype
- * is what lets one function serve both callers, instead of a second copy of
- * each statement existing for transactions to drift away from.
- */
 export type DbOrTx = PgDatabase<NodePgQueryResultHKT, typeof schema>;
 
-/**
- * The authoritative read: one row, by primary key, no cache in front of it.
- *
- * Authorisation calls this. A suspension has to bite on the very next request,
- * which rules out reading `status` from anything with a TTL.
- */
 export async function getAccount(
-  handle: string,
+  uid: number,
   on: DbOrTx = db,
 ): Promise<AccountRow | undefined> {
   const [row] = await on
-    .select()
+    .select(accountColumns)
     .from(accounts)
-    .where(eq(accounts.handle, normalizeHandle(handle)))
+    .where(eq(accounts.uid, uid))
+    .limit(1);
+  return row;
+}
+
+export async function getAccountByUsername(
+  username: string,
+  on: DbOrTx = db,
+): Promise<AccountRow | undefined> {
+  const [row] = await on
+    .select(accountColumns)
+    .from(accounts)
+    .where(sql`lower(${accounts.username}) = ${normalizeUsername(username)}`)
     .limit(1);
   return row;
 }
@@ -55,7 +48,7 @@ export async function findAccountByEmail(
   on: DbOrTx = db,
 ): Promise<AccountRow | undefined> {
   const [row] = await on
-    .select()
+    .select(accountColumns)
     .from(accounts)
     .where(eq(accounts.email, email))
     .limit(1);
@@ -66,26 +59,19 @@ export async function listAccounts(options?: {
   status?: AccountStatus;
 }): Promise<AccountRow[]> {
   return db
-    .select()
+    .select(accountColumns)
     .from(accounts)
     .where(options?.status ? eq(accounts.status, options.status) : undefined)
-    .orderBy(asc(accounts.handle));
+    .orderBy(asc(accounts.uid));
 }
 
 export interface CreateAccountInput {
-  handle: string;
-  displayName: string;
+  username: string;
+  nickname: string;
   email?: string | null;
-  source?: AccountSource;
   status?: AccountStatus;
-  emailVerifiedAt?: Date | null;
 }
 
-/**
- * Returns undefined when the handle or the address is already taken, rather
- * than throwing: both are ordinary outcomes of two people racing on the
- * registration form, and the caller has a message for each.
- */
 export async function createAccount(
   input: CreateAccountInput,
   on: DbOrTx = db,
@@ -93,101 +79,74 @@ export async function createAccount(
   const [row] = await on
     .insert(accounts)
     .values({
-      handle: normalizeHandle(input.handle),
-      displayName: input.displayName,
+      username: input.username,
+      nickname: input.nickname,
       email: input.email ?? null,
-      emailVerifiedAt: input.emailVerifiedAt ?? null,
-      source: input.source ?? "registration",
       status: input.status ?? "active",
     })
     .onConflictDoNothing()
-    .returning();
+    .returning(accountColumns);
 
   if (row) invalidateAccounts();
   return row;
 }
 
-/**
- * Moderation, and only moderation.
- *
- * The patch deliberately admits no `displayName`, `email` or `emailVerifiedAt`:
- * a handle is fixed at registration, an address is changed by proving the new
- * one rather than by an update, and nothing un-verifies one. A type that
- * describes writes no caller makes is an invitation to make them here,
- * bypassing the proof each of those fields rests on.
- *
- * Not exported either. The two functions below are the whole surface and each
- * names an act; a general patch reachable from outside would be a way to move
- * `status` without recording who did it or why, which is the one thing these
- * columns are for.
- */
-async function updateAccount(
-  handle: string,
-  patch: Partial<
-    Pick<
-      AccountRow,
-      | "status"
-      | "suspendedAt"
-      | "suspendedBy"
-      | "suspendedReason"
-      | "reinstatedAt"
-    >
-  >,
-): Promise<AccountRow | undefined> {
-  // Same clock the insert took from the column default, so that `updated_at`
-  // cannot land before the `created_at` of the row it belongs to.
-  const [row] = await db
-    .update(accounts)
-    .set({ ...patch, updatedAt: sql`now()` })
-    .where(eq(accounts.handle, normalizeHandle(handle)))
-    .returning();
-
-  if (row) invalidateAccounts();
-  return row;
-}
-
-/**
- * Clears `reinstatedAt`, which is what keeps the four columns one episode.
- *
- * Leaving it would let a row carry a suspension newer than the reinstatement
- * that supposedly ended it — an ordering no reader could make sense of, and
- * the kind of state worth making unrepresentable rather than explaining.
- */
 export async function suspendAccount(
-  handle: string,
-  by: string,
+  uid: number,
+  by: number,
   reason: string,
 ): Promise<AccountRow | undefined> {
-  return updateAccount(handle, {
-    status: "suspended",
-    suspendedAt: new Date(),
-    suspendedBy: by,
-    suspendedReason: reason,
-    reinstatedAt: null,
+  const [row] = await db
+    .update(accounts)
+    .set({ status: "suspended", updatedAt: sql`now()` })
+    .where(eq(accounts.uid, uid))
+    .returning(accountColumns);
+
+  if (!row) return undefined;
+
+  await db.insert(accountSuspensions).values({
+    id: `sus_${ulid()}`,
+    uid,
+    action: "suspend",
+    performedBy: by,
+    reason,
   });
+
+  invalidateAccounts();
+  return row;
 }
 
-/**
- * `status` moves and `reinstatedAt` is stamped. The three suspension columns
- * keep what the last suspension put there, so all four describe the most
- * recent episode rather than the current state.
- *
- * Safe to keep because `status` is the only thing anything asks, from
- * `resolveFromRow`'s `disabled` down to the badge on `/admin/accounts` —
- * nothing reads `suspendedAt` as "currently suspended". Clearing them instead
- * would erase the entire record of a moderation decision the moment it was
- * reversed.
- *
- * Four columns rather than an events table, and that is a ceiling worth
- * naming: this records the *last* episode, not a history. A second suspension
- * overwrites the first, and nothing here can answer how many there were. An
- * `account_moderation_events` table is the shape that answers that, and it is
- * a bigger claim than the console currently makes — the page shows one badge
- * and one reason, not a timeline. Widen it when something needs to read the
- * history, not in advance.
- */
 export async function reinstateAccount(
-  handle: string,
+  uid: number,
+  by: number,
 ): Promise<AccountRow | undefined> {
-  return updateAccount(handle, { status: "active", reinstatedAt: new Date() });
+  const [row] = await db
+    .update(accounts)
+    .set({ status: "active", updatedAt: sql`now()` })
+    .where(eq(accounts.uid, uid))
+    .returning(accountColumns);
+
+  if (!row) return undefined;
+
+  await db.insert(accountSuspensions).values({
+    id: `sus_${ulid()}`,
+    uid,
+    action: "reinstate",
+    performedBy: by,
+  });
+
+  invalidateAccounts();
+  return row;
+}
+
+export async function suspensionHistory(
+  uid: number,
+  limit = 10,
+): Promise<AccountSuspensionRow[]> {
+  return db
+    .select()
+    .from(accountSuspensions)
+    .where(eq(accountSuspensions.uid, uid))
+    .orderBy(desc(accountSuspensions.createdAt))
+    .limit(limit);
 }

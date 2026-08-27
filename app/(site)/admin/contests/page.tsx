@@ -5,17 +5,15 @@ import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { adminContestsFor } from "@/lib/admin/access";
-import { describeAudience } from "@/lib/auth/audience";
+import { describeAudience } from "@/lib/permissions/audience";
 import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
+import { dateFormatter } from "@/lib/format";
 import { rulesetFor } from "@/lib/standings/registry";
 
 export const metadata: Metadata = { title: "比赛管理" };
 export const dynamic = "force-dynamic";
 
-const formatter = new Intl.DateTimeFormat("zh-CN", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
 function participantsLabel(
   mode: "open" | "group" | "list",
@@ -32,8 +30,7 @@ function participantsLabel(
 }
 
 export default async function AdminContestsPage() {
-  // Entry lists come from the account table, so the access layer resolves them
-  // up front rather than leaving a query inside the render loop.
+
   const rows = await adminContestsFor(await getViewer());
   if (!rows) notFound();
 
@@ -72,7 +69,7 @@ export default async function AdminContestsPage() {
       ) : (
         all.map((contest) => {
           const phase = contestPhase(contest);
-          const ruleset = rulesetFor(contest.slug, contest.ruleset.id);
+          const ruleset = rulesetFor(contest.leaderboards[0].ruleset.id);
 
           return (
             <Card key={contest.slug}>
@@ -87,11 +84,11 @@ export default async function AdminContestsPage() {
                     </Link>
                     <Badge tone={PHASE_TONE[phase]}>{PHASE_LABEL[phase]}</Badge>
                     <Badge>{ruleset?.name ?? "自定义赛制"}</Badge>
-                    {contest.ruleset.id ? null : (
-                      <Badge tone="info" title="ruleset.tsx 与这场比赛一起冻结在 git 里，不随共享模板演进">
-                        自带
+                    {contest.leaderboards.length > 1 ? (
+                      <Badge tone="info">
+                        {contest.leaderboards.length} 个排行榜
                       </Badge>
-                    )}
+                    ) : null}
                     {contest.visibleTo === undefined ? null : (
                       <Badge tone="warn">
                         可见 {describeAudience(contest.visibleTo)}

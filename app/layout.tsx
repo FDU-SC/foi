@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { site } from "@/lib/site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,13 +15,12 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "FOI",
-    template: "%s · FOI",
+    default: site.name,
+    template: `%s · ${site.name}`,
   },
-  description: "FOI 竞赛平台",
+  description: site.description,
 };
 
-// Applied before first paint so the theme never flashes on hydration.
 const themeScript = `
 (function () {
   try {
@@ -35,7 +35,7 @@ const themeScript = `
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="zh-CN"
+      lang={site.lang}
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >

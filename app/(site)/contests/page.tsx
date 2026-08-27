@@ -4,15 +4,13 @@ import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { contestsFor } from "@/lib/contests/access";
 import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
+import { dateFormatter } from "@/lib/format";
 import { rulesetFor } from "@/lib/standings/registry";
 
 export const metadata: Metadata = { title: "比赛" };
 export const dynamic = "force-dynamic";
 
-const formatter = new Intl.DateTimeFormat("zh-CN", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
 export default async function ContestsPage() {
   const all = contestsFor(await getViewer());
@@ -40,7 +38,7 @@ export default async function ContestsPage() {
                   <span className="text-fg font-medium">{contest.title}</span>
                   {gate.visible ? null : <Badge tone="warn">未公开</Badge>}
                   <Badge>
-                    {rulesetFor(contest.slug, contest.ruleset.id)?.name ??
+                    {rulesetFor(contest.leaderboards[0].ruleset.id)?.name ??
                       "自定义赛制"}
                   </Badge>
                   <span className="text-fg-subtle ml-auto font-mono text-xs">

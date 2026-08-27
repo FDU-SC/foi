@@ -1,131 +1,192 @@
 import { describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/test/auth-support";
-import { capabilitiesOf, listGroups } from "@/lib/auth/groups";
-import { viewerFor } from "@/lib/auth/viewer";
-import { contestPhase } from "@/lib/contests/types";
+import { capabilitiesOf, listGroups } from "@/lib/permissions/groups";
+import { viewerFor } from "@/lib/permissions/viewer";
 import { groupWith } from "@/test/content-shapes";
 import {
   at,
-  END,
   input,
   participants,
   problem,
   solve,
-  START,
+  fail,
 } from "@/test/standings-support";
 import { listRulesets } from "./registry";
-import type { AnyRuleset } from "./types";
+import type { AnyRuleset, SubmissionRecord } from "./types";
 
-/**
- * What every format claiming `supportsFreeze` owes the kernel.
- *
- * Reading through a freeze is expressed by handing the ruleset a contest with
- * no `freezeAt`, so no format has to know the option exists. That only works
- * if a format's own comparison agrees with the kernel's — which is why these
- * run over the whole registry rather than over one shipped ruleset. This file
- * used to import `content/rulesets/acm` by name and was the only thing in
- * `lib/` that reached into a specific template; what it was really asserting
- * was true of any freezing format, and now it says so.
- *
- * A format's *scoring* under a freeze is its own business and is pinned beside
- * it, in `content/rulesets/`.
- */
-const freezing = listRulesets().filter((ruleset) => ruleset.supportsFreeze);
+const allRulesets = listRulesets();
 
 const problems = [problem("a", "A"), problem("b", "B")];
-const submissions = [solve("alice", "a", 10), solve("alice", "b", 250)];
 
-function board(ruleset: AnyRuleset, freezeAt: Date | null, now: Date) {
-  // Formats read `Date.now()` to place themselves in the round, which is the
-  // one thing these cases have to move.
-  const original = Date.now;
-  Date.now = () => now.getTime();
-  try {
-    return ruleset.computeStandings(
-      input({
-        participants: participants("alice"),
-        problems,
-        freezeAt,
-        submissions,
-      }),
-    );
-  } finally {
-    Date.now = original;
-  }
+/**
+ * Simulate the freeze masking that `loadAndCompute` applies:
+ * submissions after `freezeAt` get `result: null`.
+ */
+function maskResults(
+  subs: SubmissionRecord[],
+  freezeAt: Date,
+): SubmissionRecord[] {
+  return subs.map((s) =>
+    s.createdAt >= freezeAt ? { ...s, result: null } : s,
+  );
 }
 
-describe("封榜的开关就是 freezeAt", () => {
-  it("至少有一种赛制支持封榜，否则这组用例什么也没测", () => {
-    expect(freezing.length).toBeGreaterThan(0);
+describe("封榜：result 屏蔽后赛制行为", () => {
+  it("至少有一种赛制可测", () => {
+    expect(allRulesets.length).toBeGreaterThan(0);
   });
 
-  const during = at(250);
   const freezeAt = at(240);
 
-  it.each(freezing.map((ruleset) => ({ ruleset, id: ruleset.id })))(
-    "$id：带 freezeAt 就封，去掉就不封",
+  it.each(allRulesets.map((r) => ({ ruleset: r, id: r.id })))(
+    "$id：封榜后的提交被屏蔽后，公开分 ≤ 全量分",
     ({ ruleset }) => {
-      expect(board(ruleset, freezeAt, during).frozen).toBe(true);
-      expect(board(ruleset, null, during).frozen).toBe(false);
+      const subs = [solve(1, "a", 10), solve(1, "b", 250)];
+      const base = input({
+        participants: participants(1),
+        problems,
+        submissions: subs,
+      });
+
+      const full = ruleset.compute(base);
+
+      const masked = input({
+        participants: participants(1),
+        problems,
+        submissions: maskResults(subs, freezeAt),
+      });
+      const pub = ruleset.compute(masked);
+
+      expect(full.rows[0].total).toBeGreaterThanOrEqual(pub.rows[0].total);
     },
   );
 
-  it.each(freezing.map((ruleset) => ({ ruleset, id: ruleset.id })))(
-    "$id：解冻后的榜与比赛结束后的榜一致",
+  it.each(allRulesets.map((r) => ({ ruleset: r, id: r.id })))(
+    "$id：封榜前的提交不受影响",
     ({ ruleset }) => {
-      // The point of the bypass: an administrator mid-freeze sees the same
-      // ranking everyone will see when the contest ends.
-      const bypassed = board(ruleset, null, during);
-      const afterEnd = board(ruleset, freezeAt, new Date(END.getTime() + 1));
+      const subs = [solve(1, "a", 10), solve(1, "b", 60)];
+      const base = input({
+        participants: participants(1),
+        problems,
+        submissions: subs,
+      });
 
-      const shape = (b: ReturnType<typeof board>) =>
-        b.rows.map((row) => [row.participant.handle, row.total, row.tiebreak]);
+      const masked = input({
+        participants: participants(1),
+        problems,
+        submissions: maskResults(subs, freezeAt),
+      });
 
-      expect(shape(bypassed)).toEqual(shape(afterEnd));
+      const shape = (b: { rows: { total: number; tiebreak: number }[] }) =>
+        b.rows.map((r) => [r.total, r.tiebreak]);
+
+      expect(shape(ruleset.compute(masked))).toEqual(
+        shape(ruleset.compute(base)),
+      );
+    },
+  );
+
+  it.each(allRulesets.map((r) => ({ ruleset: r, id: r.id })))(
+    "$id：管理员视角（不屏蔽）看到完整分数",
+    ({ ruleset }) => {
+      const subs = [solve(1, "a", 10), solve(1, "b", 250)];
+      const base = input({
+        participants: participants(1),
+        problems,
+        submissions: subs,
+      });
+
+      const full = ruleset.compute(base);
+      expect(full.rows[0].total).toBeGreaterThan(0);
     },
   );
 });
 
-describe("封榜窗口与比赛相位说的是同一个窗口", () => {
+describe("封榜 pending 语义（赛制 Cell 含 pending 字段的）", () => {
   const freezeAt = at(240);
-  const clock = { startsAt: START, endsAt: END, freezeAt };
 
-  /**
-   * One window, written twice. `contestPhase` is the kernel's copy and
-   * documents `[freezeAt, endsAt]` as closed at both ends — `endsAt` belongs
-   * to the phase before `ended` so that a contest never walks backwards. A
-   * format in `content/` writes the comparison out again, because it computes
-   * its own and inherits none of the exhaustive switch that keeps the kernel's
-   * phase callers honest.
-   *
-   * Two copies disagreed at exactly one instant once, the millisecond a round
-   * ended: the badge said frozen and the board under it was not. Nothing
-   * leaked — the next millisecond unfreezes the board anyway — but the only
-   * thing keeping them together is a case that reads them side by side.
-   */
-  const moments = [
-    { label: "封榜前一刻", now: new Date(freezeAt.getTime() - 1) },
-    { label: "封榜当刻", now: freezeAt },
-    { label: "封榜期间", now: at(250) },
-    { label: "结束当刻", now: END },
-    { label: "结束之后", now: new Date(END.getTime() + 1) },
-  ];
+  // Find rulesets whose cells expose { pending, attempts } — test them specifically.
+  function cellShape(ruleset: AnyRuleset) {
+    const base = input({
+      participants: participants(1),
+      problems,
+      submissions: [solve(1, "a", 10)],
+    });
+    const cell = ruleset.compute(base).rows[0]?.cells["a"];
+    return cell && typeof (cell as Record<string, unknown>).pending === "number";
+  }
 
-  it.each(
-    freezing.flatMap((ruleset) =>
-      moments.map((moment) => ({ ...moment, ruleset, id: ruleset.id })),
-    ),
-  )("$id · $label", ({ ruleset, now }) => {
-    expect(board(ruleset, freezeAt, now).frozen).toBe(
-      contestPhase(clock, now) === "frozen",
-    );
+  const withPending = allRulesets.filter(cellShape);
+
+  it("至少有一种赛制的 Cell 含 pending 字段", () => {
+    expect(withPending.length).toBeGreaterThan(0);
   });
+
+  it.each(withPending.map((r) => ({ ruleset: r, id: r.id })))(
+    "$id：封榜后的 AC 提交在公开视角下标记为 pending",
+    ({ ruleset }) => {
+      const subs = [solve(1, "a", 250)];
+      const base = input({
+        participants: participants(1),
+        problems,
+        submissions: maskResults(subs, freezeAt),
+      });
+
+      const result = ruleset.compute(base);
+      const cell = result.rows[0].cells["a"] as {
+        pending: number;
+        attempts: number;
+      };
+      expect(cell.pending).toBe(1);
+      expect(cell.attempts).toBe(0);
+    },
+  );
+
+  it.each(withPending.map((r) => ({ ruleset: r, id: r.id })))(
+    "$id：封榜前的提交正常计分，pending 为 0",
+    ({ ruleset }) => {
+      const subs = [solve(1, "a", 10)];
+      const base = input({
+        participants: participants(1),
+        problems,
+        submissions: maskResults(subs, freezeAt),
+      });
+
+      const result = ruleset.compute(base);
+      const cell = result.rows[0].cells["a"] as {
+        pending: number;
+        attempts: number;
+      };
+      expect(cell.pending).toBe(0);
+      expect(cell.attempts).toBeGreaterThanOrEqual(1);
+    },
+  );
+
+  it.each(withPending.map((r) => ({ ruleset: r, id: r.id })))(
+    "$id：封榜前 WA + 封榜后 AC → 公开视角：有失败 + 有 pending",
+    ({ ruleset }) => {
+      const subs = [fail(1, "a", 100), solve(1, "a", 250)];
+      const base = input({
+        participants: participants(1),
+        problems,
+        submissions: maskResults(subs, freezeAt),
+      });
+
+      const result = ruleset.compute(base);
+      const cell = result.rows[0].cells["a"] as {
+        pending: number;
+        attempts: number;
+      };
+      expect(cell.attempts).toBeGreaterThanOrEqual(1);
+      expect(cell.pending).toBe(1);
+    },
+  );
 });
 
 describe("谁能看穿封榜", () => {
   it("选手不能", () => {
     expect(
-      viewerFor({ handle: "p", groups: [] }).can("standings.viewFrozen"),
+      viewerFor({ uid: 1, groups: [] }).can("standings.viewFrozen"),
     ).toBe(false);
     expect(AS_PLAYER.can("standings.viewFrozen")).toBe(false);
   });
@@ -133,20 +194,13 @@ describe("谁能看穿封榜", () => {
   it("持有这项能力的组能", () => {
     const group = groupWith("standings.viewFrozen");
     expect(
-      viewerFor({ handle: "a", groups: [group] }).can("standings.viewFrozen"),
+      viewerFor({ uid: 2, groups: [group] }).can("standings.viewFrozen"),
     ).toBe(true);
   });
 
-  /**
-   * Not "only if it declares the capability", which is what this used to say.
-   * `submission.readAny` implies it — see `IMPLIES` in `lib/auth/policy.ts` —
-   * so a group holding that and nothing else still reads through the freeze,
-   * and asserting the narrower rule would have failed the first time somebody
-   * split the two apart.
-   */
   it("每个组是否能穿透，看它声明的能力加上蕴含出来的", () => {
     for (const group of listGroups()) {
-      const viewer = viewerFor({ handle: "x", groups: [group.id] });
+      const viewer = viewerFor({ uid: 3, groups: [group.id] });
       const declared = group.capabilities as readonly string[];
       expect(viewer.can("standings.viewFrozen")).toBe(
         declared.includes("standings.viewFrozen") ||

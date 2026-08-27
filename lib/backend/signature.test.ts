@@ -1,4 +1,3 @@
-import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   MAX_CLOCK_SKEW_SECONDS,
@@ -31,14 +30,6 @@ function verify(overrides: Partial<Parameters<typeof verifySignature>[0]> = {}) 
   });
 }
 
-/** How the protocol signed before the path and the method were covered. */
-function legacySign(secret: string, timestamp: number, body: string): string {
-  const hex = createHmac("sha256", secret)
-    .update(`${timestamp}.${body}`)
-    .digest("hex");
-  return `sha256=${hex}`;
-}
-
 describe("sign", () => {
   it("产出 sha256=<hex> 形状", () => {
     expect(sign(SECRET, NOW, REPORT)).toMatch(/^sha256=[0-9a-f]{64}$/);
@@ -68,26 +59,14 @@ describe("sign", () => {
     );
   });
 
-  /**
-   * The reason this change exists. The action a problem invokes travels in the
-   * path, so a signature that did not cover it let anything on the wire turn
-   * one action into another while the signature still verified.
-   */
   it("path 参与签名：同一个 body 换一个动作就换一份签名", () => {
-    const body = JSON.stringify({ action: "poll", user: { handle: "alice" } });
+    const body = JSON.stringify({ action: "poll", user: { uid: 1 } });
 
     expect(sign(SECRET, NOW, { method: "POST", path: "/action/poll", body })).not.toBe(
       sign(SECRET, NOW, { method: "POST", path: "/action/destroy", body }),
     );
   });
 
-  /**
-   * The sharper half of the same problem, and the half that matters most in the
-   * direction traffic runs now: fetching a job's contents is an empty-bodied
-   * GET, so `<timestamp>.` was once its entire signing input and every
-   * empty-bodied request sharing a second shared one signature. One captured
-   * pair of headers would then read any submission's payload.
-   */
   it("两个空 body 的 GET 不再共用同一份签名", () => {
     const claim = sign(SECRET, NOW, {
       method: "GET",
@@ -103,28 +82,12 @@ describe("sign", () => {
     expect(claim).not.toBe(other);
   });
 
-  /**
-   * Why the canonical string is newline-delimited. A dot appears in both paths
-   * and bodies, so with `.` between the fields these two would hash the same
-   * string and one signature would be valid for both.
-   */
   it("字段分隔不可歧义：path 尾部与 body 头部不能互相挪动", () => {
     expect(sign(SECRET, NOW, { method: "POST", path: "/action/a.b", body: "c" })).not.toBe(
       sign(SECRET, NOW, { method: "POST", path: "/action/a", body: "b.c" }),
     );
   });
 
-  /**
-   * The invariant the delimiter rests on, pinned here because it is an
-   * assumption about somebody else's parser rather than about this module.
-   *
-   * A newline in the path *would* be a field boundary — `path: "/a\nx"` with
-   * body `y` hashes the same string as `path: "/a"` with body `x\ny`. What
-   * rules that out is that every path signed here comes from the WHATWG URL
-   * parser, which strips tabs and newlines from its input outright, so no
-   * caller can produce one. If that ever stops being true, the canonical
-   * string needs a length prefix rather than a delimiter.
-   */
   it("path 不可能含换行：URL 解析器会先把它删掉", () => {
     const url = new URL("/action/a\nb?x=1\n2", "http://backend.invalid");
 
@@ -132,10 +95,6 @@ describe("sign", () => {
     expect(url.pathname + url.search).toBe("/action/ab?x=12");
   });
 
-  /**
-   * Load-bearing rather than tidy: the lease a runner presents on a GET travels
-   * in the query string, because there is no body to put it in.
-   */
   it("search 参与签名", () => {
     const path = "/api/runner/jobs/sub_1";
 
@@ -186,33 +145,6 @@ describe("verifySignature", () => {
   it("长度不同的签名直接拒绝，不抛异常", () => {
     expect(() => verify({ signature: "sha256=short" })).not.toThrow();
     expect(verify({ signature: "sha256=short" })).toMatchObject({ ok: false });
-  });
-});
-
-/**
- * There is no compatibility switch: the old form is refused outright. What it
- * gets instead is a reason that names it, because "signature does not match"
- * and "your backend is a version behind" need opposite fixes and an operator
- * staring at a wall of 401s cannot tell them apart.
- */
-describe("verifySignature 对旧签名格式", () => {
-  it("拒绝只签了 body 的旧格式", () => {
-    expect(
-      verify({ signature: legacySign(SECRET, NOW, BODY) }),
-    ).toMatchObject({ ok: false });
-  });
-
-  it("拒绝时明确指出是旧格式，而不是笼统的签名不匹配", () => {
-    const result = verify({ signature: legacySign(SECRET, NOW, BODY) });
-
-    expect(result).toMatchObject({ ok: false });
-    expect(result.ok === false && result.reason).toContain("旧格式");
-  });
-
-  it("密钥配错时说的仍是签名不匹配，两种原因不混为一谈", () => {
-    const result = verify({ signature: sign("wrong-secret", NOW, REPORT) });
-
-    expect(result).toMatchObject({ ok: false, reason: "签名不匹配" });
   });
 });
 

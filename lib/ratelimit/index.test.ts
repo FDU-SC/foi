@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { rateLimit, rateLimitBySource } from "./index";
 
-/** Unique per case, so cases cannot spend each other's budget. */
 let counter = 0;
 function key(): string {
   return `test:${(counter += 1)}:${Math.random()}`;
@@ -60,23 +59,11 @@ describe("rateLimit", () => {
     const k = key();
     rateLimit(k, 1, 60_000);
 
-    // A second import must land on the same bucket map.
     const again = await import("./index");
     expect(again.rateLimit(k, 1, 60_000).ok).toBe(false);
   });
 });
 
-/**
- * The interesting half of a source-keyed bound is not the arithmetic above, it
- * is whether it counts at all.
- *
- * Six call sites used to build their own key out of the source string, so a
- * deployment with nothing trusted in front counted every caller against one
- * shared budget — ten registrations an hour for the whole site, not per
- * machine. The last case is the one that pins the fix down: it has to keep
- * letting the sentinel through past the limit, not merely let the first one
- * through.
- */
 describe("rateLimitBySource", () => {
   it("来源解析得出时照常计数", () => {
     const activity = key();

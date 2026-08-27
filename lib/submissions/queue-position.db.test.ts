@@ -1,59 +1,83 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { accounts, problems, submissions } from "@/lib/db/schema";
+import { accounts, judgingQueue, problems, submissions } from "@/lib/db/schema";
 import { externallyJudged } from "@/lib/problems/registry";
 import { MAX_ATTEMPTS } from "@/lib/runner/queue";
 import { locateInQueues, locateOne } from "./queue-position";
 
-/**
- * Where a submission sits in its backend's queue.
- *
- * Exact is the entire claim, and it is what holding the queue here bought over
- * matching against whatever a backend last reported about itself. So these
- * cases are about the two ways a count can be exactly wrong: taking the
- * ordering from the column that says when somebody submitted rather than when
- * they joined the queue, and counting rows no runner will ever be handed. Both
- * misreport somebody else's wait, and a position that does not fall the way the
- * queue drains is read as a stuck queue.
- *
- * Against a real Postgres because the answer is two statements against the same
- * set `claimJob` selects from, and the point of the assertions is that the two
- * agree.
- */
-const HANDLE = "queue-lookup-alice";
+const USERNAME = "queue-lookup-alice";
+let ACCOUNT_UID = 0;
 
-/** This suite's own queue — `lib/runner/queue.db.test.ts` says why. */
 const BACKEND = "queue-lookup-fixture";
 
-/** A second one, for the cases about queues not bleeding into each other. */
 const OTHER_BACKEND = "queue-lookup-fixture-other";
 
 const PROBLEM = externallyJudged()[0]!;
 
 const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
 
+const ago = (ms: number): Date => new Date(Date.now() - ms);
+
 async function enqueue(
   id: string,
-  overrides: Partial<typeof submissions.$inferInsert> = {},
+  overrides: {
+    backendId?: string;
+    queuedAt?: Date;
+    createdAt?: Date;
+    attempts?: number;
+    queueState?: "waiting" | "claimed";
+    runnerId?: string;
+    lease?: string;
+    claimedAt?: Date;
+    heartbeatAt?: Date;
+    submissionState?: "pending" | "completed" | "disrupted";
+    judgedAt?: Date;
+  } = {},
 ): Promise<string> {
+  const backendId = overrides.backendId ?? BACKEND;
+
   await db.insert(submissions).values({
     id,
-    handle: HANDLE,
+    uid: ACCOUNT_UID,
     problemSlug: PROBLEM.slug,
     payload: {},
-    backendId: BACKEND,
-    state: "queued",
-    ...overrides,
+    backendId,
+    state: overrides.submissionState ?? "pending",
+    createdAt: overrides.createdAt,
+    judgedAt: overrides.judgedAt,
   });
+
+  const skipQueue =
+    overrides.submissionState === "completed" ||
+    overrides.submissionState === "disrupted";
+
+  if (!skipQueue) {
+    await db.insert(judgingQueue).values({
+      submissionId: id,
+      backendId,
+      state: overrides.queueState ?? "waiting",
+      queuedAt: overrides.queuedAt,
+      attempts: overrides.attempts ?? 0,
+      runnerId: overrides.runnerId,
+      lease: overrides.lease,
+      claimedAt: overrides.claimedAt,
+      heartbeatAt: overrides.heartbeatAt,
+    });
+  }
+
   return id;
 }
 
-const ago = (ms: number): Date => new Date(Date.now() - ms);
-
 async function cleanup(): Promise<void> {
-  await db.delete(submissions).where(eq(submissions.handle, HANDLE));
-  await db.delete(accounts).where(eq(accounts.handle, HANDLE));
+  const [existing] = await db
+    .select({ uid: accounts.uid })
+    .from(accounts)
+    .where(eq(accounts.username, USERNAME));
+  if (existing) {
+    await db.delete(submissions).where(eq(submissions.uid, existing.uid));
+    await db.delete(accounts).where(eq(accounts.uid, existing.uid));
+  }
 }
 
 describeDb("排队位次", () => {
@@ -63,13 +87,15 @@ describeDb("排队位次", () => {
       .insert(problems)
       .values({ slug: PROBLEM.slug, title: PROBLEM.title })
       .onConflictDoNothing();
-    await db
+    const [acct] = await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE, source: "registration" });
+      .values({ username: USERNAME, nickname: USERNAME })
+      .returning({ uid: accounts.uid });
+    ACCOUNT_UID = acct.uid;
   });
 
   beforeEach(async () => {
-    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
+    await db.delete(submissions).where(eq(submissions.uid, ACCOUNT_UID));
   });
 
   afterAll(cleanup);
@@ -85,14 +111,6 @@ describeDb("排队位次", () => {
     expect(found.get(third)).toMatchObject({ state: "queued", ahead: 2 });
   });
 
-  /**
-   * A position is a fact about one queue, and the second statement now names
-   * the backends it reads instead of taking every queue in the table. Asking
-   * about two at once is the shape both halves of that narrowing fail in: name
-   * too few and the row on the omitted queue reports an empty queue in front
-   * of it, name too many — or filter nowhere at all — and each row inherits
-   * the other's backlog.
-   */
   it("两个后端一起问，各数各的队列", async () => {
     const here = await enqueue("sub_ql_here", { queuedAt: ago(30_000) });
     await enqueue("sub_ql_here_ahead", { queuedAt: ago(90_000) });
@@ -117,12 +135,6 @@ describeDb("排队位次", () => {
     });
   });
 
-  /**
-   * The same disagreement `claimJob` orders on. A requeued submission keeps its
-   * original `created_at` and takes a fresh `queued_at`, so counting by the
-   * former put it at the head of a queue it had just joined — and told everyone
-   * it actually landed behind that there was one fewer ahead of them.
-   */
   it("按进队列的时间数，而不是按提交的时间", async () => {
     await enqueue("sub_ql_fresh", {
       createdAt: ago(60_000),
@@ -136,12 +148,6 @@ describeDb("排队位次", () => {
     await expect(locateOne(requeued)).resolves.toMatchObject({ ahead: 1 });
   });
 
-  /**
-   * Rows at the attempt cap are deliberately left `queued` for the reaper to
-   * write off rather than disrupted from inside `claimJob`, so for up to one
-   * tick the table holds work nobody will ever be offered. Counting it promised
-   * the person behind it a wait that was not there.
-   */
   it("attempts 用尽的行不算在前面——claimJob 本来也不会把它发出去", async () => {
     await enqueue("sub_ql_doomed", {
       queuedAt: ago(90_000),
@@ -156,12 +162,12 @@ describeDb("排队位次", () => {
     await enqueue("sub_ql_waiting", { queuedAt: ago(90_000) });
     const held = await enqueue("sub_ql_held", {
       queuedAt: ago(60_000),
-      state: "judging",
-      lease: "lease-ql",
-      runnerId: "r-ql",
-      claimedAt: new Date(),
-      lastHeartbeatAt: new Date(),
+      queueState: "claimed",
       attempts: 1,
+      runnerId: "r-ql",
+      lease: "lease-ql",
+      claimedAt: new Date(),
+      heartbeatAt: new Date(),
     });
 
     await expect(locateOne(held)).resolves.toMatchObject({
@@ -172,8 +178,7 @@ describeDb("排队位次", () => {
 
   it("终态的提交根本不在队列里，问出来是 null 而不是 0", async () => {
     const done = await enqueue("sub_ql_done", {
-      state: "completed",
-      outcome: "accepted",
+      submissionState: "completed",
       judgedAt: new Date(),
     });
 

@@ -1,26 +1,10 @@
 import type { MDXComponents } from "mdx/types";
 import type { ComponentPropsWithoutRef } from "react";
-import { presentation } from "@/lib/presentation";
 import { cn } from "@/lib/utils";
 
 type Props<T extends keyof React.JSX.IntrinsicElements> =
   ComponentPropsWithoutRef<T>;
 
-/**
- * Global MDX mapping. Every statement in `content/problems` renders through
- * this, which is what keeps them visually consistent without each author
- * having to think about styling.
- *
- * Two halves, and the split is the point. Below is how a heading, a table and
- * a code fence look, which is the design system and therefore the kernel's.
- * `Callout`, `Sample`, a submitter — the things a statement *writes* — are a
- * deployment's, and arrive through `presentation.mdxComponents`. They used to
- * be imported here by name, which made a statement vocabulary invented for one
- * competition part of the platform, and made `content/` undeletable.
- *
- * The file has to stay at the repository root: Next resolves
- * `useMDXComponents` from exactly here.
- */
 const elements: MDXComponents = {
   h1: ({ className, ...props }: Props<"h1">) => (
     <h1
@@ -118,8 +102,7 @@ const elements: MDXComponents = {
       {...props}
     />
   ),
-  // rehype-pretty-code tags fenced blocks with `data-language`; anything
-  // without it is inline code and needs the pill treatment.
+
   code: ({ className, ...props }: Props<"code">) => {
     const isFenced = "data-language" in props;
     if (isFenced) return <code className={className} {...props} />;
@@ -144,13 +127,6 @@ const elements: MDXComponents = {
   ),
 };
 
-// Content last, so a deployment that wants its own `pre` can have it. Built
-// once at module load rather than per call: both halves are static.
-const components: MDXComponents = {
-  ...elements,
-  ...presentation.mdxComponents,
-};
-
 export function useMDXComponents(): MDXComponents {
-  return components;
+  return elements;
 }

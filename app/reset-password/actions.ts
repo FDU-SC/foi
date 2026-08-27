@@ -1,13 +1,14 @@
 "use server";
 
+import { headers } from "next/headers";
 import { z } from "zod";
+import { getPasswordFingerprint, setPassword } from "@/lib/accounts/password";
 import { getAccount } from "@/lib/accounts/queries";
 import { resolveFromRow } from "@/lib/accounts/resolve";
-import { setPassword } from "@/lib/auth/credentials";
-import { redeemToken } from "@/lib/auth/tokens";
-import { db } from "@/lib/db";
-import { rateLimitByCaller } from "@/lib/ratelimit";
-import { ACTION_LIMITS, fixedRule } from "@/lib/ratelimit/policy";
+import { verifyToken } from "@/lib/tokens/stateless";
+import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
+import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
+import { site } from "@/lib/site";
 
 export interface ResetState {
   error?: string;
@@ -17,7 +18,7 @@ export interface ResetState {
 const schema = z
   .object({
     token: z.string().min(1, "重置链接不完整"),
-    password: z.string().min(8, "密码至少 8 位"),
+    password: z.string().min(site.passwordMinLength ?? 8, `密码至少 ${site.passwordMinLength ?? 8} 位`),
     confirm: z.string(),
   })
   .refine((data) => data.password === data.confirm, {
@@ -25,13 +26,6 @@ const schema = z
     message: "两次输入的密码不一致",
   });
 
-/**
- * Spends a reset token on a new password.
- *
- * The token is the only credential presented here — it arrived at an address
- * the account has already proved it owns, and it is consumed atomically, so
- * the link works exactly once whichever tab gets there first.
- */
 export async function resetPasswordAction(
   _prev: ResetState,
   formData: FormData,
@@ -45,14 +39,10 @@ export async function resetPasswordAction(
     return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
   }
 
-  // A 160-bit token is not guessable, so this is not about protecting the
-  // link — it caps how much database and argon2 work one source can demand
-  // from an endpoint that needs no session to reach. Which is also why it is
-  // the least costly of the six to lose when no source can be established:
-  // nothing is sent, nothing is created, and the work it meters is our own.
-  const rule = fixedRule(ACTION_LIMITS.resetPasswordAction);
-  const limit = await rateLimitByCaller(
+  const rule = ACTION_LIMITS.resetPasswordAction;
+  const limit = rateLimitBySource(
     "reset",
+    sourceFrom(await headers()),
     rule.max,
     rule.windowSeconds * 1000,
   );
@@ -60,36 +50,27 @@ export async function resetPasswordAction(
     return { error: "尝试过于频繁，请稍后再试。" };
   }
 
-  // Spending the token and writing the password are one act. Apart, a failure
-  // in the second left the link consumed and the password unchanged — the one
-  // outcome the person cannot recover from on this page, because the only way
-  // forward is another mail and the link they are holding will never work
-  // again. Rolled back, the link in their inbox is still good.
-  //
-  // The account is read through `tx` rather than `resolveUser`, which would
-  // take a second connection out of the pool while this one holds a
-  // transaction open. `resolveFromRow` is the same merge `resolveUser` does.
-  return db.transaction<ResetState>(async (tx) => {
-    const result = await redeemToken(parsed.data.token, "password_reset", tx);
-    if (!result.ok) {
-      return {
-        error:
-          result.reason === "expired"
-            ? "链接已过期，请重新申请一封重置邮件"
-            : "链接无效或已被使用，请重新申请",
-      };
-    }
+  const payload = verifyToken(parsed.data.token, "password-reset");
+  if (!payload) {
+    return { error: "链接无效或已过期，请重新申请一封重置邮件" };
+  }
 
-    // A refusal is not a failure, so this one commits: the link did reach the
-    // right mailbox and was used, and the answer is to talk to an
-    // administrator rather than to try the link again.
-    const row = await getAccount(result.handle, tx);
-    const user = row ? resolveFromRow(row) : null;
-    if (!user || user.disabled) {
-      return { error: "该账号当前无法登录，请联系管理员" };
-    }
+  const uid = parseInt(payload.s, 10);
+  if (!uid || isNaN(uid)) {
+    return { error: "链接无效" };
+  }
 
-    await setPassword(user.handle, parsed.data.password, tx);
-    return { message: `密码已更新，现在可以用 ${user.handle} 登录了。` };
-  });
+  const fp = await getPasswordFingerprint(uid);
+  if (!fp || fp !== payload.fp) {
+    return { error: "链接已失效（密码已被修改），请重新申请" };
+  }
+
+  const row = await getAccount(uid);
+  const user = row ? resolveFromRow(row) : null;
+  if (!user || user.disabled) {
+    return { error: "该账号当前无法登录，请联系管理员" };
+  }
+
+  await setPassword(uid, parsed.data.password);
+  return { message: `密码已更新，现在可以用 ${user.username} 登录了。` };
 }

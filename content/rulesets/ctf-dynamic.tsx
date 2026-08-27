@@ -1,40 +1,49 @@
 import { z } from "zod";
 import {
   assignRanks,
-  isAccepted,
-  scoredSubmissions,
+  hasResult,
+  submissionsInWindow,
   type Ruleset,
   type StandingsInput,
   type StandingsRow,
+  type SubmissionRecord,
 } from "@/lib/standings/types";
+
+function isAccepted(submission: SubmissionRecord): boolean {
+  const result = submission.result as { accepted?: boolean } | null;
+  return result?.accepted === true;
+}
 
 const configSchema = z.object({
   initial: z.number().positive().default(500),
   minimum: z.number().nonnegative().default(100),
-  /** Larger values make a problem's value decay more slowly. */
   decay: z.number().positive().default(20),
-  /** Multipliers applied to first, second and third blood. */
   bloodBonus: z.array(z.number()).default([0.1, 0.05, 0.02]),
 });
 
 export interface CtfCell {
   score: number;
   solvedAt: number | null;
-  /** 1-indexed order of solve, used for blood highlighting. */
   blood: number | null;
   attempts: number;
+  pending: number;
 }
 
 const BLOOD_LABEL = ["一血", "二血", "三血"];
 
-function CtfCellView({ cell }: { cell: CtfCell | undefined }) {
-  if (!cell || cell.attempts === 0) {
+export function CtfCellView({ cell }: { cell: CtfCell | undefined }) {
+  if (!cell || (cell.attempts === 0 && cell.pending === 0)) {
     return <span className="text-fg-subtle">·</span>;
   }
   if (cell.solvedAt === null) {
     return (
-      <span className="text-err font-mono text-xs tabular-nums">
-        −{cell.attempts}
+      <span className="font-mono text-xs tabular-nums">
+        {cell.attempts > 0 ? (
+          <span className="text-err">−{cell.attempts}</span>
+        ) : null}
+        {cell.pending > 0 ? (
+          <span className="text-info">?</span>
+        ) : null}
       </span>
     );
   }
@@ -58,56 +67,47 @@ function CtfCellView({ cell }: { cell: CtfCell | undefined }) {
   );
 }
 
-/**
- * CTF dynamic scoring: a problem is worth less the more teams solve it, so
- * every solve changes everyone's total. Values are computed in two passes —
- * count solves per problem, then award points — which is why the ruleset
- * interface takes all submissions at once rather than one at a time.
- *
- * The decay curve matches CTFd's, so values are comparable with what players
- * are used to.
- */
+export function CtfTotalView({ row }: { row: StandingsRow<CtfCell> }) {
+  return (
+    <span className="text-fg font-mono font-semibold tabular-nums">
+      {Math.round(row.total)}
+    </span>
+  );
+}
+
+import { ProblemGridBoard } from "@/content/_shared/leaderboards/problem-grid";
+
+export const renderers = { Cell: CtfCellView, Total: CtfTotalView, Board: ProblemGridBoard };
+
 export const ruleset: Ruleset<CtfCell> = {
   id: "ctf-dynamic",
   name: "CTF 动态分值",
   description: "题目分值随解出人数衰减，前三名解出者获得一/二/三血加成。",
 
-  // No `supportsFreeze`. Dynamic scoring makes freezing awkward rather than
-  // merely unimplemented: withholding one solve changes what every other team
-  // is worth, so a frozen board would have to show scores that are wrong for
-  // everyone, not just incomplete for one.
-  computeStandings(input: StandingsInput) {
+  compute(input: StandingsInput) {
     const config = configSchema.parse(input.config ?? {});
     const start = input.contest.startsAt.getTime();
 
-    const submissions = scoredSubmissions(input);
-
-    const cellsByUser = new Map<string, Record<string, CtfCell>>();
+    const cellsByUser = new Map<number, Record<string, CtfCell>>();
     for (const participant of input.participants) {
-      cellsByUser.set(participant.handle, {});
+      cellsByUser.set(participant.uid, {});
     }
 
-    // Pass 1: earliest accepted submission per (user, problem) — competitors
-    // only, and the roster check belongs here rather than at the award because
-    // both of the numbers this pass produces are shared. `list.length` is the
-    // divisor the entire format turns on, and a position in `list` is a blood
-    // slot. A solve from outside the roster used to devalue the problem for
-    // everyone inside it and occupy a blood slot that pass 2 then declined to
-    // award to anybody, rather than passing it down to the next solver.
-    //
-    // The roster is not a fixed thing to be outside of: `mode: "group"`
-    // resolves it on every read, so editing one routing rule re-ranks a contest
-    // that finished months ago. `acm.tsx` filters in its single loop for the
-    // same reason.
-    const solves = new Map<string, { handle: string; at: number }[]>();
+    const solves = new Map<string, { uid: number; at: number }[]>();
     const attempts = new Map<string, number>();
+    const pendingCounts = new Map<string, number>();
     const solvedKeys = new Set<string>();
 
-    for (const submission of submissions) {
-      if (!cellsByUser.has(submission.handle)) continue;
+    for (const submission of submissionsInWindow(input)) {
+      if (!cellsByUser.has(submission.uid)) continue;
 
-      const key = `${submission.handle}:${submission.problemSlug}`;
+      const key = `${submission.uid}:${submission.problemSlug}`;
       if (solvedKeys.has(key)) continue;
+
+      if (!hasResult(submission)) {
+        pendingCounts.set(key, (pendingCounts.get(key) ?? 0) + 1);
+        continue;
+      }
 
       attempts.set(key, (attempts.get(key) ?? 0) + 1);
       if (!isAccepted(submission)) continue;
@@ -115,42 +115,59 @@ export const ruleset: Ruleset<CtfCell> = {
       solvedKeys.add(key);
       const list = solves.get(submission.problemSlug) ?? [];
       list.push({
-        handle: submission.handle,
+        uid: submission.uid,
         at: submission.createdAt.getTime() - start,
       });
       solves.set(submission.problemSlug, list);
     }
 
-    // Pass 2: value each problem from its solve count, then award.
     for (const problem of input.problems) {
       const list = (solves.get(problem.slug) ?? []).sort((a, b) => a.at - b.at);
       const value = decayedValue(config, list.length);
 
       list.forEach((solve, index) => {
-        // Pass 1 recorded roster members only, so this narrows rather than
-        // filters.
-        const cells = cellsByUser.get(solve.handle);
+        const cells = cellsByUser.get(solve.uid);
         if (!cells) return;
         const bonus = config.bloodBonus[index] ?? 0;
+        const key = `${solve.uid}:${problem.slug}`;
         cells[problem.slug] = {
           score: value * (1 + bonus),
           solvedAt: solve.at,
           blood: index < config.bloodBonus.length ? index + 1 : null,
-          attempts: attempts.get(`${solve.handle}:${problem.slug}`) ?? 1,
+          attempts: attempts.get(key) ?? 1,
+          pending: pendingCounts.get(key) ?? 0,
         };
       });
     }
 
-    // Unsolved problems still need a cell so failed attempts are visible.
     for (const [key, count] of attempts) {
-      const [handle, slug] = splitKey(key);
-      const cells = cellsByUser.get(handle);
+      const [uidStr, slug] = splitKey(key);
+      const cells = cellsByUser.get(Number(uidStr));
       if (!cells || cells[slug]) continue;
-      cells[slug] = { score: 0, solvedAt: null, blood: null, attempts: count };
+      cells[slug] = {
+        score: 0,
+        solvedAt: null,
+        blood: null,
+        attempts: count,
+        pending: pendingCounts.get(key) ?? 0,
+      };
+    }
+
+    for (const [key, count] of pendingCounts) {
+      const [uidStr, slug] = splitKey(key);
+      const cells = cellsByUser.get(Number(uidStr));
+      if (!cells || cells[slug]) continue;
+      cells[slug] = {
+        score: 0,
+        solvedAt: null,
+        blood: null,
+        attempts: 0,
+        pending: count,
+      };
     }
 
     const rows = input.participants.map((participant) => {
-      const cells = cellsByUser.get(participant.handle) ?? {};
+      const cells = cellsByUser.get(participant.uid) ?? {};
       let total = 0;
       let lastSolve = 0;
       for (const cell of Object.values(cells)) {
@@ -163,17 +180,7 @@ export const ruleset: Ruleset<CtfCell> = {
     return {
       rows: assignRanks<CtfCell>(rows),
       totalLabel: "总分",
-      frozen: false,
     };
-  },
-
-  render: {
-    Cell: CtfCellView,
-    Total: ({ row }: { row: StandingsRow<CtfCell> }) => (
-      <span className="text-fg font-mono font-semibold tabular-nums">
-        {Math.round(row.total)}
-      </span>
-    ),
   },
 };
 

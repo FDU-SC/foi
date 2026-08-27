@@ -9,7 +9,29 @@ import {
 } from "@/lib/contests/access";
 import type { ContestConfig } from "@/lib/contests/types";
 import { standingsFor } from "@/lib/standings/compute";
-import { StandingsTable } from "./standings-table";
+import { dateFormatter } from "@/lib/format";
+import type { BoardProps } from "@/lib/standings/types";
+
+function DefaultBoard({ board }: BoardProps) {
+  if (board.standings.rows.length === 0) {
+    return (
+      <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
+        还没有提交记录。
+      </p>
+    );
+  }
+  return (
+    <ol className="divide-border divide-y">
+      {board.standings.rows.map((row) => (
+        <li key={row.participant.uid} className="flex items-center gap-3 px-3 py-2">
+          <span className="text-fg-muted font-mono text-xs tabular-nums w-8 text-right">{row.rank}</span>
+          <span className="text-fg font-medium">{row.participant.nickname}</span>
+          <span className="text-fg-muted ml-auto font-mono text-sm tabular-nums">{Math.round(row.total)}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +43,7 @@ export async function generateMetadata({
   return { title: view ? `${view.config.title} 排行榜` : "排行榜" };
 }
 
-const formatter = new Intl.DateTimeFormat("zh-CN", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
 function UpcomingNotice({ contest }: { contest: ContestConfig }) {
   return (
@@ -65,15 +84,14 @@ export default async function StandingsPage({
 
   const contest = view.config;
 
-  // The board renders one column per problem, labelled and titled, so before
-  // the start it gives away exactly what the contest page withholds. There is
-  // nothing to rank yet either.
   if (!isContestProblemSetVisibleTo(contest, viewer)) {
     return <UpcomingNotice contest={contest} />;
   }
 
   const data = await standingsFor(contest.slug, viewer);
   if (!data) notFound();
+
+  const totalRows = data.boards[0]?.standings.rows.length ?? 0;
 
   return (
     <div className="space-y-5">
@@ -92,17 +110,32 @@ export default async function StandingsPage({
 
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-fg text-2xl font-bold tracking-tight">排行榜</h1>
-        <Badge>{data.ruleset.name}</Badge>
-        {data.standings.frozen ? <Badge tone="warn">已封榜</Badge> : null}
-        {data.freezeBypassed ? (
-          <Badge tone="info">封榜中 · 你看到的是完整排名</Badge>
-        ) : null}
+        {data.frozen ? <Badge tone="warn">已封榜</Badge> : null}
         <span className="text-fg-subtle ml-auto text-xs">
-          共 {data.standings.rows.length} 人
+          共 {totalRows} 人
         </span>
       </div>
 
-      <StandingsTable data={data} />
+      {data.boards.map((board) => (
+        <section key={board.leaderboard.id} className="space-y-3">
+          {data.boards.length > 1 ? (
+            <div className="flex items-center gap-2">
+              <h2 className="text-fg text-lg font-semibold">
+                {board.leaderboard.title}
+              </h2>
+              <Badge>{board.ruleset.name}</Badge>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Badge>{board.ruleset.name}</Badge>
+            </div>
+          )}
+          {(() => {
+            const Board = board.renderers.Board ?? DefaultBoard;
+            return <Board board={board} problems={data.problems} />;
+          })()}
+        </section>
+      ))}
     </div>
   );
 }

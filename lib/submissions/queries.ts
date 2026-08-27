@@ -1,25 +1,27 @@
 import { and, desc, eq } from "drizzle-orm";
-import { failureReason } from "@/lib/backend/types";
+import { failureReason, type SubmissionState } from "@/lib/backend/types";
 import { db } from "@/lib/db";
-import { accounts, problems, submissions } from "@/lib/db/schema";
+import {
+  accounts,
+  judgingQueue,
+  problems,
+  submissions,
+} from "@/lib/db/schema";
 import type { SubmissionRow } from "@/lib/db/schema";
 import type { SubmissionListItem, SubmissionView } from "./types";
 
 /**
- * The columns a view is made of, spelled out instead of taken as a whole row.
- *
- * `error` is in the list for `failureReason` rather than for the view, which
- * has no field of that name. What is deliberately *not* in it is `payload`:
- * capped at 512 KiB, genuinely that big when the submission is a file of
- * answers rather than a program, never sent to anybody by the function below,
- * and fifty to a page in `listSubmissions`. Narrowing here is what lets that
- * query stop asking for it, and keeping the two in step is the type checker's
- * job — a field added to `SubmissionView` and read off the row will not
- * compile until both this list and that `select` know about it.
- *
- * Every other caller passes a full `SubmissionRow`, which still satisfies this
- * structurally.
+ * Derive the view-level 4-state from the DB record state + queue presence.
  */
+function deriveViewState(
+  recordState: SubmissionRow["state"],
+  queueState?: string | null,
+): SubmissionState {
+  if (recordState !== "pending") return recordState;
+  if (queueState === "claimed") return "judging";
+  return "queued";
+}
+
 export function toView(
   row: Pick<
     SubmissionRow,
@@ -27,29 +29,23 @@ export function toView(
     | "problemSlug"
     | "contestSlug"
     | "state"
-    | "verdict"
-    | "outcome"
-    | "score"
-    | "maxScore"
-    | "accepted"
+    | "result"
+    | "detail"
     | "error"
-    | "runnerStatus"
     | "createdAt"
     | "judgedAt"
   >,
+  queueInfo?: { state?: string | null; runnerStatus?: string | null } | null,
 ): SubmissionView {
   return {
     id: row.id,
     problemSlug: row.problemSlug,
     contestSlug: row.contestSlug,
-    state: row.state,
-    verdict: row.verdict ?? null,
-    outcome: row.outcome,
-    score: row.score,
-    maxScore: row.maxScore,
-    accepted: row.accepted,
-    reason: failureReason(row),
-    runnerStatus: row.runnerStatus,
+    state: deriveViewState(row.state, queueInfo?.state),
+    result: row.result ?? null,
+    detail: row.detail ?? null,
+    reason: failureReason({ state: deriveViewState(row.state, queueInfo?.state), error: row.error }),
+    runnerStatus: queueInfo?.runnerStatus ?? null,
     createdAt: row.createdAt.toISOString(),
     judgedAt: row.judgedAt?.toISOString() ?? null,
   };
@@ -66,16 +62,22 @@ export async function getSubmissionRow(
   return row;
 }
 
-/**
- * The row a client's nonce already produced, if it produced one.
- *
- * Keyed by both columns because the unique index is: a nonce is a client's
- * private counter, and one person's must not be able to name another's
- * submission. Serves the read before the insert and the recovery after a lost
- * race on it — see `submissions.clientNonce`.
- */
+export async function getQueueInfo(
+  submissionId: string,
+): Promise<{ state: string; runnerStatus: string | null } | null> {
+  const [row] = await db
+    .select({
+      state: judgingQueue.state,
+      runnerStatus: judgingQueue.runnerStatus,
+    })
+    .from(judgingQueue)
+    .where(eq(judgingQueue.submissionId, submissionId))
+    .limit(1);
+  return row ?? null;
+}
+
 export async function findSubmissionByNonce(
-  handle: string,
+  uid: number,
   clientNonce: string,
 ): Promise<SubmissionRow | undefined> {
   const [row] = await db
@@ -83,7 +85,7 @@ export async function findSubmissionByNonce(
     .from(submissions)
     .where(
       and(
-        eq(submissions.handle, handle),
+        eq(submissions.uid, uid),
         eq(submissions.clientNonce, clientNonce),
       ),
     )
@@ -92,13 +94,13 @@ export async function findSubmissionByNonce(
 }
 
 export async function listSubmissions(options: {
-  handle?: string;
+  uid?: number;
   problemSlug?: string;
   contestSlug?: string;
   limit?: number;
 }): Promise<SubmissionListItem[]> {
   const filters = [
-    options.handle ? eq(submissions.handle, options.handle) : undefined,
+    options.uid ? eq(submissions.uid, options.uid) : undefined,
     options.problemSlug
       ? eq(submissions.problemSlug, options.problemSlug)
       : undefined,
@@ -107,41 +109,43 @@ export async function listSubmissions(options: {
       : undefined,
   ].filter((clause) => clause !== undefined);
 
-  // The display name is a join rather than a lookup: people supply their own,
-  // so the authoritative copy is one table over and the foreign key guarantees
-  // the row is there.
   const rows = await db
     .select({
       submission: {
         id: submissions.id,
-        handle: submissions.handle,
+        uid: submissions.uid,
         problemSlug: submissions.problemSlug,
         contestSlug: submissions.contestSlug,
         state: submissions.state,
-        verdict: submissions.verdict,
-        outcome: submissions.outcome,
-        score: submissions.score,
-        maxScore: submissions.maxScore,
-        accepted: submissions.accepted,
+        result: submissions.result,
+        detail: submissions.detail,
         error: submissions.error,
-        runnerStatus: submissions.runnerStatus,
         createdAt: submissions.createdAt,
         judgedAt: submissions.judgedAt,
       },
+      queueState: judgingQueue.state,
+      runnerStatus: judgingQueue.runnerStatus,
       problemTitle: problems.title,
-      displayName: accounts.displayName,
+      nickname: accounts.nickname,
     })
     .from(submissions)
     .innerJoin(problems, eq(problems.slug, submissions.problemSlug))
-    .innerJoin(accounts, eq(accounts.handle, submissions.handle))
+    .innerJoin(accounts, eq(accounts.uid, submissions.uid))
+    .leftJoin(
+      judgingQueue,
+      eq(judgingQueue.submissionId, submissions.id),
+    )
     .where(filters.length > 0 ? and(...filters) : undefined)
     .orderBy(desc(submissions.createdAt))
     .limit(options.limit ?? 50);
 
   return rows.map((row) => ({
-    ...toView(row.submission),
-    handle: row.submission.handle,
-    displayName: row.displayName,
+    ...toView(row.submission, {
+      state: row.queueState,
+      runnerStatus: row.runnerStatus,
+    }),
+    uid: row.submission.uid,
+    nickname: row.nickname,
     problemTitle: row.problemTitle,
   }));
 }

@@ -1,21 +1,16 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/test/auth-support";
-import { viewerFor } from "@/lib/auth/viewer";
+import { viewerFor } from "@/lib/permissions/viewer";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
 import { accountDirectoryFor, accountsFor } from "./access";
 import { viewerWith } from "@/test/content-shapes";
 
-/**
- * The one access layer that had no tests, which is a poor place for the gap to
- * have been: this is the module that decides who reads the email addresses.
- *
- * Needs rows, so it runs against a real Postgres and skips itself when there
- * is none.
- */
-const ACTIVE = "acctaccess-active";
-const SUSPENDED = "acctaccess-suspended";
+const ACTIVE_USERNAME = "acctaccess-active";
+const SUSPENDED_USERNAME = "acctaccess-suspended";
+let ACTIVE_UID = 0;
+let SUSPENDED_UID = 0;
 
 async function reachable(): Promise<boolean> {
   try {
@@ -33,34 +28,42 @@ if (!online) {
   console.warn("[test] 数据库不可达，跳过账号门禁集成用例");
 }
 
-const reader = viewerWith("account.read", "acctaccess-admin");
-const player = viewerFor({ handle: ACTIVE, groups: [] });
+const reader = viewerWith("account.read");
+const player = viewerFor({ uid: 1, groups: [] });
 
 async function cleanup() {
-  for (const handle of [ACTIVE, SUSPENDED]) {
-    await db.delete(accounts).where(eq(accounts.handle, handle));
+  if (ACTIVE_UID) {
+    await db.delete(accounts).where(eq(accounts.uid, ACTIVE_UID));
+  }
+  if (SUSPENDED_UID) {
+    await db.delete(accounts).where(eq(accounts.uid, SUSPENDED_UID));
   }
 }
 
 describeDb("账号目录门禁", () => {
   beforeAll(async () => {
     await cleanup();
-    await db.insert(accounts).values([
-      {
-        handle: ACTIVE,
-        displayName: "Active",
-        email: `${ACTIVE}@example.test`,
-        source: "registration",
+    const [active] = await db
+      .insert(accounts)
+      .values({
+        username: ACTIVE_USERNAME,
+        nickname: "Active",
+        email: `${ACTIVE_USERNAME}@example.test`,
         status: "active",
-      },
-      {
-        handle: SUSPENDED,
-        displayName: "Suspended",
-        email: `${SUSPENDED}@example.test`,
-        source: "registration",
+      })
+      .returning({ uid: accounts.uid });
+    ACTIVE_UID = active.uid;
+
+    const [suspended] = await db
+      .insert(accounts)
+      .values({
+        username: SUSPENDED_USERNAME,
+        nickname: "Suspended",
+        email: `${SUSPENDED_USERNAME}@example.test`,
         status: "suspended",
-      },
-    ]);
+      })
+      .returning({ uid: accounts.uid });
+    SUSPENDED_UID = suspended.uid;
   });
 
   afterAll(cleanup);
@@ -69,34 +72,29 @@ describeDb("账号目录门禁", () => {
     it("持 account.read 的人拿到目录", async () => {
       const directory = await accountDirectoryFor(reader);
 
-      expect(directory.accounts.map((row) => row.handle)).toContain(ACTIVE);
-      expect(directory.awaitingReset).toBeInstanceOf(Set);
+      expect(directory.accounts.map((row) => row.uid)).toContain(ACTIVE_UID);
     });
 
-    /**
-     * Empty rather than an exception, matching the other access layers: a page
-     * that somehow reaches this without the capability renders an empty console
-     * instead of a stack trace, and there is no partial state to reason about.
-     */
+    it("目录里的行不带 passwordHash", async () => {
+      const directory = await accountDirectoryFor(reader);
+
+      for (const row of directory.accounts) {
+        expect(row).not.toHaveProperty("passwordHash");
+      }
+    });
+
     it("选手拿到的是空目录，而不是异常", async () => {
       const directory = await accountDirectoryFor(player);
 
       expect(directory.accounts).toEqual([]);
-      expect(directory.credentials).toEqual([]);
-      expect(directory.awaitingReset.size).toBe(0);
     });
 
     it("匿名也是空目录", async () => {
       expect((await accountDirectoryFor(AS_PLAYER)).accounts).toEqual([]);
     });
 
-    /**
-     * The reason this module answers to `account.read` rather than to
-     * `admin.access`: it is the one place the console shows personal data, so
-     * the addresses must not be reachable through the console capability alone.
-     */
     it("只有 admin.access 而没有 account.read 时读不到邮箱", async () => {
-      const consoleOnly = viewerFor({ handle: "x", groups: [] });
+      const consoleOnly = viewerFor({ uid: 2, groups: [] });
       expect(consoleOnly.can("admin.access")).toBe(false);
 
       const directory = await accountDirectoryFor(consoleOnly);
@@ -107,15 +105,15 @@ describeDb("账号目录门禁", () => {
   describe("accountsFor", () => {
     it("持 account.read 的人拿到账号", async () => {
       const rows = await accountsFor(reader);
-      expect(rows.map((row) => row.handle)).toContain(ACTIVE);
+      expect(rows.map((row) => row.uid)).toContain(ACTIVE_UID);
     });
 
     it("status 过滤下推到查询，封禁的不会出现在 active 里", async () => {
       const rows = await accountsFor(reader, { status: "active" });
-      const handles = rows.map((row) => row.handle);
+      const uids = rows.map((row) => row.uid);
 
-      expect(handles).toContain(ACTIVE);
-      expect(handles).not.toContain(SUSPENDED);
+      expect(uids).toContain(ACTIVE_UID);
+      expect(uids).not.toContain(SUSPENDED_UID);
     });
 
     it("没有 account.read 就是空数组，过滤条件也不能放宽它", async () => {

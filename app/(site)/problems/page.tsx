@@ -7,7 +7,6 @@ import { problemsFor } from "@/lib/problems/access";
 
 export const metadata: Metadata = { title: "题库" };
 
-// Which problems are listed depends on the clock and on who is asking.
 export const dynamic = "force-dynamic";
 
 export default async function ProblemsPage() {
@@ -30,11 +29,7 @@ export default async function ProblemsPage() {
               <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
                 题目
               </th>
-              {/* Deliberately unnamed. What goes under it is whatever
-                  `Presentation.ProblemBadges` draws, and the kernel does not
-                  know whether that is a difficulty, a tag set or nothing —
-                  three columns headed 难度 / 标签 / 满分 were the platform
-                  asserting a taxonomy on a deployment's behalf. */}
+
               <th className="border-border border-b px-4 py-2.5 text-left font-semibold" />
             </tr>
           </thead>

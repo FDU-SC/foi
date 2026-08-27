@@ -41,15 +41,6 @@ describe("assertEnv", () => {
     );
   });
 
-  it("只设置了改名前的 FOI_JUDGE_SECRET 也算数", () => {
-    expect(
-      check({
-        FOI_BACKEND_SECRET: undefined,
-        FOI_JUDGE_SECRET: VALID.FOI_BACKEND_SECRET,
-      }),
-    ).not.toThrow();
-  });
-
   it("一次报出全部问题，而不是只报第一个", () => {
     let message = "";
     try {
@@ -63,13 +54,30 @@ describe("assertEnv", () => {
     expect(message).toContain("FOI_BACKEND_SECRET");
   });
 
+  it("FOI_ENV 拼错时拒绝启动，并列出合法取值", () => {
+    expect(check({ FOI_ENV: "stagning" })).toThrow(/FOI_ENV/);
+    expect(check({ FOI_ENV: "stagning" })).toThrow(/staging/);
+  });
+
+  it("FOI_ENV 的三个合法取值都通过，不设也通过", () => {
+    for (const declared of ["dev", "staging", "prod", undefined, ""]) {
+      expect(check({ FOI_ENV: declared })).not.toThrow();
+    }
+  });
+
+  it("FOI_RELEASE_SHA 不是 sha 时拒绝启动，缺失则通过", () => {
+    expect(check({ FOI_RELEASE_SHA: "${{ github.sha }}" })).toThrow(
+      /FOI_RELEASE_SHA/,
+    );
+    expect(check({ FOI_RELEASE_SHA: "not-a-sha" })).toThrow(/FOI_RELEASE_SHA/);
+
+    for (const value of [undefined, "", "0123abc", "a".repeat(40)]) {
+      expect(check({ FOI_RELEASE_SHA: value })).not.toThrow();
+    }
+  });
+
   it("不因为可选变量缺失而拒绝启动", () => {
-    // SMTP falls back to logging and the backup interval has a default;
-    // neither should stop a boot. Backend addresses were on this list, then
-    // fatal in production, and are now neither: judging needs no address at
-    // all, and the one case that still does — a backend with interactive
-    // actions — is checked in `lib/backend/boot.ts`, which is the layer that
-    // can see which backends those are.
+
     expect(check({})).not.toThrow();
   });
 });

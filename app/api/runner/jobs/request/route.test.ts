@@ -9,17 +9,6 @@ import {
 import { CLAIM_PATH } from "@/lib/runner/auth";
 import { claimNonces } from "@/lib/runner/replay";
 
-/**
- * Beside the handler because the thing being checked is an ordering the
- * handler owns: the signature is verified before the nonce is recorded, and
- * nothing underneath can hold that. `lib/runner/replay.ts` is tested on its
- * own; what is left is whether the route reaches it at the right moment.
- *
- * Only `claimJob` is stubbed, and only because it is the one step that needs a
- * database. Everything the nonce has to sit behind — the source gate, the body
- * bound, the schema, the signature — runs for real, so a refusal that moved
- * above or below where it belongs shows up here.
- */
 const queue = vi.hoisted(() => ({ claimJob: vi.fn() }));
 
 vi.mock("@/lib/runner/queue", async (importOriginal) => ({
@@ -33,7 +22,6 @@ const BACKEND_ID = Object.keys(backends)[0];
 
 let nonces = 0;
 
-/** A value inside `jobRequestSchema`'s bounds, distinct on every call. */
 function freshNonce(): string {
   return `nonce-${String(++nonces).padStart(16, "0")}`;
 }
@@ -122,15 +110,6 @@ describe("领活接口的 nonce", () => {
     expect(response.status).toBe(400);
   });
 
-  /**
-   * The ordering, stated as the property that makes it matter. The window is a
-   * map in this process, so a nonce recorded before the signature is checked
-   * would be an entry any anonymous caller could write — the anti-replay
-   * measure turned into the exhaustion surface it exists to prevent.
-   *
-   * Checked by observing that the nonce is still unspent afterwards, which is
-   * the only externally visible consequence of the check having been skipped.
-   */
   it("验签失败的请求不会消耗 nonce", async () => {
     const nonce = freshNonce();
 
@@ -144,12 +123,6 @@ describe("领活接口的 nonce", () => {
     expect(claimNonces.firstUse(BACKEND_ID, nonce)).toBe(true);
   });
 
-  /**
-   * The same ordering seen from the other side: a caller who cannot sign must
-   * not be able to tell a nonce it has already burned from one it has not,
-   * because that would be a way to enumerate what legitimate runners are
-   * sending.
-   */
   it("未签名的请求，对已用和未用的 nonce 给出同样的回答", async () => {
     const spent = freshNonce();
     await claim({ backendId: BACKEND_ID, runnerId: "runner-a", nonce: spent });

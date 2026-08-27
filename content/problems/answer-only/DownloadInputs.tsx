@@ -3,13 +3,6 @@
 import { Button } from "@/components/ui/button";
 import { inputs } from "./data";
 
-/**
- * 提交答案题的输入数据分发。
- *
- * 示例题的数据很小，直接内联在前端生成 Blob 下载；真实场景（数据可能
- * 上百 MB）应由题目自己的后端分发，就像 leaky-bucket 的 InstanceControl
- * 一样指向 NEXT_PUBLIC_* 服务。
- */
 export function DownloadInputs() {
   const download = (name: string, content: string) => {
     const url = URL.createObjectURL(

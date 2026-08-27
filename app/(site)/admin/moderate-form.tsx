@@ -9,16 +9,13 @@ import {
   type ActionState,
 } from "./actions";
 
-/**
- * Suspending asks for a reason inline rather than behind a dialog. The reason
- * is written to the row and is the only record of why somebody was locked out,
- * so the field being unavoidable is the point.
- */
 export function ModerateForm({
-  handle,
+  uid,
+  username,
   suspended,
 }: {
-  handle: string;
+  uid: number;
+  username: string;
   suspended: boolean;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(
@@ -28,7 +25,7 @@ export function ModerateForm({
 
   return (
     <form action={formAction} className="flex flex-col items-end gap-1">
-      <input type="hidden" name="handle" value={handle} />
+      <input type="hidden" name="uid" value={uid} />
       {suspended ? (
         <PendingSubmit variant="secondary" size="sm" pendingLabel="处理中…">
           解封
@@ -40,7 +37,7 @@ export function ModerateForm({
             placeholder="封禁原因"
             maxLength={200}
             className="h-8 w-32 py-0 text-xs"
-            aria-label={`封禁 ${handle} 的原因`}
+            aria-label={`封禁 ${username} 的原因`}
           />
           <PendingSubmit variant="danger" size="sm" pendingLabel="处理中…">
             封禁

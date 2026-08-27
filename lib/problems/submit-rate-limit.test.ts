@@ -6,13 +6,6 @@ import {
   type ActionRateLimit,
 } from "./types";
 
-/**
- * Which of the three layers wins.
- *
- * Parsed through the schema rather than hand-built, because the default that
- * fills in `submit` when a problem omits it is part of what is being tested:
- * a problem that says nothing about submitting at all must still resolve.
- */
 function problemWith(submit?: Record<string, unknown>) {
   return problemConfigSchema.parse({
     slug: "example",
@@ -47,9 +40,7 @@ describe("submitRateLimit", () => {
   });
 
   it("比赛没覆盖时不掩盖题目自己的声明", () => {
-    // `undefined` is what the route passes for a submission made outside any
-    // contest, and for a contest entry that left `rateLimit` off. Neither may
-    // fall through to the kernel default while the problem has an opinion.
+
     expect(submitRateLimit(problemWith({ rateLimit: PROBLEM }), undefined)).toEqual(
       PROBLEM,
     );

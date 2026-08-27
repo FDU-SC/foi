@@ -1,7 +1,3 @@
-/**
- * 三个场景的初始网格：`.` 死细胞，`O` 活细胞。
- * 答案（第 100 代活细胞数）在 problem.ts 的 backend.config.cases 里，不下发浏览器。
- */
 export const inputs: { name: string; content: string }[] = [
   {
     name: "scene-1.txt",

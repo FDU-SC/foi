@@ -2,26 +2,25 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
-import { viewerFor } from "@/lib/auth/viewer";
+import { viewerFor } from "@/lib/permissions/viewer";
 import { ProblemRef } from "@/components/problem/problem-ref";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { PayloadBody, VerdictBody } from "@/components/opaque";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { failureReason, isSettled } from "@/lib/backend/types";
+import { failureReason, isSettled, type SubmissionState } from "@/lib/backend/types";
 import { problemBySlug } from "@/lib/problems/registry";
 import { submissionFor } from "@/lib/submissions/access";
 import { locateOne } from "@/lib/submissions/queue-position";
+import { getQueueInfo } from "@/lib/submissions/queries";
+import { dateFormatter } from "@/lib/format";
 import { isRejudgeable } from "@/lib/submissions/rejudge";
 import { RejudgeForm } from "./rejudge-form";
 
 export const metadata: Metadata = { title: "提交详情" };
 export const dynamic = "force-dynamic";
 
-const formatter = new Intl.DateTimeFormat("zh-CN", {
-  dateStyle: "medium",
-  timeStyle: "medium",
-});
+const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "medium" });
 
 export default async function SubmissionPage({
   params,
@@ -32,18 +31,20 @@ export default async function SubmissionPage({
 
   const viewer = viewerFor(user);
 
-  // Undefined covers both "no such submission" and "not yours": no reason to
-  // confirm an id exists to somebody who cannot read it.
   const row = await submissionFor(id, viewer);
   if (!row) notFound();
 
-  // Raw on purpose: this row is proof the viewer already interacted with the
-  // problem, and access to the row is checked above. Withholding the title
-  // here would only blank out a page the reader is entitled to — the gate is
-  // about problems nobody has seen yet, not ones already submitted to.
   const problem = problemBySlug(row.problemSlug);
-  const reason = failureReason(row);
-  const queue = isSettled(row.state) ? null : await locateOne(row.id);
+  const queueInfo = row.state === "pending" ? await getQueueInfo(row.id) : null;
+  const viewState: SubmissionState =
+    row.state !== "pending"
+      ? row.state
+      : queueInfo?.state === "claimed"
+        ? "judging"
+        : "queued";
+  const reason = failureReason({ state: viewState, error: row.error });
+  const settled = isSettled(viewState);
+  const queue = settled ? null : await locateOne(row.id);
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -62,25 +63,13 @@ export default async function SubmissionPage({
             fallbackTitle={problem?.title ?? row.problemSlug}
           />
         </h1>
-        <VerdictBadge submission={row} />
+        <VerdictBadge submission={{ problemSlug: row.problemSlug, state: viewState, result: row.result ?? null }} />
         <QueueBadge queue={queue} showJudge />
         <span className="text-fg-subtle ml-auto font-mono text-xs">
           {formatter.format(row.createdAt)}
         </span>
       </header>
 
-      {/*
-        Through `failureReason` rather than straight off `row.error`, which is
-        the same judgement `toView` makes for the list and the submit panel. The
-        column also carries text on rows that are still in flight — a runner's
-        last words before the reaper took the job off it — and printing that
-        here would announce a failure beside a spinner. It appears once the row
-        really is `disrupted`.
-
-        Amber rather than red, matching the badge: nothing here is the
-        submitter's doing, and the colour that says "you got this wrong" is
-        reserved for verdicts that mean it.
-      */}
       {reason ? (
         <p className="text-warn bg-warn-subtle rounded-md px-3 py-2 text-sm">
           {reason}
@@ -91,31 +80,21 @@ export default async function SubmissionPage({
         <RejudgeForm id={row.id} />
       ) : null}
 
-      {/*
-        The holder's own words, while it is still holding. Rendered verbatim and
-        interpreted not at all — "拉取镜像" and "测试点 3/10" are equally valid
-        and the kernel knows what neither means.
-      */}
-      {row.runnerStatus && !isSettled(row.state) ? (
+      {queueInfo?.runnerStatus && !settled ? (
         <p className="text-fg-muted bg-surface-2 rounded-md px-3 py-2 font-mono text-xs">
-          {row.runnerStatus}
+          {queueInfo.runnerStatus}
         </p>
       ) : null}
 
-      {row.verdict ? (
+      {row.detail ? (
         <Card>
           <CardHeader title="评测详情" />
           <CardBody>
-            <VerdictBody problemSlug={row.problemSlug} verdict={row.verdict} />
+            <VerdictBody problemSlug={row.problemSlug} detail={row.detail} />
           </CardBody>
         </Card>
       ) : null}
 
-      {/*
-        Both of these are opaque to the kernel, so both go through a slot a
-        deployment may fill — see `lib/presentation.ts`. Unfilled, they
-        render as the JSON they are.
-      */}
       <Card>
         <CardHeader title="提交内容" />
         <CardBody>

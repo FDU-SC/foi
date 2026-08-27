@@ -4,8 +4,17 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireCapability } from "@/auth";
 import { rateLimit } from "@/lib/ratelimit";
-import { ACTION_LIMITS, fixedRule } from "@/lib/ratelimit/policy";
-import { rejudgeSubmissions, submissionStateOf } from "@/lib/submissions/rejudge";
+import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
+import {
+  rejudgeSubmissions,
+  submissionStateOf,
+} from "@/lib/submissions/rejudge";
+import type { RejudgeSkipFilter } from "@/lib/submissions/rejudge";
+
+// Convention: backends set result.accepted = true for passing submissions.
+const skipAcceptedFilter: RejudgeSkipFilter = (row) =>
+  row.state === "completed" &&
+  (row.result as { accepted?: boolean } | null)?.accepted === true;
 
 export interface ActionState {
   error?: string;
@@ -14,38 +23,19 @@ export interface ActionState {
 
 const rejudgeSchema = z.object({
   id: z.string().min(1, "缺少提交 id"),
-  /**
-   * A checkbox, so it arrives as `"on"` or not at all. Read as a presence test
-   * rather than parsed, because the default has to be "no" for anything the
-   * form did not send — including a form posted by something that is not this
-   * page.
-   */
+
   includeAccepted: z.boolean(),
 });
 
-/**
- * Sends one submission back to the queue — the whole of the administrative
- * side of judging, and deliberately so: no cancel, no pinning to a runner, no
- * internal-error console.
- *
- * Bulk rejudge is the obvious next thing and is not here on purpose: the
- * accepted-submissions default below matters far more when the operation
- * covers a whole round, so it needs its own confirmation rather than this
- * checkbox.
- */
 export async function rejudgeSubmissionAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const actor = await requireCapability("submission.rejudge");
 
-  // The one privileged action here whose cost lands on somebody else's machine:
-  // every press puts real work back on a runner. Sized well above an operator
-  // clearing up after a bad round and well below anything that could occupy the
-  // pool.
-  const rule = fixedRule(ACTION_LIMITS.rejudgeSubmissionAction);
+  const rule = ACTION_LIMITS.rejudgeSubmissionAction;
   const limited = rateLimit(
-    `rejudge:${actor.handle}`,
+    `rejudge:${actor.uid}`,
     rule.max,
     rule.windowSeconds * 1000,
   );
@@ -66,15 +56,16 @@ export async function rejudgeSubmissionAction(
   const row = await submissionStateOf(parsed.data.id);
   if (!row) return { error: "提交不存在" };
 
-  // Answered before the write rather than inferred from a zero count, because
-  // the three ways this does nothing call for three different sentences and a
-  // count of zero cannot tell them apart.
-  if (row.state === "queued" || row.state === "judging") {
+  if (row.state === "pending") {
     return { error: "这条提交还没有评测完，不需要重判。" };
   }
 
+  const skipFilter = parsed.data.includeAccepted
+    ? undefined
+    : skipAcceptedFilter;
+
   const result = await rejudgeSubmissions([parsed.data.id], {
-    includeAccepted: parsed.data.includeAccepted,
+    skipFilter,
   });
 
   if (result.skippedInline > 0) {
@@ -91,7 +82,7 @@ export async function rejudgeSubmissionAction(
     };
   }
 
-  if (result.keptAccepted > 0) {
+  if (result.skippedByFilter > 0) {
     return {
       error:
         "这条提交已经通过，默认不重判。确实要覆盖它的结果，请勾选「连已通过的一起重判」。",
@@ -99,8 +90,7 @@ export async function rejudgeSubmissionAction(
   }
 
   if (result.requeued === 0) {
-    // The row moved between the read above and the write. Nothing failed and
-    // nothing is wrong — the state it is in now is the answer.
+
     revalidatePath(`/submissions/${parsed.data.id}`);
     return { error: "这条提交的状态刚刚变了，没有改动任何东西，请刷新后再看。" };
   }

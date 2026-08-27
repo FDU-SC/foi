@@ -1,21 +1,11 @@
-import {
-  contestRulesetModules,
-  rulesetModules,
-} from "@/content/ruleset-modules";
-import type { AnyRuleset } from "./types";
+import { rulesetModules } from "@/content/_modules/rulesets";
+import type { AnyRuleset, RulesetRenderers } from "./types";
 
-/**
- * Scoring formats, discovered the same way problems and contests are.
- *
- * Every format is a template rather than a built-in — the kernel knows only
- * the `Ruleset` interface — and a file under `content/rulesets/` is the whole
- * of declaring one, so adding a format costs what adding a problem costs.
- *
- * A contest may also carry its own beside its `contest.ts`, which
- * `lib/contests/registry.ts` prefers over anything named here. Those are
- * deliberately absent from `listRulesets()`: a format written for one round is
- * not on offer to the others.
- */
+interface RegistryEntry {
+  ruleset: AnyRuleset;
+  renderers: RulesetRenderers;
+}
+
 function idFromPath(path: string): string | null {
   return path.match(/\/([^/]+)\.tsx$/)?.[1] ?? null;
 }
@@ -30,39 +20,32 @@ function exportedRuleset(path: string, mod: unknown): AnyRuleset {
   if (
     typeof candidate.id !== "string" ||
     typeof candidate.name !== "string" ||
-    typeof candidate.computeStandings !== "function"
+    typeof candidate.compute !== "function"
   ) {
     throw new Error(
-      `${path} 导出的 ruleset 不符合 Ruleset 接口，请检查 id、name 与 computeStandings。`,
+      `${path} 导出的 ruleset 不符合 Ruleset 接口，请检查 id、name 与 compute。`,
     );
-  }
-
-  // `supportsFreeze` is not on that list: absent means "does not freeze", so
-  // there is nothing to check for. A value of the wrong type is worth catching
-  // though — `supportsFreeze: "yes"` is truthy, and would let a contest set a
-  // `freezeAt` that the format then ignores, which is the exact failure the
-  // field exists to prevent.
-  if (
-    candidate.supportsFreeze !== undefined &&
-    typeof candidate.supportsFreeze !== "boolean"
-  ) {
-    throw new Error(`${path} 的 supportsFreeze 必须是布尔值，或者干脆不写。`);
   }
 
   return candidate as AnyRuleset;
 }
 
-function buildRegistry(): Map<string, AnyRuleset> {
-  const registry = new Map<string, AnyRuleset>();
+function extractRenderers(mod: unknown): RulesetRenderers {
+  const exported = (mod as { renderers?: RulesetRenderers }).renderers;
+  return exported ?? {};
+}
+
+function buildRegistry(): Map<string, RegistryEntry> {
+  const registry = new Map<string, RegistryEntry>();
 
   for (const path of Object.keys(rulesetModules).sort()) {
     const fileId = idFromPath(path);
     if (!fileId) continue;
 
-    const ruleset = exportedRuleset(path, rulesetModules[path]);
+    const mod = rulesetModules[path];
+    const ruleset = exportedRuleset(path, mod);
+    const renderers = extractRenderers(mod);
 
-    // Same rule as a problem's slug and a contest's: the filename is how a
-    // reader finds the format a contest names, so the two must agree.
     if (ruleset.id !== fileId) {
       throw new Error(
         `${path} 的赛制 id "${ruleset.id}" 与文件名 "${fileId}" 不一致`,
@@ -72,52 +55,24 @@ function buildRegistry(): Map<string, AnyRuleset> {
       throw new Error(`赛制 "${ruleset.id}" 重复声明`);
     }
 
-    registry.set(ruleset.id, ruleset);
+    registry.set(ruleset.id, { ruleset, renderers });
   }
 
   return registry;
 }
 
-function buildContestRulesets(): Map<string, AnyRuleset> {
-  const own = new Map<string, AnyRuleset>();
-
-  for (const path of Object.keys(contestRulesetModules).sort()) {
-    const slug = path.match(/\/contests\/([^/]+)\/ruleset\.tsx$/)?.[1];
-    if (!slug) continue;
-    own.set(slug, exportedRuleset(path, contestRulesetModules[path]));
-  }
-
-  return own;
-}
-
 const registry = buildRegistry();
-const contestOwned = buildContestRulesets();
 
-/** The format a contest carries itself, if it has one. */
-export function getContestRuleset(slug: string): AnyRuleset | undefined {
-  return contestOwned.get(slug);
+export function rulesetFor(namedId: string): AnyRuleset | undefined {
+  return registry.get(namedId)?.ruleset;
 }
 
-/**
- * The format a contest is scored by: its own if it has one, otherwise the
- * template it names.
- *
- * One definition because two callers ask — the registry, which turns "neither"
- * and "both" into load errors, and `computeStandings`, which by then can
- * assume the contest loaded. If they disagreed, a contest would validate
- * against one format and be scored by another.
- */
-export function rulesetFor(
-  contestSlug: string,
-  namedId: string | undefined,
-): AnyRuleset | undefined {
-  return (
-    getContestRuleset(contestSlug) ??
-    (namedId ? registry.get(namedId) : undefined)
-  );
+export function renderersFor(namedId: string): RulesetRenderers {
+  return registry.get(namedId)?.renderers ?? {};
 }
 
-/** The shared templates, which is what an operator is offered. */
 export function listRulesets(): AnyRuleset[] {
-  return [...registry.values()].sort((a, b) => a.id.localeCompare(b.id));
+  return [...registry.values()]
+    .map((entry) => entry.ruleset)
+    .sort((a, b) => a.id.localeCompare(b.id));
 }

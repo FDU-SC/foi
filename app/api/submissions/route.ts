@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { ulid } from "ulid";
 import { getResolvedUser, getSessionUser } from "@/auth";
@@ -194,6 +194,7 @@ export async function POST(request: Request) {
       .values(submissionValues)
       .onConflictDoNothing({
         target: [submissions.uid, submissions.clientNonce],
+        where: sql`${submissions.clientNonce} is not null`,
       })
       .returning();
 

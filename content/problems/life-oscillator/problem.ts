@@ -1,9 +1,9 @@
-import type { ProblemUi } from "@/content/components/ui-config";
+import type { ProblemUi } from "@/content/_shared/ui/ui-config";
 import type { ProblemConfigInput } from "@/lib/problems/types";
 import {
   judgeLifeOscillator,
   type LifeOscillatorConfig,
-} from "../_shared/judge/life-oscillator";
+} from "@/content/_shared/judges/life-oscillator";
 
 export const problem = {
   slug: "life-oscillator",

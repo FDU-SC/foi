@@ -21,6 +21,10 @@ const SKIP = new Set([
   "scripts",
 ]);
 
+const SKIP_FILES = new Set([
+  "test/deployment.test.ts",
+]);
+
 const SOURCE = /\.(?:[cm]?[jt]sx?)$/;
 
 const LITERAL = /(["'])([^"'\n]*)\1/g;
@@ -70,6 +74,8 @@ describe("内核不认识 content 的名字", () => {
     const offences: string[] = [];
 
     for (const path of sourceFiles(ROOT)) {
+      const rel = path.slice(ROOT.length);
+      if (SKIP_FILES.has(rel)) continue;
       const lines = readFileSync(path, "utf8").split("\n");
       for (const [index, line] of lines.entries()) {
         if (COMMENT.test(line)) continue;

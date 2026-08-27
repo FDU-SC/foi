@@ -1,4 +1,4 @@
-import type { ProblemUi } from "@/content/components/ui-config";
+import type { ProblemUi } from "@/content/_shared/ui/ui-config";
 import type { ProblemConfigInput } from "@/lib/problems/types";
 
 export const problem = {

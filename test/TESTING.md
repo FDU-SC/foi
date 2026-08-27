@@ -76,7 +76,7 @@ it("比赛已结束时是 contest-mismatch", () => {
 | `test/auth-support.ts` | `AS_PLAYER`：匿名视角 |
 | `test/enforcement.ts` | 授权地图的声明（READ_GATES / WRITE_GATES / PAGE_CHECKS）|
 
-使用 `content-shapes.ts` 而不是手写假数据的好处：如果 content 被修改导致假设不再成立，`content/deployment.test.ts` 会立即报错并说明需要什么形状。
+使用 `content-shapes.ts` 而不是手写假数据的好处：如果 content 被修改导致假设不再成立，`test/deployment.test.ts` 会立即报错并说明需要什么形状。
 
 ---
 

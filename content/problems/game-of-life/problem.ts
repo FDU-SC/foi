@@ -1,9 +1,9 @@
-import type { ProblemUi } from "@/content/components/ui-config";
+import type { ProblemUi } from "@/content/_shared/ui/ui-config";
 import type { ProblemConfigInput } from "@/lib/problems/types";
 import {
   judgeOutputOnly,
   type OutputOnlyConfig,
-} from "../_shared/judge/output-only";
+} from "@/content/_shared/judges/output-only";
 
 export const problem = {
   slug: "game-of-life",

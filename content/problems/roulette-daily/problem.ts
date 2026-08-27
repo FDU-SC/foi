@@ -1,9 +1,9 @@
-import type { ProblemUi } from "@/content/components/ui-config";
+import type { ProblemUi } from "@/content/_shared/ui/ui-config";
 import type { ProblemConfigInput } from "@/lib/problems/types";
 import {
   judgeRoulette,
   type RouletteConfig,
-} from "../_shared/judge/roulette";
+} from "@/content/_shared/judges/roulette";
 
 export const problem = {
   slug: "roulette-daily",

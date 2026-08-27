@@ -1,1 +1,1 @@
-export { presentation } from "../components/index";
+export { presentation } from "../_shared/presentation";

@@ -1,6 +1,6 @@
 import type { ProblemViews } from "@/lib/problems/views";
-import { PayloadView } from "./_shared/views/submitted";
-import { VerdictDetail } from "./_shared/views/tests-table";
+import { PayloadView } from "@/content/_shared/views/submitted";
+import { VerdictDetail } from "@/content/_shared/views/tests-table";
 
 const inlineJudged: ProblemViews = { PayloadView };
 

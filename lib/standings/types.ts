@@ -22,6 +22,7 @@ export interface SubmissionRecord {
   uid: number;
   problemSlug: string;
   state: SubmissionRecordState;
+  /** May be `null` even when state is "completed" (freeze-masked). */
   result: unknown;
   createdAt: Date;
 }
@@ -74,6 +75,7 @@ export interface RulesetRenderers {
   Total?: ComponentType<{ row: StandingsRow<unknown> }>;
 }
 
+/** Fixed comparator: total descending, tiebreak ascending. Not customizable by rulesets. */
 export function assignRanks<Cell>(
   rows: Omit<StandingsRow<Cell>, "rank">[],
 ): StandingsRow<Cell>[] {

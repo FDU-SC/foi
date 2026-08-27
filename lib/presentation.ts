@@ -30,6 +30,7 @@ export interface Presentation {
 
 export const presentation: Presentation = declared;
 
+/** Lookup order: problem-level verdicts → global verdicts → raw status string. */
 export function describeVerdict(
   problemSlug: string | undefined,
   result: Record<string, unknown> | null,

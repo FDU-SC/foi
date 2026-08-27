@@ -5,12 +5,10 @@ import { viewerFor } from "@/lib/permissions/viewer";
 import { groupWith } from "@/test/content-shapes";
 import {
   at,
-  END,
   input,
   participants,
   problem,
   solve,
-  START,
 } from "@/test/standings-support";
 import { listRulesets } from "./registry";
 import type { AnyRuleset, StandingsInput } from "./types";

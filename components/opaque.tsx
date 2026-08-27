@@ -1,4 +1,3 @@
-import type { Verdict } from "@/lib/backend/types";
 import { viewsFor } from "@/lib/problems/views";
 
 function JsonDump({ value }: { value: unknown }) {

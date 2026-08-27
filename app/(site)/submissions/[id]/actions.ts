@@ -8,8 +8,8 @@ import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
 import {
   rejudgeSubmissions,
   submissionStateOf,
-  type RejudgeSkipFilter,
 } from "@/lib/submissions/rejudge";
+import { skipAcceptedFilter } from "@/content/_shared/submission-utils";
 
 export interface ActionState {
   error?: string;
@@ -55,16 +55,12 @@ export async function rejudgeSubmissionAction(
     return { error: "这条提交还没有评测完，不需要重判。" };
   }
 
-  const skipAccepted: RejudgeSkipFilter | undefined =
-    parsed.data.includeAccepted
-      ? undefined
-      : (row) => {
-          const r = row.result as { accepted?: boolean } | null;
-          return row.state === "completed" && r?.accepted === true;
-        };
+  const skipFilter = parsed.data.includeAccepted
+    ? undefined
+    : skipAcceptedFilter;
 
   const result = await rejudgeSubmissions([parsed.data.id], {
-    skipFilter: skipAccepted,
+    skipFilter,
   });
 
   if (result.skippedInline > 0) {

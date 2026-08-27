@@ -1,6 +1,7 @@
 import { createTransport, type Transporter } from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { tier } from "@/lib/boot/deployment";
+import { site } from "@/lib/site";
 import type { MailBody } from "./types";
 
 export type MailDelivery = "smtp" | "console";
@@ -14,7 +15,7 @@ declare global {
 }
 
 function readFrom(): string {
-  return process.env.FOI_MAIL_FROM || "FOI <foi@localhost>";
+  return process.env.FOI_MAIL_FROM || `${site.name} <noreply@localhost>`;
 }
 
 export function relayOptions(): SMTPTransport.Options | null {

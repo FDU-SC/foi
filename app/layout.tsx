@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     default: site.name,
     template: `%s · ${site.name}`,
   },
-  description: site.title,
+  description: site.description,
 };
 
 const themeScript = `

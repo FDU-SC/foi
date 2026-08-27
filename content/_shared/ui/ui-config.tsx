@@ -2,9 +2,6 @@ import { z } from "zod";
 import type { PublicProblemConfig } from "@/lib/problems/types";
 
 const problemUiSchema = z.object({
-
-  submit: z.enum(["code", "flag", "text", "none"]).default("code"),
-
   languages: z.array(z.string()).optional(),
   placeholder: z.string().optional(),
 
@@ -13,7 +10,6 @@ const problemUiSchema = z.object({
 });
 
 export type ProblemUi = z.input<typeof problemUiSchema>;
-export type SubmitKind = z.infer<typeof problemUiSchema>["submit"];
 
 const DEFAULTS = problemUiSchema.parse({});
 

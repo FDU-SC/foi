@@ -31,9 +31,9 @@ const BACKEND = "runner-queue-fixture";
 const PROBLEM = externallyJudged()[0]!;
 
 const PAYLOAD = { language: "cpp", source: "int main() { return 0; }" };
-const VERDICT: Verdict = { status: "accepted", score: 100, maxScore: 100 };
+const VERDICT: Verdict = { result: { status: "accepted", score: 100, maxScore: 100 } };
 
-const WRONG: Verdict = { status: "wrong_answer", score: 0, maxScore: 100 };
+const WRONG: Verdict = { result: { status: "wrong_answer", score: 0, maxScore: 100 } };
 const VERSION = "runner-queue-fixture/1.0.0";
 
 const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
@@ -230,9 +230,7 @@ describeDb("runner 领活与上报", () => {
 
       const row = await rowOf(id);
       expect(row.state).toBe("pending");
-      expect(row.verdict).toBeNull();
-      expect(row.outcome).toBeNull();
-      expect(row.score).toBeNull();
+      expect(row.result).toBeNull();
     });
 
     it("重判后换人领走，旧 lease 也覆盖不掉新持有者", async () => {
@@ -251,7 +249,7 @@ describeDb("runner 领活与上报", () => {
 
       const row = await rowOf(id);
       expect(row.state).toBe("pending");
-      expect(row.verdict).toBeNull();
+      expect(row.result).toBeNull();
 
       const q = await queueOf(id);
       expect(q?.lease).toBe(second?.lease);
@@ -272,10 +270,7 @@ describeDb("runner 领活与上报", () => {
       expect(row.state).toBe("disrupted");
       expect(row.error).toBe("沙箱起不来");
 
-      expect(row.verdict).toBeNull();
-      expect(row.outcome).toBeNull();
-      expect(row.score).toBeNull();
-      expect(row.accepted).toBeNull();
+      expect(row.result).toBeNull();
 
       expect(row.judgedAt).not.toBeNull();
     });
@@ -306,10 +301,7 @@ describeDb("runner 领活与上报", () => {
           uid: submissions.uid,
           problemSlug: submissions.problemSlug,
           state: submissions.state,
-          verdict: submissions.verdict,
-          score: submissions.score,
-          maxScore: submissions.maxScore,
-          accepted: submissions.accepted,
+          result: submissions.result,
           createdAt: submissions.createdAt,
         })
         .from(submissions)

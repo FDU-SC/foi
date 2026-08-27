@@ -37,19 +37,17 @@ export function submission(options: {
 }): SubmissionRecord {
   const maxScore = options.maxScore ?? 100;
   const state = options.state ?? "completed";
-  const outcome = options.score >= maxScore ? "accepted" : "wrong_answer";
+  const accepted = options.accepted ?? options.score >= maxScore;
+  const outcome = accepted ? "accepted" : "wrong_answer";
   return {
     id: `sub_${(counter += 1)}`,
     uid: options.uid,
     problemSlug: options.problemSlug,
     state,
-    verdict:
+    result:
       state === "completed"
-        ? { status: outcome, score: options.score, maxScore }
+        ? { status: outcome, score: options.score, maxScore, accepted }
         : null,
-    score: state === "completed" ? options.score : null,
-    maxScore: state === "completed" ? maxScore : null,
-    accepted: options.accepted ?? null,
     createdAt: at(options.minutes),
   };
 }

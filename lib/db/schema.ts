@@ -1,9 +1,7 @@
 import { getTableColumns, sql } from "drizzle-orm";
 import {
   bigint,
-  boolean,
   check,
-  doublePrecision,
   index,
   integer,
   jsonb,
@@ -14,7 +12,6 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import type { Verdict } from "@/lib/backend/types";
 
 export type AccountStatus = "active" | "suspended";
 
@@ -123,8 +120,6 @@ export const submissions = pgTable(
 
     backendId: text("backend_id").notNull(),
 
-    maxScore: doublePrecision("max_score"),
-
     releaseSha: text("release_sha"),
 
     state: text("state")
@@ -132,13 +127,9 @@ export const submissions = pgTable(
       .notNull()
       .default("pending"),
 
-    verdict: jsonb("verdict").$type<Verdict>(),
+    result: jsonb("result").$type<Record<string, unknown>>(),
 
-    score: doublePrecision("score"),
-
-    accepted: boolean("accepted"),
-
-    outcome: text("outcome"),
+    detail: jsonb("detail").$type<unknown>(),
 
     backendVersion: text("backend_version"),
 

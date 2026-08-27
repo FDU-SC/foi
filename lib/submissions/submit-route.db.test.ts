@@ -183,7 +183,7 @@ describeDb("内联判题的提交", () => {
       .where(eq(submissions.uid, INLINE_UID));
 
     expect(row.state).toBe("completed");
-    expect(row.outcome).not.toBeNull();
+    expect(row.result).not.toBeNull();
 
     expect(row.backendId).toBe(INLINE_BACKEND_ID);
     expect(row.backendVersion).toBe(INLINE_BACKEND_VERSION);
@@ -268,10 +268,8 @@ describeDb("内联判题说自己判不了", () => {
     expect(row.state).toBe("disrupted");
     expect(row.error).toContain(REASON);
 
-    expect(row.verdict).toBeNull();
-    expect(row.outcome).toBeNull();
-    expect(row.score).toBeNull();
-    expect(row.accepted).toBeNull();
+    expect(row.result).toBeNull();
+    expect(row.detail).toBeNull();
     expect(row.judgedAt).not.toBeNull();
   });
 });

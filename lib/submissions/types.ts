@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { SubmissionState, Verdict } from "@/lib/backend/types";
+import type { SubmissionState } from "@/lib/backend/types";
 import type { QueuePosition } from "./queue-position";
 
 export interface SubmissionView {
@@ -8,11 +8,8 @@ export interface SubmissionView {
   contestSlug: string | null;
   state: SubmissionState;
 
-  verdict: Verdict | null;
-  outcome: string | null;
-  score: number | null;
-  maxScore: number | null;
-  accepted: boolean | null;
+  result: Record<string, unknown> | null;
+  detail: unknown;
 
   reason: string | null;
 
@@ -40,4 +37,4 @@ export interface SubmissionListItem extends SubmissionView {
   problemTitle: string;
 }
 
-export type { QueuePosition, SubmissionState, Verdict };
+export type { QueuePosition, SubmissionState };

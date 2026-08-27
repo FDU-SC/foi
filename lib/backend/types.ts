@@ -30,10 +30,7 @@ export const TERMINAL_RECORD_STATES: SubmissionRecordState[] = [
 ];
 
 export const verdictSchema = z.object({
-  status: z.string().min(1).max(64),
-  score: z.number().finite().optional(),
-  maxScore: z.number().finite().positive().optional(),
-  accepted: z.boolean().optional(),
+  result: z.record(z.string(), z.unknown()),
   detail: z.unknown().optional(),
 });
 

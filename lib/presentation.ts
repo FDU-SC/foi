@@ -32,38 +32,20 @@ export const presentation: Presentation = declared;
 
 export function describeVerdict(
   problemSlug: string | undefined,
-  result: {
-    outcome: string | null;
-    score: number | null;
-    maxScore: number | null;
-    accepted: boolean | null;
-  },
+  result: Record<string, unknown> | null,
 ): VerdictPreset {
-  const label = result.outcome ?? "已评测";
+  const status =
+    result && typeof result.status === "string" ? result.status : null;
+  const label = status ?? "已评测";
 
-  if (result.outcome) {
-    // Problem-level verdicts take priority over global verdicts
+  if (status) {
     const problemVerdicts = problemSlug
       ? viewsFor(problemSlug).verdicts
       : undefined;
     const preset =
-      problemVerdicts?.[result.outcome] ??
-      presentation.verdicts?.[result.outcome];
+      problemVerdicts?.[status] ?? presentation.verdicts?.[status];
     if (preset) return preset;
   }
 
-  const tone: BadgeTone =
-    result.accepted !== null
-      ? result.accepted
-        ? "ok"
-        : "err"
-      : result.score === null
-        ? "neutral"
-        : result.maxScore !== null && result.score >= result.maxScore
-          ? "ok"
-          : result.score > 0
-            ? "partial"
-            : "err";
-
-  return { label, short: label, tone };
+  return { label, short: label, tone: "neutral" };
 }

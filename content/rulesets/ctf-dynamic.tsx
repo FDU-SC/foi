@@ -1,12 +1,18 @@
 import { z } from "zod";
 import {
   assignRanks,
-  isAccepted,
   scoredSubmissions,
   type Ruleset,
   type StandingsInput,
   type StandingsRow,
+  type SubmissionRecord,
 } from "@/lib/standings/types";
+
+function isAccepted(submission: SubmissionRecord): boolean {
+  if (submission.state !== "completed") return false;
+  const result = submission.result as { accepted?: boolean } | null;
+  return result?.accepted === true;
+}
 
 const configSchema = z.object({
   initial: z.number().positive().default(500),

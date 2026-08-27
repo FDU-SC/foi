@@ -77,7 +77,6 @@ describeDb("提交门禁", () => {
         problemSlug: SLUG,
         payload: {},
         backendId: "queue-a",
-        maxScore: 100,
         state: "completed",
       },
       {
@@ -86,7 +85,6 @@ describeDb("提交门禁", () => {
         problemSlug: SLUG,
         payload: {},
         backendId: "queue-a",
-        maxScore: 100,
         state: "completed",
       },
     ]);

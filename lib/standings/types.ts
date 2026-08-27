@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import type { SubmissionRecordState, Verdict } from "@/lib/backend/types";
+import type { SubmissionRecordState } from "@/lib/backend/types";
 
 export interface ContestProblem {
   slug: string;
@@ -22,10 +22,7 @@ export interface SubmissionRecord {
   uid: number;
   problemSlug: string;
   state: SubmissionRecordState;
-  verdict: Verdict | null;
-  score: number | null;
-  maxScore: number | null;
-  accepted: boolean | null;
+  result: unknown;
   createdAt: Date;
 }
 
@@ -122,11 +119,4 @@ export function scoredSubmissions(input: StandingsInput): SubmissionRecord[] {
   return submissionsInWindow(input).filter(
     (submission) => submission.state === "completed",
   );
-}
-
-export function isAccepted(submission: SubmissionRecord): boolean {
-  if (submission.state !== "completed") return false;
-  if (submission.accepted !== null) return submission.accepted;
-  if (submission.score === null || submission.maxScore === null) return false;
-  return submission.score >= submission.maxScore;
 }

@@ -10,7 +10,6 @@ import { judgingQueue, submissions } from "@/lib/db/schema";
 import { problemBySlug } from "@/lib/problems/registry";
 import { isInlineBackend } from "@/lib/problems/types";
 import { invalidateStandings } from "@/lib/standings/cache";
-import { isAccepted } from "@/lib/standings/types";
 import { publish } from "@/lib/submissions/events";
 
 export const REJUDGE_PRIORITY = -1;
@@ -64,7 +63,10 @@ export async function rejudgeSubmissions(
 
   const accepted = options.includeAccepted
     ? []
-    : routed.filter((row) => isAccepted(row));
+    : routed.filter((row) => {
+        const r = row.result as { accepted?: boolean } | null;
+        return row.state === "completed" && r?.accepted === true;
+      });
   const acceptedIds = new Set(accepted.map((row) => row.id));
   const targets = routed.filter((row) => !acceptedIds.has(row.id));
 
@@ -83,10 +85,8 @@ export async function rejudgeSubmissions(
     .update(submissions)
     .set({
       state: "pending" satisfies SubmissionRecordState,
-      verdict: null,
-      score: null,
-      accepted: null,
-      outcome: null,
+      result: null,
+      detail: null,
       backendVersion: null,
       releaseSha: releaseSha(),
       error: null,

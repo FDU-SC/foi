@@ -38,7 +38,7 @@ let ACCOUNT_UID = 0;
 const BACKEND = "runner-reaper-fixture";
 
 const PROBLEM = externallyJudged()[0]!;
-const VERDICT: Verdict = { status: "accepted", score: 100, maxScore: 100 };
+const VERDICT: Verdict = { result: { status: "accepted", score: 100, maxScore: 100 } };
 const VERSION = "runner-reaper-fixture/1.0.0";
 
 const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
@@ -271,7 +271,7 @@ describeDb("失联回收", () => {
 
     const row = await rowOf(id);
     expect(row.state).toBe("pending");
-    expect(row.verdict).toBeNull();
+    expect(row.result).toBeNull();
     expect(row.error).toBeNull();
 
     await expect(reportDone(id, second!.lease, VERDICT, VERSION)).resolves.toBe(

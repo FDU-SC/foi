@@ -24,7 +24,7 @@ const BACKEND = PROBLEM.backend.id;
 
 const PAYLOAD = { language: "cpp", source: "int main() { return 0; }" };
 
-const VERDICT: Verdict = { status: "accepted", score: 100, maxScore: 100 };
+const VERDICT: Verdict = { result: { status: "accepted", score: 100, maxScore: 100 } };
 const VERSION = "runner-route-fixture/1.0.0";
 
 const MISSING = "sub_jr_no_such_row";
@@ -298,7 +298,7 @@ describeDb("评测机作业接口", () => {
 
       const row = await rowOf("sub_jr_done");
       expect(row.state).toBe("completed");
-      expect(row.verdict).toEqual(VERDICT);
+      expect(row.result).toEqual(VERDICT.result);
       expect(row.backendVersion).toBe(VERSION);
       expect(row.judgedAt).not.toBeNull();
 
@@ -319,7 +319,7 @@ describeDb("评测机作业接口", () => {
       const row = await rowOf("sub_jr_failed");
       expect(row.state).toBe("disrupted");
       expect(row.error).toBe("沙箱起不来");
-      expect(row.verdict).toBeNull();
+      expect(row.result).toBeNull();
 
       const queueRow = await queueRowOf("sub_jr_failed");
       expect(queueRow).toBeUndefined();
@@ -337,7 +337,7 @@ describeDb("评测机作业接口", () => {
 
       const row = await rowOf("sub_jr_stale");
       expect(row.state).toBe("pending");
-      expect(row.verdict).toBeNull();
+      expect(row.result).toBeNull();
 
       const queueRow = await queueRowOf("sub_jr_stale");
       expect(queueRow).toBeDefined();

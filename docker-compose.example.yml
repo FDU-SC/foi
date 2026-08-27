@@ -4,12 +4,12 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-foi}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set}@postgres:5432/${POSTGRES_DB:-foi}
+      DATABASE_URL: postgres://${POSTGRES_USER:?POSTGRES_USER is not set}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is not set}
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "${HOST_PORT:-8080}:80"
+      - "${HOST_PORT:-8080}:3000"
     networks:
       - internal
 

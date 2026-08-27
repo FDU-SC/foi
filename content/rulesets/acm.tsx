@@ -3,12 +3,18 @@ import { contestPhase } from "@/lib/contests/types";
 import { formatDuration } from "@/lib/utils";
 import {
   assignRanks,
-  isAccepted,
   submissionsInWindow,
   type Ruleset,
   type StandingsInput,
   type StandingsRow,
+  type SubmissionRecord,
 } from "@/lib/standings/types";
+
+function isAccepted(submission: SubmissionRecord): boolean {
+  if (submission.state !== "completed") return false;
+  const result = submission.result as { accepted?: boolean } | null;
+  return result?.accepted === true;
+}
 
 const configSchema = z.object({
   penaltyMinutes: z.number().nonnegative().default(20),

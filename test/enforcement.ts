@@ -283,21 +283,6 @@ export type PageCheck =
     };
 
 export const PAGE_CHECKS = {
-  "proxy.ts": {
-    kind: "optimistic",
-    what: "把没登录的人从 /admin 挡回登录页",
-    capabilities: ["admin.access"],
-    why:
-      "答案只来自 token。会话回调按仓库里的授予解析 uid，从不读 accounts 表，" +
-      "所以一个已被封禁、但还攥着有效 JWT 的账号在这里仍然看起来是管理员。" +
-      "换来的是每次预取都便宜——真正拒绝的是下面这四个层。",
-    enforcedBy: [
-      "lib/admin/access.ts#adminOverviewFor",
-      "lib/admin/access.ts#adminAccountsFor",
-      "lib/admin/access.ts#adminContestsFor",
-      "lib/admin/access.ts#enrollmentViewFor",
-    ],
-  },
   "components/site/header.tsx": {
     kind: "chrome",
     what: "决定导航栏里显不显示「管理」入口",

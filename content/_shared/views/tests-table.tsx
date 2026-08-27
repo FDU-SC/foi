@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
-import type { Verdict } from "@/lib/backend/types";
 
 interface TestLike {
   name?: string;
@@ -36,12 +35,12 @@ function extractMessage(detail: unknown): string | null {
   return typeof message === "string" && message.length > 0 ? message : null;
 }
 
-export function VerdictDetail({ verdict }: { verdict: Verdict }) {
+export function VerdictDetail({ detail }: { detail: unknown }) {
   const [expanded, setExpanded] = useState(false);
-  const tests = extractTests(verdict.detail);
-  const message = extractMessage(verdict.detail);
+  const tests = extractTests(detail);
+  const message = extractMessage(detail);
 
-  if (!tests && !message && verdict.detail === undefined) return null;
+  if (!tests && !message && detail === undefined) return null;
 
   return (
     <div className="space-y-3">
@@ -83,7 +82,7 @@ export function VerdictDetail({ verdict }: { verdict: Verdict }) {
         </div>
       ) : null}
 
-      {verdict.detail !== undefined && !tests && !message ? (
+      {detail !== undefined && !tests && !message ? (
         <div>
           <button
             type="button"
@@ -94,7 +93,7 @@ export function VerdictDetail({ verdict }: { verdict: Verdict }) {
           </button>
           {expanded ? (
             <pre className="border-border bg-surface-2 text-fg-muted mt-2 max-h-64 overflow-auto rounded border px-3 py-2 font-mono text-xs">
-              {JSON.stringify(verdict.detail, null, 2)}
+              {JSON.stringify(detail, null, 2)}
             </pre>
           ) : null}
         </div>

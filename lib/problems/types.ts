@@ -2,7 +2,7 @@ import { z } from "zod";
 import { audienceSchema } from "@/lib/permissions/audience";
 import { SLUG_PATTERN } from "@/lib/utils";
 
-import type { BackendUser, Verdict } from "@/lib/backend/types";
+import type { BackendUser } from "@/lib/backend/types";
 
 export const actionRateLimitSchema = z.object({
   max: z.number().int().positive(),
@@ -26,7 +26,12 @@ export interface InlineUnavailable {
   reason: string;
 }
 
-export type InlineJudgement = Verdict | InlineUnavailable;
+export interface InlineResult {
+  result: Record<string, unknown>;
+  detail?: unknown;
+}
+
+export type InlineJudgement = InlineResult | InlineUnavailable;
 
 export function isInlineUnavailable(
   judgement: InlineJudgement,

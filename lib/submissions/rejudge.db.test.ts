@@ -28,8 +28,6 @@ const RETIRED = "rejudge-retired-fixture";
 const PAYLOAD = { language: "cpp", source: "int main() { return 0; }" };
 const VERSION = "rejudge-fixture/1.0.0";
 
-const OLD_MAX_SCORE = 250;
-
 const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
 
 async function settled(
@@ -43,11 +41,8 @@ async function settled(
     payload: PAYLOAD,
     backendId: BACKEND,
     state: "completed",
-    verdict: { status: "wrong_answer", score: 40, maxScore: OLD_MAX_SCORE },
-    outcome: "wrong_answer",
-    score: 40,
-    maxScore: OLD_MAX_SCORE,
-    accepted: false,
+    result: { status: "wrong_answer", score: 40, maxScore: 250, accepted: false },
+    detail: null,
     backendVersion: VERSION,
     error: "上一轮的抱怨",
     judgedAt: new Date(),
@@ -93,18 +88,16 @@ describeDb("重判", () => {
     await db.delete(problems).where(eq(problems.slug, RETIRED));
   });
 
-  describe("保留 max_score", () => {
-    it("上一轮判定整个清掉，独独留下 max_score", async () => {
+  describe("重判清空判定结果", () => {
+    it("上一轮判定整个清掉", async () => {
       const id = await settled("sub_rj_cleared");
 
       expect((await rejudgeSubmissions([id])).requeued).toBe(1);
 
       const row = await rowOf(id);
       expect(row.state).toBe("pending");
-      expect(row.verdict).toBeNull();
-      expect(row.score).toBeNull();
-      expect(row.accepted).toBeNull();
-      expect(row.outcome).toBeNull();
+      expect(row.result).toBeNull();
+      expect(row.detail).toBeNull();
       expect(row.backendVersion).toBeNull();
       expect(row.error).toBeNull();
       expect(row.judgedAt).toBeNull();
@@ -114,45 +107,37 @@ describeDb("重判", () => {
         .from(judgingQueue)
         .where(eq(judgingQueue.submissionId, id));
       expect(q.attempts).toBe(0);
-
-      expect(row.maxScore).toBe(OLD_MAX_SCORE);
     });
 
-    it("重判后落定，分母还是行上那个，不是题目现在配置的满分", async () => {
-
-      expect(PROBLEM.maxScore).not.toBe(OLD_MAX_SCORE);
-
+    it("重判后落定，result 来自后端本次上报", async () => {
       const id = await settled("sub_rj_denominator");
       expect((await rejudgeSubmissions([id])).requeued).toBe(1);
 
       const ticket = await claimJob(BACKEND, "r-again");
       expect(ticket?.id).toBe(id);
 
-      const verdict: Verdict = { status: "wrong_answer", score: 30 };
+      const verdict: Verdict = { result: { status: "wrong_answer", score: 30, maxScore: 100 } };
       await expect(
         reportDone(id, ticket!.lease, verdict, VERSION),
       ).resolves.toBe(true);
 
       const row = await rowOf(id);
       expect(row.state).toBe("completed");
-      expect(row.score).toBe(30);
-      expect(row.maxScore).toBe(OLD_MAX_SCORE);
+      expect(row.result).toEqual({ status: "wrong_answer", score: 30, maxScore: 100 });
     });
 
-    it("后端自己报了分母，就用后端报的那个", async () => {
+    it("后端上报的 result 原样落库", async () => {
       const id = await settled("sub_rj_backend_denominator");
       await rejudgeSubmissions([id]);
 
       const ticket = await claimJob(BACKEND, "r-declares");
       const verdict: Verdict = {
-        status: "accepted",
-        score: 60,
-        maxScore: 60,
-        accepted: true,
+        result: { status: "accepted", score: 60, maxScore: 60, accepted: true },
       };
       await reportDone(id, ticket!.lease, verdict, VERSION);
 
-      expect((await rowOf(id)).maxScore).toBe(60);
+      const row = await rowOf(id);
+      expect(row.result).toEqual({ status: "accepted", score: 60, maxScore: 60, accepted: true });
     });
   });
 
@@ -198,7 +183,7 @@ describeDb("重判", () => {
 
       const row = await rowOf(id);
       expect(row.state).toBe("completed");
-      expect(row.verdict).not.toBeNull();
+      expect(row.result).not.toBeNull();
     });
 
     it("题目已经不外派的行不进队列，只报一个计数", async () => {
@@ -212,7 +197,7 @@ describeDb("重判", () => {
 
       const row = await rowOf(id);
       expect(row.state).toBe("completed");
-      expect(row.verdict).not.toBeNull();
+      expect(row.result).not.toBeNull();
 
       await expect(claimJob(BACKEND, "r-nothing")).resolves.toBeNull();
     });

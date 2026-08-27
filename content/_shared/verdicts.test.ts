@@ -13,12 +13,7 @@ describe("verdicts", () => {
 
   it("登记过的 status 经内核翻译成缩写", () => {
     expect(
-      describeVerdict(undefined, {
-        outcome: "accepted",
-        score: null,
-        maxScore: null,
-        accepted: null,
-      }),
+      describeVerdict(undefined, { status: "accepted" }),
     ).toMatchObject({ short: "AC", tone: "ok" });
   });
 });

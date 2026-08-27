@@ -20,7 +20,6 @@ import {
   type InlineBackend,
 } from "@/lib/problems/types";
 import { invalidateStandings } from "@/lib/standings/cache";
-import { verdictColumns } from "@/lib/submissions/verdict";
 import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest, tooManyRequests } from "@/lib/server/guard";
 import { ROUTE_LIMITS } from "@/lib/ratelimit/policy";
@@ -149,7 +148,6 @@ export async function POST(request: Request) {
     clientNonce: clientNonce ?? null,
     backendId:
       judging.kind === "inline" ? INLINE_BACKEND_ID : judging.backend.id,
-    maxScore: problem.maxScore,
     releaseSha: releaseSha(),
     state: "pending" as const,
     createdAt: new Date(),
@@ -176,10 +174,9 @@ export async function POST(request: Request) {
 
       return {
         state: "completed",
-        verdict: judgement,
+        result: judgement.result,
+        detail: judgement.detail ?? null,
         backendVersion: INLINE_BACKEND_VERSION,
-
-        ...verdictColumns(judgement, problem.maxScore),
         judgedAt: new Date(),
       };
     } catch (error) {

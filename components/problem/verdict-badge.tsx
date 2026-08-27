@@ -5,21 +5,16 @@ import { describeVerdict } from "@/lib/presentation";
 export interface VerdictBadgeSubject {
   problemSlug: string;
   state: SubmissionState;
-  outcome: string | null;
-  score: number | null;
-  maxScore: number | null;
-  accepted: boolean | null;
+  result: Record<string, unknown> | null;
 }
 
 export function VerdictBadge({
   submission,
-  showScore = true,
 }: {
   submission: VerdictBadgeSubject;
-  showScore?: boolean;
 }) {
 
-  if (submission.outcome === null) {
+  if (submission.result === null) {
     const { label, tone } = STATE_PRESETS[submission.state];
     return (
       <Badge tone={tone}>
@@ -31,22 +26,11 @@ export function VerdictBadge({
     );
   }
 
-  const { short, label, tone } = describeVerdict(submission.problemSlug, submission);
-  const { score, maxScore } = submission;
-
-  const scored = score !== null && maxScore !== null && maxScore > 1;
-  const partial = scored && score > 0 && score < maxScore;
+  const { short, label, tone } = describeVerdict(submission.problemSlug, submission.result);
 
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <Badge tone={tone} title={label} mono>
-        {short}
-      </Badge>
-      {showScore && (partial || scored) ? (
-        <span className="text-fg-muted font-mono text-xs tabular-nums">
-          {score}/{maxScore}
-        </span>
-      ) : null}
-    </span>
+    <Badge tone={tone} title={label} mono>
+      {short}
+    </Badge>
   );
 }

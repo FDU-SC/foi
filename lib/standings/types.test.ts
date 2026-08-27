@@ -10,7 +10,6 @@ import {
 } from "@/test/standings-support";
 import {
   assignRanks,
-  isAccepted,
   scoredSubmissions,
   submissionsInWindow,
 } from "./types";
@@ -202,83 +201,3 @@ describe("submissionsInWindow", () => {
   });
 });
 
-describe("isAccepted", () => {
-  const record = (score: number, maxScore: number) =>
-    submission({
-      uid: 1,
-      problemSlug: "a",
-      minutes: 1,
-      score,
-      maxScore,
-    });
-
-  it("满分算通过", () => {
-    expect(isAccepted(record(100, 100))).toBe(true);
-  });
-
-  it("部分分不算通过", () => {
-    expect(isAccepted(record(99, 100))).toBe(false);
-  });
-
-  it("超过满分也算通过", () => {
-    expect(isAccepted(record(120, 100))).toBe(true);
-  });
-
-  it("还没判完不算通过", () => {
-    expect(
-      isAccepted(
-        submission({
-          uid: 1,
-          problemSlug: "a",
-          minutes: 1,
-          score: 100,
-          state: "pending",
-        }),
-      ),
-    ).toBe(false);
-  });
-
-  it("评测机说了算：声明不通过时，满分也不算通过", () => {
-    expect(
-      isAccepted(
-        submission({
-          uid: 1,
-          problemSlug: "a",
-          minutes: 1,
-          score: 100,
-          accepted: false,
-        }),
-      ),
-    ).toBe(false);
-  });
-
-  it("评测机说了算：声明通过时，零分也算通过", () => {
-    expect(
-      isAccepted(
-        submission({
-          uid: 1,
-          problemSlug: "a",
-          minutes: 1,
-          score: 0,
-          accepted: true,
-        }),
-      ),
-    ).toBe(true);
-  });
-
-  it("评测机什么分都没报时不算通过", () => {
-    expect(
-      isAccepted({
-        id: "s_noscore",
-        uid: 1,
-        problemSlug: "a",
-        state: "completed",
-        verdict: { status: "checked" },
-        score: null,
-        maxScore: null,
-        accepted: null,
-        createdAt: at(1),
-      }),
-    ).toBe(false);
-  });
-});

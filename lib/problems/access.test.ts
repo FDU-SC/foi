@@ -40,7 +40,7 @@ describe("viewerFor", () => {
   });
 
   it("持有该能力的组拿得到预览", () => {
-    expect(viewerWith("problem.viewAll", "a").can("problem.viewAll")).toBe(
+    expect(viewerWith("problem.viewAll").can("problem.viewAll")).toBe(
       true,
     );
   });

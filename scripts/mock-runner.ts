@@ -184,8 +184,9 @@ async function work(backendId: string, ticket: JobTicket): Promise<void> {
       verdict,
       backendVersion: VERSION,
     });
+    const r = verdict.result as { status?: string; score?: number; maxScore?: number };
     console.log(
-      `  完成 ${details.id} -> ${verdict.status} ${verdict.score}/${verdict.maxScore}`,
+      `  完成 ${details.id} -> ${r.status} ${r.score}/${r.maxScore}`,
     );
   } catch (error) {
 
@@ -290,10 +291,12 @@ function judgeCode(config: unknown, payload: unknown, say: Say): Verdict {
 
   const maxScore = subtasks.reduce((sum, s) => sum + s.score, 0);
   return {
-    status:
-      score === maxScore ? "accepted" : score > 0 ? "partial" : "wrong_answer",
-    score,
-    maxScore,
+    result: {
+      status:
+        score === maxScore ? "accepted" : score > 0 ? "partial" : "wrong_answer",
+      score,
+      maxScore,
+    },
     detail: {
       tests,
       message: hasContent ? undefined : "提交内容为空",
@@ -388,9 +391,11 @@ function judgeInstanceFlag(job: JobDetails): Verdict {
   }
 
   return {
-    status: mine ? "accepted" : "wrong_answer",
-    score: mine ? 300 : 0,
-    maxScore: 300,
+    result: {
+      status: mine ? "accepted" : "wrong_answer",
+      score: mine ? 300 : 0,
+      maxScore: 300,
+    },
     detail: {
       message: mine
         ? "flag 正确"
@@ -465,9 +470,7 @@ int main() {
     );
     if (compiled.code !== 0) {
       return {
-        status: "compile_error",
-        score: 0,
-        maxScore: 100,
+        result: { status: "compile_error", score: 0, maxScore: 100 },
         detail: {
           message: (compiled.stderr.toString() || "编译失败").slice(0, 2000),
         },
@@ -478,9 +481,7 @@ int main() {
     const ran = await run(join(dir, "prog"), [], { timeout: timeLimitMs });
     if (ran.killed) {
       return {
-        status: "time_limit_exceeded",
-        score: 0,
-        maxScore: 100,
+        result: { status: "time_limit_exceeded", score: 0, maxScore: 100 },
         detail: { message: "超出时间限制" },
       };
     }
@@ -489,9 +490,7 @@ int main() {
     const match = stdout.match(/ANSWER=(-?\d+) QUERIES=(\d+) OK=(\d)/);
     if (!match) {
       return {
-        status: "runtime_error",
-        score: 0,
-        maxScore: 100,
+        result: { status: "runtime_error", score: 0, maxScore: 100 },
         detail: { message: "程序异常退出，没有产出评测结果" },
       };
     }
@@ -502,24 +501,18 @@ int main() {
 
     if (ok) {
       return {
-        status: "accepted",
-        score: 100,
-        maxScore: 100,
+        result: { status: "accepted", score: 100, maxScore: 100 },
         detail: { message: `答案正确，共 ${queries} 次查询（上限 ${maxQueries}）` },
       };
     }
     if (submittedAnswer === answer && queries > maxQueries) {
       return {
-        status: "partial",
-        score: 50,
-        maxScore: 100,
+        result: { status: "partial", score: 50, maxScore: 100 },
         detail: { message: `答案正确但查询了 ${queries} 次，超过上限 ${maxQueries}` },
       };
     }
     return {
-      status: "wrong_answer",
-      score: 0,
-      maxScore: 100,
+      result: { status: "wrong_answer", score: 0, maxScore: 100 },
       detail: {
         message: `答案错误（提交 ${submittedAnswer}，正确 ${answer}），查询 ${queries} 次`,
       },
@@ -654,9 +647,7 @@ async function judgePerformance(
   if (compiled.code !== 0) {
     rmSync(dir, { recursive: true, force: true });
     return {
-      status: "compile_error",
-      score: 0,
-      maxScore: 100,
+      result: { status: "compile_error", score: 0, maxScore: 100 },
       detail: {
         message: (compiled.stderr.toString() || "编译失败").slice(0, 2000),
       },
@@ -694,26 +685,20 @@ async function judgePerformance(
 
     if (killed) {
       return {
-        status: "time_limit_exceeded",
-        score: 0,
-        maxScore: 100,
+        result: { status: "time_limit_exceeded", score: 0, maxScore: 100 },
         detail: { message: `超出时间限制（${timeLimitMs}ms）` },
       };
     }
     if (!best) {
       return {
-        status: "runtime_error",
-        score: 0,
-        maxScore: 100,
+        result: { status: "runtime_error", score: 0, maxScore: 100 },
         detail: { message: "程序没有产出任何输出" },
       };
     }
 
     if (!best.stdout.equals(baseline.stdout)) {
       return {
-        status: "wrong_answer",
-        score: 0,
-        maxScore: 100,
+        result: { status: "wrong_answer", score: 0, maxScore: 100 },
         detail: {
           message: "输出与基线不一致",
           timeMs: Math.round(best.timeMs),
@@ -725,9 +710,11 @@ async function judgePerformance(
     const timeMs = Math.max(1, best.timeMs);
     const score = Math.min(100, Math.floor((50 * baselineMs) / timeMs));
     return {
-      status: score >= 100 ? "accepted" : score > 0 ? "partial" : "wrong_answer",
-      score,
-      maxScore: 100,
+      result: {
+        status: score >= 100 ? "accepted" : score > 0 ? "partial" : "wrong_answer",
+        score,
+        maxScore: 100,
+      },
       detail: {
         message: `耗时 ${Math.round(timeMs)}ms，基线 ${Math.round(baselineMs)}ms，加速比 ${(baselineMs / timeMs).toFixed(2)}x`,
         timeMs: Math.round(timeMs),

@@ -8,7 +8,6 @@ import { isInlineBackend } from "@/lib/problems/types";
 import { problemBySlug } from "@/lib/problems/registry";
 import { invalidateStandings } from "@/lib/standings/cache";
 import { publish } from "@/lib/submissions/events";
-import { verdictColumns } from "@/lib/submissions/verdict";
 
 export const HEARTBEAT_LAPSE_MS = 90_000;
 
@@ -176,7 +175,6 @@ export async function reportDone(
 
   const [sub] = await db
     .select({
-      maxScore: submissions.maxScore,
       problemSlug: submissions.problemSlug,
       contestSlug: submissions.contestSlug,
     })
@@ -189,12 +187,9 @@ export async function reportDone(
     .update(submissions)
     .set({
       state: "completed",
-      verdict,
+      result: verdict.result,
+      detail: verdict.detail ?? null,
       backendVersion,
-      ...verdictColumns(
-        verdict,
-        sub.maxScore ?? problemBySlug(sub.problemSlug)?.maxScore ?? null,
-      ),
       error: null,
       judgedAt: new Date(),
     })

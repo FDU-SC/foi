@@ -65,7 +65,7 @@ export default async function SubmissionPage({
             fallbackTitle={problem?.title ?? row.problemSlug}
           />
         </h1>
-        <VerdictBadge submission={{ ...row, state: viewState }} />
+        <VerdictBadge submission={{ problemSlug: row.problemSlug, state: viewState, result: row.result ?? null }} />
         <QueueBadge queue={queue} showJudge />
         <span className="text-fg-subtle ml-auto font-mono text-xs">
           {formatter.format(row.createdAt)}
@@ -88,11 +88,11 @@ export default async function SubmissionPage({
         </p>
       ) : null}
 
-      {row.verdict ? (
+      {row.detail ? (
         <Card>
           <CardHeader title="评测详情" />
           <CardBody>
-            <VerdictBody problemSlug={row.problemSlug} verdict={row.verdict} />
+            <VerdictBody problemSlug={row.problemSlug} detail={row.detail} />
           </CardBody>
         </Card>
       ) : null}

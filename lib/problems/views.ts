@@ -1,13 +1,12 @@
 import type { ComponentType } from "react";
 import { problemViews } from "@/content/_modules/problem-views";
-import type { Verdict } from "@/lib/backend/types";
 import type { VerdictPreset } from "@/lib/presentation";
 
 export interface ProblemViews {
 
   PayloadView?: ComponentType<{ payload: unknown }>;
 
-  VerdictDetail?: ComponentType<{ verdict: Verdict }>;
+  VerdictDetail?: ComponentType<{ detail: unknown }>;
 
   verdicts?: Record<string, VerdictPreset>;
 }

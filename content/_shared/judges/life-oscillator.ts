@@ -149,10 +149,12 @@ export const judgeLifeOscillator: InlineJudge = ({ payload, config }) => {
   const allPassed = passed === cases.length;
 
   return {
-    status: allPassed ? "accepted" : passed > 0 ? "partial" : "wrong_answer",
-    accepted: allPassed,
-    score: allPassed ? 100 : passed * perCase,
-    maxScore: 100,
+    result: {
+      status: allPassed ? "accepted" : passed > 0 ? "partial" : "wrong_answer",
+      accepted: allPassed,
+      score: allPassed ? 100 : passed * perCase,
+      maxScore: 100,
+    },
     detail: { tests },
   };
 };

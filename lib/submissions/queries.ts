@@ -29,11 +29,8 @@ export function toView(
     | "problemSlug"
     | "contestSlug"
     | "state"
-    | "verdict"
-    | "outcome"
-    | "score"
-    | "maxScore"
-    | "accepted"
+    | "result"
+    | "detail"
     | "error"
     | "createdAt"
     | "judgedAt"
@@ -45,11 +42,8 @@ export function toView(
     problemSlug: row.problemSlug,
     contestSlug: row.contestSlug,
     state: deriveViewState(row.state, queueInfo?.state),
-    verdict: row.verdict ?? null,
-    outcome: row.outcome,
-    score: row.score,
-    maxScore: row.maxScore,
-    accepted: row.accepted,
+    result: row.result ?? null,
+    detail: row.detail ?? null,
     reason: failureReason({ state: deriveViewState(row.state, queueInfo?.state), error: row.error }),
     runnerStatus: queueInfo?.runnerStatus ?? null,
     createdAt: row.createdAt.toISOString(),
@@ -123,11 +117,8 @@ export async function listSubmissions(options: {
         problemSlug: submissions.problemSlug,
         contestSlug: submissions.contestSlug,
         state: submissions.state,
-        verdict: submissions.verdict,
-        outcome: submissions.outcome,
-        score: submissions.score,
-        maxScore: submissions.maxScore,
-        accepted: submissions.accepted,
+        result: submissions.result,
+        detail: submissions.detail,
         error: submissions.error,
         createdAt: submissions.createdAt,
         judgedAt: submissions.judgedAt,

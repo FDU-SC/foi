@@ -32,7 +32,6 @@ async function enqueue(
     claimedAt?: Date;
     heartbeatAt?: Date;
     submissionState?: "pending" | "completed" | "disrupted";
-    outcome?: string;
     judgedAt?: Date;
   } = {},
 ): Promise<string> {
@@ -46,7 +45,6 @@ async function enqueue(
     backendId,
     state: overrides.submissionState ?? "pending",
     createdAt: overrides.createdAt,
-    outcome: overrides.outcome,
     judgedAt: overrides.judgedAt,
   });
 
@@ -181,7 +179,6 @@ describeDb("排队位次", () => {
   it("终态的提交根本不在队列里，问出来是 null 而不是 0", async () => {
     const done = await enqueue("sub_ql_done", {
       submissionState: "completed",
-      outcome: "accepted",
       judgedAt: new Date(),
     });
 

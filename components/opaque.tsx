@@ -26,15 +26,15 @@ export function PayloadBody({
 
 export function VerdictBody({
   problemSlug,
-  verdict,
+  detail,
 }: {
   problemSlug: string;
-  verdict: Verdict;
+  detail: unknown;
 }) {
-  if (verdict.detail === undefined) return null;
+  if (detail === undefined || detail === null) return null;
 
   const Detail = viewsFor(problemSlug).VerdictDetail;
-  if (Detail) return <Detail verdict={verdict} />;
+  if (Detail) return <Detail detail={detail} />;
 
-  return <JsonDump value={verdict.detail} />;
+  return <JsonDump value={detail} />;
 }

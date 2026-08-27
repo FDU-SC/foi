@@ -7,6 +7,8 @@ import {
   type StandingsRow,
 } from "@/lib/standings/types";
 
+interface OiResult { score: number; maxScore: number }
+
 const configSchema = z.object({
 
   take: z.enum(["best", "last"]).default("best"),
@@ -71,8 +73,9 @@ export const ruleset: Ruleset<OiCell> = {
       cells.set(submission.problemSlug, cell);
       cell.attempts += 1;
 
-      const raw = submission.score ?? 0;
-      const outOf = submission.maxScore;
+      const r = submission.result as OiResult | null;
+      const raw = r?.score ?? 0;
+      const outOf = r?.maxScore;
       const score =
         outOf && outOf > 0 && outOf !== maxScore
           ? (raw / outOf) * maxScore

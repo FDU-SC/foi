@@ -56,10 +56,12 @@ export const judgeRoulette: InlineJudge = ({ payload, config, user }) => {
   }
 
   return {
-    status:
-      score >= scoreNumber ? "accepted" : score > 0 ? "partial" : "wrong_answer",
-    score,
-    maxScore: scoreNumber,
+    result: {
+      status:
+        score >= scoreNumber ? "accepted" : score > 0 ? "partial" : "wrong_answer",
+      score,
+      maxScore: scoreNumber,
+    },
     detail: {
       number,
       color,

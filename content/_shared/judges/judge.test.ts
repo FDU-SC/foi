@@ -35,6 +35,12 @@ function judge(
   return judgement;
 }
 
+type Result = { status?: unknown; accepted?: unknown; score?: number; maxScore?: number };
+
+function r(verdict: Verdict): Result {
+  return verdict.result as Result;
+}
+
 describe("judgeOutputOnly", () => {
   const config = {
     cases: [
@@ -46,9 +52,9 @@ describe("judgeOutputOnly", () => {
   it("逐行比对，全对满分", () => {
     const verdict = judge(judgeOutputOnly, config, { text: "8\n16" });
 
-    expect(verdict.status).toBe("accepted");
-    expect(verdict.accepted).toBe(true);
-    expect(verdict.score).toBe(100);
+    expect(r(verdict).status).toBe("accepted");
+    expect(r(verdict).accepted).toBe(true);
+    expect(r(verdict).score).toBe(100);
   });
 
   it.each(CASE_COUNTS)("%i 个场景全对时是满分的 AC", (count) => {
@@ -62,25 +68,25 @@ describe("judgeOutputOnly", () => {
       { text: cases.map((testCase) => testCase.expected).join("\n") },
     );
 
-    expect(verdict.status).toBe("accepted");
-    expect(verdict.accepted).toBe(true);
-    expect(verdict.score).toBe(100);
+    expect(r(verdict).status).toBe("accepted");
+    expect(r(verdict).accepted).toBe(true);
+    expect(r(verdict).score).toBe(100);
   });
 
   it("对一半给一半，状态是 partial", () => {
     const verdict = judge(judgeOutputOnly, config, { text: "8\n99" });
 
-    expect(verdict.status).toBe("partial");
-    expect(verdict.accepted).toBe(false);
-    expect(verdict.score).toBe(50);
+    expect(r(verdict).status).toBe("partial");
+    expect(r(verdict).accepted).toBe(false);
+    expect(r(verdict).score).toBe(50);
   });
 
   it("空白不算答案的一部分", () => {
-    expect(judge(judgeOutputOnly, config, { text: " 8 \n 16 " }).score).toBe(100);
+    expect(r(judge(judgeOutputOnly, config, { text: " 8 \n 16 " })).score).toBe(100);
   });
 
   it("行数不够时缺的那些算错，而不是崩", () => {
-    expect(judge(judgeOutputOnly, config, { text: "8" }).score).toBe(50);
+    expect(r(judge(judgeOutputOnly, config, { text: "8" })).score).toBe(50);
   });
 
   it("配置缺 cases 时说自己判不了，而不是给一个判决", () => {
@@ -99,9 +105,9 @@ describe("judgeLifeOscillator", () => {
   it("周期正好等于 k 的图案得分", () => {
     const verdict = judge(judgeLifeOscillator, config, { text: BLINKER });
 
-    expect(verdict.status).toBe("accepted");
-    expect(verdict.accepted).toBe(true);
-    expect(verdict.score).toBe(100);
+    expect(r(verdict).status).toBe("accepted");
+    expect(r(verdict).accepted).toBe(true);
+    expect(r(verdict).score).toBe(100);
   });
 
   it.each(CASE_COUNTS)("%i 个场景全对时是满分的 AC", (count) => {
@@ -111,17 +117,17 @@ describe("judgeLifeOscillator", () => {
       { text: Array.from({ length: count }, () => BLINKER).join("\n\n") },
     );
 
-    expect(verdict.status).toBe("accepted");
-    expect(verdict.accepted).toBe(true);
-    expect(verdict.score).toBe(100);
+    expect(r(verdict).status).toBe("accepted");
+    expect(r(verdict).accepted).toBe(true);
+    expect(r(verdict).score).toBe(100);
   });
 
   it("周期不等于 k 的图案不得分", () => {
     const stillLife = "OO\nOO";
     const verdict = judge(judgeLifeOscillator, config, { text: stillLife });
 
-    expect(verdict.score).toBe(0);
-    expect(verdict.accepted).toBe(false);
+    expect(r(verdict).score).toBe(0);
+    expect(r(verdict).accepted).toBe(false);
   });
 
   it("超尺寸的图案在模拟之前就被拒", () => {
@@ -132,14 +138,14 @@ describe("judgeLifeOscillator", () => {
       { text: huge },
     );
 
-    expect(verdict.score).toBe(0);
+    expect(r(verdict).score).toBe(0);
     const tests = (verdict.detail as { tests: { message: string }[] }).tests;
     expect(tests[0].message).toContain("超过上限");
   });
 
   it("非法字符按格式错误处理", () => {
     const verdict = judge(judgeLifeOscillator, config, { text: "XYZ" });
-    expect(verdict.score).toBe(0);
+    expect(r(verdict).score).toBe(0);
   });
 
   it.each([
@@ -165,8 +171,8 @@ describe("judgeLifeOscillator", () => {
       { text: BLINKER },
     );
 
-    expect(verdict.status).toBe("accepted");
-    expect(verdict.score).toBe(100);
+    expect(r(verdict).status).toBe("accepted");
+    expect(r(verdict).score).toBe(100);
   });
 });
 
@@ -224,9 +230,9 @@ describe("judgeRoulette", () => {
     vi.stubEnv("AUTH_SECRET", "roulette-test-key-0123456789");
     const number = spin(USER);
 
-    expect(judge(judgeRoulette, config, { text: String(number) }).score).toBe(100);
+    expect(r(judge(judgeRoulette, config, { text: String(number) })).score).toBe(100);
     expect(
-      judge(judgeRoulette, config, { text: "not-a-bet" }).score,
+      r(judge(judgeRoulette, config, { text: "not-a-bet" })).score,
     ).toBe(0);
     vi.unstubAllEnvs();
   });

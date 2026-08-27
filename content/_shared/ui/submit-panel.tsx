@@ -52,13 +52,13 @@ export function SubmitPanel({ children }: { children: ReactNode }) {
           </p>
         ) : null}
 
-        {submission?.verdict ? (
+        {submission?.detail ? (
           <div className="border-border mt-4 border-t pt-4">
-            <VerdictBody problemSlug={config.slug} verdict={submission.verdict} />
+            <VerdictBody problemSlug={config.slug} detail={submission.detail} />
           </div>
         ) : null}
 
-        {submission && !submission.verdict && !submission.reason ? (
+        {submission && !submission.detail && !submission.reason ? (
           <div className="mt-3">
             <a
               href={`/submissions/${submission.id}`}

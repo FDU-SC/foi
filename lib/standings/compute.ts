@@ -47,10 +47,7 @@ async function loadAndCompute(
       uid: submissions.uid,
       problemSlug: submissions.problemSlug,
       state: submissions.state,
-      verdict: submissions.verdict,
-      score: submissions.score,
-      maxScore: submissions.maxScore,
-      accepted: submissions.accepted,
+      result: submissions.result,
       createdAt: submissions.createdAt,
       nickname: accounts.nickname,
     })

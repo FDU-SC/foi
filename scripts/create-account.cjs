@@ -120,9 +120,9 @@ async function main() {
 
     await client.query(
       `insert into accounts
-         (handle, display_name, email, email_verified_at, source, status,
+         (handle, display_name, email, status,
           password_hash, password_set_at)
-       values ($1, $2, $3, now(), 'bootstrap', 'active', $4, now())`,
+       values ($1, $2, $3, 'active', $4, now())`,
       [normalizedHandle, name, normalizedEmail, passwordHash],
     );
 

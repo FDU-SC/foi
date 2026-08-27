@@ -5,7 +5,7 @@ import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { resolveFromRow } from "@/lib/accounts/resolve";
 import { adminAccountsFor } from "@/lib/admin/access";
-import type { AccountRow } from "@/lib/db/schema";
+import type { AccountRow, AccountSuspensionRow } from "@/lib/db/schema";
 import { groupName, hasPrivilege, isPrivileged } from "@/lib/permissions/groups";
 import { Field, Input } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
@@ -25,35 +25,36 @@ const STATUS: Record<string, { label: string; tone: "ok" | "err" }> = {
   suspended: { label: "已封禁", tone: "err" },
 };
 
-function ModerationNote({ row }: { row: AccountRow | undefined }) {
-  if (!row?.suspendedAt) return null;
+function ModerationNote({
+  row,
+  lastEvent,
+}: {
+  row: AccountRow | undefined;
+  lastEvent: AccountSuspensionRow | undefined;
+}) {
+  if (!lastEvent) return null;
 
-  const by = row.suspendedBy ? `由 ${row.suspendedBy}` : null;
+  const by = `由 ${lastEvent.performedBy}`;
 
-  if (row.status === "suspended") {
+  if (row?.status === "suspended" && lastEvent.action === "suspend") {
     return (
       <p className="text-fg-subtle mt-1 text-xs leading-4">
-        {row.suspendedReason}
-        {by ? (
-          <>
-            <br />
-            {by}
-          </>
-        ) : null}
+        {lastEvent.reason}
+        <br />
+        {by}
       </p>
     );
   }
 
-  return (
-    <p className="text-fg-subtle mt-1 text-xs leading-4">
-      曾于 {formatter.format(row.suspendedAt)} 被封禁
-      {by ? `，${by}` : ""}
-      <br />
-      {row.reinstatedAt
-        ? `${formatter.format(row.reinstatedAt)} 解封`
-        : "已解封，时间未记录"}
-    </p>
-  );
+  if (lastEvent.action === "reinstate") {
+    return (
+      <p className="text-fg-subtle mt-1 text-xs leading-4">
+        {formatter.format(lastEvent.createdAt)} 解封，{by}
+      </p>
+    );
+  }
+
+  return null;
 }
 
 export default async function AdminAccountsPage({
@@ -67,7 +68,7 @@ export default async function AdminAccountsPage({
   ]);
   if (!directory) notFound();
 
-  const { accounts: rows, awaitingReset } = directory;
+  const { accounts: rows, awaitingReset, lastSuspensionEvents } = directory;
 
   const query = typeof params.q === "string" ? params.q.trim().toLowerCase() : "";
   const byHandle = new Map(rows.map((row) => [row.handle, row]));
@@ -185,7 +186,7 @@ export default async function AdminAccountsPage({
                   </td>
                   <td className="px-4 py-2.5">
                     <Badge tone={status.tone}>{status.label}</Badge>
-                    <ModerationNote row={row} />
+                    <ModerationNote row={row} lastEvent={lastSuspensionEvents.get(account.handle)} />
                   </td>
                   <td className="px-4 py-2.5">
                     {account.groups.length === 0 ? (

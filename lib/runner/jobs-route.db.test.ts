@@ -12,7 +12,7 @@ import {
 } from "@/lib/backend/signature";
 import type { Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
-import { accounts, problems, submissions } from "@/lib/db/schema";
+import { accounts, judgingSessions, problems, submissions } from "@/lib/db/schema";
 import { externalProblem } from "@/test/content-shapes";
 import { jobPath } from "./auth";
 
@@ -40,11 +40,14 @@ async function holding(id: string, lease: string): Promise<string> {
     payload: PAYLOAD,
     backendId: BACKEND,
     state: "judging",
-    lease,
+    attempts: 1,
+  });
+  await db.insert(judgingSessions).values({
+    submissionId: id,
     runnerId: "r-route",
+    lease,
     claimedAt: new Date(),
     lastHeartbeatAt: new Date(),
-    attempts: 1,
   });
   return id;
 }
@@ -142,7 +145,7 @@ describeDb("评测机作业接口", () => {
       .onConflictDoNothing();
     await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE, source: "registration" });
+      .values({ handle: HANDLE, displayName: HANDLE });
 
     await holding("sub_jr_mine", "lease-held-by-me");
     await holding("sub_jr_theirs", "lease-held-by-somebody-else");
@@ -259,8 +262,13 @@ describeDb("评测机作业接口", () => {
 
       const row = await rowOf("sub_jr_alive");
       expect(row.state).toBe("judging");
-      expect(row.runnerStatus).toBe("测试点 3/10");
-      expect(row.lease).toBe("lease-alive");
+
+      const [session] = await db
+        .select()
+        .from(judgingSessions)
+        .where(eq(judgingSessions.submissionId, "sub_jr_alive"));
+      expect(session.runnerStatus).toBe("测试点 3/10");
+      expect(session.lease).toBe("lease-alive");
     });
 
     it("done 落定判定，并把 lease 交回去", async () => {
@@ -279,7 +287,11 @@ describeDb("评测机作业接口", () => {
       expect(row.backendVersion).toBe(VERSION);
       expect(row.judgedAt).not.toBeNull();
 
-      expect(row.lease).toBeNull();
+      const [session] = await db
+        .select()
+        .from(judgingSessions)
+        .where(eq(judgingSessions.submissionId, "sub_jr_done"));
+      expect(session).toBeUndefined();
     });
 
     it("failed 落 disrupted，理由原样留在行上", async () => {
@@ -296,7 +308,12 @@ describeDb("评测机作业接口", () => {
       expect(row.state).toBe("disrupted");
       expect(row.error).toBe("沙箱起不来");
       expect(row.verdict).toBeNull();
-      expect(row.lease).toBeNull();
+
+      const [session] = await db
+        .select()
+        .from(judgingSessions)
+        .where(eq(judgingSessions.submissionId, "sub_jr_failed"));
+      expect(session).toBeUndefined();
     });
 
     it("拿作废的 lease 上报，什么都写不进去", async () => {
@@ -311,8 +328,13 @@ describeDb("评测机作业接口", () => {
 
       const row = await rowOf("sub_jr_stale");
       expect(row.state).toBe("judging");
-      expect(row.lease).toBe("lease-current");
       expect(row.verdict).toBeNull();
+
+      const [session] = await db
+        .select()
+        .from(judgingSessions)
+        .where(eq(judgingSessions.submissionId, "sub_jr_stale"));
+      expect(session.lease).toBe("lease-current");
     });
 
     it("上报格式不合法时，签名对也一样被拒", async () => {

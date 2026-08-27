@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import {
   accounts,
   contests,
+  judgingSessions,
   problems,
   runners,
   submissions,
@@ -76,7 +77,7 @@ describeDb("runner 领活与上报", () => {
       .onConflictDoNothing();
     await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE, source: "registration" });
+      .values({ handle: HANDLE, displayName: HANDLE });
     await db.insert(contests).values({ slug: CONTEST, title: "Runner Fixture" });
   });
 
@@ -115,7 +116,11 @@ describeDb("runner 领活与上报", () => {
         expect(row.attempts).toBe(1);
       }
 
-      const leaseById = new Map(rows.map((row) => [row.id, row.lease]));
+      const sessions = await db
+        .select()
+        .from(judgingSessions)
+        .where(inArray(judgingSessions.submissionId, ids));
+      const leaseById = new Map(sessions.map((s) => [s.submissionId, s.lease]));
       for (const ticket of handed) {
         expect(ticket.lease).toBe(leaseById.get(ticket.id));
       }
@@ -227,9 +232,14 @@ describeDb("runner 领活与上报", () => {
 
       const row = await rowOf(id);
       expect(row.state).toBe("judging");
-      expect(row.lease).toBe(second?.lease);
-      expect(row.runnerId).toBe("r-second");
       expect(row.verdict).toBeNull();
+
+      const [session] = await db
+        .select()
+        .from(judgingSessions)
+        .where(eq(judgingSessions.submissionId, id));
+      expect(session.lease).toBe(second?.lease);
+      expect(session.runnerId).toBe("r-second");
     });
   });
 
@@ -252,7 +262,6 @@ describeDb("runner 领活与上报", () => {
       expect(row.score).toBeNull();
       expect(row.accepted).toBeNull();
 
-      expect(row.lease).toBeNull();
       expect(row.judgedAt).not.toBeNull();
     });
 

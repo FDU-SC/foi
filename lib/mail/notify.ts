@@ -1,6 +1,5 @@
 import { issueCode } from "@/lib/enrollment/email-verification";
 import { issueToken, lastIssuedAt, revokeTokens } from "@/lib/accounts/tokens";
-import type { TokenPurpose } from "@/lib/db/schema";
 import { emailTemplates } from "./registry";
 import { deliver } from "./transport";
 
@@ -19,11 +18,8 @@ function linkTo(path: string, token: string): string {
   return url.toString();
 }
 
-async function throttled(
-  handle: string,
-  purpose: TokenPurpose,
-): Promise<number> {
-  const last = await lastIssuedAt(handle, purpose);
+async function throttled(handle: string): Promise<number> {
+  const last = await lastIssuedAt(handle);
   if (!last) return 0;
 
   const elapsed = Date.now() - last.getTime();
@@ -54,10 +50,10 @@ export async function sendVerificationCode(
 }
 
 export async function sendPasswordReset(to: Recipient): Promise<NotifyResult> {
-  const wait = await throttled(to.handle, "password_reset");
+  const wait = await throttled(to.handle);
   if (wait > 0) return { ok: false, reason: "throttled", retryAfterMs: wait };
 
-  const { token, expiresAt, id } = await issueToken(to.handle, "password_reset", {
+  const { token, expiresAt, id } = await issueToken(to.handle, {
     revokePrior: false,
   });
   await deliver({
@@ -70,7 +66,7 @@ export async function sendPasswordReset(to: Recipient): Promise<NotifyResult> {
   });
 
   try {
-    await revokeTokens(to.handle, "password_reset", { exceptId: id });
+    await revokeTokens(to.handle, { exceptId: id });
   } catch (error) {
     console.error(
       `[foi] 重置链接已发出，但作废 ${to.handle} 的旧链接失败`,

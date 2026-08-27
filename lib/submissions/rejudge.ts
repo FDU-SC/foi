@@ -6,7 +6,7 @@ import {
 } from "@/lib/backend/types";
 import { releaseSha } from "@/lib/boot/deployment";
 import { db } from "@/lib/db";
-import { submissions } from "@/lib/db/schema";
+import { judgingSessions, submissions } from "@/lib/db/schema";
 import { problemBySlug } from "@/lib/problems/registry";
 import { isInlineBackend } from "@/lib/problems/types";
 import { invalidateStandings } from "@/lib/standings/cache";
@@ -76,15 +76,12 @@ export async function rejudgeSubmissions(
     };
   }
 
+  const targetIds = targets.map((row) => row.id);
+
   const requeued = await db
     .update(submissions)
     .set({
       state: "queued" satisfies SubmissionState,
-      lease: null,
-      runnerId: null,
-      runnerStatus: null,
-      claimedAt: null,
-      lastHeartbeatAt: null,
 
       attempts: 0,
 
@@ -101,15 +98,23 @@ export async function rejudgeSubmissions(
     })
     .where(
       and(
-        inArray(
-          submissions.id,
-          targets.map((row) => row.id),
-        ),
+        inArray(submissions.id, targetIds),
         inArray(submissions.state, TERMINAL_STATES),
         ne(submissions.backendId, INLINE_BACKEND_ID),
       ),
     )
     .returning();
+
+  if (requeued.length > 0) {
+    await db
+      .delete(judgingSessions)
+      .where(
+        inArray(
+          judgingSessions.submissionId,
+          requeued.map((r) => r.id),
+        ),
+      );
+  }
 
   const contests = new Set<string>();
   for (const row of requeued) {

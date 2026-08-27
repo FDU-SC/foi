@@ -1,7 +1,7 @@
-import { and, asc, count, gte, inArray } from "drizzle-orm";
+import { and, asc, count, eq, gte, inArray } from "drizzle-orm";
 import type { Viewer } from "@/lib/permissions/viewer";
 import { db } from "@/lib/db";
-import { runners, submissions } from "@/lib/db/schema";
+import { judgingSessions, runners, submissions } from "@/lib/db/schema";
 import { RUNNER_ONLINE_MS } from "@/lib/runner/queue";
 import { backendsFor } from "./access";
 import { backends, listBackendIds } from "./registry";
@@ -58,14 +58,17 @@ async function allBackendQueues(): Promise<BackendQueueStatus[]> {
         backendId: submissions.backendId,
         problemSlug: submissions.problemSlug,
         state: submissions.state,
-        runnerId: submissions.runnerId,
-        runnerStatus: submissions.runnerStatus,
+        runnerId: judgingSessions.runnerId,
+        runnerStatus: judgingSessions.runnerStatus,
         queuedAt: submissions.queuedAt,
-        claimedAt: submissions.claimedAt,
+        claimedAt: judgingSessions.claimedAt,
       })
       .from(submissions)
+      .leftJoin(
+        judgingSessions,
+        eq(judgingSessions.submissionId, submissions.id),
+      )
       .where(inFlight)
-
       .orderBy(asc(submissions.queuedAt))
       .limit(BOARD_LIMIT * ids.length),
     db

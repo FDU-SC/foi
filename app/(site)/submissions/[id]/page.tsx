@@ -12,6 +12,7 @@ import { failureReason, isSettled } from "@/lib/backend/types";
 import { problemBySlug } from "@/lib/problems/registry";
 import { submissionFor } from "@/lib/submissions/access";
 import { locateOne } from "@/lib/submissions/queue-position";
+import { getRunnerStatus } from "@/lib/submissions/queries";
 import { isRejudgeable } from "@/lib/submissions/rejudge";
 import { RejudgeForm } from "./rejudge-form";
 
@@ -37,7 +38,10 @@ export default async function SubmissionPage({
 
   const problem = problemBySlug(row.problemSlug);
   const reason = failureReason(row);
-  const queue = isSettled(row.state) ? null : await locateOne(row.id);
+  const settled = isSettled(row.state);
+  const [queue, runnerStatus] = settled
+    ? [null, null]
+    : await Promise.all([locateOne(row.id), getRunnerStatus(row.id)]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -73,9 +77,9 @@ export default async function SubmissionPage({
         <RejudgeForm id={row.id} />
       ) : null}
 
-      {row.runnerStatus && !isSettled(row.state) ? (
+      {runnerStatus && !settled ? (
         <p className="text-fg-muted bg-surface-2 rounded-md px-3 py-2 font-mono text-xs">
-          {row.runnerStatus}
+          {runnerStatus}
         </p>
       ) : null}
 

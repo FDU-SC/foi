@@ -43,7 +43,6 @@ describeDb("password", () => {
     await db.insert(accounts).values({
       handle: HANDLE,
       displayName: "Credential Test",
-      source: "registration",
     });
     await setPassword(HANDLE, PASSWORD);
   });
@@ -85,7 +84,6 @@ describeDb("password", () => {
     await db.insert(accounts).values({
       handle: HANDLE,
       displayName: "Credential Test",
-      source: "registration",
     });
 
     await expect(passwordSetAt(HANDLE)).resolves.toBeNull();

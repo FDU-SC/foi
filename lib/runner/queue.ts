@@ -3,7 +3,7 @@ import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
 import { resolveUser } from "@/lib/accounts/resolve";
 import type { JobDetails, JobTicket, Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
-import { runners, submissions } from "@/lib/db/schema";
+import { judgingSessions, runners, submissions } from "@/lib/db/schema";
 import { isInlineBackend } from "@/lib/problems/types";
 import { problemBySlug } from "@/lib/problems/registry";
 import { invalidateStandings } from "@/lib/standings/cache";
@@ -64,12 +64,6 @@ export async function claimJob(
     .update(submissions)
     .set({
       state: "judging",
-      lease,
-      runnerId,
-      claimedAt: now,
-      lastHeartbeatAt: now,
-
-      runnerStatus: null,
       error: null,
       attempts: sql`${submissions.attempts} + 1`,
     })
@@ -77,6 +71,27 @@ export async function claimJob(
     .returning();
 
   if (!claimed) return null;
+
+  await db
+    .insert(judgingSessions)
+    .values({
+      submissionId: claimed.id,
+      runnerId,
+      lease,
+      runnerStatus: null,
+      lastHeartbeatAt: now,
+      claimedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: judgingSessions.submissionId,
+      set: {
+        runnerId,
+        lease,
+        runnerStatus: null,
+        lastHeartbeatAt: now,
+        claimedAt: now,
+      },
+    });
 
   publish(toView(claimed));
   return { id: claimed.id, lease };
@@ -89,10 +104,14 @@ export async function jobDetails(
   const [row] = await db
     .select()
     .from(submissions)
+    .innerJoin(
+      judgingSessions,
+      eq(submissions.id, judgingSessions.submissionId),
+    )
     .where(
       and(
         eq(submissions.id, id),
-        eq(submissions.lease, lease),
+        eq(judgingSessions.lease, lease),
         eq(submissions.state, "judging"),
       ),
     )
@@ -100,28 +119,28 @@ export async function jobDetails(
 
   if (!row) return null;
 
-  const problem = problemBySlug(row.problemSlug);
+  const sub = row.submissions;
+  const problem = problemBySlug(sub.problemSlug);
   const config =
     problem && !isInlineBackend(problem.backend)
       ? problem.backend.config
       : null;
 
-  const user = await resolveUser(row.handle);
+  const user = await resolveUser(sub.handle);
 
   return {
-    id: row.id,
-    user: { handle: row.handle, groups: user?.groups ?? [] },
-    problem: { slug: row.problemSlug, config },
-    contestSlug: row.contestSlug,
-    payload: row.payload,
+    id: sub.id,
+    user: { handle: sub.handle, groups: user?.groups ?? [] },
+    problem: { slug: sub.problemSlug, config },
+    contestSlug: sub.contestSlug,
+    payload: sub.payload,
   };
 }
 
 function heldBy(id: string, lease: string) {
   return and(
-    eq(submissions.id, id),
-    eq(submissions.lease, lease),
-    eq(submissions.state, "judging"),
+    eq(judgingSessions.submissionId, id),
+    eq(judgingSessions.lease, lease),
   );
 }
 
@@ -131,7 +150,7 @@ export async function reportAlive(
   status?: string,
 ): Promise<boolean> {
   const [updated] = await db
-    .update(submissions)
+    .update(judgingSessions)
     .set({
       lastHeartbeatAt: new Date(),
       ...(status === undefined ? {} : { runnerStatus: status }),
@@ -141,7 +160,14 @@ export async function reportAlive(
 
   if (!updated) return false;
 
-  if (status !== undefined) publish(toView(updated));
+  if (status !== undefined) {
+    const [sub] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.id, id))
+      .limit(1);
+    if (sub) publish(toView(sub, updated.runnerStatus));
+  }
   return true;
 }
 
@@ -151,7 +177,6 @@ export async function reportDone(
   verdict: Verdict,
   backendVersion: string,
 ): Promise<boolean> {
-
   const [row] = await db
     .select({
       problemSlug: submissions.problemSlug,
@@ -162,25 +187,28 @@ export async function reportDone(
     .limit(1);
   if (!row) return false;
 
+  const [session] = await db
+    .update(judgingSessions)
+    .set({ lease: null, runnerStatus: null })
+    .where(heldBy(id, lease))
+    .returning();
+
+  if (!session) return false;
+
   const [updated] = await db
     .update(submissions)
     .set({
       state: "completed",
       verdict,
       backendVersion,
-
       ...verdictColumns(
         verdict,
         row.maxScore ?? problemBySlug(row.problemSlug)?.maxScore ?? null,
       ),
       error: null,
       judgedAt: new Date(),
-
-      lease: null,
-      runnerStatus: null,
     })
-
-    .where(heldBy(id, lease))
+    .where(eq(submissions.id, id))
     .returning();
 
   if (!updated) return false;
@@ -196,6 +224,14 @@ export async function reportFailed(
   reason: string,
   backendVersion: string,
 ): Promise<boolean> {
+  const [session] = await db
+    .update(judgingSessions)
+    .set({ lease: null, runnerStatus: null })
+    .where(heldBy(id, lease))
+    .returning();
+
+  if (!session) return false;
+
   const [updated] = await db
     .update(submissions)
     .set({
@@ -203,10 +239,8 @@ export async function reportFailed(
       backendVersion,
       error: reason,
       judgedAt: new Date(),
-      lease: null,
-      runnerStatus: null,
     })
-    .where(heldBy(id, lease))
+    .where(eq(submissions.id, id))
     .returning();
 
   if (!updated) return false;

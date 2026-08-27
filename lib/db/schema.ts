@@ -16,32 +16,20 @@ import type { SubmissionState, Verdict } from "@/lib/backend/types";
 
 export type AccountStatus = "active" | "suspended";
 
-export type AccountSource = "bootstrap" | "registration";
+export type SuspensionAction = "suspend" | "reinstate";
 
 export const accounts = pgTable(
   "accounts",
   {
-
     handle: text("handle").primaryKey(),
     displayName: text("display_name").notNull(),
 
     email: text("email"),
-    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
 
     passwordHash: text("password_hash"),
-
     passwordSetAt: timestamp("password_set_at", { withTimezone: true }),
 
-    source: text("source")
-      .$type<AccountSource>()
-      .notNull()
-      .default("registration"),
     status: text("status").$type<AccountStatus>().notNull().default("active"),
-
-    suspendedAt: timestamp("suspended_at", { withTimezone: true }),
-    suspendedBy: text("suspended_by"),
-    suspendedReason: text("suspended_reason"),
-    reinstatedAt: timestamp("reinstated_at", { withTimezone: true }),
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -66,16 +54,32 @@ const { passwordHash: _passwordHash, ...accountColumnsWithoutHash } =
 
 export const accountColumns = accountColumnsWithoutHash;
 
-export type TokenPurpose = "password_reset";
-
-export const authTokens = pgTable(
-  "auth_tokens",
+export const accountSuspensions = pgTable(
+  "account_suspensions",
   {
     id: text("id").primaryKey(),
     handle: text("handle")
       .notNull()
       .references(() => accounts.handle, { onDelete: "cascade" }),
-    purpose: text("purpose").$type<TokenPurpose>().notNull(),
+    action: text("action").$type<SuspensionAction>().notNull(),
+    performedBy: text("performed_by").notNull(),
+    reason: text("reason"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("account_suspensions_handle_idx").on(table.handle, table.createdAt),
+  ],
+);
+
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: text("id").primaryKey(),
+    handle: text("handle")
+      .notNull()
+      .references(() => accounts.handle, { onDelete: "cascade" }),
 
     tokenHash: text("token_hash").notNull(),
 
@@ -86,11 +90,9 @@ export const authTokens = pgTable(
       .defaultNow(),
   },
   (table) => [
-
-    uniqueIndex("auth_tokens_token_hash_key").on(table.tokenHash),
-    index("auth_tokens_handle_idx").on(
+    uniqueIndex("password_reset_tokens_token_hash_key").on(table.tokenHash),
+    index("password_reset_tokens_handle_idx").on(
       table.handle,
-      table.purpose,
       table.createdAt,
     ),
   ],
@@ -166,13 +168,6 @@ export const submissions = pgTable(
 
     backendId: text("backend_id").notNull(),
 
-    runnerId: text("runner_id"),
-    lease: text("lease"),
-
-    runnerStatus: text("runner_status"),
-
-    lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
-
     attempts: integer("attempts").notNull().default(0),
 
     error: text("error"),
@@ -184,7 +179,6 @@ export const submissions = pgTable(
       .notNull()
       .defaultNow(),
 
-    claimedAt: timestamp("claimed_at", { withTimezone: true }),
     judgedAt: timestamp("judged_at", { withTimezone: true }),
   },
   (table) => [
@@ -199,10 +193,6 @@ export const submissions = pgTable(
       .on(table.backendId, table.queuedAt)
       .where(sql`state = 'queued'`),
 
-    index("submissions_lapsed_idx")
-      .on(table.lastHeartbeatAt)
-      .where(sql`state = 'judging'`),
-
     index("submissions_disrupted_idx")
       .on(table.judgedAt)
       .where(sql`state = 'disrupted'`),
@@ -212,6 +202,25 @@ export const submissions = pgTable(
       table.handle,
       table.clientNonce,
     ),
+  ],
+);
+
+export const judgingSessions = pgTable(
+  "judging_sessions",
+  {
+    submissionId: text("submission_id")
+      .primaryKey()
+      .references(() => submissions.id, { onDelete: "cascade" }),
+    runnerId: text("runner_id").notNull(),
+    lease: text("lease"),
+    runnerStatus: text("runner_status"),
+    lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("judging_sessions_lapsed_idx")
+      .on(table.lastHeartbeatAt)
+      .where(sql`lease is not null`),
   ],
 );
 
@@ -232,9 +241,11 @@ export const runners = pgTable(
 );
 
 export type AccountRow = Omit<typeof accounts.$inferSelect, "passwordHash">;
-export type AuthTokenRow = typeof authTokens.$inferSelect;
+export type AccountSuspensionRow = typeof accountSuspensions.$inferSelect;
+export type PasswordResetTokenRow = typeof passwordResetTokens.$inferSelect;
 export type EmailVerificationRow = typeof emailVerifications.$inferSelect;
 export type ProblemRow = typeof problems.$inferSelect;
 export type ContestRow = typeof contests.$inferSelect;
 export type SubmissionRow = typeof submissions.$inferSelect;
+export type JudgingSessionRow = typeof judgingSessions.$inferSelect;
 export type RunnerRow = typeof runners.$inferSelect;

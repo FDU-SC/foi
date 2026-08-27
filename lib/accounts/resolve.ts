@@ -8,7 +8,7 @@ export function resolveFromRow(account: AccountRow): ResolvedUser {
     handle: account.handle,
     displayName: account.displayName,
     email: account.email,
-    emailVerified: account.emailVerifiedAt !== null,
+    emailVerified: account.email !== null,
     groups: groupsFor(account.handle, account.email),
     status: account.status,
     disabled: account.status !== "active",

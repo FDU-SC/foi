@@ -47,7 +47,6 @@ describeDb("提交门禁", () => {
       await db.insert(accounts).values({
         handle,
         displayName: handle,
-        source: "registration",
       });
     }
     await db.insert(submissions).values([

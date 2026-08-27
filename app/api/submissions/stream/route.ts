@@ -11,7 +11,7 @@ import { guardRequest } from "@/lib/server/guard";
 import { ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { subscribe } from "@/lib/submissions/events";
 import { submissionFor } from "@/lib/submissions/access";
-import { toView } from "@/lib/submissions/queries";
+import { getRunnerStatus, toView } from "@/lib/submissions/queries";
 import type { SubmissionView } from "@/lib/submissions/types";
 
 export const runtime = "nodejs";
@@ -96,13 +96,17 @@ export async function GET(request: Request) {
 
       try {
         streamController.enqueue(encoder.encode("retry: 5000\n\n"));
-        send(toView(initial));
+        const initialStatus = await getRunnerStatus(id);
+        send(toView(initial, initialStatus));
         if (closed) return;
 
         cleanups.push(subscribe(id, send));
 
         const afterSubscribe = await submissionFor(id, viewer);
-        if (afterSubscribe) send(toView(afterSubscribe));
+        if (afterSubscribe) {
+          const afterStatus = await getRunnerStatus(id);
+          send(toView(afterSubscribe, afterStatus));
+        }
         if (closed) return;
 
         const heartbeat = setInterval(() => {

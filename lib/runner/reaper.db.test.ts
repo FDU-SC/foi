@@ -11,7 +11,13 @@ import {
 } from "vitest";
 import type { Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
-import { accounts, problems, runners, submissions } from "@/lib/db/schema";
+import {
+  accounts,
+  judgingSessions,
+  problems,
+  runners,
+  submissions,
+} from "@/lib/db/schema";
 import { externallyJudged } from "@/lib/problems/registry";
 import { rejudgeSubmissions } from "@/lib/submissions/rejudge";
 import {
@@ -61,9 +67,9 @@ async function rowOf(id: string): Promise<typeof submissions.$inferSelect> {
 
 async function goSilent(id: string): Promise<void> {
   await db
-    .update(submissions)
+    .update(judgingSessions)
     .set({ lastHeartbeatAt: new Date(Date.now() - HEARTBEAT_LAPSE_MS - 1_000) })
-    .where(eq(submissions.id, id));
+    .where(eq(judgingSessions.submissionId, id));
 }
 
 async function cleanup(): Promise<void> {
@@ -81,7 +87,7 @@ describeDb("失联回收", () => {
       .onConflictDoNothing();
     await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE, source: "registration" });
+      .values({ handle: HANDLE, displayName: HANDLE });
   });
 
   beforeEach(async () => {
@@ -100,10 +106,12 @@ describeDb("失联回收", () => {
     const row = await rowOf(id);
     expect(row.state).toBe("queued");
 
-    expect(row.lease).toBeNull();
-    expect(row.runnerId).toBeNull();
-    expect(row.claimedAt).toBeNull();
-    expect(row.lastHeartbeatAt).toBeNull();
+    const [session] = await db
+      .select()
+      .from(judgingSessions)
+      .where(eq(judgingSessions.submissionId, id));
+    expect(session).toBeUndefined();
+
     expect(row.error).toContain("失去联系");
 
     expect(row.attempts).toBe(1);
@@ -123,7 +131,6 @@ describeDb("失联回收", () => {
 
     const row = await rowOf(id);
     expect(row.state).toBe("disrupted");
-    expect(row.lease).toBeNull();
     expect(row.judgedAt).not.toBeNull();
     expect(row.error).toContain(String(MAX_ATTEMPTS));
   });
@@ -147,12 +154,16 @@ describeDb("失联回收", () => {
 
     const row = await rowOf(id);
     expect(row.state).toBe("judging");
-
-    expect(row.lease).toBe(ticket?.lease);
-    expect(row.runnerId).toBe("r-working");
-    expect(row.claimedAt).not.toBeNull();
     expect(row.attempts).toBe(1);
     expect(row.error).toBeNull();
+
+    const [session] = await db
+      .select()
+      .from(judgingSessions)
+      .where(eq(judgingSessions.submissionId, id));
+    expect(session.lease).toBe(ticket?.lease);
+    expect(session.runnerId).toBe("r-working");
+    expect(session.claimedAt).not.toBeNull();
   });
 
   it("失联之后又报了心跳的行，同样不会被收走", async () => {
@@ -167,8 +178,13 @@ describeDb("失联回收", () => {
 
     const row = await rowOf(id);
     expect(row.state).toBe("judging");
-    expect(row.lease).toBe(ticket?.lease);
-    expect(row.runnerStatus).toBe("测试点 7/10");
+
+    const [session] = await db
+      .select()
+      .from(judgingSessions)
+      .where(eq(judgingSessions.submissionId, id));
+    expect(session.lease).toBe(ticket?.lease);
+    expect(session.runnerStatus).toBe("测试点 7/10");
   });
 
   it("最后一次尝试正在跑、心跳正常的行不会被直接写掉", async () => {
@@ -182,8 +198,13 @@ describeDb("失联回收", () => {
 
     const row = await rowOf(id);
     expect(row.state).toBe("judging");
-    expect(row.lease).toBe(ticket?.lease);
     expect(row.judgedAt).toBeNull();
+
+    const [session] = await db
+      .select()
+      .from(judgingSessions)
+      .where(eq(judgingSessions.submissionId, id));
+    expect(session.lease).toBe(ticket?.lease);
   });
 
   it("重新入队之后，失联的 runner 拿旧 lease 什么都写不进去", async () => {
@@ -208,11 +229,16 @@ describeDb("失联回收", () => {
 
     const row = await rowOf(id);
     expect(row.state).toBe("judging");
-    expect(row.lease).toBe(second?.lease);
-    expect(row.runnerId).toBe("r-b");
-    expect(row.runnerStatus).toBeNull();
     expect(row.verdict).toBeNull();
     expect(row.error).toBeNull();
+
+    const [session] = await db
+      .select()
+      .from(judgingSessions)
+      .where(eq(judgingSessions.submissionId, id));
+    expect(session.lease).toBe(second?.lease);
+    expect(session.runnerId).toBe("r-b");
+    expect(session.runnerStatus).toBeNull();
 
     await expect(reportDone(id, second!.lease, VERDICT, VERSION)).resolves.toBe(
       true,

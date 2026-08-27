@@ -1,7 +1,12 @@
 import { and, desc, eq } from "drizzle-orm";
 import { failureReason } from "@/lib/backend/types";
 import { db } from "@/lib/db";
-import { accounts, problems, submissions } from "@/lib/db/schema";
+import {
+  accounts,
+  judgingSessions,
+  problems,
+  submissions,
+} from "@/lib/db/schema";
 import type { SubmissionRow } from "@/lib/db/schema";
 import type { SubmissionListItem, SubmissionView } from "./types";
 
@@ -18,10 +23,10 @@ export function toView(
     | "maxScore"
     | "accepted"
     | "error"
-    | "runnerStatus"
     | "createdAt"
     | "judgedAt"
   >,
+  runnerStatus?: string | null,
 ): SubmissionView {
   return {
     id: row.id,
@@ -34,7 +39,7 @@ export function toView(
     maxScore: row.maxScore,
     accepted: row.accepted,
     reason: failureReason(row),
-    runnerStatus: row.runnerStatus,
+    runnerStatus: runnerStatus ?? null,
     createdAt: row.createdAt.toISOString(),
     judgedAt: row.judgedAt?.toISOString() ?? null,
   };
@@ -49,6 +54,17 @@ export async function getSubmissionRow(
     .where(eq(submissions.id, id))
     .limit(1);
   return row;
+}
+
+export async function getRunnerStatus(
+  submissionId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ runnerStatus: judgingSessions.runnerStatus })
+    .from(judgingSessions)
+    .where(eq(judgingSessions.submissionId, submissionId))
+    .limit(1);
+  return row?.runnerStatus ?? null;
 }
 
 export async function findSubmissionByNonce(
@@ -98,22 +114,26 @@ export async function listSubmissions(options: {
         maxScore: submissions.maxScore,
         accepted: submissions.accepted,
         error: submissions.error,
-        runnerStatus: submissions.runnerStatus,
         createdAt: submissions.createdAt,
         judgedAt: submissions.judgedAt,
       },
+      runnerStatus: judgingSessions.runnerStatus,
       problemTitle: problems.title,
       displayName: accounts.displayName,
     })
     .from(submissions)
     .innerJoin(problems, eq(problems.slug, submissions.problemSlug))
     .innerJoin(accounts, eq(accounts.handle, submissions.handle))
+    .leftJoin(
+      judgingSessions,
+      eq(judgingSessions.submissionId, submissions.id),
+    )
     .where(filters.length > 0 ? and(...filters) : undefined)
     .orderBy(desc(submissions.createdAt))
     .limit(options.limit ?? 50);
 
   return rows.map((row) => ({
-    ...toView(row.submission),
+    ...toView(row.submission, row.runnerStatus),
     handle: row.submission.handle,
     displayName: row.displayName,
     problemTitle: row.problemTitle,

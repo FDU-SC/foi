@@ -2,7 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { redeemToken } from "@/lib/accounts/tokens";
 import { db } from "@/lib/db";
-import { accounts, authTokens } from "@/lib/db/schema";
+import { accounts, passwordResetTokens } from "@/lib/db/schema";
 import type { MailMessage } from "./transport";
 import { sendPasswordReset } from "./notify";
 
@@ -60,12 +60,12 @@ function tokenFromLastMail(): string {
 
 async function pastCooldown(): Promise<void> {
   await db.execute(
-    sql`update auth_tokens set created_at = created_at - interval '61 seconds' where handle = ${HANDLE}`,
+    sql`update password_reset_tokens set created_at = created_at - interval '61 seconds' where handle = ${HANDLE}`,
   );
 }
 
 async function cleanup(): Promise<void> {
-  await db.delete(authTokens).where(eq(authTokens.handle, HANDLE));
+  await db.delete(passwordResetTokens).where(eq(passwordResetTokens.handle, HANDLE));
   await db.delete(accounts).where(eq(accounts.handle, HANDLE));
 }
 
@@ -79,7 +79,6 @@ describeDb("sendPasswordReset", () => {
     await db.insert(accounts).values({
       handle: HANDLE,
       displayName: TO.displayName,
-      source: "registration",
     });
   });
 
@@ -96,7 +95,7 @@ describeDb("sendPasswordReset", () => {
     relay.refuse = true;
     await expect(sendPasswordReset(TO)).rejects.toThrow("中继拒收");
 
-    await expect(redeemToken(first, "password_reset")).resolves.toEqual({
+    await expect(redeemToken(first)).resolves.toEqual({
       ok: true,
       handle: HANDLE,
     });
@@ -112,10 +111,10 @@ describeDb("sendPasswordReset", () => {
 
     expect(second).not.toBe(first);
     await expect(
-      redeemToken(first, "password_reset"),
+      redeemToken(first),
     ).resolves.toMatchObject({ ok: false });
     await expect(
-      redeemToken(second, "password_reset"),
+      redeemToken(second),
     ).resolves.toMatchObject({ ok: true });
   });
 });

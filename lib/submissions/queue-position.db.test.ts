@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { accounts, problems, submissions } from "@/lib/db/schema";
+import { accounts, judgingSessions, problems, submissions } from "@/lib/db/schema";
 import { externallyJudged } from "@/lib/problems/registry";
 import { MAX_ATTEMPTS } from "@/lib/runner/queue";
 import { locateInQueues, locateOne } from "./queue-position";
@@ -48,7 +48,7 @@ describeDb("排队位次", () => {
       .onConflictDoNothing();
     await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE, source: "registration" });
+      .values({ handle: HANDLE, displayName: HANDLE });
   });
 
   beforeEach(async () => {
@@ -120,11 +120,14 @@ describeDb("排队位次", () => {
     const held = await enqueue("sub_ql_held", {
       queuedAt: ago(60_000),
       state: "judging",
-      lease: "lease-ql",
+      attempts: 1,
+    });
+    await db.insert(judgingSessions).values({
+      submissionId: "sub_ql_held",
       runnerId: "r-ql",
+      lease: "lease-ql",
       claimedAt: new Date(),
       lastHeartbeatAt: new Date(),
-      attempts: 1,
     });
 
     await expect(locateOne(held)).resolves.toMatchObject({

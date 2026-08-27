@@ -58,7 +58,7 @@ describeDb("提交事件流的清理", () => {
       .onConflictDoNothing();
     await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE, source: "registration" });
+      .values({ handle: HANDLE, displayName: HANDLE });
 
     await db.insert(submissions).values({
       id: SUBMISSION,

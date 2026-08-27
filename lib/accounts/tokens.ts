@@ -2,14 +2,11 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import { db } from "@/lib/db";
-import { authTokens } from "@/lib/db/schema";
-import type { TokenPurpose } from "@/lib/db/schema";
+import { passwordResetTokens } from "@/lib/db/schema";
 import type { DbOrTx } from "./queries";
 import { normalizeHandle } from "./types";
 
-const DEFAULT_TTL_MS = {
-  password_reset: 60 * 60 * 1000,
-} as const satisfies Record<TokenPurpose, number>;
+const DEFAULT_TTL_MS = 60 * 60 * 1000;
 
 function digest(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -18,31 +15,28 @@ function digest(token: string): string {
 export interface IssuedToken {
   token: string;
   expiresAt: Date;
-
   id: string;
 }
 
 export async function issueToken(
   handle: string,
-  purpose: TokenPurpose,
   options?: { ttlMs?: number; revokePrior?: boolean },
 ): Promise<IssuedToken> {
   const normalized = normalizeHandle(handle);
   const token = randomBytes(20).toString("base64url");
   const id = `tok_${ulid()}`;
   const expiresAt = new Date(
-    Date.now() + (options?.ttlMs ?? DEFAULT_TTL_MS[purpose]),
+    Date.now() + (options?.ttlMs ?? DEFAULT_TTL_MS),
   );
 
   await db.transaction(async (tx) => {
     if (options?.revokePrior !== false) {
-      await revokeTokens(normalized, purpose, { on: tx });
+      await revokeTokens(normalized, { on: tx });
     }
 
-    await tx.insert(authTokens).values({
+    await tx.insert(passwordResetTokens).values({
       id,
       handle: normalized,
-      purpose,
       tokenHash: digest(token),
       expiresAt,
     });
@@ -57,34 +51,31 @@ export type RedeemResult =
 
 export async function redeemToken(
   token: string,
-  purpose: TokenPurpose,
   on: DbOrTx = db,
 ): Promise<RedeemResult> {
   const hash = digest(token);
 
   const [row] = await on
-    .update(authTokens)
+    .update(passwordResetTokens)
     .set({ consumedAt: new Date() })
     .where(
       and(
-        eq(authTokens.tokenHash, hash),
-        eq(authTokens.purpose, purpose),
-        isNull(authTokens.consumedAt),
-        sql`${authTokens.expiresAt} > now()`,
+        eq(passwordResetTokens.tokenHash, hash),
+        isNull(passwordResetTokens.consumedAt),
+        sql`${passwordResetTokens.expiresAt} > now()`,
       ),
     )
-    .returning({ handle: authTokens.handle });
+    .returning({ handle: passwordResetTokens.handle });
 
   if (row) return { ok: true, handle: row.handle };
 
   const [existing] = await on
-    .select({ expiresAt: authTokens.expiresAt })
-    .from(authTokens)
+    .select({ expiresAt: passwordResetTokens.expiresAt })
+    .from(passwordResetTokens)
     .where(
       and(
-        eq(authTokens.tokenHash, hash),
-        eq(authTokens.purpose, purpose),
-        isNull(authTokens.consumedAt),
+        eq(passwordResetTokens.tokenHash, hash),
+        isNull(passwordResetTokens.consumedAt),
       ),
     )
     .limit(1);
@@ -99,36 +90,30 @@ export async function redeemToken(
 
 export async function revokeTokens(
   handle: string,
-  purpose: TokenPurpose,
   options?: { on?: DbOrTx; exceptId?: string },
 ): Promise<void> {
   await (options?.on ?? db)
-    .update(authTokens)
+    .update(passwordResetTokens)
     .set({ consumedAt: new Date() })
     .where(
       and(
-        eq(authTokens.handle, normalizeHandle(handle)),
-        eq(authTokens.purpose, purpose),
-        isNull(authTokens.consumedAt),
-        options?.exceptId ? ne(authTokens.id, options.exceptId) : undefined,
+        eq(passwordResetTokens.handle, normalizeHandle(handle)),
+        isNull(passwordResetTokens.consumedAt),
+        options?.exceptId
+          ? ne(passwordResetTokens.id, options.exceptId)
+          : undefined,
       ),
     );
 }
 
 export async function lastIssuedAt(
   handle: string,
-  purpose: TokenPurpose,
 ): Promise<Date | null> {
   const [row] = await db
-    .select({ createdAt: authTokens.createdAt })
-    .from(authTokens)
-    .where(
-      and(
-        eq(authTokens.handle, normalizeHandle(handle)),
-        eq(authTokens.purpose, purpose),
-      ),
-    )
-    .orderBy(desc(authTokens.createdAt))
+    .select({ createdAt: passwordResetTokens.createdAt })
+    .from(passwordResetTokens)
+    .where(eq(passwordResetTokens.handle, normalizeHandle(handle)))
+    .orderBy(desc(passwordResetTokens.createdAt))
     .limit(1);
 
   return row?.createdAt ?? null;
@@ -136,25 +121,20 @@ export async function lastIssuedAt(
 
 export interface PendingToken {
   handle: string;
-  purpose: TokenPurpose;
   expiresAt: Date;
 }
 
-export async function listPendingTokens(
-  purpose?: TokenPurpose,
-): Promise<PendingToken[]> {
+export async function listPendingTokens(): Promise<PendingToken[]> {
   return db
     .select({
-      handle: authTokens.handle,
-      purpose: authTokens.purpose,
-      expiresAt: authTokens.expiresAt,
+      handle: passwordResetTokens.handle,
+      expiresAt: passwordResetTokens.expiresAt,
     })
-    .from(authTokens)
+    .from(passwordResetTokens)
     .where(
       and(
-        isNull(authTokens.consumedAt),
-        sql`${authTokens.expiresAt} > now()`,
-        purpose ? eq(authTokens.purpose, purpose) : undefined,
+        isNull(passwordResetTokens.consumedAt),
+        sql`${passwordResetTokens.expiresAt} > now()`,
       ),
     );
 }

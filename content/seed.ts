@@ -16,7 +16,6 @@ interface SeedAccount {
   handle: string;
   displayName: string;
   email: string | null;
-  source: "bootstrap" | "registration";
 }
 
 const SEED_ACCOUNTS: SeedAccount[] = [
@@ -24,25 +23,21 @@ const SEED_ACCOUNTS: SeedAccount[] = [
     handle: "admin",
     displayName: "管理员",
     email: "admin@example.test",
-    source: "bootstrap",
   },
   {
     handle: "alice",
     displayName: "Alice",
     email: "23300240001@example.test",
-    source: "registration",
   },
   {
     handle: "bob",
     displayName: "Bob",
     email: "23300240002@example.test",
-    source: "registration",
   },
   {
     handle: "carol",
     displayName: "Carol",
     email: "24300240003@example.test",
-    source: "registration",
   },
 ];
 
@@ -62,9 +57,6 @@ async function main() {
         handle: entry.handle,
         displayName: entry.displayName,
         email: entry.email,
-
-        emailVerifiedAt: entry.email ? new Date() : null,
-        source: entry.source,
         status: "active",
         passwordHash,
         passwordSetAt: sql`now()`,
@@ -74,7 +66,6 @@ async function main() {
         set: {
           displayName: sql`excluded.display_name`,
           email: sql`excluded.email`,
-          emailVerifiedAt: sql`excluded.email_verified_at`,
           status: sql`'active'`,
           passwordHash: sql`excluded.password_hash`,
           passwordSetAt: sql`excluded.password_set_at`,

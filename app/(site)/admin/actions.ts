@@ -146,8 +146,9 @@ export async function reinstateAccountAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  let actor: Viewer;
   try {
-    await requireCapability("account.moderate");
+    actor = await requireCapability("account.moderate");
   } catch (error) {
     return refused(error);
   }
@@ -167,7 +168,7 @@ export async function reinstateAccountAction(
     };
   }
 
-  const row = await reinstateAccount(target.handle);
+  const row = await reinstateAccount(target.handle, actor.handle ?? "unknown");
   if (!row) return { error: "没有这个账号" };
 
   revalidatePath("/admin/accounts");

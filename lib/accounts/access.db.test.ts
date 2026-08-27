@@ -43,14 +43,12 @@ describeDb("账号目录门禁", () => {
         handle: ACTIVE,
         displayName: "Active",
         email: `${ACTIVE}@example.test`,
-        source: "registration",
         status: "active",
       },
       {
         handle: SUSPENDED,
         displayName: "Suspended",
         email: `${SUSPENDED}@example.test`,
-        source: "registration",
         status: "suspended",
       },
     ]);

@@ -83,7 +83,7 @@ describeDb("提交端点限流", () => {
     await db.delete(accounts).where(eq(accounts.handle, HANDLE));
     await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE, source: "registration" });
+      .values({ handle: HANDLE, displayName: HANDLE });
   });
 
   afterAll(async () => {
@@ -141,7 +141,7 @@ describeDb("内联判题的提交", () => {
     await db.delete(accounts).where(eq(accounts.handle, HANDLE));
     await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE, source: "registration" });
+      .values({ handle: HANDLE, displayName: HANDLE });
   });
 
   afterAll(async () => {
@@ -219,7 +219,7 @@ describeDb("内联判题说自己判不了", () => {
     await db.delete(accounts).where(eq(accounts.handle, HANDLE));
     await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE, source: "registration" });
+      .values({ handle: HANDLE, displayName: HANDLE });
   });
 
   afterAll(async () => {
@@ -295,7 +295,7 @@ describeDb("提交的幂等键", () => {
     for (const handle of [ALICE, BOB]) {
       await db
         .insert(accounts)
-        .values({ handle, displayName: handle, source: "registration" });
+        .values({ handle, displayName: handle });
     }
     CALLER = ALICE;
   });

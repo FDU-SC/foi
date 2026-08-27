@@ -1,6 +1,6 @@
-import { and, eq, gte, lt, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { submissions } from "@/lib/db/schema";
+import { judgingSessions, submissions } from "@/lib/db/schema";
 import { publish } from "@/lib/submissions/events";
 import { toView } from "@/lib/submissions/queries";
 import { HEARTBEAT_LAPSE_MS, MAX_ATTEMPTS, QUEUE_FUSE_MS } from "./queue";
@@ -14,44 +14,63 @@ export async function reapOnce(): Promise<{
 }> {
   const lapsedBefore = new Date(Date.now() - HEARTBEAT_LAPSE_MS);
 
-  const exhausted = await db
-    .update(submissions)
-    .set({
-      state: "disrupted",
-      lease: null,
-      runnerStatus: null,
-      error: `评测机连续 ${MAX_ATTEMPTS} 次领取后都失去了联系，已停止重试`,
-      judgedAt: new Date(),
-    })
+  const lapsedIds = await db
+    .select({ submissionId: judgingSessions.submissionId })
+    .from(judgingSessions)
+    .innerJoin(submissions, eq(submissions.id, judgingSessions.submissionId))
     .where(
       and(
         eq(submissions.state, "judging"),
-        lt(submissions.lastHeartbeatAt, lapsedBefore),
-        gte(submissions.attempts, MAX_ATTEMPTS),
+        lt(judgingSessions.lastHeartbeatAt, lapsedBefore),
       ),
-    )
-    .returning();
+    );
 
-  const requeued = await db
-    .update(submissions)
-    .set({
-      state: "queued",
-      lease: null,
-      runnerId: null,
-      runnerStatus: null,
-      claimedAt: null,
-      lastHeartbeatAt: null,
+  const lapsedSubmissionIds = lapsedIds.map((r) => r.submissionId);
 
-      queuedAt: sql`now()`,
-      error: "评测机失去联系，已重新排队",
-    })
-    .where(
-      and(
-        eq(submissions.state, "judging"),
-        lt(submissions.lastHeartbeatAt, lapsedBefore),
-      ),
-    )
-    .returning();
+  let exhausted: (typeof submissions.$inferSelect)[] = [];
+  let requeued: (typeof submissions.$inferSelect)[] = [];
+
+  if (lapsedSubmissionIds.length > 0) {
+    exhausted = await db
+      .update(submissions)
+      .set({
+        state: "disrupted",
+        error: `评测机连续 ${MAX_ATTEMPTS} 次领取后都失去了联系，已停止重试`,
+        judgedAt: new Date(),
+      })
+      .where(
+        and(
+          inArray(submissions.id, lapsedSubmissionIds),
+          gte(submissions.attempts, MAX_ATTEMPTS),
+        ),
+      )
+      .returning();
+
+    requeued = await db
+      .update(submissions)
+      .set({
+        state: "queued",
+        queuedAt: sql`now()`,
+        error: "评测机失去联系，已重新排队",
+      })
+      .where(
+        and(
+          inArray(submissions.id, lapsedSubmissionIds),
+          eq(submissions.state, "judging"),
+        ),
+      )
+      .returning();
+
+    const cleanIds = [
+      ...exhausted.map((r) => r.id),
+      ...requeued.map((r) => r.id),
+    ];
+    if (cleanIds.length > 0) {
+      await db
+        .delete(judgingSessions)
+        .where(inArray(judgingSessions.submissionId, cleanIds));
+    }
+  }
 
   const fused = await db
     .update(submissions)

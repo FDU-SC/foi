@@ -104,7 +104,6 @@ describeDb("register", () => {
 
     const account = await getAccount(HANDLE);
     expect(account).toMatchObject({ status: "active", email: EMAIL });
-    expect(account?.emailVerifiedAt).toBeInstanceOf(Date);
   });
 
   it("建号之后验证行被消费掉，不能拿来再注册一个", async () => {
@@ -123,7 +122,6 @@ describeDb("register", () => {
     await db.insert(accounts).values({
       handle: TAKEN,
       displayName: "占位",
-      source: "registration",
       status: "active",
     });
     const proof = await prove(EMAIL);

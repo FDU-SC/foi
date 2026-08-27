@@ -51,7 +51,7 @@ export async function resetPasswordAction(
   }
 
   return db.transaction<ResetState>(async (tx) => {
-    const result = await redeemToken(parsed.data.token, "password_reset", tx);
+    const result = await redeemToken(parsed.data.token, tx);
     if (!result.ok) {
       return {
         error:

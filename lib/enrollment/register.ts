@@ -76,10 +76,7 @@ export async function register(input: {
         handle,
         displayName: input.displayName,
         email,
-        source: "registration",
-
         status: "active",
-        emailVerifiedAt: new Date(),
       },
       tx,
     );

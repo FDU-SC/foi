@@ -49,12 +49,8 @@ async function settled(
     accepted: false,
     backendVersion: VERSION,
     error: "上一轮的抱怨",
-    runnerId: "r-previous",
-    runnerStatus: "测试点 7/10",
     attempts: 2,
     judgedAt: new Date(),
-    claimedAt: new Date(),
-    lastHeartbeatAt: new Date(),
     ...overrides,
   });
   return id;
@@ -83,7 +79,7 @@ describeDb("重判", () => {
       .onConflictDoNothing();
     await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE, source: "registration" });
+      .values({ handle: HANDLE, displayName: HANDLE });
   });
 
   beforeEach(async () => {
@@ -111,9 +107,6 @@ describeDb("重判", () => {
       expect(row.backendVersion).toBeNull();
       expect(row.error).toBeNull();
       expect(row.judgedAt).toBeNull();
-      expect(row.lease).toBeNull();
-      expect(row.runnerId).toBeNull();
-      expect(row.runnerStatus).toBeNull();
 
       expect(row.attempts).toBe(0);
 

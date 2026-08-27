@@ -1,13 +1,10 @@
-import { issueCode } from "@/lib/enrollment/email-verification";
-import { issueToken, lastIssuedAt, revokeTokens } from "@/lib/accounts/tokens";
+import { issueToken } from "@/lib/tokens/stateless";
 import { emailTemplates } from "./registry";
 import { deliver } from "./transport";
 
-const RESEND_COOLDOWN_MS = 60_000;
-
-export type NotifyResult =
-  | { ok: true; expiresAt: Date }
-  | { ok: false; reason: "throttled"; retryAfterMs: number };
+const VERIFY_TTL_MS = 30 * 60 * 1000;
+const RESET_TTL_MS = 60 * 60 * 1000;
+const EMAIL_CHANGE_TTL_MS = 30 * 60 * 1000;
 
 function linkTo(path: string, token: string): string {
   const base = process.env.FOI_PUBLIC_URL;
@@ -18,12 +15,22 @@ function linkTo(path: string, token: string): string {
   return url.toString();
 }
 
-async function throttled(handle: string): Promise<number> {
-  const last = await lastIssuedAt(handle);
-  if (!last) return 0;
+export async function sendVerificationLink(email: string): Promise<void> {
+  const token = issueToken({
+    purpose: "email-verify",
+    subject: email,
+    ttlMs: VERIFY_TTL_MS,
+  });
 
-  const elapsed = Date.now() - last.getTime();
-  return elapsed >= RESEND_COOLDOWN_MS ? 0 : RESEND_COOLDOWN_MS - elapsed;
+  const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
+
+  await deliver({
+    to: email,
+    ...emailTemplates.verificationLink({
+      url: linkTo("/register", token),
+      expiresAt,
+    }),
+  });
 }
 
 export interface Recipient {
@@ -32,30 +39,19 @@ export interface Recipient {
   email: string;
 }
 
-export async function sendVerificationCode(
-  email: string,
-): Promise<NotifyResult> {
-  const issued = await issueCode(email);
-  if (!issued.ok) return issued;
-
-  await deliver({
-    to: email,
-    ...emailTemplates.verificationCode({
-      code: issued.code,
-      expiresAt: issued.expiresAt,
-    }),
+export async function sendPasswordReset(
+  to: Recipient,
+  passwordFingerprint: string,
+): Promise<void> {
+  const token = issueToken({
+    purpose: "password-reset",
+    subject: to.handle,
+    fingerprint: passwordFingerprint,
+    ttlMs: RESET_TTL_MS,
   });
 
-  return { ok: true, expiresAt: issued.expiresAt };
-}
+  const expiresAt = new Date(Date.now() + RESET_TTL_MS);
 
-export async function sendPasswordReset(to: Recipient): Promise<NotifyResult> {
-  const wait = await throttled(to.handle);
-  if (wait > 0) return { ok: false, reason: "throttled", retryAfterMs: wait };
-
-  const { token, expiresAt, id } = await issueToken(to.handle, {
-    revokePrior: false,
-  });
   await deliver({
     to: to.email,
     ...emailTemplates.resetPassword({
@@ -64,15 +60,30 @@ export async function sendPasswordReset(to: Recipient): Promise<NotifyResult> {
       expiresAt,
     }),
   });
+}
 
-  try {
-    await revokeTokens(to.handle, { exceptId: id });
-  } catch (error) {
-    console.error(
-      `[foi] 重置链接已发出，但作废 ${to.handle} 的旧链接失败`,
-      error,
-    );
-  }
+export async function sendEmailChangeLink(
+  to: Recipient,
+  newEmail: string,
+  emailFingerprint: string,
+): Promise<void> {
+  const token = issueToken({
+    purpose: "email-change",
+    subject: to.handle,
+    data: { newEmail },
+    fingerprint: emailFingerprint,
+    ttlMs: EMAIL_CHANGE_TTL_MS,
+  });
 
-  return { ok: true, expiresAt };
+  const expiresAt = new Date(Date.now() + EMAIL_CHANGE_TTL_MS);
+
+  await deliver({
+    to: newEmail,
+    ...emailTemplates.emailChange({
+      displayName: to.displayName,
+      newEmail,
+      url: linkTo("/settings/email/confirm", token),
+      expiresAt,
+    }),
+  });
 }

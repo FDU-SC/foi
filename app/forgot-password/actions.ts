@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { z } from "zod";
+import { getPasswordFingerprint } from "@/lib/accounts/password";
 import { findAccountByEmail, getAccount } from "@/lib/accounts/queries";
 import { resolveFromRow } from "@/lib/accounts/resolve";
 import { normalizeEmail } from "@/lib/accounts/types";
@@ -68,15 +69,11 @@ export async function requestPasswordReset(
 
 async function notifyQuietly(to: Recipient): Promise<void> {
   try {
-    const result = await sendPasswordReset(to);
-    if (result.ok) {
-      console.log(`[foi] 找回密码: 已向 ${to.handle} 发出重置链接`);
-    } else {
-      console.log(
-        `[foi] 找回密码: ${to.handle} 仍在重发冷却中，本次未发送` +
-          `（还需 ${Math.ceil(result.retryAfterMs / 1000)} 秒），对外仍回同一句话`,
-      );
-    }
+    const fp = await getPasswordFingerprint(to.handle);
+    if (!fp) return;
+
+    await sendPasswordReset(to, fp);
+    console.log(`[foi] 找回密码: 已向 ${to.handle} 发出重置链接`);
   } catch (error) {
     console.error(`[foi] 找回密码: 向 ${to.handle} 投递重置邮件失败`, error);
   }

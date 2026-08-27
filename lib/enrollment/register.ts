@@ -6,8 +6,7 @@ import {
 import { setPassword } from "@/lib/accounts/password";
 import { normalizeEmail, normalizeHandle } from "@/lib/accounts/types";
 import { db } from "@/lib/db";
-import { consumeVerifiedEmail, isEmailVerified } from "./email-verification";
-import { checkRegistrationProof } from "./registration-proof";
+import { verifyToken } from "@/lib/tokens/stateless";
 import { enrollmentPolicy, rulesForHandle } from "./registry";
 
 export type RegisterRejection =
@@ -49,8 +48,7 @@ export async function register(input: {
   displayName: string;
   email: string;
   password: string;
-
-  proof: string | undefined;
+  token: string;
 }): Promise<RegisterResult> {
   if (!enrollmentPolicy.enabled) return { ok: false, reason: "disabled" };
 
@@ -59,16 +57,16 @@ export async function register(input: {
     stripSubaddress: enrollmentPolicy.stripSubaddress,
   });
 
+  const payload = verifyToken(input.token, "email-verify");
+  if (!payload || payload.s !== email) {
+    return { ok: false, reason: "email-unverified" };
+  }
+
   const unavailable = await handleAvailable(handle);
   if (unavailable) return { ok: false, reason: unavailable };
 
   if (!domainAllowed(email)) return { ok: false, reason: "email-domain" };
   if (await findAccountByEmail(email)) return { ok: false, reason: "email-taken" };
-
-  const verified = await isEmailVerified(email);
-  if (!verified || !checkRegistrationProof(email, input.proof)) {
-    return { ok: false, reason: "email-unverified" };
-  }
 
   return db.transaction<RegisterResult>(async (tx) => {
     const account = await createAccount(
@@ -91,8 +89,6 @@ export async function register(input: {
     }
 
     await setPassword(handle, input.password, tx);
-
-    await consumeVerifiedEmail(email, tx);
 
     return { ok: true, handle, displayName: account.displayName, email };
   });

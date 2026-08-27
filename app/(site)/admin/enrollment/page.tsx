@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { getViewer } from "@/auth";
 import { enrollmentViewFor } from "@/lib/admin/access";
-import { codeTtlMinutes } from "@/lib/enrollment/email-verification";
 import { groupName, isPrivileged } from "@/lib/permissions/groups";
 import { isHandlesRule } from "@/lib/enrollment/types";
 
@@ -57,9 +56,9 @@ export default async function AdminEnrollmentPage() {
               </dd>
             </div>
             <div className="flex justify-between gap-2">
-              <dt className="text-fg-muted">验证码有效期</dt>
+              <dt className="text-fg-muted">验证链接有效期</dt>
               <dd className="text-fg font-mono text-xs">
-                {codeTtlMinutes} 分钟
+                30 分钟
               </dd>
             </div>
             <div className="flex justify-between gap-2">

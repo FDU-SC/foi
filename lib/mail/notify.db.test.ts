@@ -1,22 +1,10 @@
-import { eq, sql } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { redeemToken } from "@/lib/accounts/tokens";
-import { db } from "@/lib/db";
-import { accounts, passwordResetTokens } from "@/lib/db/schema";
+import { describe, expect, it, vi } from "vitest";
+import { verifyToken } from "@/lib/tokens/stateless";
 import type { MailMessage } from "./transport";
-import { sendPasswordReset } from "./notify";
-
-const HANDLE = "resetmailtest";
-
-const TO = {
-  handle: HANDLE,
-  displayName: "重置邮件测试",
-  email: "reset-mail@example.test",
-};
+import { sendPasswordReset, sendVerificationLink } from "./notify";
 
 const relay = vi.hoisted(() => ({
   sent: [] as MailMessage[],
-  refuse: false,
 }));
 
 vi.mock("./transport", async (importOriginal) => {
@@ -24,27 +12,10 @@ vi.mock("./transport", async (importOriginal) => {
   return {
     ...actual,
     deliver: async (message: MailMessage) => {
-      if (relay.refuse) throw new Error("中继拒收");
       relay.sent.push(message);
     },
   };
 });
-
-async function reachable(): Promise<boolean> {
-  try {
-    await db.execute(sql`select 1`);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const online = await reachable();
-const describeDb = online ? describe : describe.skip;
-
-if (!online) {
-  console.warn("[test] 数据库不可达，跳过重置邮件集成用例");
-}
 
 function tokenFromLastMail(): string {
   const last = relay.sent.at(-1);
@@ -58,63 +29,46 @@ function tokenFromLastMail(): string {
   return token;
 }
 
-async function pastCooldown(): Promise<void> {
-  await db.execute(
-    sql`update password_reset_tokens set created_at = created_at - interval '61 seconds' where handle = ${HANDLE}`,
-  );
-}
-
-async function cleanup(): Promise<void> {
-  await db.delete(passwordResetTokens).where(eq(passwordResetTokens.handle, HANDLE));
-  await db.delete(accounts).where(eq(accounts.handle, HANDLE));
-}
-
-describeDb("sendPasswordReset", () => {
-  beforeEach(async () => {
+describe("sendVerificationLink", () => {
+  it("发出的链接包含可验证的 email-verify token", async () => {
     vi.stubEnv("FOI_PUBLIC_URL", "http://localhost:3000");
+    vi.stubEnv("AUTH_SECRET", "test-secret-for-notify");
     relay.sent = [];
-    relay.refuse = false;
 
-    await cleanup();
-    await db.insert(accounts).values({
-      handle: HANDLE,
-      displayName: TO.displayName,
-    });
-  });
+    await sendVerificationLink("user@example.test");
 
-  afterAll(async () => {
-    await cleanup();
+    expect(relay.sent).toHaveLength(1);
+    expect(relay.sent[0].to).toBe("user@example.test");
+
+    const token = tokenFromLastMail();
+    const payload = verifyToken(token, "email-verify");
+    expect(payload).not.toBeNull();
+    expect(payload!.s).toBe("user@example.test");
+
     vi.unstubAllEnvs();
   });
+});
 
-  it("中继拒收时，收件箱里那个旧链接还能用", async () => {
-    await expect(sendPasswordReset(TO)).resolves.toMatchObject({ ok: true });
-    const first = tokenFromLastMail();
+describe("sendPasswordReset", () => {
+  it("发出的链接包含可验证的 password-reset token with fingerprint", async () => {
+    vi.stubEnv("FOI_PUBLIC_URL", "http://localhost:3000");
+    vi.stubEnv("AUTH_SECRET", "test-secret-for-notify");
+    relay.sent = [];
 
-    await pastCooldown();
-    relay.refuse = true;
-    await expect(sendPasswordReset(TO)).rejects.toThrow("中继拒收");
+    await sendPasswordReset(
+      { handle: "alice", displayName: "Alice", email: "alice@example.test" },
+      "fp_abc123",
+    );
 
-    await expect(redeemToken(first)).resolves.toEqual({
-      ok: true,
-      handle: HANDLE,
-    });
-  });
+    expect(relay.sent).toHaveLength(1);
+    expect(relay.sent[0].to).toBe("alice@example.test");
 
-  it("发出去之后旧链接才作废，不是干脆不作废了", async () => {
-    await sendPasswordReset(TO);
-    const first = tokenFromLastMail();
+    const token = tokenFromLastMail();
+    const payload = verifyToken(token, "password-reset");
+    expect(payload).not.toBeNull();
+    expect(payload!.s).toBe("alice");
+    expect(payload!.fp).toBe("fp_abc123");
 
-    await pastCooldown();
-    await sendPasswordReset(TO);
-    const second = tokenFromLastMail();
-
-    expect(second).not.toBe(first);
-    await expect(
-      redeemToken(first),
-    ).resolves.toMatchObject({ ok: false });
-    await expect(
-      redeemToken(second),
-    ).resolves.toMatchObject({ ok: true });
+    vi.unstubAllEnvs();
   });
 });

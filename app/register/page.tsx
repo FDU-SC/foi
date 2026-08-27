@@ -3,16 +3,18 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
 import { AuthShell } from "@/components/auth/auth-shell";
-import {
-  codeTtlMinutes,
-  resendCooldownMs,
-} from "@/lib/enrollment/email-verification";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
+import { verifyToken } from "@/lib/tokens/stateless";
 import { RegisterForm } from "./register-form";
+import { SendLinkForm } from "./send-link-form";
 
 export const metadata: Metadata = { title: "注册" };
 
-export default async function RegisterPage() {
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ token?: string }>;
+}) {
   if (await getSessionUser()) redirect("/");
 
   if (!enrollmentPolicy.enabled) {
@@ -36,6 +38,10 @@ export default async function RegisterPage() {
   }
 
   const domains = enrollmentPolicy.emailDomains;
+  const { token } = await searchParams;
+
+  const payload = token ? verifyToken(token, "email-verify") : null;
+  const verifiedEmail = payload?.s;
 
   return (
     <AuthShell
@@ -62,10 +68,11 @@ export default async function RegisterPage() {
         </>
       }
     >
-      <RegisterForm
-        codeTtlMinutes={codeTtlMinutes}
-        resendCooldownMs={resendCooldownMs}
-      />
+      {verifiedEmail ? (
+        <RegisterForm email={verifiedEmail} token={token!} />
+      ) : (
+        <SendLinkForm invalidToken={!!token} />
+      )}
     </AuthShell>
   );
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { ForbiddenError, requireCapability } from "@/auth";
+import { getPasswordFingerprint } from "@/lib/accounts/password";
 import { reinstateAccount, suspendAccount } from "@/lib/accounts/queries";
 import { resolveUser } from "@/lib/accounts/resolve";
 import { hasPrivilege } from "@/lib/permissions/groups";
@@ -68,23 +69,20 @@ export async function resendPasswordResetAction(
     };
   }
 
-  let result;
+  const fp = await getPasswordFingerprint(user.handle);
+  if (!fp) {
+    return { error: "该账号没有设置密码，无法生成重置链接的 fingerprint。" };
+  }
+
   try {
-    result = await sendPasswordReset({
-      handle: user.handle,
-      displayName: user.displayName,
-      email: user.email,
-    });
+    await sendPasswordReset(
+      { handle: user.handle, displayName: user.displayName, email: user.email },
+      fp,
+    );
   } catch (error) {
     console.error("[foi] 重置密码邮件发送失败", error);
     return {
       error: `邮件发送失败：${error instanceof Error ? error.message : "未知错误"}`,
-    };
-  }
-
-  if (!result.ok) {
-    return {
-      error: `刚刚已经发过一封，请 ${Math.ceil(result.retryAfterMs / 1000)} 秒后再试。`,
     };
   }
 

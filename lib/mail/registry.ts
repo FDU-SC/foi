@@ -2,10 +2,11 @@ import { emailModules } from "@/content/email-modules";
 import { loadSingletonModule } from "@/lib/singleton-module";
 import { escapeHtml } from "./html";
 import type {
+  EmailChangeMail,
   EmailTemplates,
   MailBody,
   PasswordResetMail,
-  VerificationCodeMail,
+  VerificationLinkMail,
 } from "./types";
 
 function formatExpiry(at: Date): string {
@@ -25,11 +26,11 @@ function plain(subject: string, lines: string[]): MailBody {
 }
 
 const FALLBACK: EmailTemplates = {
-  verificationCode(input: VerificationCodeMail): MailBody {
+  verificationLink(input: VerificationLinkMail): MailBody {
     return plain("验证你的注册邮箱", [
-      "有人正在用这个邮箱注册账号。请回到注册页面填入下面的验证码。",
-      input.code,
-      `验证码在 ${formatExpiry(input.expiresAt)} 前有效。`,
+      "有人正在用这个邮箱注册账号。请打开下面的链接完成验证。",
+      input.url,
+      `此链接在 ${formatExpiry(input.expiresAt)} 前有效。`,
       "如果不是你本人操作，忽略这封邮件即可。",
     ]);
   },
@@ -42,9 +43,18 @@ const FALLBACK: EmailTemplates = {
       "如果不是你本人操作，忽略这封邮件即可。",
     ]);
   },
+  emailChange(input: EmailChangeMail): MailBody {
+    return plain("确认更换邮箱", [
+      `${input.displayName}，你好：`,
+      `我们收到了将邮箱更换为 ${input.newEmail} 的请求。打开下面的地址确认更换。`,
+      input.url,
+      `此链接在 ${formatExpiry(input.expiresAt)} 前有效。`,
+      "如果不是你本人操作，忽略这封邮件即可。",
+    ]);
+  },
 };
 
-const METHODS = ["verificationCode", "resetPassword"] as const;
+const METHODS = ["verificationLink", "resetPassword", "emailChange"] as const;
 
 function buildRegistry(): { templates: EmailTemplates; source: string | null } {
   const found = loadSingletonModule(emailModules, "邮件文案");
@@ -55,7 +65,7 @@ function buildRegistry(): { templates: EmailTemplates; source: string | null } {
   );
   if (missing.length > 0) {
     throw new Error(
-      `${found.path} 必须导出 ${missing.join(" 与 ")}，见 lib/mail/types.ts 的 EmailTemplates`,
+      `${found.path} 必须导出 ${missing.join("、")}，见 lib/mail/types.ts 的 EmailTemplates`,
     );
   }
 
@@ -72,7 +82,7 @@ export const emailTemplates: EmailTemplates = registry.templates;
 export function mailTemplateWarnings(): string[] {
   if (registry.source) return [];
   return [
-    "没有找到邮件文案，验证码和重置链接会以内置的纯文本样式发出。" +
-      "补一个 content/emails/index.ts，导出 verificationCode 与 resetPassword。",
+    "没有找到邮件文案，验证链接和重置链接会以内置的纯文本样式发出。" +
+      "补一个 content/emails/index.ts，导出 verificationLink、resetPassword 与 emailChange。",
   ];
 }

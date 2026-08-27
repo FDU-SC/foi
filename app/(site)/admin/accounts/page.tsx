@@ -68,7 +68,7 @@ export default async function AdminAccountsPage({
   ]);
   if (!directory) notFound();
 
-  const { accounts: rows, awaitingReset, lastSuspensionEvents } = directory;
+  const { accounts: rows, lastSuspensionEvents } = directory;
 
   const query = typeof params.q === "string" ? params.q.trim().toLowerCase() : "";
   const byHandle = new Map(rows.map((row) => [row.handle, row]));
@@ -212,11 +212,6 @@ export default async function AdminAccountsPage({
                     ) : (
                       <Badge tone="warn">未设置密码</Badge>
                     )}
-                    {awaitingReset.has(account.handle) ? (
-                      <Badge tone="info" className="ml-1.5">
-                        重置链接待用
-                      </Badge>
-                    ) : null}
                   </td>
                   {showActions ? (
                     <td className="px-4 py-2.5">

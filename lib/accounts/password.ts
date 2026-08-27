@@ -2,6 +2,7 @@ import { hash, verify } from "@node-rs/argon2";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
+import { fingerprint as computeFingerprint } from "@/lib/tokens/stateless";
 import ARGON2_OPTIONS from "./argon2-options.cjs";
 import type { DbOrTx } from "./queries";
 import { normalizeHandle } from "./types";
@@ -69,4 +70,30 @@ export async function setPassword(
     .returning({ handle: accounts.handle });
 
   if (!row) throw new Error(`账号 ${normalized} 不存在，无法设置密码`);
+}
+
+export async function getPasswordFingerprint(
+  handle: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ passwordHash: accounts.passwordHash })
+    .from(accounts)
+    .where(eq(accounts.handle, normalizeHandle(handle)))
+    .limit(1);
+
+  if (!row?.passwordHash) return null;
+  return computeFingerprint(row.passwordHash);
+}
+
+export async function getEmailFingerprint(
+  handle: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ email: accounts.email })
+    .from(accounts)
+    .where(eq(accounts.handle, normalizeHandle(handle)))
+    .limit(1);
+
+  if (!row?.email) return null;
+  return computeFingerprint(row.email);
 }

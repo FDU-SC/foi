@@ -57,7 +57,6 @@ describeDb("运维台门禁", () => {
       const directory = await adminAccountsFor(admin);
 
       expect(directory).not.toBeNull();
-      expect(directory?.awaitingReset).toBeInstanceOf(Set);
     });
 
     it("选手拿到 null，页面据此 404", async () => {

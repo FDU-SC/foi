@@ -73,47 +73,7 @@ export const accountSuspensions = pgTable(
   ],
 );
 
-export const passwordResetTokens = pgTable(
-  "password_reset_tokens",
-  {
-    id: text("id").primaryKey(),
-    handle: text("handle")
-      .notNull()
-      .references(() => accounts.handle, { onDelete: "cascade" }),
 
-    tokenHash: text("token_hash").notNull(),
-
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    consumedAt: timestamp("consumed_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    uniqueIndex("password_reset_tokens_token_hash_key").on(table.tokenHash),
-    index("password_reset_tokens_handle_idx").on(
-      table.handle,
-      table.createdAt,
-    ),
-  ],
-);
-
-export const emailVerifications = pgTable("email_verifications", {
-
-  email: text("email").primaryKey(),
-
-  codeHash: text("code_hash").notNull(),
-
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-
-  attempts: integer("attempts").notNull().default(0),
-
-  verifiedAt: timestamp("verified_at", { withTimezone: true }),
-
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
 
 export const problems = pgTable("problems", {
   slug: text("slug").primaryKey(),
@@ -242,8 +202,6 @@ export const runners = pgTable(
 
 export type AccountRow = Omit<typeof accounts.$inferSelect, "passwordHash">;
 export type AccountSuspensionRow = typeof accountSuspensions.$inferSelect;
-export type PasswordResetTokenRow = typeof passwordResetTokens.$inferSelect;
-export type EmailVerificationRow = typeof emailVerifications.$inferSelect;
 export type ProblemRow = typeof problems.$inferSelect;
 export type ContestRow = typeof contests.$inferSelect;
 export type SubmissionRow = typeof submissions.$inferSelect;

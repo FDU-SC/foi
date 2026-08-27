@@ -4,8 +4,8 @@ export interface MailBody {
   html: string;
 }
 
-export interface VerificationCodeMail {
-  code: string;
+export interface VerificationLinkMail {
+  url: string;
   expiresAt: Date;
 }
 
@@ -15,7 +15,15 @@ export interface PasswordResetMail {
   expiresAt: Date;
 }
 
+export interface EmailChangeMail {
+  displayName: string;
+  newEmail: string;
+  url: string;
+  expiresAt: Date;
+}
+
 export interface EmailTemplates {
-  verificationCode(input: VerificationCodeMail): MailBody;
+  verificationLink(input: VerificationLinkMail): MailBody;
   resetPassword(input: PasswordResetMail): MailBody;
+  emailChange(input: EmailChangeMail): MailBody;
 }

@@ -121,8 +121,7 @@ export const ACTION_LIMITS = {
     unlimited: true,
     why: "只清 cookie，不写库不发信；限它反而会把人卡在登录态里",
   },
-  sendCodeAction: { content: true, declaredIn: "content/enrollment/*.ts" },
-  verifyCodeAction: { content: true, declaredIn: "content/enrollment/*.ts" },
+  sendVerificationLinkAction: { content: true, declaredIn: "content/enrollment/*.ts" },
   registerAction: { content: true, declaredIn: "content/enrollment/*.ts" },
   requestPasswordReset: {
     max: 10,
@@ -134,6 +133,14 @@ export const ACTION_LIMITS = {
   },
 
   resendPasswordResetAction: {
+    max: 10,
+    windowSeconds: 3600,
+  },
+  requestEmailChangeAction: {
+    max: 5,
+    windowSeconds: 3600,
+  },
+  confirmEmailChangeAction: {
     max: 10,
     windowSeconds: 3600,
   },

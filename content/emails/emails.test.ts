@@ -1,33 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { resetPassword, verificationCode } from "./index";
+import { emailChange, resetPassword, verificationLink } from "./index";
 
 const EXPIRES = new Date("2026-03-01T04:05:00Z");
 
-describe("verificationCode", () => {
-  const mail = verificationCode({ code: "042317", expiresAt: EXPIRES });
-
-  it("验证码同时出现在纯文本和 HTML 两个版本里", () => {
-    expect(mail.text).toContain("042317");
-    expect(mail.html).toContain("042317");
+describe("verificationLink", () => {
+  const mail = verificationLink({
+    url: "https://foi.example.test/register?token=abc123",
+    expiresAt: EXPIRES,
   });
 
-  it("纯文本版把验证码单独放一行，便于复制", () => {
-    expect(mail.text.split("\n")).toContain("042317");
-  });
-
-  it("验证码不出现在主题里", () => {
-
-    expect(mail.subject).not.toContain("042317");
+  it("链接同时作为按钮和纯文本给出", () => {
+    expect(mail.text).toContain(
+      "https://foi.example.test/register?token=abc123",
+    );
+    expect(mail.html).toContain('href="https://foi.example.test/register');
   });
 
   it("给出有效期，按东八区呈现", () => {
     expect(mail.text).toContain("12:05");
     expect(mail.html).toContain("12:05");
-  });
-
-  it("不含链接：这封信要做的事就在收信人已经打开的页面上", () => {
-    expect(mail.text).not.toContain("http");
-    expect(mail.html).not.toContain("<a ");
   });
 });
 
@@ -56,5 +47,23 @@ describe("resetPassword", () => {
 
     expect(mail.html).not.toContain("<img");
     expect(mail.html).toContain("&lt;img");
+  });
+});
+
+describe("emailChange", () => {
+  it("新邮箱和链接都在正文里", () => {
+    const mail = emailChange({
+      displayName: "李四",
+      newEmail: "new@example.test",
+      url: "https://foi.example.test/settings/email/confirm?token=xyz",
+      expiresAt: EXPIRES,
+    });
+
+    expect(mail.text).toContain("new@example.test");
+    expect(mail.text).toContain(
+      "https://foi.example.test/settings/email/confirm?token=xyz",
+    );
+    expect(mail.html).toContain("new@example.test");
+    expect(mail.html).toContain('href="https://foi.example.test/settings/email/confirm');
   });
 });

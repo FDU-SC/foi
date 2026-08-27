@@ -1,11 +1,10 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAccount } from "@/lib/accounts/queries";
 import { reservedHandle } from "@/test/content-shapes";
 import { db } from "@/lib/db";
-import { accounts, emailVerifications } from "@/lib/db/schema";
-import { issueCode, verifyCode } from "./email-verification";
-import { issueRegistrationProof } from "./registration-proof";
+import { accounts } from "@/lib/db/schema";
+import { issueToken } from "@/lib/tokens/stateless";
 import { register } from "./register";
 
 const EMAIL = "regtest@example.test";
@@ -42,17 +41,13 @@ if (!online) {
   console.warn("[test] 数据库不可达，跳过注册集成用例");
 }
 
-async function prove(email: string): Promise<string> {
-  const issued = await issueCode(email);
-  if (!issued.ok) throw new Error("发码被节流");
-  await verifyCode(email, issued.code);
-  return issueRegistrationProof(email);
+function mintToken(email: string): string {
+  return issueToken({ purpose: "email-verify", subject: email, ttlMs: 30 * 60 * 1000 });
 }
 
 async function cleanup(): Promise<void> {
   const handles = [HANDLE, TAKEN];
   await db.delete(accounts).where(inArray(accounts.handle, handles));
-  await db.delete(emailVerifications).where(eq(emailVerifications.email, EMAIL));
 }
 
 const FORM = {
@@ -60,7 +55,7 @@ const FORM = {
   displayName: "注册测试",
   email: EMAIL,
   password: "correct-horse-battery",
-  proof: undefined,
+  token: "",
 };
 
 describeDb("register", () => {
@@ -74,7 +69,7 @@ describeDb("register", () => {
     vi.unstubAllEnvs();
   });
 
-  it("邮箱没验证过就不建号", async () => {
+  it("没有 token 就不建号", async () => {
     await expect(register(FORM)).resolves.toEqual({
       ok: false,
       reason: "email-unverified",
@@ -83,21 +78,20 @@ describeDb("register", () => {
     expect(await getAccount(HANDLE)).toBeUndefined();
   });
 
-  it("只发了码但没验证，同样不建号", async () => {
-    const issued = await issueCode(EMAIL);
-    expect(issued.ok).toBe(true);
+  it("token 的邮箱和表单邮箱不匹配时拒绝", async () => {
+    const token = mintToken("other@example.test");
 
-    await expect(register(FORM)).resolves.toMatchObject({
+    await expect(register({ ...FORM, token })).resolves.toMatchObject({
       ok: false,
       reason: "email-unverified",
     });
     expect(await getAccount(HANDLE)).toBeUndefined();
   });
 
-  it("验证过之后建号，并且一建就是 active", async () => {
-    const proof = await prove(EMAIL);
+  it("有效 token 建号成功", async () => {
+    const token = mintToken(EMAIL);
 
-    await expect(register({ ...FORM, proof })).resolves.toMatchObject({
+    await expect(register({ ...FORM, token })).resolves.toMatchObject({
       ok: true,
       handle: HANDLE,
     });
@@ -106,87 +100,54 @@ describeDb("register", () => {
     expect(account).toMatchObject({ status: "active", email: EMAIL });
   });
 
-  it("建号之后验证行被消费掉，不能拿来再注册一个", async () => {
-    const proof = await prove(EMAIL);
-    await register({ ...FORM, proof });
-
-    const rows = await db
-      .select()
-      .from(emailVerifications)
-      .where(eq(emailVerifications.email, EMAIL));
-    expect(rows).toHaveLength(0);
-  });
-
-  it("用户名撞车不会浪费掉这次验证", async () => {
-
+  it("用户名撞车时不消耗 token（可用同一 token 换名重试）", async () => {
     await db.insert(accounts).values({
       handle: TAKEN,
       displayName: "占位",
       status: "active",
     });
-    const proof = await prove(EMAIL);
+    const token = mintToken(EMAIL);
 
-    await expect(register({ ...FORM, handle: TAKEN, proof })).resolves.toEqual({
+    await expect(register({ ...FORM, handle: TAKEN, token })).resolves.toEqual({
       ok: false,
       reason: "handle-taken",
     });
 
-    await expect(register({ ...FORM, proof })).resolves.toMatchObject({
+    await expect(register({ ...FORM, token })).resolves.toMatchObject({
       ok: true,
     });
   });
 
-  it("保留用户名即使验证过也拒绝", async () => {
-
-    const proof = await prove(EMAIL);
+  it("保留用户名即使 token 有效也拒绝", async () => {
+    const token = mintToken(EMAIL);
 
     await expect(
-      register({ ...FORM, handle: reservedHandle(), proof }),
+      register({ ...FORM, handle: reservedHandle(), token }),
     ).resolves.toEqual({
       ok: false,
       reason: "handle-reserved",
     });
   });
 
-  it("邮箱已验证但没有本浏览器的证明，不建号", async () => {
-    await prove(EMAIL);
-
-    await expect(register(FORM)).resolves.toEqual({
-      ok: false,
-      reason: "email-unverified",
-    });
-    expect(await getAccount(HANDLE)).toBeUndefined();
-  });
-
-  it("别人邮箱的证明不能拿来注册这个邮箱", async () => {
-    await prove(EMAIL);
-    const other = issueRegistrationProof("someone-else@example.test");
-
-    await expect(register({ ...FORM, proof: other })).resolves.toEqual({
-      ok: false,
-      reason: "email-unverified",
-    });
-    expect(await getAccount(HANDLE)).toBeUndefined();
-  });
-
   it("域名不在允许范围内的邮箱直接拒绝", async () => {
+    const token = mintToken("someone@elsewhere.invalid");
     await expect(
-      register({ ...FORM, email: "someone@elsewhere.invalid" }),
+      register({ ...FORM, email: "someone@elsewhere.invalid", token }),
     ).resolves.toEqual({ ok: false, reason: "email-domain" });
   });
 
   it("写密码失败时整笔回滚，不留下一个登不进去的账号", async () => {
-    const proof = await prove(EMAIL);
+    const token = mintToken(EMAIL);
     passwordHook.failSetPassword = true;
 
-    await expect(register({ ...FORM, proof })).rejects.toThrow(
+    await expect(register({ ...FORM, token })).rejects.toThrow(
       "写密码故意失败",
     );
 
     expect(await getAccount(HANDLE)).toBeUndefined();
 
     passwordHook.failSetPassword = false;
-    await expect(register({ ...FORM, proof })).resolves.toMatchObject({
+    await expect(register({ ...FORM, token })).resolves.toMatchObject({
       ok: true,
       handle: HANDLE,
     });

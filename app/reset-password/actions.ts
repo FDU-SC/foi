@@ -2,11 +2,10 @@
 
 import { headers } from "next/headers";
 import { z } from "zod";
-import { setPassword } from "@/lib/accounts/password";
+import { getPasswordFingerprint, setPassword } from "@/lib/accounts/password";
 import { getAccount } from "@/lib/accounts/queries";
 import { resolveFromRow } from "@/lib/accounts/resolve";
-import { redeemToken } from "@/lib/accounts/tokens";
-import { db } from "@/lib/db";
+import { verifyToken } from "@/lib/tokens/stateless";
 import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
 
@@ -50,24 +49,24 @@ export async function resetPasswordAction(
     return { error: "尝试过于频繁，请稍后再试。" };
   }
 
-  return db.transaction<ResetState>(async (tx) => {
-    const result = await redeemToken(parsed.data.token, tx);
-    if (!result.ok) {
-      return {
-        error:
-          result.reason === "expired"
-            ? "链接已过期，请重新申请一封重置邮件"
-            : "链接无效或已被使用，请重新申请",
-      };
-    }
+  const payload = verifyToken(parsed.data.token, "password-reset");
+  if (!payload) {
+    return { error: "链接无效或已过期，请重新申请一封重置邮件" };
+  }
 
-    const row = await getAccount(result.handle, tx);
-    const user = row ? resolveFromRow(row) : null;
-    if (!user || user.disabled) {
-      return { error: "该账号当前无法登录，请联系管理员" };
-    }
+  const handle = payload.s;
 
-    await setPassword(user.handle, parsed.data.password, tx);
-    return { message: `密码已更新，现在可以用 ${user.handle} 登录了。` };
-  });
+  const fp = await getPasswordFingerprint(handle);
+  if (!fp || fp !== payload.fp) {
+    return { error: "链接已失效（密码已被修改），请重新申请" };
+  }
+
+  const row = await getAccount(handle);
+  const user = row ? resolveFromRow(row) : null;
+  if (!user || user.disabled) {
+    return { error: "该账号当前无法登录，请联系管理员" };
+  }
+
+  await setPassword(handle, parsed.data.password);
+  return { message: `密码已更新，现在可以用 ${handle} 登录了。` };
 }

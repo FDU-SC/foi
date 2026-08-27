@@ -5,17 +5,14 @@ import type {
   AccountSuspensionRow,
 } from "@/lib/db/schema";
 import { listAccounts, suspensionHistory } from "./queries";
-import { listPendingTokens } from "./tokens";
 
 export interface AccountDirectory {
   accounts: AccountRow[];
-  awaitingReset: Set<string>;
   lastSuspensionEvents: Map<string, AccountSuspensionRow>;
 }
 
 const EMPTY: AccountDirectory = {
   accounts: [],
-  awaitingReset: new Set(),
   lastSuspensionEvents: new Map(),
 };
 
@@ -24,10 +21,7 @@ export async function accountDirectoryFor(
 ): Promise<AccountDirectory> {
   if (!viewer.can("account.read")) return EMPTY;
 
-  const [allAccounts, pending] = await Promise.all([
-    listAccounts(),
-    listPendingTokens(),
-  ]);
+  const allAccounts = await listAccounts();
 
   const suspendedHandles = allAccounts
     .filter((a) => a.status === "suspended")
@@ -43,7 +37,6 @@ export async function accountDirectoryFor(
 
   return {
     accounts: allAccounts,
-    awaitingReset: new Set(pending.map((row) => row.handle)),
     lastSuspensionEvents: events,
   };
 }

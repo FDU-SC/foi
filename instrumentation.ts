@@ -1,11 +1,9 @@
 declare global {
 
   var __foiReaper: (() => void) | undefined;
-  var __foiVerificationSweep: ReturnType<typeof setInterval> | undefined;
 }
 
 const REAP_INTERVAL_MS = 15_000;
-const VERIFICATION_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 
 export async function register() {
 
@@ -25,23 +23,4 @@ export async function register() {
 
   globalThis.__foiReaper?.();
   globalThis.__foiReaper = startReaping(REAP_INTERVAL_MS);
-
-  const { purgeExpiredVerifications } = await import(
-    "@/lib/enrollment/email-verification"
-  );
-
-  const sweep = () => {
-    void purgeExpiredVerifications()
-      .then((count) => {
-        if (count > 0) console.log(`[foi] 已清理 ${count} 条过期的邮箱验证`);
-      })
-      .catch((error) => console.error("[foi] 清理过期邮箱验证失败", error));
-  };
-
-  clearInterval(globalThis.__foiVerificationSweep);
-  globalThis.__foiVerificationSweep = setInterval(
-    sweep,
-    VERIFICATION_SWEEP_INTERVAL_MS,
-  );
-  sweep();
 }

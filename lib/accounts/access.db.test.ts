@@ -61,7 +61,6 @@ describeDb("账号目录门禁", () => {
       const directory = await accountDirectoryFor(reader);
 
       expect(directory.accounts.map((row) => row.handle)).toContain(ACTIVE);
-      expect(directory.awaitingReset).toBeInstanceOf(Set);
     });
 
     it("目录里的行不带 passwordHash", async () => {
@@ -76,7 +75,6 @@ describeDb("账号目录门禁", () => {
       const directory = await accountDirectoryFor(player);
 
       expect(directory.accounts).toEqual([]);
-      expect(directory.awaitingReset.size).toBe(0);
     });
 
     it("匿名也是空目录", async () => {

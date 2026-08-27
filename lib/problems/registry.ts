@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import {
   problemConfigModules,
+  problemJudgeModules,
   problemStatementModules,
 } from "@/content/_modules/problems";
 import { slugFromGlobPath } from "@/lib/slug-from-path";
@@ -8,8 +9,23 @@ import {
   isInlineBackend,
   problemConfigSchema,
   type ExternallyJudged,
+  type InlineJudge,
   type ProblemConfig,
 } from "./types";
+
+type JudgeModule = { judge?: InlineJudge; config?: unknown };
+
+function mergeJudgeModule(raw: Record<string, unknown>, path: string): void {
+  const backend = raw.backend as Record<string, unknown> | undefined;
+  if (backend?.kind !== "inline" || typeof backend.judge === "function") return;
+
+  const judgePath = path.replace(/problem\.ts$/, "judge.ts");
+  const judgeMod = problemJudgeModules[judgePath] as JudgeModule | undefined;
+  if (!judgeMod) return;
+
+  if (judgeMod.judge) backend.judge = judgeMod.judge;
+  if (judgeMod.config !== undefined) backend.config = judgeMod.config;
+}
 
 function buildRegistry(): Map<string, ProblemConfig> {
   const registry = new Map<string, ProblemConfig>();
@@ -22,6 +38,8 @@ function buildRegistry(): Map<string, ProblemConfig> {
     if (exported === undefined) {
       throw new Error(`${path} 必须导出名为 problem 的常量`);
     }
+
+    mergeJudgeModule(exported as Record<string, unknown>, path);
 
     const parsed = problemConfigSchema.safeParse(exported);
     if (!parsed.success) {

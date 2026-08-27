@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import type { SubmissionState, Verdict } from "@/lib/backend/types";
+import type { SubmissionRecordState, Verdict } from "@/lib/backend/types";
 
 export interface ContestProblem {
   slug: string;
@@ -21,7 +21,7 @@ export interface SubmissionRecord {
   id: string;
   uid: number;
   problemSlug: string;
-  state: SubmissionState;
+  state: SubmissionRecordState;
   verdict: Verdict | null;
   score: number | null;
   maxScore: number | null;

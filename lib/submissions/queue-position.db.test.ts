@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { accounts, judgingSessions, problems, submissions } from "@/lib/db/schema";
+import { accounts, judgingQueue, problems, submissions } from "@/lib/db/schema";
 import { externallyJudged } from "@/lib/problems/registry";
 import { MAX_ATTEMPTS } from "@/lib/runner/queue";
 import { locateInQueues, locateOne } from "./queue-position";
@@ -17,26 +17,65 @@ const PROBLEM = externallyJudged()[0]!;
 
 const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
 
+const ago = (ms: number): Date => new Date(Date.now() - ms);
+
 async function enqueue(
   id: string,
-  overrides: Partial<typeof submissions.$inferInsert> = {},
+  overrides: {
+    backendId?: string;
+    queuedAt?: Date;
+    createdAt?: Date;
+    attempts?: number;
+    queueState?: "waiting" | "claimed";
+    runnerId?: string;
+    lease?: string;
+    claimedAt?: Date;
+    heartbeatAt?: Date;
+    submissionState?: "pending" | "completed" | "disrupted";
+    outcome?: string;
+    judgedAt?: Date;
+  } = {},
 ): Promise<string> {
+  const backendId = overrides.backendId ?? BACKEND;
+
   await db.insert(submissions).values({
     id,
     uid: ACCOUNT_UID,
     problemSlug: PROBLEM.slug,
     payload: {},
-    backendId: BACKEND,
-    state: "queued",
-    ...overrides,
+    backendId,
+    state: overrides.submissionState ?? "pending",
+    createdAt: overrides.createdAt,
+    outcome: overrides.outcome,
+    judgedAt: overrides.judgedAt,
   });
+
+  const skipQueue =
+    overrides.submissionState === "completed" ||
+    overrides.submissionState === "disrupted";
+
+  if (!skipQueue) {
+    await db.insert(judgingQueue).values({
+      submissionId: id,
+      backendId,
+      state: overrides.queueState ?? "waiting",
+      queuedAt: overrides.queuedAt,
+      attempts: overrides.attempts ?? 0,
+      runnerId: overrides.runnerId,
+      lease: overrides.lease,
+      claimedAt: overrides.claimedAt,
+      heartbeatAt: overrides.heartbeatAt,
+    });
+  }
+
   return id;
 }
 
-const ago = (ms: number): Date => new Date(Date.now() - ms);
-
 async function cleanup(): Promise<void> {
-  const [existing] = await db.select({ uid: accounts.uid }).from(accounts).where(eq(accounts.username, USERNAME));
+  const [existing] = await db
+    .select({ uid: accounts.uid })
+    .from(accounts)
+    .where(eq(accounts.username, USERNAME));
   if (existing) {
     await db.delete(submissions).where(eq(submissions.uid, existing.uid));
     await db.delete(accounts).where(eq(accounts.uid, existing.uid));
@@ -125,15 +164,12 @@ describeDb("排队位次", () => {
     await enqueue("sub_ql_waiting", { queuedAt: ago(90_000) });
     const held = await enqueue("sub_ql_held", {
       queuedAt: ago(60_000),
-      state: "judging",
+      queueState: "claimed",
       attempts: 1,
-    });
-    await db.insert(judgingSessions).values({
-      submissionId: "sub_ql_held",
       runnerId: "r-ql",
       lease: "lease-ql",
       claimedAt: new Date(),
-      lastHeartbeatAt: new Date(),
+      heartbeatAt: new Date(),
     });
 
     await expect(locateOne(held)).resolves.toMatchObject({
@@ -144,7 +180,7 @@ describeDb("排队位次", () => {
 
   it("终态的提交根本不在队列里，问出来是 null 而不是 0", async () => {
     const done = await enqueue("sub_ql_done", {
-      state: "completed",
+      submissionState: "completed",
       outcome: "accepted",
       judgedAt: new Date(),
     });

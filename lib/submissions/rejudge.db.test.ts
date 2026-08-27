@@ -11,7 +11,7 @@ import {
 } from "vitest";
 import { INLINE_BACKEND_ID, type Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
-import { accounts, problems, submissions } from "@/lib/db/schema";
+import { accounts, judgingQueue, problems, submissions } from "@/lib/db/schema";
 import { externallyJudged } from "@/lib/problems/registry";
 import { claimJob, reportDone } from "@/lib/runner/queue";
 import { rejudgeSubmissions } from "./rejudge";
@@ -50,7 +50,6 @@ async function settled(
     accepted: false,
     backendVersion: VERSION,
     error: "上一轮的抱怨",
-    attempts: 2,
     judgedAt: new Date(),
     ...overrides,
   });
@@ -101,7 +100,7 @@ describeDb("重判", () => {
       expect((await rejudgeSubmissions([id])).requeued).toBe(1);
 
       const row = await rowOf(id);
-      expect(row.state).toBe("queued");
+      expect(row.state).toBe("pending");
       expect(row.verdict).toBeNull();
       expect(row.score).toBeNull();
       expect(row.accepted).toBeNull();
@@ -110,7 +109,11 @@ describeDb("重判", () => {
       expect(row.error).toBeNull();
       expect(row.judgedAt).toBeNull();
 
-      expect(row.attempts).toBe(0);
+      const [q] = await db
+        .select()
+        .from(judgingQueue)
+        .where(eq(judgingQueue.submissionId, id));
+      expect(q.attempts).toBe(0);
 
       expect(row.maxScore).toBe(OLD_MAX_SCORE);
     });

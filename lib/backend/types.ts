@@ -20,9 +20,14 @@ export function isSettled(state: SubmissionState): boolean {
   return state === "completed" || state === "disrupted";
 }
 
-export const NON_TERMINAL_STATES: SubmissionState[] = ["queued", "judging"];
+export const SETTLED_STATES: SubmissionState[] = ["completed", "disrupted"];
 
-export const TERMINAL_STATES: SubmissionState[] = ["completed", "disrupted"];
+export type SubmissionRecordState = "pending" | "completed" | "disrupted";
+
+export const TERMINAL_RECORD_STATES: SubmissionRecordState[] = [
+  "completed",
+  "disrupted",
+];
 
 export const verdictSchema = z.object({
   status: z.string().min(1).max(64),

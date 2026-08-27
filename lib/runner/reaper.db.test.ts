@@ -13,7 +13,8 @@ import type { Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
 import {
   accounts,
-  judgingSessions,
+  judgingAttempts,
+  judgingQueue,
   problems,
   runners,
   submissions,
@@ -44,7 +45,10 @@ const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
 
 async function enqueue(
   id: string,
-  overrides: Partial<typeof submissions.$inferInsert> = {},
+  overrides: {
+    sub?: Partial<typeof submissions.$inferInsert>;
+    queue?: Partial<typeof judgingQueue.$inferInsert>;
+  } = {},
 ): Promise<string> {
   await db.insert(submissions).values({
     id,
@@ -52,8 +56,16 @@ async function enqueue(
     problemSlug: PROBLEM.slug,
     payload: {},
     backendId: BACKEND,
-    state: "queued",
-    ...overrides,
+    state: "pending",
+    ...overrides.sub,
+  });
+  await db.insert(judgingQueue).values({
+    submissionId: id,
+    backendId: BACKEND,
+    state: "waiting",
+    attempts: 0,
+    queuedAt: new Date(),
+    ...overrides.queue,
   });
   return id;
 }
@@ -66,11 +78,21 @@ async function rowOf(id: string): Promise<typeof submissions.$inferSelect> {
   return row;
 }
 
+async function queueRowOf(
+  id: string,
+): Promise<(typeof judgingQueue.$inferSelect) | undefined> {
+  const [row] = await db
+    .select()
+    .from(judgingQueue)
+    .where(eq(judgingQueue.submissionId, id));
+  return row;
+}
+
 async function goSilent(id: string): Promise<void> {
   await db
-    .update(judgingSessions)
-    .set({ lastHeartbeatAt: new Date(Date.now() - HEARTBEAT_LAPSE_MS - 1_000) })
-    .where(eq(judgingSessions.submissionId, id));
+    .update(judgingQueue)
+    .set({ heartbeatAt: new Date(Date.now() - HEARTBEAT_LAPSE_MS - 1_000) })
+    .where(eq(judgingQueue.submissionId, id));
 }
 
 async function cleanup(): Promise<void> {
@@ -108,18 +130,21 @@ describeDb("失联回收", () => {
 
     await reapOnce();
 
+    const qRow = await queueRowOf(id);
+    expect(qRow).toBeDefined();
+    expect(qRow!.state).toBe("waiting");
+
     const row = await rowOf(id);
-    expect(row.state).toBe("queued");
+    expect(row.state).toBe("pending");
 
-    const [session] = await db
+    const [attempt] = await db
       .select()
-      .from(judgingSessions)
-      .where(eq(judgingSessions.submissionId, id));
-    expect(session).toBeUndefined();
+      .from(judgingAttempts)
+      .where(eq(judgingAttempts.submissionId, id));
+    expect(attempt.outcome).toBe("expired");
+    expect(attempt.error).toContain("心跳超时");
 
-    expect(row.error).toContain("失去联系");
-
-    expect(row.attempts).toBe(1);
+    expect(qRow!.attempts).toBe(1);
   });
 
   it("attempts 用尽的失联行不再入队，直接落 disrupted", async () => {
@@ -127,9 +152,9 @@ describeDb("失联回收", () => {
     await claimJob(BACKEND, "r-doomed");
 
     await db
-      .update(submissions)
+      .update(judgingQueue)
       .set({ attempts: MAX_ATTEMPTS })
-      .where(eq(submissions.id, id));
+      .where(eq(judgingQueue.submissionId, id));
     await goSilent(id);
 
     await reapOnce();
@@ -138,16 +163,24 @@ describeDb("失联回收", () => {
     expect(row.state).toBe("disrupted");
     expect(row.judgedAt).not.toBeNull();
     expect(row.error).toContain(String(MAX_ATTEMPTS));
+
+    const qRow = await queueRowOf(id);
+    expect(qRow).toBeUndefined();
   });
 
   it("卡在队列里且 attempts 用尽的行也会被写掉，不必等保险丝", async () => {
-    const id = await enqueue("sub_rr_stuck", { attempts: MAX_ATTEMPTS });
+    const id = await enqueue("sub_rr_stuck", {
+      queue: { attempts: MAX_ATTEMPTS },
+    });
 
     await reapOnce();
 
     const row = await rowOf(id);
     expect(row.state).toBe("disrupted");
     expect(row.error).toContain(String(MAX_ATTEMPTS));
+
+    const qRow = await queueRowOf(id);
+    expect(qRow).toBeUndefined();
   });
 
   it("心跳还新鲜的行不会被收走，lease 也不动", async () => {
@@ -157,18 +190,17 @@ describeDb("失联回收", () => {
 
     await reapOnce();
 
-    const row = await rowOf(id);
-    expect(row.state).toBe("judging");
-    expect(row.attempts).toBe(1);
-    expect(row.error).toBeNull();
+    const qRow = await queueRowOf(id);
+    expect(qRow).toBeDefined();
+    expect(qRow!.state).toBe("claimed");
+    expect(qRow!.attempts).toBe(1);
+    expect(qRow!.lease).toBe(ticket?.lease);
+    expect(qRow!.runnerId).toBe("r-working");
+    expect(qRow!.claimedAt).not.toBeNull();
 
-    const [session] = await db
-      .select()
-      .from(judgingSessions)
-      .where(eq(judgingSessions.submissionId, id));
-    expect(session.lease).toBe(ticket?.lease);
-    expect(session.runnerId).toBe("r-working");
-    expect(session.claimedAt).not.toBeNull();
+    const row = await rowOf(id);
+    expect(row.state).toBe("pending");
+    expect(row.error).toBeNull();
   });
 
   it("失联之后又报了心跳的行，同样不会被收走", async () => {
@@ -181,35 +213,33 @@ describeDb("失联回收", () => {
 
     await reapOnce();
 
-    const row = await rowOf(id);
-    expect(row.state).toBe("judging");
+    const qRow = await queueRowOf(id);
+    expect(qRow).toBeDefined();
+    expect(qRow!.state).toBe("claimed");
+    expect(qRow!.lease).toBe(ticket?.lease);
+    expect(qRow!.runnerStatus).toBe("测试点 7/10");
 
-    const [session] = await db
-      .select()
-      .from(judgingSessions)
-      .where(eq(judgingSessions.submissionId, id));
-    expect(session.lease).toBe(ticket?.lease);
-    expect(session.runnerStatus).toBe("测试点 7/10");
+    const row = await rowOf(id);
+    expect(row.state).toBe("pending");
   });
 
   it("最后一次尝试正在跑、心跳正常的行不会被直接写掉", async () => {
     const id = await enqueue("sub_rr_last_lap", {
-      attempts: MAX_ATTEMPTS - 1,
+      queue: { attempts: MAX_ATTEMPTS - 1 },
     });
     const ticket = await claimJob(BACKEND, "r-final");
-    expect((await rowOf(id)).attempts).toBe(MAX_ATTEMPTS);
+    expect((await queueRowOf(id))!.attempts).toBe(MAX_ATTEMPTS);
 
     await reapOnce();
 
-    const row = await rowOf(id);
-    expect(row.state).toBe("judging");
-    expect(row.judgedAt).toBeNull();
+    const qRow = await queueRowOf(id);
+    expect(qRow).toBeDefined();
+    expect(qRow!.state).toBe("claimed");
+    expect(qRow!.lease).toBe(ticket?.lease);
 
-    const [session] = await db
-      .select()
-      .from(judgingSessions)
-      .where(eq(judgingSessions.submissionId, id));
-    expect(session.lease).toBe(ticket?.lease);
+    const row = await rowOf(id);
+    expect(row.state).toBe("pending");
+    expect(row.judgedAt).toBeNull();
   });
 
   it("重新入队之后，失联的 runner 拿旧 lease 什么都写不进去", async () => {
@@ -232,18 +262,17 @@ describeDb("失联回收", () => {
       reportFailed(id, first!.lease, "我跑不动", VERSION),
     ).resolves.toBe(false);
 
+    const qRow = await queueRowOf(id);
+    expect(qRow).toBeDefined();
+    expect(qRow!.state).toBe("claimed");
+    expect(qRow!.lease).toBe(second?.lease);
+    expect(qRow!.runnerId).toBe("r-b");
+    expect(qRow!.runnerStatus).toBeNull();
+
     const row = await rowOf(id);
-    expect(row.state).toBe("judging");
+    expect(row.state).toBe("pending");
     expect(row.verdict).toBeNull();
     expect(row.error).toBeNull();
-
-    const [session] = await db
-      .select()
-      .from(judgingSessions)
-      .where(eq(judgingSessions.submissionId, id));
-    expect(session.lease).toBe(second?.lease);
-    expect(session.runnerId).toBe("r-b");
-    expect(session.runnerStatus).toBeNull();
 
     await expect(reportDone(id, second!.lease, VERDICT, VERSION)).resolves.toBe(
       true,
@@ -257,8 +286,8 @@ describeDb("失联回收", () => {
 
     it("从来没人领过的旧行会被烧掉", async () => {
       const id = await enqueue("sub_rr_fuse_burns", {
-        createdAt: longAgo(),
-        queuedAt: longAgo(),
+        sub: { createdAt: longAgo() },
+        queue: { queuedAt: longAgo() },
       });
 
       await reapOnce();
@@ -267,32 +296,44 @@ describeDb("失联回收", () => {
       expect(row.state).toBe("disrupted");
       expect(row.error).toContain("无评测机领取");
       expect(row.judgedAt).not.toBeNull();
+
+      const qRow = await queueRowOf(id);
+      expect(qRow).toBeUndefined();
     });
 
     it("很旧的提交经重判回到队列，不会被立刻烧掉", async () => {
       const id = await enqueue("sub_rr_fuse_rejudged", {
-        createdAt: longAgo(),
-        queuedAt: longAgo(),
-        state: "disrupted",
-        error: "上一轮评测中断",
-        judgedAt: longAgo(),
+        sub: {
+          createdAt: longAgo(),
+          state: "disrupted",
+          error: "上一轮评测中断",
+          judgedAt: longAgo(),
+        },
+        queue: { queuedAt: longAgo() },
       });
+
+      // Delete from judgingQueue so rejudge can re-insert
+      await db.delete(judgingQueue).where(eq(judgingQueue.submissionId, id));
       expect((await rejudgeSubmissions([id])).requeued).toBe(1);
 
       await reapOnce();
 
+      const qRow = await queueRowOf(id);
+      expect(qRow).toBeDefined();
+      expect(qRow!.state).toBe("waiting");
+
       const row = await rowOf(id);
-      expect(row.state).toBe("queued");
+      expect(row.state).toBe("pending");
       expect(row.error).toBeNull();
 
       expect(row.createdAt.getTime()).toBeLessThan(Date.now() - QUEUE_FUSE_MS);
-      expect(row.queuedAt.getTime()).toBeGreaterThan(Date.now() - 60_000);
+      expect(qRow!.queuedAt.getTime()).toBeGreaterThan(Date.now() - 60_000);
     });
 
     it("很旧的提交经心跳失联重新入队，同一趟也不会被烧掉", async () => {
       const id = await enqueue("sub_rr_fuse_requeued", {
-        createdAt: longAgo(),
-        queuedAt: longAgo(),
+        sub: { createdAt: longAgo() },
+        queue: { queuedAt: longAgo() },
       });
       const ticket = await claimJob(BACKEND, "r-old-and-gone");
       expect(ticket?.id).toBe(id);
@@ -300,15 +341,20 @@ describeDb("失联回收", () => {
 
       await reapOnce();
 
+      const qRow = await queueRowOf(id);
+      expect(qRow).toBeDefined();
+      expect(qRow!.state).toBe("waiting");
+
       const row = await rowOf(id);
-      expect(row.state).toBe("queued");
-      expect(row.error).toContain("失去联系");
+      expect(row.state).toBe("pending");
       expect(row.judgedAt).toBeNull();
       expect(row.createdAt.getTime()).toBeLessThan(Date.now() - QUEUE_FUSE_MS);
-      expect(row.queuedAt.getTime()).toBeGreaterThan(Date.now() - 60_000);
+      expect(qRow!.queuedAt.getTime()).toBeGreaterThan(Date.now() - 60_000);
 
       await reapOnce();
-      expect((await rowOf(id)).state).toBe("queued");
+      const qRow2 = await queueRowOf(id);
+      expect(qRow2).toBeDefined();
+      expect(qRow2!.state).toBe("waiting");
     });
   });
 });

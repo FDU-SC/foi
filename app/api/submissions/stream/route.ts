@@ -9,9 +9,9 @@ import {
 } from "@/lib/ratelimit/concurrency";
 import { guardRequest } from "@/lib/server/guard";
 import { ROUTE_LIMITS } from "@/lib/ratelimit/policy";
-import { subscribe } from "@/lib/submissions/events";
+import { subscribe, type NotifyPayload } from "@/lib/submissions/events";
 import { submissionFor } from "@/lib/submissions/access";
-import { getRunnerStatus, toView } from "@/lib/submissions/queries";
+import { getQueueInfo, toView } from "@/lib/submissions/queries";
 import type { SubmissionView } from "@/lib/submissions/types";
 
 export const runtime = "nodejs";
@@ -96,16 +96,24 @@ export async function GET(request: Request) {
 
       try {
         streamController.enqueue(encoder.encode("retry: 5000\n\n"));
-        const initialStatus = await getRunnerStatus(id);
-        send(toView(initial, initialStatus));
+        const initialQueue = await getQueueInfo(id);
+        send(toView(initial, initialQueue));
         if (closed) return;
 
-        cleanups.push(subscribe(id, send));
+        cleanups.push(
+          subscribe(id, async (payload: NotifyPayload) => {
+            if (closed) return;
+            const row = await submissionFor(id, viewer);
+            if (!row) return;
+            const qi = await getQueueInfo(id);
+            send(toView(row, qi));
+          }),
+        );
 
         const afterSubscribe = await submissionFor(id, viewer);
         if (afterSubscribe) {
-          const afterStatus = await getRunnerStatus(id);
-          send(toView(afterSubscribe, afterStatus));
+          const afterQueue = await getQueueInfo(id);
+          send(toView(afterSubscribe, afterQueue));
         }
         if (closed) return;
 

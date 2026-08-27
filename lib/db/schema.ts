@@ -1,5 +1,6 @@
 import { getTableColumns, sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   doublePrecision,
@@ -8,15 +9,22 @@ import {
   jsonb,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import type { SubmissionState, Verdict } from "@/lib/backend/types";
+import type { Verdict } from "@/lib/backend/types";
 
 export type AccountStatus = "active" | "suspended";
 
 export type SuspensionAction = "suspend" | "reinstate";
+
+export type SubmissionRecordState = "pending" | "completed" | "disrupted";
+
+export type QueueState = "waiting" | "claimed";
+
+export type AttemptOutcome = "completed" | "failed" | "expired";
 
 export const accounts = pgTable(
   "accounts",
@@ -113,37 +121,40 @@ export const submissions = pgTable(
 
     clientNonce: text("client_nonce"),
 
-    state: text("state").$type<SubmissionState>().notNull().default("queued"),
+    backendId: text("backend_id").notNull(),
+
+    maxScore: doublePrecision("max_score"),
+
+    releaseSha: text("release_sha"),
+
+    state: text("state")
+      .$type<SubmissionRecordState>()
+      .notNull()
+      .default("pending"),
 
     verdict: jsonb("verdict").$type<Verdict>(),
 
     score: doublePrecision("score"),
 
-    maxScore: doublePrecision("max_score"),
-
     accepted: boolean("accepted"),
 
     outcome: text("outcome"),
 
-    releaseSha: text("release_sha"),
     backendVersion: text("backend_version"),
 
-    backendId: text("backend_id").notNull(),
-
-    attempts: integer("attempts").notNull().default(0),
-
     error: text("error"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
 
-    queuedAt: timestamp("queued_at", { withTimezone: true })
+    createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
 
     judgedAt: timestamp("judged_at", { withTimezone: true }),
   },
   (table) => [
+    uniqueIndex("submissions_nonce_key")
+      .on(table.uid, table.clientNonce)
+      .where(sql`${table.clientNonce} is not null`),
+
     index("submissions_standings_idx").on(
       table.contestSlug,
       table.problemSlug,
@@ -151,38 +162,88 @@ export const submissions = pgTable(
       table.createdAt,
     ),
 
-    index("submissions_queued_idx")
-      .on(table.backendId, table.queuedAt)
-      .where(sql`state = 'queued'`),
+    index("submissions_user_idx").on(table.uid, table.createdAt),
 
-    index("submissions_disrupted_idx")
-      .on(table.judgedAt)
-      .where(sql`state = 'disrupted'`),
-    index("submissions_uid_idx").on(table.uid, table.createdAt),
-
-    uniqueIndex("submissions_client_nonce_key").on(
-      table.uid,
-      table.clientNonce,
+    check(
+      "submissions_state_ck",
+      sql`${table.state} in ('pending', 'completed', 'disrupted')`,
     ),
   ],
 );
 
-export const judgingSessions = pgTable(
-  "judging_sessions",
+export const judgingQueue = pgTable(
+  "judging_queue",
   {
     submissionId: text("submission_id")
       .primaryKey()
       .references(() => submissions.id, { onDelete: "cascade" }),
-    runnerId: text("runner_id").notNull(),
+
+    backendId: text("backend_id").notNull(),
+
+    priority: smallint("priority").notNull().default(0),
+
+    state: text("state").$type<QueueState>().notNull().default("waiting"),
+
+    attempts: integer("attempts").notNull().default(0),
+
+    queuedAt: timestamp("queued_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+
+    runnerId: text("runner_id"),
     lease: text("lease"),
     runnerStatus: text("runner_status"),
-    lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
-    claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull(),
+    heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
   },
   (table) => [
-    index("judging_sessions_lapsed_idx")
-      .on(table.lastHeartbeatAt)
-      .where(sql`lease is not null`),
+    index("judging_queue_dispatch_idx")
+      .on(table.backendId, table.priority, table.queuedAt)
+      .where(sql`${table.state} = 'waiting'`),
+
+    index("judging_queue_reaper_idx")
+      .on(table.heartbeatAt)
+      .where(sql`${table.state} = 'claimed'`),
+
+    check(
+      "judging_queue_state_ck",
+      sql`${table.state} in ('waiting', 'claimed')`,
+    ),
+  ],
+);
+
+export const judgingAttempts = pgTable(
+  "judging_attempts",
+  {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+
+    submissionId: text("submission_id")
+      .notNull()
+      .references(() => submissions.id, { onDelete: "cascade" }),
+
+    backendId: text("backend_id").notNull(),
+    runnerId: text("runner_id").notNull(),
+
+    claimedAt: timestamp("claimed_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    outcome: text("outcome").$type<AttemptOutcome>(),
+    lastStatus: text("last_status"),
+    error: text("error"),
+  },
+  (table) => [
+    index("judging_attempts_submission_idx").on(
+      table.submissionId,
+      table.claimedAt,
+    ),
+
+    check(
+      "judging_attempts_outcome_ck",
+      sql`${table.outcome} is null or ${table.outcome} in ('completed', 'failed', 'expired')`,
+    ),
   ],
 );
 
@@ -207,5 +268,6 @@ export type AccountSuspensionRow = typeof accountSuspensions.$inferSelect;
 export type ProblemRow = typeof problems.$inferSelect;
 export type ContestRow = typeof contests.$inferSelect;
 export type SubmissionRow = typeof submissions.$inferSelect;
-export type JudgingSessionRow = typeof judgingSessions.$inferSelect;
+export type JudgingQueueRow = typeof judgingQueue.$inferSelect;
+export type JudgingAttemptRow = typeof judgingAttempts.$inferSelect;
 export type RunnerRow = typeof runners.$inferSelect;

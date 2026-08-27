@@ -1,5 +1,5 @@
 {
-  "id": "daf0e6b9-4610-4166-bc56-c4e2f466d304",
+  "id": "b4c057f9-0344-488f-a3d0-7d36d71eec97",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -254,14 +254,37 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.judging_sessions": {
-      "name": "judging_sessions",
+    "public.judging_attempts": {
+      "name": "judging_attempts",
       "schema": "",
       "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "judging_attempts_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
         "submission_id": {
           "name": "submission_id",
           "type": "text",
-          "primaryKey": true,
+          "primaryKey": false,
+          "notNull": true
+        },
+        "backend_id": {
+          "name": "backend_id",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true
         },
         "runner_id": {
@@ -270,53 +293,65 @@
           "primaryKey": false,
           "notNull": true
         },
-        "lease": {
-          "name": "lease",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "runner_status": {
-          "name": "runner_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_heartbeat_at": {
-          "name": "last_heartbeat_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "claimed_at": {
           "name": "claimed_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "now()"
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_status": {
+          "name": "last_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
-        "judging_sessions_lapsed_idx": {
-          "name": "judging_sessions_lapsed_idx",
+        "judging_attempts_submission_idx": {
+          "name": "judging_attempts_submission_idx",
           "columns": [
             {
-              "expression": "last_heartbeat_at",
+              "expression": "submission_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "claimed_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
           "isUnique": false,
-          "where": "lease is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
         }
       },
       "foreignKeys": {
-        "judging_sessions_submission_id_submissions_id_fk": {
-          "name": "judging_sessions_submission_id_submissions_id_fk",
-          "tableFrom": "judging_sessions",
+        "judging_attempts_submission_id_submissions_id_fk": {
+          "name": "judging_attempts_submission_id_submissions_id_fk",
+          "tableFrom": "judging_attempts",
           "tableTo": "submissions",
           "columnsFrom": [
             "submission_id"
@@ -331,7 +366,159 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "judging_attempts_outcome_ck": {
+          "name": "judging_attempts_outcome_ck",
+          "value": "\"judging_attempts\".\"outcome\" is null or \"judging_attempts\".\"outcome\" in ('completed', 'failed', 'expired')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.judging_queue": {
+      "name": "judging_queue",
+      "schema": "",
+      "columns": {
+        "submission_id": {
+          "name": "submission_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "backend_id": {
+          "name": "backend_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "priority": {
+          "name": "priority",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'waiting'"
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "queued_at": {
+          "name": "queued_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "runner_id": {
+          "name": "runner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lease": {
+          "name": "lease",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "runner_status": {
+          "name": "runner_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "heartbeat_at": {
+          "name": "heartbeat_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "claimed_at": {
+          "name": "claimed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "judging_queue_dispatch_idx": {
+          "name": "judging_queue_dispatch_idx",
+          "columns": [
+            {
+              "expression": "backend_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "priority",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "queued_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"judging_queue\".\"state\" = 'waiting'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "judging_queue_reaper_idx": {
+          "name": "judging_queue_reaper_idx",
+          "columns": [
+            {
+              "expression": "heartbeat_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"judging_queue\".\"state\" = 'claimed'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "judging_queue_submission_id_submissions_id_fk": {
+          "name": "judging_queue_submission_id_submissions_id_fk",
+          "tableFrom": "judging_queue",
+          "tableTo": "submissions",
+          "columnsFrom": [
+            "submission_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "judging_queue_state_ck": {
+          "name": "judging_queue_state_ck",
+          "value": "\"judging_queue\".\"state\" in ('waiting', 'claimed')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.problems": {
@@ -446,12 +633,30 @@
           "primaryKey": false,
           "notNull": false
         },
+        "backend_id": {
+          "name": "backend_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max_score": {
+          "name": "max_score",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "release_sha": {
+          "name": "release_sha",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "state": {
           "name": "state",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'queued'"
+          "default": "'pending'"
         },
         "verdict": {
           "name": "verdict",
@@ -461,12 +666,6 @@
         },
         "score": {
           "name": "score",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "max_score": {
-          "name": "max_score",
           "type": "double precision",
           "primaryKey": false,
           "notNull": false
@@ -483,30 +682,11 @@
           "primaryKey": false,
           "notNull": false
         },
-        "release_sha": {
-          "name": "release_sha",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "backend_version": {
           "name": "backend_version",
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "backend_id": {
-          "name": "backend_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "attempts": {
-          "name": "attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
         },
         "error": {
           "name": "error",
@@ -521,13 +701,6 @@
           "notNull": true,
           "default": "now()"
         },
-        "queued_at": {
-          "name": "queued_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
         "judged_at": {
           "name": "judged_at",
           "type": "timestamp with time zone",
@@ -536,6 +709,28 @@
         }
       },
       "indexes": {
+        "submissions_nonce_key": {
+          "name": "submissions_nonce_key",
+          "columns": [
+            {
+              "expression": "uid",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "client_nonce",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"submissions\".\"client_nonce\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "submissions_standings_idx": {
           "name": "submissions_standings_idx",
           "columns": [
@@ -569,46 +764,8 @@
           "method": "btree",
           "with": {}
         },
-        "submissions_queued_idx": {
-          "name": "submissions_queued_idx",
-          "columns": [
-            {
-              "expression": "backend_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "queued_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "state = 'queued'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "submissions_disrupted_idx": {
-          "name": "submissions_disrupted_idx",
-          "columns": [
-            {
-              "expression": "judged_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "state = 'disrupted'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "submissions_uid_idx": {
-          "name": "submissions_uid_idx",
+        "submissions_user_idx": {
+          "name": "submissions_user_idx",
           "columns": [
             {
               "expression": "uid",
@@ -624,27 +781,6 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "submissions_client_nonce_key": {
-          "name": "submissions_client_nonce_key",
-          "columns": [
-            {
-              "expression": "uid",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "client_nonce",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -694,7 +830,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "submissions_state_ck": {
+          "name": "submissions_state_ck",
+          "value": "\"submissions\".\"state\" in ('pending', 'completed', 'disrupted')"
+        }
+      },
       "isRLSEnabled": false
     }
   },

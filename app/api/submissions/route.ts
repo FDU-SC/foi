@@ -7,8 +7,8 @@ import { viewerFor } from "@/lib/permissions/viewer";
 import { readJsonBody } from "@/lib/body-limit";
 import { releaseSha } from "@/lib/boot/deployment";
 import { db } from "@/lib/db";
+import { judgingQueue, submissions } from "@/lib/db/schema";
 import { ensureContest, ensureProblem } from "@/lib/db/mirror";
-import { submissions } from "@/lib/db/schema";
 import { resolveBackend, type ResolvedBackend } from "@/lib/backend/resolve";
 import {
   INLINE_BACKEND_ID,
@@ -140,7 +140,7 @@ export async function POST(request: Request) {
 
   const id = `sub_${ulid()}`;
 
-  const values = {
+  const submissionValues = {
     id,
     uid: user.uid,
     problemSlug: problem.slug,
@@ -150,21 +150,10 @@ export async function POST(request: Request) {
     backendId:
       judging.kind === "inline" ? INLINE_BACKEND_ID : judging.backend.id,
     maxScore: problem.maxScore,
-
     releaseSha: releaseSha(),
-    state: "queued",
-
-    queuedAt: new Date(),
+    state: "pending" as const,
+    createdAt: new Date(),
   } satisfies typeof submissions.$inferInsert;
-
-  const enqueue = (on: DbOrTx) =>
-    on
-      .insert(submissions)
-      .values(values)
-      .onConflictDoNothing({
-        target: [submissions.uid, submissions.clientNonce],
-      })
-      .returning();
 
   const settlement = (
     backend: InlineBackend,
@@ -202,47 +191,75 @@ export async function POST(request: Request) {
     }
   };
 
-  const judgeInline = (backend: InlineBackend) =>
-    db.transaction(async (tx) => {
-      const [created] = await enqueue(tx);
-      if (!created) return { created, settled: undefined };
+  const enqueue = (on: DbOrTx) =>
+    on
+      .insert(submissions)
+      .values(submissionValues)
+      .onConflictDoNothing({
+        target: [submissions.uid, submissions.clientNonce],
+      })
+      .returning();
 
+  if (judging.kind === "inline") {
+    const result = await db.transaction(async (tx) => {
+      const [created] = await enqueue(tx);
+      if (!created) return { created: undefined };
+
+      const patch = settlement(judging.backend);
       const [settled] = await tx
         .update(submissions)
-        .set(settlement(backend))
+        .set(patch)
         .where(eq(submissions.id, id))
         .returning();
 
-      return { created, settled };
+      return { created: settled ?? created };
     });
 
-  const { created, settled } =
-    judging.kind === "inline"
-      ? await judgeInline(judging.backend)
-      : { created: (await enqueue(db))[0], settled: undefined };
+    if (!result.created) {
+      const existing = clientNonce
+        ? await findSubmissionByNonce(user.uid, clientNonce)
+        : undefined;
+      if (existing) return NextResponse.json(toView(existing));
+      return NextResponse.json({ error: "提交失败，请重试" }, { status: 500 });
+    }
+
+    const view = toView(result.created);
+
+    if (result.created.state !== "pending") {
+      await publish(db, id, { state: result.created.state });
+      if (contestSlug && result.created.state === "completed") {
+        invalidateStandings(contestSlug);
+      }
+    }
+
+    return NextResponse.json(view, { status: 201 });
+  }
+
+  // External backend: insert submission + queue entry
+  const created = await db.transaction(async (tx) => {
+    const [row] = await enqueue(tx);
+    if (!row) return undefined;
+
+    await tx.insert(judgingQueue).values({
+      submissionId: id,
+      backendId: judging.backend.id,
+      priority: contestSlug ? 1 : 0,
+      state: "waiting",
+      queuedAt: new Date(),
+    });
+
+    return row;
+  });
 
   if (!created) {
-
     const existing = clientNonce
       ? await findSubmissionByNonce(user.uid, clientNonce)
       : undefined;
     if (existing) return NextResponse.json(toView(existing));
-
     return NextResponse.json({ error: "提交失败，请重试" }, { status: 500 });
   }
 
-  if (!settled) {
-    return NextResponse.json(toView(created), { status: 201 });
-  }
-
-  const judged = toView(settled);
-  publish(judged);
-
-  if (contestSlug && settled.state === "completed") {
-    invalidateStandings(contestSlug);
-  }
-
-  return NextResponse.json(judged, { status: 201 });
+  return NextResponse.json(toView(created), { status: 201 });
 }
 
 export async function GET(request: Request) {

@@ -5,7 +5,8 @@ import { db } from "@/lib/db";
 import {
   accounts,
   contests,
-  judgingSessions,
+  judgingAttempts,
+  judgingQueue,
   problems,
   runners,
   submissions,
@@ -39,7 +40,12 @@ const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
 
 async function enqueue(
   id: string,
-  overrides: Partial<typeof submissions.$inferInsert> = {},
+  overrides: {
+    contestSlug?: string;
+    createdAt?: Date;
+    queuedAt?: Date;
+    attempts?: number;
+  } = {},
 ): Promise<string> {
   await db.insert(submissions).values({
     id,
@@ -47,8 +53,16 @@ async function enqueue(
     problemSlug: PROBLEM.slug,
     payload: PAYLOAD,
     backendId: BACKEND,
-    state: "queued",
-    ...overrides,
+    state: "pending",
+    contestSlug: overrides.contestSlug ?? null,
+    createdAt: overrides.createdAt ?? new Date(),
+  });
+  await db.insert(judgingQueue).values({
+    submissionId: id,
+    backendId: BACKEND,
+    state: "waiting",
+    queuedAt: overrides.queuedAt ?? new Date(),
+    attempts: overrides.attempts ?? 0,
   });
   return id;
 }
@@ -58,6 +72,14 @@ async function rowOf(id: string): Promise<typeof submissions.$inferSelect> {
     .select()
     .from(submissions)
     .where(eq(submissions.id, id));
+  return row;
+}
+
+async function queueOf(id: string): Promise<typeof judgingQueue.$inferSelect | undefined> {
+  const [row] = await db
+    .select()
+    .from(judgingQueue)
+    .where(eq(judgingQueue.submissionId, id));
   return row;
 }
 
@@ -111,24 +133,15 @@ describeDb("runner 领活与上报", () => {
 
       expect(handed.map((ticket) => ticket.id).sort()).toEqual([...ids].sort());
 
-      const rows = await db
-        .select()
-        .from(submissions)
-        .where(inArray(submissions.id, ids));
-
-      for (const row of rows) {
-        expect(row.state).toBe("judging");
-
-        expect(row.attempts).toBe(1);
+      for (const id of ids) {
+        const q = await queueOf(id);
+        expect(q?.state).toBe("claimed");
+        expect(q?.attempts).toBe(1);
       }
 
-      const sessions = await db
-        .select()
-        .from(judgingSessions)
-        .where(inArray(judgingSessions.submissionId, ids));
-      const leaseById = new Map(sessions.map((s) => [s.submissionId, s.lease]));
       for (const ticket of handed) {
-        expect(ticket.lease).toBe(leaseById.get(ticket.id));
+        const q = await queueOf(ticket.id);
+        expect(ticket.lease).toBe(q?.lease);
       }
     });
 
@@ -151,9 +164,9 @@ describeDb("runner 领活与上报", () => {
 
       await expect(claimJob(BACKEND, "r-capped")).resolves.toBeNull();
 
-      const row = await rowOf("sub_rq_capped");
-      expect(row.state).toBe("queued");
-      expect(row.attempts).toBe(MAX_ATTEMPTS);
+      const q = await queueOf("sub_rq_capped");
+      expect(q?.state).toBe("waiting");
+      expect(q?.attempts).toBe(MAX_ATTEMPTS);
     });
   });
 
@@ -216,7 +229,7 @@ describeDb("runner 领活与上报", () => {
       );
 
       const row = await rowOf(id);
-      expect(row.state).toBe("queued");
+      expect(row.state).toBe("pending");
       expect(row.verdict).toBeNull();
       expect(row.outcome).toBeNull();
       expect(row.score).toBeNull();
@@ -237,15 +250,12 @@ describeDb("runner 领活与上报", () => {
       ).resolves.toBe(false);
 
       const row = await rowOf(id);
-      expect(row.state).toBe("judging");
+      expect(row.state).toBe("pending");
       expect(row.verdict).toBeNull();
 
-      const [session] = await db
-        .select()
-        .from(judgingSessions)
-        .where(eq(judgingSessions.submissionId, id));
-      expect(session.lease).toBe(second?.lease);
-      expect(session.runnerId).toBe("r-second");
+      const q = await queueOf(id);
+      expect(q?.lease).toBe(second?.lease);
+      expect(q?.runnerId).toBe("r-second");
     });
   });
 
@@ -261,7 +271,6 @@ describeDb("runner 领活与上报", () => {
       const row = await rowOf(id);
       expect(row.state).toBe("disrupted");
       expect(row.error).toBe("沙箱起不来");
-      expect(row.backendVersion).toBe(VERSION);
 
       expect(row.verdict).toBeNull();
       expect(row.outcome).toBeNull();

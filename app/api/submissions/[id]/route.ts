@@ -6,7 +6,7 @@ import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest, tooManyRequests } from "@/lib/server/guard";
 import { ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { submissionFor } from "@/lib/submissions/access";
-import { getRunnerStatus, toView } from "@/lib/submissions/queries";
+import { getQueueInfo, toView } from "@/lib/submissions/queries";
 import { locateOne } from "@/lib/submissions/queue-position";
 
 export const runtime = "nodejs";
@@ -37,11 +37,9 @@ export async function GET(
     return NextResponse.json({ error: "提交不存在" }, { status: 404 });
   }
 
-  const runnerStatus = isSettled(row.state)
-    ? null
-    : await getRunnerStatus(row.id);
-  const view = toView(row, runnerStatus);
-  if (!isSettled(row.state)) {
+  const queueInfo = row.state === "pending" ? await getQueueInfo(row.id) : null;
+  const view = toView(row, queueInfo);
+  if (!isSettled(view.state)) {
     view.queue = await locateOne(row.id);
   }
 

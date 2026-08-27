@@ -8,11 +8,11 @@ import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { PayloadBody, VerdictBody } from "@/components/opaque";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { failureReason, isSettled } from "@/lib/backend/types";
+import { failureReason, isSettled, type SubmissionState } from "@/lib/backend/types";
 import { problemBySlug } from "@/lib/problems/registry";
 import { submissionFor } from "@/lib/submissions/access";
 import { locateOne } from "@/lib/submissions/queue-position";
-import { getRunnerStatus } from "@/lib/submissions/queries";
+import { getQueueInfo } from "@/lib/submissions/queries";
 import { isRejudgeable } from "@/lib/submissions/rejudge";
 import { RejudgeForm } from "./rejudge-form";
 
@@ -37,11 +37,16 @@ export default async function SubmissionPage({
   if (!row) notFound();
 
   const problem = problemBySlug(row.problemSlug);
-  const reason = failureReason(row);
-  const settled = isSettled(row.state);
-  const [queue, runnerStatus] = settled
-    ? [null, null]
-    : await Promise.all([locateOne(row.id), getRunnerStatus(row.id)]);
+  const queueInfo = row.state === "pending" ? await getQueueInfo(row.id) : null;
+  const viewState: SubmissionState =
+    row.state !== "pending"
+      ? row.state
+      : queueInfo?.state === "claimed"
+        ? "judging"
+        : "queued";
+  const reason = failureReason({ state: viewState, error: row.error });
+  const settled = isSettled(viewState);
+  const queue = settled ? null : await locateOne(row.id);
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -60,7 +65,7 @@ export default async function SubmissionPage({
             fallbackTitle={problem?.title ?? row.problemSlug}
           />
         </h1>
-        <VerdictBadge submission={row} />
+        <VerdictBadge submission={{ ...row, state: viewState }} />
         <QueueBadge queue={queue} showJudge />
         <span className="text-fg-subtle ml-auto font-mono text-xs">
           {formatter.format(row.createdAt)}
@@ -77,9 +82,9 @@ export default async function SubmissionPage({
         <RejudgeForm id={row.id} />
       ) : null}
 
-      {runnerStatus && !settled ? (
+      {queueInfo?.runnerStatus && !settled ? (
         <p className="text-fg-muted bg-surface-2 rounded-md px-3 py-2 font-mono text-xs">
-          {runnerStatus}
+          {queueInfo.runnerStatus}
         </p>
       ) : null}
 

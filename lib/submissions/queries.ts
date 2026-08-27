@@ -1,14 +1,26 @@
 import { and, desc, eq } from "drizzle-orm";
-import { failureReason } from "@/lib/backend/types";
+import { failureReason, type SubmissionState } from "@/lib/backend/types";
 import { db } from "@/lib/db";
 import {
   accounts,
-  judgingSessions,
+  judgingQueue,
   problems,
   submissions,
 } from "@/lib/db/schema";
 import type { SubmissionRow } from "@/lib/db/schema";
 import type { SubmissionListItem, SubmissionView } from "./types";
+
+/**
+ * Derive the view-level 4-state from the DB record state + queue presence.
+ */
+function deriveViewState(
+  recordState: SubmissionRow["state"],
+  queueState?: string | null,
+): SubmissionState {
+  if (recordState !== "pending") return recordState;
+  if (queueState === "claimed") return "judging";
+  return "queued";
+}
 
 export function toView(
   row: Pick<
@@ -26,20 +38,20 @@ export function toView(
     | "createdAt"
     | "judgedAt"
   >,
-  runnerStatus?: string | null,
+  queueInfo?: { state?: string | null; runnerStatus?: string | null } | null,
 ): SubmissionView {
   return {
     id: row.id,
     problemSlug: row.problemSlug,
     contestSlug: row.contestSlug,
-    state: row.state,
+    state: deriveViewState(row.state, queueInfo?.state),
     verdict: row.verdict ?? null,
     outcome: row.outcome,
     score: row.score,
     maxScore: row.maxScore,
     accepted: row.accepted,
-    reason: failureReason(row),
-    runnerStatus: runnerStatus ?? null,
+    reason: failureReason({ state: deriveViewState(row.state, queueInfo?.state), error: row.error }),
+    runnerStatus: queueInfo?.runnerStatus ?? null,
     createdAt: row.createdAt.toISOString(),
     judgedAt: row.judgedAt?.toISOString() ?? null,
   };
@@ -56,15 +68,18 @@ export async function getSubmissionRow(
   return row;
 }
 
-export async function getRunnerStatus(
+export async function getQueueInfo(
   submissionId: string,
-): Promise<string | null> {
+): Promise<{ state: string; runnerStatus: string | null } | null> {
   const [row] = await db
-    .select({ runnerStatus: judgingSessions.runnerStatus })
-    .from(judgingSessions)
-    .where(eq(judgingSessions.submissionId, submissionId))
+    .select({
+      state: judgingQueue.state,
+      runnerStatus: judgingQueue.runnerStatus,
+    })
+    .from(judgingQueue)
+    .where(eq(judgingQueue.submissionId, submissionId))
     .limit(1);
-  return row?.runnerStatus ?? null;
+  return row ?? null;
 }
 
 export async function findSubmissionByNonce(
@@ -117,7 +132,8 @@ export async function listSubmissions(options: {
         createdAt: submissions.createdAt,
         judgedAt: submissions.judgedAt,
       },
-      runnerStatus: judgingSessions.runnerStatus,
+      queueState: judgingQueue.state,
+      runnerStatus: judgingQueue.runnerStatus,
       problemTitle: problems.title,
       nickname: accounts.nickname,
     })
@@ -125,15 +141,18 @@ export async function listSubmissions(options: {
     .innerJoin(problems, eq(problems.slug, submissions.problemSlug))
     .innerJoin(accounts, eq(accounts.uid, submissions.uid))
     .leftJoin(
-      judgingSessions,
-      eq(judgingSessions.submissionId, submissions.id),
+      judgingQueue,
+      eq(judgingQueue.submissionId, submissions.id),
     )
     .where(filters.length > 0 ? and(...filters) : undefined)
     .orderBy(desc(submissions.createdAt))
     .limit(options.limit ?? 50);
 
   return rows.map((row) => ({
-    ...toView(row.submission, row.runnerStatus),
+    ...toView(row.submission, {
+      state: row.queueState,
+      runnerStatus: row.runnerStatus,
+    }),
     uid: row.submission.uid,
     nickname: row.nickname,
     problemTitle: row.problemTitle,

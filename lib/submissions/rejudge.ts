@@ -1,18 +1,19 @@
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import {
   INLINE_BACKEND_ID,
-  TERMINAL_STATES,
-  type SubmissionState,
+  TERMINAL_RECORD_STATES,
+  type SubmissionRecordState,
 } from "@/lib/backend/types";
 import { releaseSha } from "@/lib/boot/deployment";
 import { db } from "@/lib/db";
-import { judgingSessions, submissions } from "@/lib/db/schema";
+import { judgingQueue, submissions } from "@/lib/db/schema";
 import { problemBySlug } from "@/lib/problems/registry";
 import { isInlineBackend } from "@/lib/problems/types";
 import { invalidateStandings } from "@/lib/standings/cache";
 import { isAccepted } from "@/lib/standings/types";
 import { publish } from "@/lib/submissions/events";
-import { toView } from "@/lib/submissions/queries";
+
+export const REJUDGE_PRIORITY = -1;
 
 export interface RejudgeResult {
 
@@ -48,7 +49,7 @@ export async function rejudgeSubmissions(
     .where(
       and(
         inArray(submissions.id, ids),
-        inArray(submissions.state, TERMINAL_STATES),
+        inArray(submissions.state, TERMINAL_RECORD_STATES),
       ),
     );
 
@@ -81,16 +82,11 @@ export async function rejudgeSubmissions(
   const requeued = await db
     .update(submissions)
     .set({
-      state: "queued" satisfies SubmissionState,
-
-      attempts: 0,
-
-      queuedAt: sql`now()`,
+      state: "pending" satisfies SubmissionRecordState,
       verdict: null,
       score: null,
       accepted: null,
       outcome: null,
-
       backendVersion: null,
       releaseSha: releaseSha(),
       error: null,
@@ -99,26 +95,28 @@ export async function rejudgeSubmissions(
     .where(
       and(
         inArray(submissions.id, targetIds),
-        inArray(submissions.state, TERMINAL_STATES),
+        inArray(submissions.state, TERMINAL_RECORD_STATES),
         ne(submissions.backendId, INLINE_BACKEND_ID),
       ),
     )
     .returning();
 
   if (requeued.length > 0) {
-    await db
-      .delete(judgingSessions)
-      .where(
-        inArray(
-          judgingSessions.submissionId,
-          requeued.map((r) => r.id),
-        ),
-      );
+    await db.insert(judgingQueue).values(
+      requeued.map((row) => ({
+        submissionId: row.id,
+        backendId: row.backendId,
+        priority: REJUDGE_PRIORITY,
+        state: "waiting" as const,
+        attempts: 0,
+        queuedAt: new Date(),
+      })),
+    ).onConflictDoNothing();
   }
 
   const contests = new Set<string>();
   for (const row of requeued) {
-    publish(toView(row));
+    await publish(db, row.id, { state: "queued" });
     if (row.contestSlug) contests.add(row.contestSlug);
   }
 
@@ -133,17 +131,18 @@ export async function rejudgeSubmissions(
 }
 
 export function isRejudgeable(row: {
-  state: SubmissionState;
+  state: SubmissionRecordState;
   backendId: string;
 }): boolean {
   return (
-    TERMINAL_STATES.includes(row.state) && row.backendId !== INLINE_BACKEND_ID
+    TERMINAL_RECORD_STATES.includes(row.state) &&
+    row.backendId !== INLINE_BACKEND_ID
   );
 }
 
 export async function submissionStateOf(
   id: string,
-): Promise<{ state: SubmissionState; backendId: string } | undefined> {
+): Promise<{ state: SubmissionRecordState; backendId: string } | undefined> {
   const [row] = await db
     .select({ state: submissions.state, backendId: submissions.backendId })
     .from(submissions)

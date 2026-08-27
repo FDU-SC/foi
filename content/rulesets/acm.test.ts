@@ -135,7 +135,7 @@ describe("acm 未判完的提交", () => {
     const standings = compute({
       participants: participants(1),
       problems,
-      submissions: [unjudged(1, "a", 30, "judging")],
+      submissions: [unjudged(1, "a", 30, "pending")],
     });
 
     expect(cell(standings, 1, "a")?.pending).toBe(1);

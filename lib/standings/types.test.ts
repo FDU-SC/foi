@@ -83,7 +83,7 @@ describe("scoredSubmissions", () => {
             problemSlug: "a",
             minutes: 6,
             score: 0,
-            state: "judging",
+            state: "pending",
           }),
           submission({
             uid: 1,
@@ -159,15 +159,15 @@ describe("submissionsInWindow", () => {
         submissions: [
           submission({ uid: 1, problemSlug: "a", minutes: 5, score: 100 }),
           unjudged(1, "a", 6),
-          unjudged(1, "a", 7, "judging"),
+          unjudged(1, "a", 7, "pending"),
         ],
       }),
     );
 
     expect(rows.map((row) => row.state)).toEqual([
       "completed",
-      "queued",
-      "judging",
+      "pending",
+      "pending",
     ]);
   });
 
@@ -232,7 +232,7 @@ describe("isAccepted", () => {
           problemSlug: "a",
           minutes: 1,
           score: 100,
-          state: "queued",
+          state: "pending",
         }),
       ),
     ).toBe(false);

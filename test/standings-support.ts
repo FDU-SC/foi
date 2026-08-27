@@ -75,7 +75,7 @@ export function unjudged(
   uid: number,
   problemSlug: string,
   minutes: number,
-  state: Exclude<SubmissionRecord["state"], "completed"> = "queued",
+  state: Exclude<SubmissionRecord["state"], "completed"> = "pending",
 ): SubmissionRecord {
   return submission({ uid, problemSlug, minutes, score: 0, state });
 }

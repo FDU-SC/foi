@@ -47,7 +47,7 @@ export async function rejudgeSubmissionAction(
   const row = await submissionStateOf(parsed.data.id);
   if (!row) return { error: "提交不存在" };
 
-  if (row.state === "queued" || row.state === "judging") {
+  if (row.state === "pending") {
     return { error: "这条提交还没有评测完，不需要重判。" };
   }
 

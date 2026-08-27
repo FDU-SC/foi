@@ -1,6 +1,6 @@
 import { and, eq, inArray, lt } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { submissions } from "@/lib/db/schema";
+import { judgingQueue } from "@/lib/db/schema";
 import { MAX_ATTEMPTS } from "@/lib/runner/queue";
 
 export interface QueuePosition {
@@ -18,18 +18,13 @@ export async function locateInQueues(
 
   const wanted = await db
     .select({
-      id: submissions.id,
-      backendId: submissions.backendId,
-      state: submissions.state,
-      queuedAt: submissions.queuedAt,
+      submissionId: judgingQueue.submissionId,
+      backendId: judgingQueue.backendId,
+      state: judgingQueue.state,
+      queuedAt: judgingQueue.queuedAt,
     })
-    .from(submissions)
-    .where(
-      and(
-        inArray(submissions.id, submissionIds),
-        inArray(submissions.state, ["queued", "judging"]),
-      ),
-    );
+    .from(judgingQueue)
+    .where(inArray(judgingQueue.submissionId, submissionIds));
 
   if (wanted.length === 0) return found;
 
@@ -37,15 +32,15 @@ export async function locateInQueues(
 
   const queued = await db
     .select({
-      backendId: submissions.backendId,
-      queuedAt: submissions.queuedAt,
+      backendId: judgingQueue.backendId,
+      queuedAt: judgingQueue.queuedAt,
     })
-    .from(submissions)
+    .from(judgingQueue)
     .where(
       and(
-        eq(submissions.state, "queued"),
-        inArray(submissions.backendId, backendIds),
-        lt(submissions.attempts, MAX_ATTEMPTS),
+        eq(judgingQueue.state, "waiting"),
+        inArray(judgingQueue.backendId, backendIds),
+        lt(judgingQueue.attempts, MAX_ATTEMPTS),
       ),
     );
 
@@ -57,11 +52,11 @@ export async function locateInQueues(
     ).length;
 
   for (const row of wanted) {
-    found.set(row.id, {
+    found.set(row.submissionId, {
       backendId: row.backendId,
-      state: row.state === "judging" ? "judging" : "queued",
+      state: row.state === "claimed" ? "judging" : "queued",
 
-      ahead: row.state === "judging" ? 0 : aheadOf(row.backendId, row.queuedAt),
+      ahead: row.state === "claimed" ? 0 : aheadOf(row.backendId, row.queuedAt),
     });
   }
 

@@ -9,6 +9,7 @@ import {
 } from "@/lib/contests/access";
 import { resolveContestProblems } from "@/lib/contests/resolve";
 import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
+import { dateFormatter } from "@/lib/format";
 import { rulesetFor } from "@/lib/standings/registry";
 import type { LeaderboardConfig } from "@/lib/contests/types";
 
@@ -22,10 +23,7 @@ export async function generateMetadata({
   return { title: view?.config.title ?? "比赛" };
 }
 
-const formatter = new Intl.DateTimeFormat("zh-CN", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
 export default async function ContestPage({
   params,

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { resolveFromRow } from "@/lib/accounts/resolve";
 import { adminAccountsFor } from "@/lib/admin/access";
 import type { AccountRow, AccountSuspensionRow } from "@/lib/db/schema";
+import { dateFormatter } from "@/lib/format";
 import { groupName, hasPrivilege, isPrivileged } from "@/lib/permissions/groups";
 import { Field, Input } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
@@ -15,10 +16,7 @@ import { ModerateForm } from "../moderate-form";
 export const metadata: Metadata = { title: "账号" };
 export const dynamic = "force-dynamic";
 
-const formatter = new Intl.DateTimeFormat("zh-CN", {
-  dateStyle: "short",
-  timeStyle: "short",
-});
+const formatter = dateFormatter({ dateStyle: "short", timeStyle: "short" });
 
 const STATUS: Record<string, { label: string; tone: "ok" | "err" }> = {
   active: { label: "正常", tone: "ok" },

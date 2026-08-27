@@ -4,15 +4,13 @@ import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { contestsFor } from "@/lib/contests/access";
 import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
+import { dateFormatter } from "@/lib/format";
 import { rulesetFor } from "@/lib/standings/registry";
 
 export const metadata: Metadata = { title: "比赛" };
 export const dynamic = "force-dynamic";
 
-const formatter = new Intl.DateTimeFormat("zh-CN", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
 export default async function ContestsPage() {
   const all = contestsFor(await getViewer());

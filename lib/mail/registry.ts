@@ -1,5 +1,6 @@
 import { emailModules } from "@/content/_modules/emails";
 import { loadSingletonModule } from "@/lib/singleton-module";
+import { site } from "@/lib/site";
 import { escapeHtml } from "./html";
 import type {
   EmailChangeMail,
@@ -10,10 +11,10 @@ import type {
 } from "./types";
 
 function formatExpiry(at: Date): string {
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(site.lang, {
     dateStyle: "long",
     timeStyle: "short",
-    timeZone: process.env.FOI_TIMEZONE || undefined,
+    timeZone: site.timezone,
   }).format(at);
 }
 

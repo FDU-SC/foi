@@ -9,6 +9,7 @@ import { describeAudience } from "@/lib/permissions/audience";
 import { viewerFor } from "@/lib/permissions/viewer";
 import { contestEntryFor } from "@/lib/contests/access";
 import { loadStatement, problemFor } from "@/lib/problems/access";
+import { dateFormatter } from "@/lib/format";
 import { allProblems } from "@/lib/problems/registry";
 import { toPublicConfig } from "@/lib/problems/types";
 
@@ -16,10 +17,7 @@ export const dynamicParams = false;
 
 export const dynamic = "force-dynamic";
 
-const gateFormatter = new Intl.DateTimeFormat("zh-CN", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const gateFormatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
 export function generateStaticParams() {
   return allProblems().map((problem) => ({ slug: problem.slug }));

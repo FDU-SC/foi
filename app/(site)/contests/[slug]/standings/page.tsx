@@ -9,6 +9,7 @@ import {
 } from "@/lib/contests/access";
 import type { ContestConfig } from "@/lib/contests/types";
 import { standingsFor } from "@/lib/standings/compute";
+import { dateFormatter } from "@/lib/format";
 import { StandingsTable } from "./standings-table";
 
 export const dynamic = "force-dynamic";
@@ -21,10 +22,7 @@ export async function generateMetadata({
   return { title: view ? `${view.config.title} 排行榜` : "排行榜" };
 }
 
-const formatter = new Intl.DateTimeFormat("zh-CN", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
 function UpcomingNotice({ contest }: { contest: ContestConfig }) {
   return (

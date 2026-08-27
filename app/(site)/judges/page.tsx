@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
 import { viewerFor } from "@/lib/permissions/viewer";
 import { judgeQueuesFor } from "@/lib/backend/board";
+import { site } from "@/lib/site";
 import { JudgeStatusBoard } from "./judge-status-board";
 
 export const metadata: Metadata = { title: "评测机" };
@@ -28,7 +29,7 @@ export default async function JudgesPage() {
           目前没有你可以查看的评测机。
         </p>
       ) : (
-        <JudgeStatusBoard initial={visible} />
+        <JudgeStatusBoard initial={visible} lang={site.lang} timezone={site.timezone} />
       )}
     </div>
   );

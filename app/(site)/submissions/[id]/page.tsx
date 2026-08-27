@@ -13,16 +13,14 @@ import { problemBySlug } from "@/lib/problems/registry";
 import { submissionFor } from "@/lib/submissions/access";
 import { locateOne } from "@/lib/submissions/queue-position";
 import { getQueueInfo } from "@/lib/submissions/queries";
+import { dateFormatter } from "@/lib/format";
 import { isRejudgeable } from "@/lib/submissions/rejudge";
 import { RejudgeForm } from "./rejudge-form";
 
 export const metadata: Metadata = { title: "提交详情" };
 export const dynamic = "force-dynamic";
 
-const formatter = new Intl.DateTimeFormat("zh-CN", {
-  dateStyle: "medium",
-  timeStyle: "medium",
-});
+const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "medium" });
 
 export default async function SubmissionPage({
   params,

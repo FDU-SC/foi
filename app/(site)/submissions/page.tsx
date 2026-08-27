@@ -7,16 +7,14 @@ import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { viewerFor } from "@/lib/permissions/viewer";
 import { isSettled } from "@/lib/backend/types";
+import { dateFormatter } from "@/lib/format";
 import { submissionsFor } from "@/lib/submissions/access";
 import { locateInQueues } from "@/lib/submissions/queue-position";
 
 export const metadata: Metadata = { title: "提交记录" };
 export const dynamic = "force-dynamic";
 
-const formatter = new Intl.DateTimeFormat("zh-CN", {
-  dateStyle: "short",
-  timeStyle: "medium",
-});
+const formatter = dateFormatter({ dateStyle: "short", timeStyle: "medium" });
 
 export default async function SubmissionsPage() {
   const user = await getSessionUser();

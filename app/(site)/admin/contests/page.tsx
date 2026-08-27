@@ -7,15 +7,13 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { adminContestsFor } from "@/lib/admin/access";
 import { describeAudience } from "@/lib/permissions/audience";
 import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
+import { dateFormatter } from "@/lib/format";
 import { rulesetFor } from "@/lib/standings/registry";
 
 export const metadata: Metadata = { title: "比赛管理" };
 export const dynamic = "force-dynamic";
 
-const formatter = new Intl.DateTimeFormat("zh-CN", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
 function participantsLabel(
   mode: "open" | "group" | "list",

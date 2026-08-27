@@ -8,13 +8,15 @@ import { cn } from "@/lib/utils";
 
 const POLL_INTERVAL_MS = 4000;
 
-const clock = new Intl.DateTimeFormat("zh-CN", {
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hour12: false,
-  timeZone: "Asia/Shanghai",
-});
+function makeClock(lang: string, timezone: string) {
+  return new Intl.DateTimeFormat(lang, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZone: timezone,
+  });
+}
 
 function Metric({
   label,
@@ -42,7 +44,15 @@ function Metric({
   );
 }
 
-function QueueRow({ item, index }: { item: QueueEntry; index: number }) {
+function QueueRow({
+  item,
+  index,
+  clock,
+}: {
+  item: QueueEntry;
+  index: number;
+  clock: Intl.DateTimeFormat;
+}) {
   const judging = item.state === "judging";
   return (
     <tr className="hover:bg-surface-2/60 align-top">
@@ -79,7 +89,13 @@ function QueueRow({ item, index }: { item: QueueEntry; index: number }) {
   );
 }
 
-function JudgeCard({ status }: { status: BackendQueueStatus }) {
+function JudgeCard({
+  status,
+  clock,
+}: {
+  status: BackendQueueStatus;
+  clock: Intl.DateTimeFormat;
+}) {
   const queued = status.items.filter((item) => item.state === "queued");
   const judging = status.items.filter((item) => item.state === "judging");
 
@@ -127,13 +143,14 @@ function JudgeCard({ status }: { status: BackendQueueStatus }) {
             <table className="w-full">
               <tbody className="divide-border divide-y">
                 {judging.map((item) => (
-                  <QueueRow key={item.submissionId} item={item} index={0} />
+                  <QueueRow key={item.submissionId} item={item} index={0} clock={clock} />
                 ))}
                 {queued.map((item, index) => (
                   <QueueRow
                     key={item.submissionId}
                     item={item}
                     index={index + 1}
+                    clock={clock}
                   />
                 ))}
               </tbody>
@@ -147,9 +164,14 @@ function JudgeCard({ status }: { status: BackendQueueStatus }) {
 
 export function JudgeStatusBoard({
   initial,
+  lang,
+  timezone,
 }: {
   initial: BackendQueueStatus[];
+  lang: string;
+  timezone: string;
 }) {
+  const clock = makeClock(lang, timezone);
   const [statuses, setStatuses] = useState(initial);
   const [stale, setStale] = useState(false);
 
@@ -218,7 +240,7 @@ export function JudgeStatusBoard({
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {statuses.map((status) => (
-            <JudgeCard key={status.id} status={status} />
+            <JudgeCard key={status.id} status={status} clock={clock} />
           ))}
         </div>
       )}

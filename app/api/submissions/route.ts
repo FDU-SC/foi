@@ -81,7 +81,7 @@ export async function POST(request: Request) {
   }
 
   const flood = rateLimit(
-    `submit:${user.handle}`,
+    `submit:${user.uid}`,
     FLOOD_CAP.max,
     FLOOD_CAP.windowSeconds * 1000,
   );
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
 
   const { clientNonce } = parsed.data;
   if (clientNonce) {
-    const existing = await findSubmissionByNonce(user.handle, clientNonce);
+    const existing = await findSubmissionByNonce(user.uid, clientNonce);
 
     if (existing) return NextResponse.json(toView(existing));
   }
@@ -104,7 +104,7 @@ export async function POST(request: Request) {
   const { problem, contest: running } = gate;
 
   const limited = rateLimit(
-    `submit:${user.handle}:${running?.slug ?? "-"}:${problem.slug}`,
+    `submit:${user.uid}:${running?.slug ?? "-"}:${problem.slug}`,
     gate.rateLimit.max,
     gate.rateLimit.windowSeconds * 1000,
   );
@@ -142,7 +142,7 @@ export async function POST(request: Request) {
 
   const values = {
     id,
-    handle: user.handle,
+    uid: user.uid,
     problemSlug: problem.slug,
     contestSlug,
     payload: parsed.data.payload,
@@ -162,7 +162,7 @@ export async function POST(request: Request) {
       .insert(submissions)
       .values(values)
       .onConflictDoNothing({
-        target: [submissions.handle, submissions.clientNonce],
+        target: [submissions.uid, submissions.clientNonce],
       })
       .returning();
 
@@ -173,7 +173,7 @@ export async function POST(request: Request) {
       const judgement = backend.judge({
         payload: parsed.data.payload,
         config: backend.config,
-        user: { handle: user.handle, groups: user.groups },
+        user: { uid: user.uid, groups: user.groups },
         contestSlug,
       });
 
@@ -224,7 +224,7 @@ export async function POST(request: Request) {
   if (!created) {
 
     const existing = clientNonce
-      ? await findSubmissionByNonce(user.handle, clientNonce)
+      ? await findSubmissionByNonce(user.uid, clientNonce)
       : undefined;
     if (existing) return NextResponse.json(toView(existing));
 
@@ -256,17 +256,18 @@ export async function GET(request: Request) {
 
   const rule = ROUTE_LIMITS["GET /api/submissions"];
   const limited = rateLimit(
-    `submissions:${user.handle}`,
+    `submissions:${user.uid}`,
     rule.max,
     rule.windowSeconds * 1000,
   );
   if (!limited.ok) return tooManyRequests(limited.retryAfterMs);
 
   const { searchParams } = new URL(request.url);
+  const uidParam = searchParams.get("uid");
 
   return NextResponse.json(
     await submissionsFor(viewerFor(user), {
-      handle: searchParams.get("handle") ?? undefined,
+      uid: uidParam ? parseInt(uidParam, 10) : undefined,
       problemSlug: searchParams.get("problem") ?? undefined,
       contestSlug: searchParams.get("contest") ?? undefined,
       limit: 50,

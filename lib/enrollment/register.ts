@@ -1,24 +1,23 @@
 import {
   createAccount,
   findAccountByEmail,
-  getAccount,
+  getAccountByUsername,
 } from "@/lib/accounts/queries";
 import { setPassword } from "@/lib/accounts/password";
-import { normalizeEmail, normalizeHandle } from "@/lib/accounts/types";
+import { normalizeEmail, normalizeUsername } from "@/lib/accounts/types";
 import { db } from "@/lib/db";
 import { verifyToken } from "@/lib/tokens/stateless";
-import { enrollmentPolicy, rulesForHandle } from "./registry";
+import { enrollmentPolicy } from "./registry";
 
 export type RegisterRejection =
   | "disabled"
-  | "handle-taken"
-  | "handle-reserved"
+  | "username-taken"
   | "email-domain"
   | "email-taken"
   | "email-unverified";
 
 export type RegisterResult =
-  | { ok: true; handle: string; displayName: string; email: string }
+  | { ok: true; uid: number; username: string; nickname: string; email: string }
   | { ok: false; reason: RegisterRejection };
 
 export function domainAllowed(email: string): boolean {
@@ -34,25 +33,20 @@ export function domainAllowed(email: string): boolean {
   );
 }
 
-async function handleAvailable(handle: string): Promise<RegisterRejection | null> {
-  if (enrollmentPolicy.reservedHandles.some((r) => normalizeHandle(r) === handle)) {
-    return "handle-reserved";
-  }
-  if (rulesForHandle(handle).length > 0) return "handle-reserved";
-  if (await getAccount(handle)) return "handle-taken";
+async function usernameAvailable(username: string): Promise<RegisterRejection | null> {
+  if (await getAccountByUsername(username)) return "username-taken";
   return null;
 }
 
 export async function register(input: {
-  handle: string;
-  displayName: string;
+  username: string;
+  nickname: string;
   email: string;
   password: string;
   token: string;
 }): Promise<RegisterResult> {
   if (!enrollmentPolicy.enabled) return { ok: false, reason: "disabled" };
 
-  const handle = normalizeHandle(input.handle);
   const email = normalizeEmail(input.email, {
     stripSubaddress: enrollmentPolicy.stripSubaddress,
   });
@@ -62,7 +56,7 @@ export async function register(input: {
     return { ok: false, reason: "email-unverified" };
   }
 
-  const unavailable = await handleAvailable(handle);
+  const unavailable = await usernameAvailable(input.username);
   if (unavailable) return { ok: false, reason: unavailable };
 
   if (!domainAllowed(email)) return { ok: false, reason: "email-domain" };
@@ -71,8 +65,8 @@ export async function register(input: {
   return db.transaction<RegisterResult>(async (tx) => {
     const account = await createAccount(
       {
-        handle,
-        displayName: input.displayName,
+        username: input.username,
+        nickname: input.nickname,
         email,
         status: "active",
       },
@@ -84,12 +78,18 @@ export async function register(input: {
         ok: false,
         reason: (await findAccountByEmail(email, tx))
           ? "email-taken"
-          : "handle-taken",
+          : "username-taken",
       };
     }
 
-    await setPassword(handle, input.password, tx);
+    await setPassword(account.uid, input.password, tx);
 
-    return { ok: true, handle, displayName: account.displayName, email };
+    return {
+      ok: true,
+      uid: account.uid,
+      username: account.username,
+      nickname: account.nickname,
+      email,
+    };
   });
 }

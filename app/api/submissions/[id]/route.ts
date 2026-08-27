@@ -25,7 +25,7 @@ export async function GET(
 
   const rule = ROUTE_LIMITS["GET /api/submissions/[id]"];
   const limited = rateLimit(
-    `submission:${user.handle}`,
+    `submission:${user.uid}`,
     rule.max,
     rule.windowSeconds * 1000,
   );

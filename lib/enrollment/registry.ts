@@ -1,12 +1,10 @@
 import type { z } from "zod";
-import { normalizeHandle } from "@/lib/accounts/types";
 import { declaredGroupIds, isPrivileged, privilegedGroupIds } from "@/lib/permissions/groups";
 import { enrollmentSources } from "./modules";
 import {
   enrollmentPolicySchema,
   enrollmentRuleSchema,
-  isHandlesRule,
-  retiredPolicyKey,
+  isUidsRule,
   type EnrollmentPolicy,
   type EnrollmentRule,
 } from "./types";
@@ -15,7 +13,7 @@ interface Registry {
   policy: EnrollmentPolicy;
   rules: EnrollmentRule[];
 
-  handleIndex: Map<string, EnrollmentRule[]>;
+  uidIndex: Map<number, EnrollmentRule[]>;
 
   declared: boolean;
 }
@@ -29,7 +27,7 @@ function fail(path: string, what: string, error: z.ZodError): never {
 
 function buildRegistry(): Registry {
   const rules: EnrollmentRule[] = [];
-  const handleIndex = new Map<string, EnrollmentRule[]>();
+  const uidIndex = new Map<number, EnrollmentRule[]>();
 
   let policy: EnrollmentPolicy | undefined;
   let policySource: string | undefined;
@@ -46,9 +44,6 @@ function buildRegistry(): Registry {
         );
       }
 
-      const retired = retiredPolicyKey(mod.policy);
-      if (retired) throw new Error(`${path} ${retired}`);
-
       const parsed = enrollmentPolicySchema.safeParse(mod.policy);
       if (!parsed.success) fail(path, "注册策略", parsed.error);
       policy = parsed.data;
@@ -64,21 +59,20 @@ function buildRegistry(): Registry {
         if (!parsed.success) fail(path, `第 ${index + 1} 条分流规则`, parsed.error);
         const rule = parsed.data;
 
-        if (!isHandlesRule(rule) && Array.isArray(rule.groups)) {
+        if (!isUidsRule(rule) && Array.isArray(rule.groups)) {
           const privileged = rule.groups.filter(isPrivileged);
           if (privileged.length > 0) {
             throw new Error(
               `${path} 第 ${index + 1} 条分流规则试图授予带权限的用户组 ${privileged.join("、")}。` +
                 `按邮箱匹配的规则覆盖的地址是无穷的，注册时无法预留，正则写错就会把权限发给一片人；` +
-                `带权限的组只能由列出 handles 的规则授予，那些用户名会被注册流程占住。`,
+                `带权限的组只能由列出 uid 的规则授予。`,
             );
           }
         }
 
-        if (isHandlesRule(rule)) {
-          for (const handle of rule.handles) {
-            const key = normalizeHandle(handle);
-            handleIndex.set(key, [...(handleIndex.get(key) ?? []), rule]);
+        if (isUidsRule(rule)) {
+          for (const uid of rule.uids) {
+            uidIndex.set(uid, [...(uidIndex.get(uid) ?? []), rule]);
           }
         }
 
@@ -90,7 +84,7 @@ function buildRegistry(): Registry {
   return {
     policy: policy ?? enrollmentPolicySchema.parse({}),
     rules,
-    handleIndex,
+    uidIndex,
     declared: sources.length > 0,
   };
 }
@@ -105,23 +99,23 @@ export function listRules(): EnrollmentRule[] {
   return registry.rules;
 }
 
-export function rulesForHandle(handle: string): EnrollmentRule[] {
-  return registry.handleIndex.get(normalizeHandle(handle)) ?? [];
+export function rulesForUid(uid: number): EnrollmentRule[] {
+  return registry.uidIndex.get(uid) ?? [];
 }
 
-export function enumeratedHandles(): string[] {
-  return [...registry.handleIndex.keys()].sort();
+export function enumeratedUids(): number[] {
+  return [...registry.uidIndex.keys()].sort((a, b) => a - b);
 }
 
-export function groupsFor(handle: string, email: string | null): string[] {
+export function groupsFor(uid: number, email: string | null): string[] {
   const groups = new Set<string>();
 
-  const named = new Set(rulesForHandle(handle));
+  const named = new Set(rulesForUid(uid));
 
   for (const rule of registry.rules) {
     let produced: readonly string[];
 
-    if (isHandlesRule(rule)) {
+    if (isUidsRule(rule)) {
       if (!named.has(rule)) continue;
       produced = rule.groups;
     } else {
@@ -132,11 +126,11 @@ export function groupsFor(handle: string, email: string | null): string[] {
         typeof rule.groups === "function" ? rule.groups(match) : rule.groups;
     }
 
-    const mayGrantPrivilege = isHandlesRule(rule);
+    const mayGrantPrivilege = isUidsRule(rule);
     for (const id of produced) {
       if (!mayGrantPrivilege && isPrivileged(id)) {
         console.warn(
-          `[foi] 分流规则「${rule.label}」算出了带权限的用户组 "${id}"，已忽略。带权限的组只能由列出 handles 的规则授予。`,
+          `[foi] 分流规则「${rule.label}」算出了带权限的用户组 "${id}"，已忽略。带权限的组只能由列出 uid 的规则授予。`,
         );
         continue;
       }
@@ -148,7 +142,7 @@ export function groupsFor(handle: string, email: string | null): string[] {
 }
 
 export interface TallyableAccount {
-  handle: string;
+  uid: number;
   email: string | null;
 }
 
@@ -156,7 +150,7 @@ export interface CohortTally {
 
   counts: Map<string, number>;
 
-  untagged: string[];
+  untagged: number[];
 }
 
 export function tallyCohorts(
@@ -165,11 +159,11 @@ export function tallyCohorts(
   const counts = new Map<string, number>(
     declaredGroupIds().map((id) => [id, 0]),
   );
-  const untagged: string[] = [];
+  const untagged: number[] = [];
 
   for (const account of accounts) {
-    const resolved = groupsFor(account.handle, account.email);
-    if (resolved.length === 0 && account.email) untagged.push(account.handle);
+    const resolved = groupsFor(account.uid, account.email);
+    if (resolved.length === 0 && account.email) untagged.push(account.uid);
     for (const id of resolved) {
       counts.set(id, (counts.get(id) ?? 0) + 1);
     }
@@ -198,26 +192,26 @@ export function looseGroupWarnings(): string[] {
 
   const fromPatterns = new Set<string>();
   for (const rule of registry.rules) {
-    if (isHandlesRule(rule) || typeof rule.groups === "function") continue;
+    if (isUidsRule(rule) || typeof rule.groups === "function") continue;
     for (const id of rule.groups) fromPatterns.add(id);
   }
 
-  const namedUses = new Map<string, string[]>();
+  const namedUses = new Map<string, number[]>();
   for (const rule of registry.rules) {
-    if (!isHandlesRule(rule)) continue;
+    if (!isUidsRule(rule)) continue;
     for (const id of rule.groups) {
-      namedUses.set(id, [...(namedUses.get(id) ?? []), ...rule.handles]);
+      namedUses.set(id, [...(namedUses.get(id) ?? []), ...rule.uids]);
     }
   }
 
   return [...namedUses.entries()]
-    .filter(([id, handles]) => {
+    .filter(([id, uids]) => {
       if (declared.has(id) || fromPatterns.has(id)) return false;
-      return handles.length === 1;
+      return uids.length === 1;
     })
     .map(
-      ([id, handles]) =>
-        `用户组 "${id}" 只在 ${handles[0]} 这一条规则里出现过，既没有在 groups 中声明，也不被任何邮箱规则产生。` +
+      ([id, uids]) =>
+        `用户组 "${id}" 只在 uid=${uids[0]} 这一条规则里出现过，既没有在 groups 中声明，也不被任何邮箱规则产生。` +
         `如果这是笔误，被授权的人不会得到任何能力。`,
     );
 }
@@ -227,7 +221,7 @@ export function enrollmentWarnings(): string[] {
 
   const privileged = new Set(privilegedGroupIds());
   const admins = registry.rules.filter(
-    (rule) => isHandlesRule(rule) && rule.groups.some((id) => privileged.has(id)),
+    (rule) => isUidsRule(rule) && rule.groups.some((id) => privileged.has(id)),
   );
   if (admins.length === 0) {
     warnings.push(

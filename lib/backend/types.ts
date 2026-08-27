@@ -35,7 +35,7 @@ export const verdictSchema = z.object({
 export type Verdict = z.infer<typeof verdictSchema>;
 
 export interface BackendUser {
-  handle: string;
+  uid: number;
   groups: readonly string[];
 }
 

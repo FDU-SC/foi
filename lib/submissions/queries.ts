@@ -68,7 +68,7 @@ export async function getRunnerStatus(
 }
 
 export async function findSubmissionByNonce(
-  handle: string,
+  uid: number,
   clientNonce: string,
 ): Promise<SubmissionRow | undefined> {
   const [row] = await db
@@ -76,7 +76,7 @@ export async function findSubmissionByNonce(
     .from(submissions)
     .where(
       and(
-        eq(submissions.handle, handle),
+        eq(submissions.uid, uid),
         eq(submissions.clientNonce, clientNonce),
       ),
     )
@@ -85,13 +85,13 @@ export async function findSubmissionByNonce(
 }
 
 export async function listSubmissions(options: {
-  handle?: string;
+  uid?: number;
   problemSlug?: string;
   contestSlug?: string;
   limit?: number;
 }): Promise<SubmissionListItem[]> {
   const filters = [
-    options.handle ? eq(submissions.handle, options.handle) : undefined,
+    options.uid ? eq(submissions.uid, options.uid) : undefined,
     options.problemSlug
       ? eq(submissions.problemSlug, options.problemSlug)
       : undefined,
@@ -104,7 +104,7 @@ export async function listSubmissions(options: {
     .select({
       submission: {
         id: submissions.id,
-        handle: submissions.handle,
+        uid: submissions.uid,
         problemSlug: submissions.problemSlug,
         contestSlug: submissions.contestSlug,
         state: submissions.state,
@@ -119,11 +119,11 @@ export async function listSubmissions(options: {
       },
       runnerStatus: judgingSessions.runnerStatus,
       problemTitle: problems.title,
-      displayName: accounts.displayName,
+      nickname: accounts.nickname,
     })
     .from(submissions)
     .innerJoin(problems, eq(problems.slug, submissions.problemSlug))
-    .innerJoin(accounts, eq(accounts.handle, submissions.handle))
+    .innerJoin(accounts, eq(accounts.uid, submissions.uid))
     .leftJoin(
       judgingSessions,
       eq(judgingSessions.submissionId, submissions.id),
@@ -134,8 +134,8 @@ export async function listSubmissions(options: {
 
   return rows.map((row) => ({
     ...toView(row.submission, row.runnerStatus),
-    handle: row.submission.handle,
-    displayName: row.displayName,
+    uid: row.submission.uid,
+    nickname: row.nickname,
     problemTitle: row.problemTitle,
   }));
 }

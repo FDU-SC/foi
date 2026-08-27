@@ -4,7 +4,7 @@ import { viewerFor } from "@/lib/permissions/viewer";
 import { isSettled } from "@/lib/backend/types";
 import { rateLimit } from "@/lib/ratelimit";
 import {
-  MAX_STREAMS_PER_HANDLE,
+  MAX_STREAMS_PER_UID,
   streamConcurrency,
 } from "@/lib/ratelimit/concurrency";
 import { guardRequest } from "@/lib/server/guard";
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   const opens = ROUTE_LIMITS["GET /api/submissions/stream"];
   if (
     !rateLimit(
-      `stream:${user.handle}`,
+      `stream:${user.uid}`,
       opens.max,
       opens.windowSeconds * 1000,
     ).ok
@@ -45,8 +45,8 @@ export async function GET(request: Request) {
   if (!initial) return new Response("Not found", { status: 404 });
 
   const release = streamConcurrency.acquire(
-    `stream:${user.handle}`,
-    MAX_STREAMS_PER_HANDLE,
+    `stream:${user.uid}`,
+    MAX_STREAMS_PER_UID,
   );
   if (!release) {
     return new Response("Too Many Requests", {
@@ -112,7 +112,7 @@ export async function GET(request: Request) {
         const heartbeat = setInterval(() => {
           if (closed) return;
           void (async () => {
-            const account = await resolveUser(user.handle).catch(
+            const account = await resolveUser(user.uid).catch(
               () => undefined,
             );
             if (closed) return;

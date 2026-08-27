@@ -65,14 +65,14 @@ export async function requestEmailChangeAction(
     return { error: "请求过于频繁，请稍后再试。" };
   }
 
-  const fp = await getEmailFingerprint(viewer.handle);
+  const fp = await getEmailFingerprint(viewer.uid);
   if (!fp) {
     return { error: "当前账号没有设置邮箱。" };
   }
 
   try {
     await sendEmailChangeLink(
-      { handle: viewer.handle, displayName: viewer.displayName, email: viewer.email },
+      { uid: viewer.uid, nickname: viewer.nickname, email: viewer.email },
       newEmail,
       fp,
     );
@@ -100,7 +100,7 @@ export async function confirmEmailChangeAction(
     return { error: "链接无效或已过期，请重新申请。" };
   }
 
-  if (payload.s !== viewer.handle) {
+  if (payload.s !== String(viewer.uid)) {
     return { error: "此链接不属于当前登录的账号。" };
   }
 
@@ -109,7 +109,7 @@ export async function confirmEmailChangeAction(
     return { error: "链接数据不完整。" };
   }
 
-  const fp = await getEmailFingerprint(viewer.handle);
+  const fp = await getEmailFingerprint(viewer.uid);
   if (!fp || fp !== payload.fp) {
     return { error: "链接已失效（邮箱已被修改），请重新申请。" };
   }
@@ -121,8 +121,8 @@ export async function confirmEmailChangeAction(
   const [updated] = await db
     .update(accounts)
     .set({ email: data.newEmail, updatedAt: sql`now()` })
-    .where(eq(accounts.handle, viewer.handle))
-    .returning({ handle: accounts.handle });
+    .where(eq(accounts.uid, viewer.uid))
+    .returning({ uid: accounts.uid });
 
   if (!updated) {
     return { error: "更新失败，请重试。" };

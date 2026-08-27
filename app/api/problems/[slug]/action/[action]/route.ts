@@ -35,7 +35,7 @@ export async function POST(
   const problem = resolved.problem;
 
   const verdict = rateLimit(
-    `action:${user.handle}:${slug}:${action}`,
+    `action:${user.uid}:${slug}:${action}`,
     resolved.rateLimit.max,
     resolved.rateLimit.windowSeconds * 1000,
   );
@@ -65,7 +65,7 @@ export async function POST(
     const backend = resolveBackend(resolved.backendId);
     response = await callBackendAction(backend, {
       action,
-      user: { handle: user.handle, groups: user.groups },
+      user: { uid: user.uid, groups: user.groups },
       problem: { slug: problem.slug, config: problem.backend.config },
       contestSlug,
       payload,

@@ -13,30 +13,30 @@ if (process.env.NODE_ENV === "production") {
 }
 
 interface SeedAccount {
-  handle: string;
-  displayName: string;
+  username: string;
+  nickname: string;
   email: string | null;
 }
 
 const SEED_ACCOUNTS: SeedAccount[] = [
   {
-    handle: "admin",
-    displayName: "管理员",
+    username: "admin",
+    nickname: "管理员",
     email: "admin@example.test",
   },
   {
-    handle: "alice",
-    displayName: "Alice",
+    username: "alice",
+    nickname: "Alice",
     email: "23300240001@example.test",
   },
   {
-    handle: "bob",
-    displayName: "Bob",
+    username: "bob",
+    nickname: "Bob",
     email: "23300240002@example.test",
   },
   {
-    handle: "carol",
-    displayName: "Carol",
+    username: "carol",
+    nickname: "Carol",
     email: "24300240003@example.test",
   },
 ];
@@ -54,17 +54,17 @@ async function main() {
     await db
       .insert(accounts)
       .values({
-        handle: entry.handle,
-        displayName: entry.displayName,
+        username: entry.username,
+        nickname: entry.nickname,
         email: entry.email,
         status: "active",
         passwordHash,
         passwordSetAt: sql`now()`,
       })
       .onConflictDoUpdate({
-        target: accounts.handle,
+        target: accounts.username,
         set: {
-          displayName: sql`excluded.display_name`,
+          nickname: sql`excluded.nickname`,
           email: sql`excluded.email`,
           status: sql`'active'`,
           passwordHash: sql`excluded.password_hash`,
@@ -73,12 +73,12 @@ async function main() {
         },
       });
 
-    console.log(`  ${entry.handle.padEnd(8)} ${entry.email ?? "（无邮箱）"}`);
+    console.log(`  ${entry.username.padEnd(8)} ${entry.email ?? "（无邮箱）"}`);
   }
 
   console.log(
     `\n已创建 ${SEED_ACCOUNTS.length} 个账号，密码统一为: ${password}` +
-      `\n用户组不在数据库中，全部由 content/enrollment/ 的规则现算：admin 被一条 handles 规则点名，其余三个按邮箱分流。`,
+      `\n用户组不在数据库中，全部由 content/enrollment/ 的规则现算：admin 被一条 uids 规则点名，其余三个按邮箱分流。`,
   );
   await pool.end();
 }

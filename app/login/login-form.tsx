@@ -12,9 +12,9 @@ export function LoginForm({ next }: { next: string }) {
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="next" value={next} />
 
-      <Field label="用户名">
+      <Field label="用户名或邮箱">
         <Input
-          name="handle"
+          name="identifier"
           autoComplete="username"
           autoFocus
           required

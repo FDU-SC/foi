@@ -23,7 +23,7 @@ export type SubmitGate =
 export function submitFor(
   slug: string,
   contestSlug: string | null | undefined,
-  user: Pick<ResolvedUser, "handle" | "groups">,
+  user: Pick<ResolvedUser, "uid" | "groups">,
   now = new Date(),
 ): SubmitGate {
   const viewer = viewerFor(user);

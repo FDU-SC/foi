@@ -18,7 +18,7 @@ const PROTOCOL_MARKERS = [
   { label: "题目后端配置", value: "backend:{id:" },
   { label: "内联判题配置", value: 'backend:{kind:"inline"' },
   { label: "题目配置模块", value: 's.s(["problem",0,{slug:' },
-  { label: "报名规则", value: "reservedHandles" },
+  { label: "报名规则", value: "enrollmentPolicy" },
 ];
 
 const MARKERS_FILE = join(process.cwd(), "content", "leak-markers.json");

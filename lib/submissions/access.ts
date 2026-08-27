@@ -11,14 +11,14 @@ export async function submissionFor(
   if (!row) return undefined;
 
   const mayRead =
-    viewer.can("submission.readAny") || row.handle === viewer.handle;
+    viewer.can("submission.readAny") || row.uid === viewer.uid;
   return mayRead ? row : undefined;
 }
 
 export function submissionsFor(
   viewer: Viewer,
   options?: {
-    handle?: string;
+    uid?: number;
     problemSlug?: string;
     contestSlug?: string;
     limit?: number;
@@ -26,7 +26,7 @@ export function submissionsFor(
 ): Promise<SubmissionListItem[]> {
   if (viewer.can("submission.readAny")) return listSubmissions({ ...options });
 
-  if (!viewer.handle) return Promise.resolve([]);
+  if (!viewer.uid) return Promise.resolve([]);
 
-  return listSubmissions({ ...options, handle: viewer.handle });
+  return listSubmissions({ ...options, uid: viewer.uid });
 }

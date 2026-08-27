@@ -60,7 +60,7 @@ describe("sign", () => {
   });
 
   it("path 参与签名：同一个 body 换一个动作就换一份签名", () => {
-    const body = JSON.stringify({ action: "poll", user: { handle: "alice" } });
+    const body = JSON.stringify({ action: "poll", user: { uid: 1 } });
 
     expect(sign(SECRET, NOW, { method: "POST", path: "/action/poll", body })).not.toBe(
       sign(SECRET, NOW, { method: "POST", path: "/action/destroy", body }),

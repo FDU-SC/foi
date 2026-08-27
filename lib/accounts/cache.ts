@@ -3,14 +3,15 @@ import { accounts } from "@/lib/db/schema";
 import type { AccountStatus } from "@/lib/db/schema";
 
 export interface AccountSummary {
-  handle: string;
-  displayName: string;
+  uid: number;
+  username: string;
+  nickname: string;
   email: string | null;
   status: AccountStatus;
 }
 
 interface Snapshot {
-  byHandle: Map<string, AccountSummary>;
+  byUid: Map<number, AccountSummary>;
   expiresAt: number;
 }
 
@@ -27,15 +28,16 @@ let inflight = globalThis.__foiAccountInflight;
 async function load(): Promise<Snapshot> {
   const rows = await db
     .select({
-      handle: accounts.handle,
-      displayName: accounts.displayName,
+      uid: accounts.uid,
+      username: accounts.username,
+      nickname: accounts.nickname,
       email: accounts.email,
       status: accounts.status,
     })
     .from(accounts);
 
   const next: Snapshot = {
-    byHandle: new Map(rows.map((row) => [row.handle, row])),
+    byUid: new Map(rows.map((row) => [row.uid, row])),
     expiresAt: Date.now() + TTL_MS,
   };
 
@@ -46,8 +48,8 @@ async function load(): Promise<Snapshot> {
   return next;
 }
 
-export async function accountSnapshot(): Promise<Map<string, AccountSummary>> {
-  if (snapshot && snapshot.expiresAt > Date.now()) return snapshot.byHandle;
+export async function accountSnapshot(): Promise<Map<number, AccountSummary>> {
+  if (snapshot && snapshot.expiresAt > Date.now()) return snapshot.byUid;
 
   if (!inflight) {
     inflight = load().finally(() => {
@@ -61,7 +63,7 @@ export async function accountSnapshot(): Promise<Map<string, AccountSummary>> {
     }
   }
 
-  return (await inflight).byHandle;
+  return (await inflight).byUid;
 }
 
 export function invalidateAccounts(): void {

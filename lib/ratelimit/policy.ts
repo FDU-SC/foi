@@ -93,7 +93,7 @@ export const ROUTE_LIMITS = {
   "POST /api/auth/[...nextauth]": {
     unlimited: true,
     why:
-      "唯一有代价的动作是登录尝试，由下面的 `login` 在 authorize 里按 handle 与来源双重计数；" +
+      "唯一有代价的动作是登录尝试，由下面的 `login` 在 authorize 里按 uid 与来源双重计数；" +
       "其余端点（signout、session 更新）只改 cookie 与解 JWT，不读库。量由 SOURCE_GATE 兜住",
     guard: "framework",
   },
@@ -113,7 +113,7 @@ export const ACTION_LIMITS = {
       max: 40,
       windowSeconds: 300,
       why:
-        "按 handle 计数只看得见对着一个账号猜密码。把同一个弱密码撒向一百个账号的人，" +
+        "按 uid 计数只看得见对着一个账号猜密码。把同一个弱密码撒向一百个账号的人，" +
         "每个账号只试一次，那个计数器永远不会响",
     },
   },

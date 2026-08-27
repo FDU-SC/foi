@@ -8,7 +8,7 @@ import { listAccounts, suspensionHistory } from "./queries";
 
 export interface AccountDirectory {
   accounts: AccountRow[];
-  lastSuspensionEvents: Map<string, AccountSuspensionRow>;
+  lastSuspensionEvents: Map<number, AccountSuspensionRow>;
 }
 
 const EMPTY: AccountDirectory = {
@@ -23,15 +23,15 @@ export async function accountDirectoryFor(
 
   const allAccounts = await listAccounts();
 
-  const suspendedHandles = allAccounts
+  const suspendedUids = allAccounts
     .filter((a) => a.status === "suspended")
-    .map((a) => a.handle);
+    .map((a) => a.uid);
 
-  const events = new Map<string, AccountSuspensionRow>();
+  const events = new Map<number, AccountSuspensionRow>();
   await Promise.all(
-    suspendedHandles.map(async (handle) => {
-      const [latest] = await suspensionHistory(handle, 1);
-      if (latest) events.set(handle, latest);
+    suspendedUids.map(async (uid) => {
+      const [latest] = await suspensionHistory(uid, 1);
+      if (latest) events.set(uid, latest);
     }),
   );
 

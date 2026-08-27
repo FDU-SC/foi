@@ -29,8 +29,8 @@ if (!online) {
   console.warn("[test] 数据库不可达，跳过运维台门禁集成用例");
 }
 
-const admin = viewerWith("admin.access", "adminaccess-admin");
-const player = viewerFor({ handle: "adminaccess-player", groups: [] });
+const admin = viewerWith("admin.access");
+const player = viewerFor({ uid: 1, groups: [] });
 
 const suspended = AS_PLAYER;
 
@@ -69,7 +69,7 @@ describeDb("运维台门禁", () => {
 
     it("只有 admin.access 时拿到页面，但表是空的", async () => {
       const consoleOnly: typeof admin = {
-        handle: "adminaccess-setter",
+        uid: 88,
         groups: [],
         can: (capability) => capability === "admin.access",
       };
@@ -119,7 +119,7 @@ describeDb("运维台门禁", () => {
 
     it("只有 admin.access 时给规则不给命中数", async () => {
       const consoleOnly: typeof admin = {
-        handle: "adminaccess-setter",
+        uid: 88,
         groups: [],
         can: (capability) => capability === "admin.access",
       };

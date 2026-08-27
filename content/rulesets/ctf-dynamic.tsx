@@ -69,19 +69,19 @@ export const ruleset: Ruleset<CtfCell> = {
 
     const submissions = scoredSubmissions(input);
 
-    const cellsByUser = new Map<string, Record<string, CtfCell>>();
+    const cellsByUser = new Map<number, Record<string, CtfCell>>();
     for (const participant of input.participants) {
-      cellsByUser.set(participant.handle, {});
+      cellsByUser.set(participant.uid, {});
     }
 
-    const solves = new Map<string, { handle: string; at: number }[]>();
+    const solves = new Map<string, { uid: number; at: number }[]>();
     const attempts = new Map<string, number>();
     const solvedKeys = new Set<string>();
 
     for (const submission of submissions) {
-      if (!cellsByUser.has(submission.handle)) continue;
+      if (!cellsByUser.has(submission.uid)) continue;
 
-      const key = `${submission.handle}:${submission.problemSlug}`;
+      const key = `${submission.uid}:${submission.problemSlug}`;
       if (solvedKeys.has(key)) continue;
 
       attempts.set(key, (attempts.get(key) ?? 0) + 1);
@@ -90,7 +90,7 @@ export const ruleset: Ruleset<CtfCell> = {
       solvedKeys.add(key);
       const list = solves.get(submission.problemSlug) ?? [];
       list.push({
-        handle: submission.handle,
+        uid: submission.uid,
         at: submission.createdAt.getTime() - start,
       });
       solves.set(submission.problemSlug, list);
@@ -102,27 +102,27 @@ export const ruleset: Ruleset<CtfCell> = {
 
       list.forEach((solve, index) => {
 
-        const cells = cellsByUser.get(solve.handle);
+        const cells = cellsByUser.get(solve.uid);
         if (!cells) return;
         const bonus = config.bloodBonus[index] ?? 0;
         cells[problem.slug] = {
           score: value * (1 + bonus),
           solvedAt: solve.at,
           blood: index < config.bloodBonus.length ? index + 1 : null,
-          attempts: attempts.get(`${solve.handle}:${problem.slug}`) ?? 1,
+          attempts: attempts.get(`${solve.uid}:${problem.slug}`) ?? 1,
         };
       });
     }
 
     for (const [key, count] of attempts) {
-      const [handle, slug] = splitKey(key);
-      const cells = cellsByUser.get(handle);
+      const [uidStr, slug] = splitKey(key);
+      const cells = cellsByUser.get(Number(uidStr));
       if (!cells || cells[slug]) continue;
       cells[slug] = { score: 0, solvedAt: null, blood: null, attempts: count };
     }
 
     const rows = input.participants.map((participant) => {
-      const cells = cellsByUser.get(participant.handle) ?? {};
+      const cells = cellsByUser.get(participant.uid) ?? {};
       let total = 0;
       let lastSolve = 0;
       for (const cell of Object.values(cells)) {

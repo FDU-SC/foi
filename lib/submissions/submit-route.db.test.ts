@@ -17,20 +17,21 @@ import {
 } from "@/lib/problems/types";
 import { inlineProblem } from "@/test/content-shapes";
 
-const HANDLE = "rl-alice";
-
-const DEFAULT_CALLER = HANDLE;
+const USERNAME = "rl-alice";
+let ACCOUNT_UID = 0;
 
 const [FIRST, SECOND] = problemsFor(AS_PLAYER).map((view) => view.config);
 
 const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
 
-let CALLER = HANDLE;
+let CALLER_UID = 0;
+let CALLER_USERNAME = USERNAME;
 
 vi.mock("@/auth", () => ({
   getResolvedUser: async () => ({
-    handle: CALLER,
-    displayName: CALLER,
+    uid: CALLER_UID,
+    username: CALLER_USERNAME,
+    nickname: CALLER_USERNAME,
     email: null,
     emailVerified: false,
     groups: [],
@@ -38,8 +39,9 @@ vi.mock("@/auth", () => ({
     disabled: false,
   }),
   getSessionUser: async () => ({
-    handle: CALLER,
-    displayName: CALLER,
+    uid: CALLER_UID,
+    username: CALLER_USERNAME,
+    nickname: CALLER_USERNAME,
     groups: [],
   }),
 }));
@@ -79,16 +81,19 @@ describeDb("提交端点限流", () => {
     }
     vi.stubGlobal("fetch", fetchMock);
 
-    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
-    await db.delete(accounts).where(eq(accounts.handle, HANDLE));
-    await db
+    await db.delete(accounts).where(eq(accounts.username, USERNAME));
+    const [acct] = await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE });
+      .values({ username: USERNAME, nickname: USERNAME })
+      .returning({ uid: accounts.uid });
+    ACCOUNT_UID = acct.uid;
+    CALLER_UID = ACCOUNT_UID;
+    CALLER_USERNAME = USERNAME;
   });
 
   afterAll(async () => {
-    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
-    await db.delete(accounts).where(eq(accounts.handle, HANDLE));
+    await db.delete(submissions).where(eq(submissions.uid, ACCOUNT_UID));
+    await db.delete(accounts).where(eq(accounts.uid, ACCOUNT_UID));
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
@@ -110,7 +115,7 @@ describeDb("提交端点限流", () => {
     const rows = await db
       .select()
       .from(submissions)
-      .where(eq(submissions.handle, HANDLE));
+      .where(eq(submissions.uid, ACCOUNT_UID));
     expect(rows.length).toBe(allowed);
   });
 
@@ -127,27 +132,31 @@ describeDb("内联判题的提交", () => {
     .map((view) => view.config)
     .find((config) => isInlineBackend(config.backend));
 
-  const HANDLE = "rl-inline";
+  const INLINE_USERNAME = "rl-inline";
+  let INLINE_UID = 0;
 
   beforeAll(async () => {
-    CALLER = HANDLE;
     for (const [key, value] of Object.entries(TEST_ENV)) {
       vi.stubEnv(key, value);
     }
     vi.stubEnv("AUTH_SECRET", "inline-suite-key-0123456789abcdef");
     vi.stubGlobal("fetch", fetchMock);
 
-    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
-    await db.delete(accounts).where(eq(accounts.handle, HANDLE));
-    await db
+    await db.delete(accounts).where(eq(accounts.username, INLINE_USERNAME));
+    const [acct] = await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE });
+      .values({ username: INLINE_USERNAME, nickname: INLINE_USERNAME })
+      .returning({ uid: accounts.uid });
+    INLINE_UID = acct.uid;
+    CALLER_UID = INLINE_UID;
+    CALLER_USERNAME = INLINE_USERNAME;
   });
 
   afterAll(async () => {
-    CALLER = DEFAULT_CALLER;
-    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
-    await db.delete(accounts).where(eq(accounts.handle, HANDLE));
+    CALLER_UID = ACCOUNT_UID;
+    CALLER_USERNAME = USERNAME;
+    await db.delete(submissions).where(eq(submissions.uid, INLINE_UID));
+    await db.delete(accounts).where(eq(accounts.uid, INLINE_UID));
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
@@ -171,7 +180,7 @@ describeDb("内联判题的提交", () => {
     const [row] = await db
       .select()
       .from(submissions)
-      .where(eq(submissions.handle, HANDLE));
+      .where(eq(submissions.uid, INLINE_UID));
 
     expect(row.state).toBe("completed");
     expect(row.outcome).not.toBeNull();
@@ -201,11 +210,11 @@ describeDb("内联判题的提交", () => {
 describeDb("内联判题说自己判不了", () => {
   const PROBLEM = inlineProblem();
   const REASON = "夹具：这道题此刻判不了";
-  const HANDLE = "rl-unavailable";
+  const UNAVAIL_USERNAME = "rl-unavailable";
+  let UNAVAIL_UID = 0;
   let restore: InlineJudge;
 
   beforeAll(async () => {
-    CALLER = HANDLE;
     for (const [key, value] of Object.entries(TEST_ENV)) {
       vi.stubEnv(key, value);
     }
@@ -215,18 +224,22 @@ describeDb("内联判题说自己判不了", () => {
     restore = backend.judge;
     backend.judge = () => ({ unavailable: true, reason: REASON });
 
-    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
-    await db.delete(accounts).where(eq(accounts.handle, HANDLE));
-    await db
+    await db.delete(accounts).where(eq(accounts.username, UNAVAIL_USERNAME));
+    const [acct] = await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE });
+      .values({ username: UNAVAIL_USERNAME, nickname: UNAVAIL_USERNAME })
+      .returning({ uid: accounts.uid });
+    UNAVAIL_UID = acct.uid;
+    CALLER_UID = UNAVAIL_UID;
+    CALLER_USERNAME = UNAVAIL_USERNAME;
   });
 
   afterAll(async () => {
-    CALLER = DEFAULT_CALLER;
+    CALLER_UID = ACCOUNT_UID;
+    CALLER_USERNAME = USERNAME;
     (PROBLEM.backend as InlineBackend).judge = restore;
-    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
-    await db.delete(accounts).where(eq(accounts.handle, HANDLE));
+    await db.delete(submissions).where(eq(submissions.uid, UNAVAIL_UID));
+    await db.delete(accounts).where(eq(accounts.uid, UNAVAIL_UID));
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
@@ -250,7 +263,7 @@ describeDb("内联判题说自己判不了", () => {
     const [row] = await db
       .select()
       .from(submissions)
-      .where(eq(submissions.handle, HANDLE));
+      .where(eq(submissions.uid, UNAVAIL_UID));
 
     expect(row.state).toBe("disrupted");
     expect(row.error).toContain(REASON);
@@ -264,8 +277,10 @@ describeDb("内联判题说自己判不了", () => {
 });
 
 describeDb("提交的幂等键", () => {
-  const ALICE = "idem-alice";
-  const BOB = "idem-bob";
+  const ALICE_USERNAME = "idem-alice";
+  const BOB_USERNAME = "idem-bob";
+  let ALICE_UID = 0;
+  let BOB_UID = 0;
 
   const EXTERNAL = problemsFor(AS_PLAYER)
     .map((view) => view.config)
@@ -279,9 +294,11 @@ describeDb("提交的幂等键", () => {
   }
 
   async function cleanup(): Promise<void> {
-    for (const handle of [ALICE, BOB]) {
-      await db.delete(submissions).where(eq(submissions.handle, handle));
-      await db.delete(accounts).where(eq(accounts.handle, handle));
+    for (const uid of [ALICE_UID, BOB_UID]) {
+      if (uid) {
+        await db.delete(submissions).where(eq(submissions.uid, uid));
+        await db.delete(accounts).where(eq(accounts.uid, uid));
+      }
     }
   }
 
@@ -291,18 +308,29 @@ describeDb("提交的幂等键", () => {
     }
     vi.stubGlobal("fetch", fetchMock);
 
-    await cleanup();
-    for (const handle of [ALICE, BOB]) {
-      await db
-        .insert(accounts)
-        .values({ handle, displayName: handle });
-    }
-    CALLER = ALICE;
+    await db.delete(accounts).where(eq(accounts.username, ALICE_USERNAME));
+    await db.delete(accounts).where(eq(accounts.username, BOB_USERNAME));
+
+    const [alice] = await db
+      .insert(accounts)
+      .values({ username: ALICE_USERNAME, nickname: ALICE_USERNAME })
+      .returning({ uid: accounts.uid });
+    ALICE_UID = alice.uid;
+
+    const [bob] = await db
+      .insert(accounts)
+      .values({ username: BOB_USERNAME, nickname: BOB_USERNAME })
+      .returning({ uid: accounts.uid });
+    BOB_UID = bob.uid;
+
+    CALLER_UID = ALICE_UID;
+    CALLER_USERNAME = ALICE_USERNAME;
   });
 
   afterAll(async () => {
     await cleanup();
-    CALLER = HANDLE;
+    CALLER_UID = ACCOUNT_UID;
+    CALLER_USERNAME = USERNAME;
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
@@ -368,22 +396,25 @@ describeDb("提交的幂等键", () => {
       clientNonce: nonce,
     };
 
-    CALLER = ALICE;
+    CALLER_UID = ALICE_UID;
+    CALLER_USERNAME = ALICE_USERNAME;
     const mine = await post(body);
     expect(mine.status).toBe(201);
     const mineId = (await mine.json()).id;
 
-    CALLER = BOB;
+    CALLER_UID = BOB_UID;
+    CALLER_USERNAME = BOB_USERNAME;
     const theirs = await post(body);
     expect(theirs.status).toBe(201);
     const theirsId = (await theirs.json()).id;
-    CALLER = ALICE;
+    CALLER_UID = ALICE_UID;
+    CALLER_USERNAME = ALICE_USERNAME;
 
     expect(theirsId).not.toBe(mineId);
 
     const rows = await rowsWithNonce(nonce);
-    const byHandle = new Map(rows.map((row) => [row.handle, row.id]));
-    expect(byHandle.get(ALICE)).toBe(mineId);
-    expect(byHandle.get(BOB)).toBe(theirsId);
+    const byUid = new Map(rows.map((row) => [row.uid, row.id]));
+    expect(byUid.get(ALICE_UID)).toBe(mineId);
+    expect(byUid.get(BOB_UID)).toBe(theirsId);
   });
 });

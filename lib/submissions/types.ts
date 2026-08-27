@@ -34,9 +34,9 @@ export const createSubmissionSchema = z.object({
 });
 
 export interface SubmissionListItem extends SubmissionView {
-  handle: string;
+  uid: number;
 
-  displayName: string;
+  nickname: string;
   problemTitle: string;
 }
 

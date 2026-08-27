@@ -19,12 +19,12 @@ describe("assignRanks", () => {
   function ranked(rows: { total: number; tiebreak: number }[]) {
     return assignRanks(
       rows.map((row, index) => ({
-        participant: { handle: `u${index}`, displayName: `u${index}` },
+        participant: { uid: index, nickname: `u${index}` },
         total: row.total,
         tiebreak: row.tiebreak,
         cells: {},
       })),
-    ).map((row) => ({ handle: row.participant.handle, rank: row.rank }));
+    ).map((row) => ({ uid: row.participant.uid, rank: row.rank }));
   }
 
   it("按 total 降序、tiebreak 升序排列", () => {
@@ -35,9 +35,9 @@ describe("assignRanks", () => {
         { total: 3, tiebreak: 20 },
       ]),
     ).toEqual([
-      { handle: "u2", rank: 1 },
-      { handle: "u1", rank: 2 },
-      { handle: "u0", rank: 3 },
+      { uid: 2, rank: 1 },
+      { uid: 1, rank: 2 },
+      { uid: 0, rank: 3 },
     ]);
   });
 
@@ -68,7 +68,7 @@ describe("assignRanks", () => {
 
 describe("scoredSubmissions", () => {
   const base = {
-    participants: participants("alice"),
+    participants: participants(1),
     problems: [problem("a", "A")],
   };
 
@@ -77,16 +77,16 @@ describe("scoredSubmissions", () => {
       input({
         ...base,
         submissions: [
-          submission({ handle: "alice", problemSlug: "a", minutes: 5, score: 100 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 5, score: 100 }),
           submission({
-            handle: "alice",
+            uid: 1,
             problemSlug: "a",
             minutes: 6,
             score: 0,
             state: "judging",
           }),
           submission({
-            handle: "alice",
+            uid: 1,
             problemSlug: "a",
             minutes: 7,
             score: 0,
@@ -105,9 +105,9 @@ describe("scoredSubmissions", () => {
       input({
         ...base,
         submissions: [
-          submission({ handle: "alice", problemSlug: "a", minutes: -1, score: 100 }),
-          submission({ handle: "alice", problemSlug: "a", minutes: 10, score: 100 }),
-          submission({ handle: "alice", problemSlug: "a", minutes: 999, score: 100 }),
+          submission({ uid: 1, problemSlug: "a", minutes: -1, score: 100 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 10, score: 100 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 999, score: 100 }),
         ],
       }),
     );
@@ -120,8 +120,8 @@ describe("scoredSubmissions", () => {
       input({
         ...base,
         submissions: [
-          submission({ handle: "alice", problemSlug: "a", minutes: 0, score: 100 }),
-          submission({ handle: "alice", problemSlug: "a", minutes: 300, score: 100 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 0, score: 100 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 300, score: 100 }),
         ],
         endsAt: END,
       }),
@@ -135,9 +135,9 @@ describe("scoredSubmissions", () => {
       input({
         ...base,
         submissions: [
-          submission({ handle: "alice", problemSlug: "a", minutes: 30, score: 0 }),
-          submission({ handle: "alice", problemSlug: "a", minutes: 10, score: 0 }),
-          submission({ handle: "alice", problemSlug: "a", minutes: 20, score: 0 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 30, score: 0 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 10, score: 0 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 20, score: 0 }),
         ],
       }),
     );
@@ -148,7 +148,7 @@ describe("scoredSubmissions", () => {
 
 describe("submissionsInWindow", () => {
   const base = {
-    participants: participants("alice"),
+    participants: participants(1),
     problems: [problem("a", "A")],
   };
 
@@ -157,9 +157,9 @@ describe("submissionsInWindow", () => {
       input({
         ...base,
         submissions: [
-          submission({ handle: "alice", problemSlug: "a", minutes: 5, score: 100 }),
-          unjudged("alice", "a", 6),
-          unjudged("alice", "a", 7, "judging"),
+          submission({ uid: 1, problemSlug: "a", minutes: 5, score: 100 }),
+          unjudged(1, "a", 6),
+          unjudged(1, "a", 7, "judging"),
         ],
       }),
     );
@@ -175,7 +175,7 @@ describe("submissionsInWindow", () => {
     const rows = submissionsInWindow(
       input({
         ...base,
-        submissions: [unjudged("alice", "a", 5, "disrupted")],
+        submissions: [unjudged(1, "a", 5, "disrupted")],
       }),
     );
 
@@ -186,10 +186,10 @@ describe("submissionsInWindow", () => {
     const built = input({
       ...base,
       submissions: [
-        submission({ handle: "alice", problemSlug: "a", minutes: -1, score: 100 }),
-        submission({ handle: "alice", problemSlug: "a", minutes: 30, score: 0 }),
-        submission({ handle: "alice", problemSlug: "a", minutes: 10, score: 0 }),
-        submission({ handle: "alice", problemSlug: "a", minutes: 999, score: 100 }),
+          submission({ uid: 1, problemSlug: "a", minutes: -1, score: 100 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 30, score: 0 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 10, score: 0 }),
+          submission({ uid: 1, problemSlug: "a", minutes: 999, score: 100 }),
       ],
       endsAt: END,
     });
@@ -205,7 +205,7 @@ describe("submissionsInWindow", () => {
 describe("isAccepted", () => {
   const record = (score: number, maxScore: number) =>
     submission({
-      handle: "alice",
+      uid: 1,
       problemSlug: "a",
       minutes: 1,
       score,
@@ -228,7 +228,7 @@ describe("isAccepted", () => {
     expect(
       isAccepted(
         submission({
-          handle: "alice",
+          uid: 1,
           problemSlug: "a",
           minutes: 1,
           score: 100,
@@ -242,7 +242,7 @@ describe("isAccepted", () => {
     expect(
       isAccepted(
         submission({
-          handle: "alice",
+          uid: 1,
           problemSlug: "a",
           minutes: 1,
           score: 100,
@@ -256,7 +256,7 @@ describe("isAccepted", () => {
     expect(
       isAccepted(
         submission({
-          handle: "alice",
+          uid: 1,
           problemSlug: "a",
           minutes: 1,
           score: 0,
@@ -270,7 +270,7 @@ describe("isAccepted", () => {
     expect(
       isAccepted({
         id: "s_noscore",
-        handle: "alice",
+        uid: 1,
         problemSlug: "a",
         state: "completed",
         verdict: { status: "checked" },

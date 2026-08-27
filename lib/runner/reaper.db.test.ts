@@ -31,7 +31,8 @@ import {
 } from "./queue";
 import { reaperHealth, reapOnce, startReaping } from "./reaper";
 
-const HANDLE = "runner-reaper-alice";
+const USERNAME = "runner-reaper-alice";
+let ACCOUNT_UID = 0;
 
 const BACKEND = "runner-reaper-fixture";
 
@@ -47,7 +48,7 @@ async function enqueue(
 ): Promise<string> {
   await db.insert(submissions).values({
     id,
-    handle: HANDLE,
+    uid: ACCOUNT_UID,
     problemSlug: PROBLEM.slug,
     payload: {},
     backendId: BACKEND,
@@ -73,8 +74,10 @@ async function goSilent(id: string): Promise<void> {
 }
 
 async function cleanup(): Promise<void> {
-  await db.delete(submissions).where(eq(submissions.handle, HANDLE));
-  await db.delete(accounts).where(eq(accounts.handle, HANDLE));
+  if (ACCOUNT_UID) {
+    await db.delete(submissions).where(eq(submissions.uid, ACCOUNT_UID));
+    await db.delete(accounts).where(eq(accounts.uid, ACCOUNT_UID));
+  }
   await db.delete(runners).where(eq(runners.backendId, BACKEND));
 }
 
@@ -85,13 +88,15 @@ describeDb("失联回收", () => {
       .insert(problems)
       .values({ slug: PROBLEM.slug, title: PROBLEM.title })
       .onConflictDoNothing();
-    await db
+    const [acct] = await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE });
+      .values({ username: USERNAME, nickname: USERNAME })
+      .returning({ uid: accounts.uid });
+    ACCOUNT_UID = acct.uid;
   });
 
   beforeEach(async () => {
-    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
+    await db.delete(submissions).where(eq(submissions.uid, ACCOUNT_UID));
   });
 
   afterAll(cleanup);

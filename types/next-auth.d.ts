@@ -4,16 +4,14 @@ declare module "next-auth" {
   interface Session {
     user: {
 
-      handle: string;
-      displayName: string;
-      groups: string[];
+      uid: number;
 
       passwordAt: number;
     } & DefaultSession["user"];
   }
 
   interface User {
-    handle: string;
+    uid: number;
     passwordAt: number;
   }
 }

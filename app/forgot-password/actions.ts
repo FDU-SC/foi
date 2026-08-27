@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { z } from "zod";
 import { getPasswordFingerprint } from "@/lib/accounts/password";
-import { findAccountByEmail, getAccount } from "@/lib/accounts/queries";
+import { findAccountByEmail, getAccountByUsername } from "@/lib/accounts/queries";
 import { resolveFromRow } from "@/lib/accounts/resolve";
 import { normalizeEmail } from "@/lib/accounts/types";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
@@ -50,15 +50,15 @@ export async function requestPasswordReset(
           stripSubaddress: enrollmentPolicy.stripSubaddress,
         }),
       )
-    : await getAccount(identifier);
+    : await getAccountByUsername(identifier);
 
   if (row) {
     const user = resolveFromRow(row);
 
     if (!user.disabled && user.email && user.emailVerified) {
       await notifyQuietly({
-        handle: user.handle,
-        displayName: user.displayName,
+        uid: user.uid,
+        nickname: user.nickname,
         email: user.email,
       });
     }
@@ -69,12 +69,12 @@ export async function requestPasswordReset(
 
 async function notifyQuietly(to: Recipient): Promise<void> {
   try {
-    const fp = await getPasswordFingerprint(to.handle);
+    const fp = await getPasswordFingerprint(to.uid);
     if (!fp) return;
 
     await sendPasswordReset(to, fp);
-    console.log(`[foi] 找回密码: 已向 ${to.handle} 发出重置链接`);
+    console.log(`[foi] 找回密码: 已向 uid=${to.uid} 发出重置链接`);
   } catch (error) {
-    console.error(`[foi] 找回密码: 向 ${to.handle} 投递重置邮件失败`, error);
+    console.error(`[foi] 找回密码: 向 uid=${to.uid} 投递重置邮件失败`, error);
   }
 }

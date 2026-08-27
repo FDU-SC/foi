@@ -2,7 +2,6 @@ import { listGroups } from "@/lib/permissions/groups";
 import type { Capability } from "@/lib/permissions/policy";
 import { viewerFor, type Viewer } from "@/lib/permissions/viewer";
 import { allContests } from "@/lib/contests/registry";
-import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import type { ContestConfig, ContestProblemConfig } from "@/lib/contests/types";
 import { problemsFor } from "@/lib/problems/access";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
@@ -25,8 +24,8 @@ export function groupWith(capability: Capability): string {
   return required(group, `一个带 ${capability} 能力的用户组`).id;
 }
 
-export function viewerWith(capability: Capability, handle = "cap-holder"): Viewer {
-  return viewerFor({ handle, groups: [groupWith(capability)] });
+export function viewerWith(capability: Capability, uid = 99): Viewer {
+  return viewerFor({ uid, groups: [groupWith(capability)] });
 }
 
 export function contestWithGroupEntry(): {
@@ -49,10 +48,6 @@ export function contestWithGroupEntry(): {
     entry: contest.problems[0]!,
     group: participants.group,
   };
-}
-
-export function reservedHandle(): string {
-  return required(enrollmentPolicy.reservedHandles[0], "至少一个保留用户名");
 }
 
 export function retiredProblem(): ProblemConfig {

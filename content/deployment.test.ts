@@ -55,12 +55,6 @@ describe("内核测试需要的形状", () => {
     expect(outside, "赛外提交路径需要一道不在赛里的公开题").toBeDefined();
   });
 
-  it("至少保留了一个用户名", () => {
-    expect(
-      enrollmentPolicy.reservedHandles.length,
-      "注册拒绝保留名的用例靠它",
-    ).toBeGreaterThan(0);
-  });
 });
 
 describe("这套 content 自身自洽", () => {

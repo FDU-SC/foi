@@ -5,7 +5,6 @@ import { accounts } from "@/lib/db/schema";
 import { fingerprint as computeFingerprint } from "@/lib/tokens/stateless";
 import ARGON2_OPTIONS from "./argon2-options.cjs";
 import type { DbOrTx } from "./queries";
-import { normalizeHandle } from "./types";
 
 const decoyHash = hash("decoy-for-constant-time-login", ARGON2_OPTIONS);
 
@@ -16,7 +15,7 @@ function hashPassword(password: string): Promise<string> {
 export type PasswordCheck = { ok: true; setAt: Date } | { ok: false };
 
 export async function verifyPassword(
-  handle: string,
+  uid: number,
   password: string,
 ): Promise<PasswordCheck> {
   const [row] = await db
@@ -25,7 +24,7 @@ export async function verifyPassword(
       passwordSetAt: accounts.passwordSetAt,
     })
     .from(accounts)
-    .where(eq(accounts.handle, normalizeHandle(handle)))
+    .where(eq(accounts.uid, uid))
     .limit(1);
 
   if (!row?.passwordHash || !row.passwordSetAt) {
@@ -37,11 +36,11 @@ export async function verifyPassword(
   return matched ? { ok: true, setAt: row.passwordSetAt } : { ok: false };
 }
 
-export async function passwordSetAt(handle: string): Promise<Date | null> {
+export async function passwordSetAt(uid: number): Promise<Date | null> {
   const [row] = await db
     .select({ passwordSetAt: accounts.passwordSetAt })
     .from(accounts)
-    .where(eq(accounts.handle, normalizeHandle(handle)))
+    .where(eq(accounts.uid, uid))
     .limit(1);
 
   return row?.passwordSetAt ?? null;
@@ -56,29 +55,28 @@ export function sessionMatchesPassword(
 }
 
 export async function setPassword(
-  handle: string,
+  uid: number,
   password: string,
   on: DbOrTx = db,
 ): Promise<void> {
-  const normalized = normalizeHandle(handle);
   const passwordHash = await hashPassword(password);
 
   const [row] = await on
     .update(accounts)
     .set({ passwordHash, passwordSetAt: sql`now()` })
-    .where(eq(accounts.handle, normalized))
-    .returning({ handle: accounts.handle });
+    .where(eq(accounts.uid, uid))
+    .returning({ uid: accounts.uid });
 
-  if (!row) throw new Error(`账号 ${normalized} 不存在，无法设置密码`);
+  if (!row) throw new Error(`账号 uid=${uid} 不存在，无法设置密码`);
 }
 
 export async function getPasswordFingerprint(
-  handle: string,
+  uid: number,
 ): Promise<string | null> {
   const [row] = await db
     .select({ passwordHash: accounts.passwordHash })
     .from(accounts)
-    .where(eq(accounts.handle, normalizeHandle(handle)))
+    .where(eq(accounts.uid, uid))
     .limit(1);
 
   if (!row?.passwordHash) return null;
@@ -86,12 +84,12 @@ export async function getPasswordFingerprint(
 }
 
 export async function getEmailFingerprint(
-  handle: string,
+  uid: number,
 ): Promise<string | null> {
   const [row] = await db
     .select({ email: accounts.email })
     .from(accounts)
-    .where(eq(accounts.handle, normalizeHandle(handle)))
+    .where(eq(accounts.uid, uid))
     .limit(1);
 
   if (!row?.email) return null;

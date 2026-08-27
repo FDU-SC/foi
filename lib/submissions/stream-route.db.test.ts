@@ -5,12 +5,12 @@ import { db } from "@/lib/db";
 import { accounts, problems, submissions } from "@/lib/db/schema";
 import { externallyJudged } from "@/lib/problems/registry";
 import {
-  MAX_STREAMS_PER_HANDLE,
+  MAX_STREAMS_PER_UID,
   streamConcurrency,
 } from "@/lib/ratelimit/concurrency";
 
-const HANDLE = "sse-cancel-alice";
-const SLOT = `stream:${HANDLE}`;
+const USERNAME = "sse-cancel-alice";
+let ACCOUNT_UID = 0;
 const PROBLEM = externallyJudged()[0]!;
 const SUBMISSION = "sub_sse_cancel";
 const CHANNEL = `submission:${SUBMISSION}`;
@@ -19,8 +19,9 @@ const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
 
 vi.mock("@/auth", () => ({
   getSessionUser: async () => ({
-    handle: "sse-cancel-alice",
-    displayName: "sse-cancel-alice",
+    uid: ACCOUNT_UID,
+    username: USERNAME,
+    nickname: USERNAME,
     groups: [],
   }),
 }));
@@ -45,8 +46,10 @@ async function openEstablished(): Promise<Response> {
 }
 
 async function cleanup(): Promise<void> {
-  await db.delete(submissions).where(eq(submissions.handle, HANDLE));
-  await db.delete(accounts).where(eq(accounts.handle, HANDLE));
+  if (ACCOUNT_UID) {
+    await db.delete(submissions).where(eq(submissions.uid, ACCOUNT_UID));
+    await db.delete(accounts).where(eq(accounts.uid, ACCOUNT_UID));
+  }
 }
 
 describeDb("提交事件流的清理", () => {
@@ -56,13 +59,15 @@ describeDb("提交事件流的清理", () => {
       .insert(problems)
       .values({ slug: PROBLEM.slug, title: PROBLEM.title })
       .onConflictDoNothing();
-    await db
+    const [acct] = await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE });
+      .values({ username: USERNAME, nickname: USERNAME })
+      .returning({ uid: accounts.uid });
+    ACCOUNT_UID = acct.uid;
 
     await db.insert(submissions).values({
       id: SUBMISSION,
-      handle: HANDLE,
+      uid: ACCOUNT_UID,
       problemSlug: PROBLEM.slug,
       payload: {},
       backendId: "sse-cancel-fixture",
@@ -78,6 +83,7 @@ describeDb("提交事件流的清理", () => {
   afterAll(cleanup);
 
   it("读端撤销时，并发槽与总线监听器都还回去", async () => {
+    const SLOT = `stream:${ACCOUNT_UID}`;
     await openEstablished();
 
     expect(streamConcurrency.held(SLOT)).toBe(1);
@@ -90,11 +96,12 @@ describeDb("提交事件流的清理", () => {
   });
 
   it("撤销过的流不再占额度，开满之后全撤还能再开", async () => {
-    for (let i = 0; i < MAX_STREAMS_PER_HANDLE; i += 1) {
+    const SLOT = `stream:${ACCOUNT_UID}`;
+    for (let i = 0; i < MAX_STREAMS_PER_UID; i += 1) {
       const response = await openEstablished();
       expect(response.status).toBe(200);
     }
-    expect(streamConcurrency.held(SLOT)).toBe(MAX_STREAMS_PER_HANDLE);
+    expect(streamConcurrency.held(SLOT)).toBe(MAX_STREAMS_PER_UID);
 
     await Promise.all(readers.map((reader) => reader.cancel()));
     expect(streamConcurrency.held(SLOT)).toBe(0);

@@ -1,15 +1,14 @@
 import { inArray, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { getAccount } from "@/lib/accounts/queries";
-import { reservedHandle } from "@/test/content-shapes";
+import { getAccountByUsername } from "@/lib/accounts/queries";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
 import { issueToken } from "@/lib/tokens/stateless";
 import { register } from "./register";
 
 const EMAIL = "regtest@example.test";
-const HANDLE = "regtest";
-const TAKEN = "regtest-taken";
+const USERNAME = "regtest";
+const TAKEN_USERNAME = "regtest-taken";
 
 const passwordHook = vi.hoisted(() => ({ failSetPassword: false }));
 
@@ -46,13 +45,12 @@ function mintToken(email: string): string {
 }
 
 async function cleanup(): Promise<void> {
-  const handles = [HANDLE, TAKEN];
-  await db.delete(accounts).where(inArray(accounts.handle, handles));
+  await db.delete(accounts).where(inArray(accounts.username, [USERNAME, TAKEN_USERNAME]));
 }
 
 const FORM = {
-  handle: HANDLE,
-  displayName: "注册测试",
+  username: USERNAME,
+  nickname: "注册测试",
   email: EMAIL,
   password: "correct-horse-battery",
   token: "",
@@ -75,7 +73,7 @@ describeDb("register", () => {
       reason: "email-unverified",
     });
 
-    expect(await getAccount(HANDLE)).toBeUndefined();
+    expect(await getAccountByUsername(USERNAME)).toBeUndefined();
   });
 
   it("token 的邮箱和表单邮箱不匹配时拒绝", async () => {
@@ -85,7 +83,7 @@ describeDb("register", () => {
       ok: false,
       reason: "email-unverified",
     });
-    expect(await getAccount(HANDLE)).toBeUndefined();
+    expect(await getAccountByUsername(USERNAME)).toBeUndefined();
   });
 
   it("有效 token 建号成功", async () => {
@@ -93,39 +91,28 @@ describeDb("register", () => {
 
     await expect(register({ ...FORM, token })).resolves.toMatchObject({
       ok: true,
-      handle: HANDLE,
+      username: USERNAME,
     });
 
-    const account = await getAccount(HANDLE);
+    const account = await getAccountByUsername(USERNAME);
     expect(account).toMatchObject({ status: "active", email: EMAIL });
   });
 
   it("用户名撞车时不消耗 token（可用同一 token 换名重试）", async () => {
     await db.insert(accounts).values({
-      handle: TAKEN,
-      displayName: "占位",
+      username: TAKEN_USERNAME,
+      nickname: "占位",
       status: "active",
     });
     const token = mintToken(EMAIL);
 
-    await expect(register({ ...FORM, handle: TAKEN, token })).resolves.toEqual({
+    await expect(register({ ...FORM, username: TAKEN_USERNAME, token })).resolves.toEqual({
       ok: false,
-      reason: "handle-taken",
+      reason: "username-taken",
     });
 
     await expect(register({ ...FORM, token })).resolves.toMatchObject({
       ok: true,
-    });
-  });
-
-  it("保留用户名即使 token 有效也拒绝", async () => {
-    const token = mintToken(EMAIL);
-
-    await expect(
-      register({ ...FORM, handle: reservedHandle(), token }),
-    ).resolves.toEqual({
-      ok: false,
-      reason: "handle-reserved",
     });
   });
 
@@ -144,12 +131,12 @@ describeDb("register", () => {
       "写密码故意失败",
     );
 
-    expect(await getAccount(HANDLE)).toBeUndefined();
+    expect(await getAccountByUsername(USERNAME)).toBeUndefined();
 
     passwordHook.failSetPassword = false;
     await expect(register({ ...FORM, token })).resolves.toMatchObject({
       ok: true,
-      handle: HANDLE,
+      username: USERNAME,
     });
   });
 });

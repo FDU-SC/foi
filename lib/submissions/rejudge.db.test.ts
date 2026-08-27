@@ -16,7 +16,8 @@ import { externallyJudged } from "@/lib/problems/registry";
 import { claimJob, reportDone } from "@/lib/runner/queue";
 import { rejudgeSubmissions } from "./rejudge";
 
-const HANDLE = "rejudge-alice";
+const USERNAME = "rejudge-alice";
+let ACCOUNT_UID = 0;
 
 const BACKEND = "rejudge-fixture";
 
@@ -37,7 +38,7 @@ async function settled(
 ): Promise<string> {
   await db.insert(submissions).values({
     id,
-    handle: HANDLE,
+    uid: ACCOUNT_UID,
     problemSlug: PROBLEM.slug,
     payload: PAYLOAD,
     backendId: BACKEND,
@@ -66,8 +67,7 @@ async function rowOf(id: string): Promise<typeof submissions.$inferSelect> {
 
 describeDb("重判", () => {
   beforeAll(async () => {
-    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
-    await db.delete(accounts).where(eq(accounts.handle, HANDLE));
+    await db.delete(accounts).where(eq(accounts.username, USERNAME));
 
     await db
       .insert(problems)
@@ -77,18 +77,20 @@ describeDb("重判", () => {
       .insert(problems)
       .values({ slug: RETIRED, title: "已从 content/ 删掉的题" })
       .onConflictDoNothing();
-    await db
+    const [acct] = await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE });
+      .values({ username: USERNAME, nickname: USERNAME })
+      .returning({ uid: accounts.uid });
+    ACCOUNT_UID = acct.uid;
   });
 
   beforeEach(async () => {
-    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
+    await db.delete(submissions).where(eq(submissions.uid, ACCOUNT_UID));
   });
 
   afterAll(async () => {
-    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
-    await db.delete(accounts).where(eq(accounts.handle, HANDLE));
+    await db.delete(submissions).where(eq(submissions.uid, ACCOUNT_UID));
+    await db.delete(accounts).where(eq(accounts.uid, ACCOUNT_UID));
     await db.delete(problems).where(eq(problems.slug, RETIRED));
   });
 

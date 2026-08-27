@@ -13,9 +13,9 @@ import { actionFor } from "./actions";
 
 const demo = allContests()[0];
 
-const PREVIEW = viewerWith("problem.viewAll", "an-admin");
+const PREVIEW = viewerWith("problem.viewAll", 100);
 
-const PLAYER = viewerFor({ handle: "bob", groups: ["一个普通分组"] });
+const PLAYER = viewerFor({ uid: 1, groups: ["一个普通分组"] });
 
 const declared = externallyJudged().flatMap((problem) =>
   Object.keys(problem.backend.actions).map((action) => ({

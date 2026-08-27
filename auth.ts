@@ -2,33 +2,34 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 import { authConfig } from "./auth.config";
-import { resolveUser } from "@/lib/accounts/resolve";
-import { normalizeHandle } from "@/lib/accounts/types";
+import { resolveUser, resolveUserByUsername } from "@/lib/accounts/resolve";
+import { normalizeUsername } from "@/lib/accounts/types";
 import type { ResolvedUser } from "@/lib/accounts/types";
 import {
   passwordSetAt,
   sessionMatchesPassword,
   verifyPassword,
 } from "@/lib/accounts/password";
+import { findAccountByEmail } from "@/lib/accounts/queries";
 import type { Capability } from "@/lib/permissions/policy";
 import { viewerFor, type SessionUser, type Viewer } from "@/lib/permissions/viewer";
 import { rateLimit, rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
 
 const credentialsSchema = z.object({
-  handle: z.string().min(1),
+  identifier: z.string().min(1),
   password: z.string().min(1),
 });
 
-const PER_HANDLE = ACTION_LIMITS.login;
+const PER_UID = ACTION_LIMITS.login;
 const PER_SOURCE = ACTION_LIMITS.login.also;
 
-function withinLoginRate(handle: string, request: Request | undefined): boolean {
+function withinLoginRate(uid: number, request: Request | undefined): boolean {
   if (
     !rateLimit(
-      `login:handle:${normalizeHandle(handle)}`,
-      PER_HANDLE.max,
-      PER_HANDLE.windowSeconds * 1000,
+      `login:uid:${uid}`,
+      PER_UID.max,
+      PER_UID.windowSeconds * 1000,
     ).ok
   ) {
     return false;
@@ -49,7 +50,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Credentials({
       credentials: {
-        handle: { label: "用户名", type: "text" },
+        identifier: { label: "用户名或邮箱", type: "text" },
         password: { label: "密码", type: "password" },
       },
 
@@ -57,23 +58,41 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
 
-        const { handle, password } = parsed.data;
+        const { identifier, password } = parsed.data;
 
-        if (!withinLoginRate(handle, request)) return null;
+        const account = identifier.includes("@")
+          ? await findAccountByEmail(identifier.trim().toLowerCase())
+          : await (async () => {
+              const resolved = await resolveUserByUsername(identifier);
+              return resolved
+                ? { uid: resolved.uid, status: resolved.status }
+                : undefined;
+            })();
 
-        const user = await resolveUser(handle);
-
-        if (!user || user.disabled) {
-          await verifyPassword(handle, password);
+        if (!account) {
+          const source = request ? sourceFrom(request.headers) : "unknown";
+          rateLimitBySource(
+            "login:ip",
+            source,
+            PER_SOURCE.max,
+            PER_SOURCE.windowSeconds * 1000,
+          );
           return null;
         }
 
-        const check = await verifyPassword(user.handle, password);
+        if (!withinLoginRate(account.uid, request)) return null;
+
+        if (account.status !== "active") {
+          await verifyPassword(account.uid, password);
+          return null;
+        }
+
+        const check = await verifyPassword(account.uid, password);
         if (!check.ok) return null;
 
         return {
-          id: user.handle,
-          handle: user.handle,
+          id: String(account.uid),
+          uid: account.uid,
           passwordAt: check.setAt.getTime(),
         };
       },
@@ -83,13 +102,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
 export async function getResolvedUser(): Promise<ResolvedUser | null> {
   const session = await auth();
-  const handle = session?.user?.handle;
-  if (!handle) return null;
+  const uid = session?.user?.uid;
+  if (!uid) return null;
 
-  const user = await resolveUser(handle);
+  const user = await resolveUser(uid);
   if (!user || user.disabled) return null;
 
-  const setAt = await passwordSetAt(handle);
+  const setAt = await passwordSetAt(uid);
   if (!sessionMatchesPassword(setAt, session.user.passwordAt)) return null;
 
   return user;
@@ -99,8 +118,9 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const user = await getResolvedUser();
   if (!user) return null;
   return {
-    handle: user.handle,
-    displayName: user.displayName,
+    uid: user.uid,
+    username: user.username,
+    nickname: user.nickname,
     groups: user.groups,
   };
 }

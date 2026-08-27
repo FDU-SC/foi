@@ -40,15 +40,15 @@ export function UserMenu({
         className="hover:bg-surface-2 flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors"
       >
         <span className="bg-primary-subtle text-primary flex size-6 items-center justify-center rounded-full text-xs font-semibold">
-          {user.displayName.slice(0, 1).toUpperCase()}
+          {user.nickname.slice(0, 1).toUpperCase()}
         </span>
-        <span className="text-fg text-sm font-medium">{user.displayName}</span>
+        <span className="text-fg text-sm font-medium">{user.nickname}</span>
       </button>
 
       {open ? (
         <div className="border-border bg-surface absolute right-0 mt-1.5 w-44 overflow-hidden rounded-lg border shadow-lg">
           <div className="border-border border-b px-3 py-2">
-            <div className="text-fg font-mono text-xs">{user.handle}</div>
+            <div className="text-fg font-mono text-xs">{user.username}</div>
             <div className="text-fg-subtle text-[11px]">
               {groupNames.join(" · ") || "选手"}
             </div>

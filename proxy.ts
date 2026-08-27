@@ -1,7 +1,6 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "./auth.config";
-import { viewerFor } from "@/lib/permissions/viewer";
 import { isResolvedSource, sourceFrom } from "@/lib/server/source";
 import { createFixedWindow } from "@/lib/ratelimit/window";
 
@@ -33,7 +32,7 @@ export default auth((req) => {
     }
   }
 
-  const signedIn = Boolean(user?.handle);
+  const signedIn = Boolean(user?.uid);
 
   const needsAuth =
     path.startsWith("/admin") ||
@@ -44,10 +43,6 @@ export default auth((req) => {
     const login = new URL("/login", nextUrl);
     login.searchParams.set("next", path + nextUrl.search);
     return NextResponse.redirect(login);
-  }
-
-  if (path.startsWith("/admin") && !viewerFor(user).can("admin.access")) {
-    return NextResponse.redirect(new URL("/", nextUrl));
   }
 
   return NextResponse.next();

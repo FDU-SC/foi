@@ -15,8 +15,8 @@ const AFTER = new Date(CONTEST.endsAt.getTime() + 60_000);
 
 const OUTSIDER = publicProblemOutside(CONTEST, DURING);
 
-function user(groups: string[]): Pick<ResolvedUser, "handle" | "groups"> {
-  return { handle: "gate-alice", groups };
+function user(groups: string[]): Pick<ResolvedUser, "uid" | "groups"> {
+  return { uid: 10, groups };
 }
 
 const ENTRANT = user([GROUP]);

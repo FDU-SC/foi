@@ -27,7 +27,7 @@ function refused(error: unknown): ActionState {
 }
 
 const issueSchema = z.object({
-  handle: z.string().min(1, "请选择用户"),
+  uid: z.coerce.number().int().positive("请选择用户"),
 });
 
 export async function resendPasswordResetAction(
@@ -43,7 +43,7 @@ export async function resendPasswordResetAction(
 
   const rule = ACTION_LIMITS.resendPasswordResetAction;
   const limited = rateLimit(
-    `resend-reset:${actor.handle}`,
+    `resend-reset:${actor.uid}`,
     rule.max,
     rule.windowSeconds * 1000,
   );
@@ -53,12 +53,12 @@ export async function resendPasswordResetAction(
     };
   }
 
-  const parsed = issueSchema.safeParse({ handle: formData.get("handle") });
+  const parsed = issueSchema.safeParse({ uid: formData.get("uid") });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
   }
 
-  const user = await resolveUser(parsed.data.handle);
+  const user = await resolveUser(parsed.data.uid);
   if (!user) return { error: "没有这个账号" };
   if (user.disabled) return { error: "该账号已封禁，无法发送重置邮件" };
 
@@ -69,14 +69,14 @@ export async function resendPasswordResetAction(
     };
   }
 
-  const fp = await getPasswordFingerprint(user.handle);
+  const fp = await getPasswordFingerprint(user.uid);
   if (!fp) {
     return { error: "该账号没有设置密码，无法生成重置链接的 fingerprint。" };
   }
 
   try {
     await sendPasswordReset(
-      { handle: user.handle, displayName: user.displayName, email: user.email },
+      { uid: user.uid, nickname: user.nickname, email: user.email },
       fp,
     );
   } catch (error) {
@@ -88,12 +88,12 @@ export async function resendPasswordResetAction(
 
   revalidatePath("/admin/accounts");
   return {
-    message: `已向 ${user.handle} 的邮箱发送重置链接，1 小时内有效。`,
+    message: `已向 ${user.username} 的邮箱发送重置链接，1 小时内有效。`,
   };
 }
 
 const moderateSchema = z.object({
-  handle: z.string().min(1, "请选择账号"),
+  uid: z.coerce.number().int().positive("请选择账号"),
   reason: z.string().trim().max(200).optional(),
 });
 
@@ -109,17 +109,17 @@ export async function suspendAccountAction(
   }
 
   const parsed = moderateSchema.safeParse({
-    handle: formData.get("handle"),
+    uid: formData.get("uid"),
     reason: formData.get("reason"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
   }
 
-  const target = await resolveUser(parsed.data.handle);
+  const target = await resolveUser(parsed.data.uid);
   if (!target) return { error: "没有这个账号" };
 
-  if (actor.handle === target.handle) {
+  if (actor.uid === target.uid) {
     return { error: "不能封禁自己" };
   }
 
@@ -131,13 +131,13 @@ export async function suspendAccountAction(
   }
 
   await suspendAccount(
-    target.handle,
-    actor.handle ?? "unknown",
+    target.uid,
+    actor.uid ?? 0,
     parsed.data.reason || "未填写原因",
   );
 
   revalidatePath("/admin/accounts");
-  return { message: `已封禁 ${target.handle}，其已登录的会话在下一个请求即失效。` };
+  return { message: `已封禁 ${target.username}，其已登录的会话在下一个请求即失效。` };
 }
 
 export async function reinstateAccountAction(
@@ -151,24 +151,24 @@ export async function reinstateAccountAction(
     return refused(error);
   }
 
-  const parsed = moderateSchema.safeParse({ handle: formData.get("handle") });
+  const parsed = moderateSchema.safeParse({ uid: formData.get("uid") });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
   }
 
-  const target = await resolveUser(parsed.data.handle);
+  const target = await resolveUser(parsed.data.uid);
   if (!target) return { error: "没有这个账号" };
 
   if (target.status !== "suspended") {
     revalidatePath("/admin/accounts");
     return {
-      error: `${target.handle} 当前并未被封禁，没有改动任何东西——这一行大概是在别人解封之前加载的。`,
+      error: `${target.username} 当前并未被封禁，没有改动任何东西——这一行大概是在别人解封之前加载的。`,
     };
   }
 
-  const row = await reinstateAccount(target.handle, actor.handle ?? "unknown");
+  const row = await reinstateAccount(target.uid, actor.uid ?? 0);
   if (!row) return { error: "没有这个账号" };
 
   revalidatePath("/admin/accounts");
-  return { message: `已解封 ${row.handle}。` };
+  return { message: `已解封 ${row.username}。` };
 }

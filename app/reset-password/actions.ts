@@ -54,19 +54,22 @@ export async function resetPasswordAction(
     return { error: "链接无效或已过期，请重新申请一封重置邮件" };
   }
 
-  const handle = payload.s;
+  const uid = parseInt(payload.s, 10);
+  if (!uid || isNaN(uid)) {
+    return { error: "链接无效" };
+  }
 
-  const fp = await getPasswordFingerprint(handle);
+  const fp = await getPasswordFingerprint(uid);
   if (!fp || fp !== payload.fp) {
     return { error: "链接已失效（密码已被修改），请重新申请" };
   }
 
-  const row = await getAccount(handle);
+  const row = await getAccount(uid);
   const user = row ? resolveFromRow(row) : null;
   if (!user || user.disabled) {
     return { error: "该账号当前无法登录，请联系管理员" };
   }
 
-  await setPassword(handle, parsed.data.password);
-  return { message: `密码已更新，现在可以用 ${handle} 登录了。` };
+  await setPassword(uid, parsed.data.password);
+  return { message: `密码已更新，现在可以用 ${user.username} 登录了。` };
 }

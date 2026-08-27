@@ -21,7 +21,8 @@ import {
   reportFailed,
 } from "./queue";
 
-const HANDLE = "runner-queue-alice";
+const USERNAME = "runner-queue-alice";
+let ACCOUNT_UID = 0;
 const CONTEST = "runner-queue-round";
 
 const BACKEND = "runner-queue-fixture";
@@ -42,7 +43,7 @@ async function enqueue(
 ): Promise<string> {
   await db.insert(submissions).values({
     id,
-    handle: HANDLE,
+    uid: ACCOUNT_UID,
     problemSlug: PROBLEM.slug,
     payload: PAYLOAD,
     backendId: BACKEND,
@@ -61,8 +62,11 @@ async function rowOf(id: string): Promise<typeof submissions.$inferSelect> {
 }
 
 async function cleanup(): Promise<void> {
-  await db.delete(submissions).where(eq(submissions.handle, HANDLE));
-  await db.delete(accounts).where(eq(accounts.handle, HANDLE));
+  const [existing] = await db.select({ uid: accounts.uid }).from(accounts).where(eq(accounts.username, USERNAME));
+  if (existing) {
+    await db.delete(submissions).where(eq(submissions.uid, existing.uid));
+    await db.delete(accounts).where(eq(accounts.uid, existing.uid));
+  }
   await db.delete(contests).where(eq(contests.slug, CONTEST));
   await db.delete(runners).where(eq(runners.backendId, BACKEND));
 }
@@ -75,14 +79,16 @@ describeDb("runner 领活与上报", () => {
       .insert(problems)
       .values({ slug: PROBLEM.slug, title: PROBLEM.title })
       .onConflictDoNothing();
-    await db
+    const [acct] = await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE });
+      .values({ username: USERNAME, nickname: USERNAME })
+      .returning({ uid: accounts.uid });
+    ACCOUNT_UID = acct.uid;
     await db.insert(contests).values({ slug: CONTEST, title: "Runner Fixture" });
   });
 
   beforeEach(async () => {
-    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
+    await db.delete(submissions).where(eq(submissions.uid, ACCOUNT_UID));
   });
 
   afterAll(cleanup);
@@ -163,7 +169,7 @@ describeDb("runner 领活与上报", () => {
         slug: PROBLEM.slug,
         config: PROBLEM.backend.config,
       });
-      expect(details?.user.handle).toBe(HANDLE);
+      expect(details?.user.uid).toBe(ACCOUNT_UID);
     });
 
     it("lease 不对就读不到内容，哪怕提交确实存在", async () => {
@@ -288,7 +294,7 @@ describeDb("runner 领活与上报", () => {
       const rows = await db
         .select({
           id: submissions.id,
-          handle: submissions.handle,
+          uid: submissions.uid,
           problemSlug: submissions.problemSlug,
           state: submissions.state,
           verdict: submissions.verdict,

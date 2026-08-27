@@ -62,7 +62,7 @@ const startedAt = Date.now();
 
 interface ActionRequestBody {
   action: string;
-  user: { handle: string; groups: readonly string[] };
+  user: { uid: number; groups: readonly string[] };
   problem: { slug: string; config?: unknown };
   contestSlug: string | null;
   payload: unknown;
@@ -161,7 +161,7 @@ async function work(backendId: string, ticket: JobTicket): Promise<void> {
   if (!details) return;
 
   console.log(
-    `领取 ${details.id} (${details.problem.slug}, ${details.user.handle}) on ${backendId}`,
+    `领取 ${details.id} (${details.problem.slug}, ${details.user.uid}) on ${backendId}`,
   );
 
   let status = "已领取";
@@ -303,7 +303,7 @@ function judgeCode(config: unknown, payload: unknown, say: Say): Verdict {
 
 interface Instance {
   id: string;
-  handle: string;
+  uid: number;
   endpoint: string;
   flag: string;
 
@@ -315,8 +315,8 @@ const instances = new Map<string, Instance>();
 
 const flagOwners = new Map<string, string>();
 
-function instanceKey(slug: string, handle: string): string {
-  return `${slug}:${handle}`;
+function instanceKey(slug: string, uid: number): string {
+  return `${slug}:${uid}`;
 }
 
 function dropInstance(key: string): void {
@@ -349,7 +349,7 @@ function liveInstance(key: string): Instance | undefined {
 }
 
 function spawnInstance(body: ActionRequestBody): Instance {
-  const key = instanceKey(body.problem.slug, body.user.handle);
+  const key = instanceKey(body.problem.slug, body.user.uid);
 
   const existing = liveInstance(key);
   if (existing) return existing;
@@ -359,7 +359,7 @@ function spawnInstance(body: ActionRequestBody): Instance {
   const port = 30000 + Math.floor(Math.random() * 5000);
   const instance: Instance = {
     id: randomUUID(),
-    handle: body.user.handle,
+    uid: body.user.uid,
     endpoint: `http://chal.foi.internal:${port}`,
     flag: `FOI{r4te_l1m1t_bypa55ed_${randomBytes(4).toString("hex")}}`,
     readyAt: Date.now() + SPAWN_DELAY_MS,
@@ -370,7 +370,7 @@ function spawnInstance(body: ActionRequestBody): Instance {
   flagOwners.set(instance.flag, key);
 
   console.log(
-    `  启动实例 ${body.problem.slug} for ${body.user.handle} -> ${instance.endpoint}`,
+    `  启动实例 ${body.problem.slug} for ${body.user.uid} -> ${instance.endpoint}`,
   );
   console.log(`    flag: ${instance.flag}`);
   return instance;
@@ -381,10 +381,10 @@ function judgeInstanceFlag(job: JobDetails): Verdict {
 
   const key = flagOwners.get(submitted);
   const owner = key ? liveInstance(key) : undefined;
-  const mine = owner?.handle === job.user.handle;
+  const mine = owner?.uid === job.user.uid;
 
   if (key && !mine) {
-    console.log(`  ${job.user.handle} 提交了属于他人的 flag（${key}），判错`);
+    console.log(`  ${job.user.uid} 提交了属于他人的 flag（${key}），判错`);
   }
 
   return {
@@ -803,7 +803,7 @@ const server = createServer(async (req, res) => {
 
     if (action === "poll") {
       const instance = liveInstance(
-        instanceKey(body.problem.slug, body.user.handle),
+        instanceKey(body.problem.slug, body.user.uid),
       );
       res.writeHead(200, { "content-type": "application/json" });
       res.end(
@@ -813,8 +813,8 @@ const server = createServer(async (req, res) => {
     }
 
     if (action === "destroy") {
-      dropInstance(instanceKey(body.problem.slug, body.user.handle));
-      console.log(`  销毁实例 ${body.problem.slug} for ${body.user.handle}`);
+      dropInstance(instanceKey(body.problem.slug, body.user.uid));
+      console.log(`  销毁实例 ${body.problem.slug} for ${body.user.uid}`);
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
       return;

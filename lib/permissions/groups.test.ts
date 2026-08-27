@@ -3,9 +3,9 @@ import {
   groupsFor,
   listRules,
   looseGroupWarnings,
-  rulesForHandle,
+  rulesForUid,
 } from "@/lib/enrollment/registry";
-import { isHandlesRule } from "@/lib/enrollment/types";
+import { isUidsRule } from "@/lib/enrollment/types";
 import {
   assertFlatImplications,
   capabilitiesOf,
@@ -119,11 +119,11 @@ describe("能力蕴含", () => {
   });
 });
 
-describe("只有列出 handles 的规则能授予带权限的用户组", () => {
+describe("只有列出 uid 的规则能授予带权限的用户组", () => {
   it("仓库里按邮箱匹配的规则都没有命中带权限的组", () => {
 
     for (const rule of listRules()) {
-      if (isHandlesRule(rule) || typeof rule.groups === "function") continue;
+      if (isUidsRule(rule) || typeof rule.groups === "function") continue;
       for (const id of rule.groups) {
         expect(isPrivileged(id)).toBe(false);
       }
@@ -136,27 +136,25 @@ describe("只有列出 handles 的规则能授予带权限的用户组", () => {
 
     const grantedSomewhere = listRules().some(
       (rule) =>
-        isHandlesRule(rule) && rule.groups.some((id) => privileged.has(id)),
+        isUidsRule(rule) && rule.groups.some((id) => privileged.has(id)),
     );
     expect(grantedSomewhere).toBe(true);
   });
 
   it("点名规则可以给出带权限的组——这是唯一的入口", () => {
     const privileged = new Set(privilegedGroupIds());
-    const viaHandles = listRules().flatMap((rule) =>
-      isHandlesRule(rule) ? rule.groups.filter((id) => privileged.has(id)) : [],
+    const viaUids = listRules().flatMap((rule) =>
+      isUidsRule(rule) ? rule.groups.filter((id) => privileged.has(id)) : [],
     );
 
-    expect(viaHandles.length).toBeGreaterThan(0);
+    expect(viaUids.length).toBeGreaterThan(0);
   });
 
-  it("被点名的 handle 全部无法注册——这正是它们能带权限的原因", () => {
+  it("被点名的 uid 会匹配到规则", () => {
     for (const rule of listRules()) {
-      if (!isHandlesRule(rule)) continue;
-      for (const handle of rule.handles) {
-        expect(rulesForHandle(handle)).toContain(rule);
-
-        expect(rulesForHandle(handle.toUpperCase())).toContain(rule);
+      if (!isUidsRule(rule)) continue;
+      for (const uid of rule.uids) {
+        expect(rulesForUid(uid)).toContain(rule);
       }
     }
   });
@@ -165,12 +163,12 @@ describe("只有列出 handles 的规则能授予带权限的用户组", () => {
     const privileged = new Set(privilegedGroupIds());
 
     for (const rule of listRules()) {
-      if (!isHandlesRule(rule)) continue;
+      if (!isUidsRule(rule)) continue;
       const conferred = rule.groups.filter((id) => privileged.has(id));
       if (conferred.length === 0) continue;
 
-      for (const handle of rule.handles) {
-        const withoutEmail = groupsFor(handle, null);
+      for (const uid of rule.uids) {
+        const withoutEmail = groupsFor(uid, null);
         for (const id of conferred) expect(withoutEmail).toContain(id);
       }
     }
@@ -183,7 +181,7 @@ describe("加组时的防呆", () => {
     const declared = new Set(declaredGroupIds());
     const fromPatterns = new Set(
       listRules().flatMap((rule) =>
-        isHandlesRule(rule) || typeof rule.groups === "function"
+        isUidsRule(rule) || typeof rule.groups === "function"
           ? []
           : rule.groups,
       ),
@@ -191,9 +189,9 @@ describe("加组时的防呆", () => {
 
     const uses = new Map<string, number>();
     for (const rule of listRules()) {
-      if (!isHandlesRule(rule)) continue;
+      if (!isUidsRule(rule)) continue;
       for (const id of rule.groups) {
-        uses.set(id, (uses.get(id) ?? 0) + rule.handles.length);
+        uses.set(id, (uses.get(id) ?? 0) + rule.uids.length);
       }
     }
 

@@ -34,8 +34,8 @@ export async function sendVerificationLink(email: string): Promise<void> {
 }
 
 export interface Recipient {
-  handle: string;
-  displayName: string;
+  uid: number;
+  nickname: string;
   email: string;
 }
 
@@ -45,7 +45,7 @@ export async function sendPasswordReset(
 ): Promise<void> {
   const token = issueToken({
     purpose: "password-reset",
-    subject: to.handle,
+    subject: String(to.uid),
     fingerprint: passwordFingerprint,
     ttlMs: RESET_TTL_MS,
   });
@@ -55,7 +55,7 @@ export async function sendPasswordReset(
   await deliver({
     to: to.email,
     ...emailTemplates.resetPassword({
-      displayName: to.displayName,
+      displayName: to.nickname,
       url: linkTo("/reset-password", token),
       expiresAt,
     }),
@@ -69,7 +69,7 @@ export async function sendEmailChangeLink(
 ): Promise<void> {
   const token = issueToken({
     purpose: "email-change",
-    subject: to.handle,
+    subject: String(to.uid),
     data: { newEmail },
     fingerprint: emailFingerprint,
     ttlMs: EMAIL_CHANGE_TTL_MS,
@@ -80,7 +80,7 @@ export async function sendEmailChangeLink(
   await deliver({
     to: newEmail,
     ...emailTemplates.emailChange({
-      displayName: to.displayName,
+      displayName: to.nickname,
       newEmail,
       url: linkTo("/settings/email/confirm", token),
       expiresAt,

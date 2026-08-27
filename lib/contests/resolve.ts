@@ -34,8 +34,8 @@ export function resolveContestProblems(
 }
 
 export interface ResolvedParticipant {
-  handle: string;
-  displayName: string;
+  uid: number;
+  nickname: string;
 }
 
 export async function resolveParticipants(
@@ -46,10 +46,10 @@ export async function resolveParticipants(
   const accounts = await accountSnapshot();
 
   if (contest.participants.mode === "list") {
-    return contest.participants.handles.flatMap((handle) => {
-      const account = accounts.get(handle.toLowerCase());
+    return contest.participants.uids.flatMap((uid) => {
+      const account = accounts.get(uid);
       return account && account.status === "active"
-        ? [{ handle: account.handle, displayName: account.displayName }]
+        ? [{ uid: account.uid, nickname: account.nickname }]
         : [];
     });
   }
@@ -58,9 +58,9 @@ export async function resolveParticipants(
   const matched: ResolvedParticipant[] = [];
   for (const account of accounts.values()) {
     if (account.status !== "active") continue;
-    if (!groupsFor(account.handle, account.email).includes(wanted)) continue;
-    matched.push({ handle: account.handle, displayName: account.displayName });
+    if (!groupsFor(account.uid, account.email).includes(wanted)) continue;
+    matched.push({ uid: account.uid, nickname: account.nickname });
   }
 
-  return matched.sort((a, b) => a.handle.localeCompare(b.handle));
+  return matched.sort((a, b) => a.uid - b.uid);
 }

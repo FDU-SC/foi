@@ -19,7 +19,7 @@ import type { AnyRuleset } from "./types";
 const freezing = listRulesets().filter((ruleset) => ruleset.supportsFreeze);
 
 const problems = [problem("a", "A"), problem("b", "B")];
-const submissions = [solve("alice", "a", 10), solve("alice", "b", 250)];
+const submissions = [solve(1, "a", 10), solve(1, "b", 250)];
 
 function board(ruleset: AnyRuleset, freezeAt: Date | null, now: Date) {
 
@@ -28,7 +28,7 @@ function board(ruleset: AnyRuleset, freezeAt: Date | null, now: Date) {
   try {
     return ruleset.computeStandings(
       input({
-        participants: participants("alice"),
+        participants: participants(1),
         problems,
         freezeAt,
         submissions,
@@ -63,7 +63,7 @@ describe("封榜的开关就是 freezeAt", () => {
       const afterEnd = board(ruleset, freezeAt, new Date(END.getTime() + 1));
 
       const shape = (b: ReturnType<typeof board>) =>
-        b.rows.map((row) => [row.participant.handle, row.total, row.tiebreak]);
+        b.rows.map((row) => [row.participant.uid, row.total, row.tiebreak]);
 
       expect(shape(bypassed)).toEqual(shape(afterEnd));
     },
@@ -96,7 +96,7 @@ describe("封榜窗口与比赛相位说的是同一个窗口", () => {
 describe("谁能看穿封榜", () => {
   it("选手不能", () => {
     expect(
-      viewerFor({ handle: "p", groups: [] }).can("standings.viewFrozen"),
+      viewerFor({ uid: 1, groups: [] }).can("standings.viewFrozen"),
     ).toBe(false);
     expect(AS_PLAYER.can("standings.viewFrozen")).toBe(false);
   });
@@ -104,13 +104,13 @@ describe("谁能看穿封榜", () => {
   it("持有这项能力的组能", () => {
     const group = groupWith("standings.viewFrozen");
     expect(
-      viewerFor({ handle: "a", groups: [group] }).can("standings.viewFrozen"),
+      viewerFor({ uid: 2, groups: [group] }).can("standings.viewFrozen"),
     ).toBe(true);
   });
 
   it("每个组是否能穿透，看它声明的能力加上蕴含出来的", () => {
     for (const group of listGroups()) {
-      const viewer = viewerFor({ handle: "x", groups: [group.id] });
+      const viewer = viewerFor({ uid: 3, groups: [group.id] });
       const declared = group.capabilities as readonly string[];
       expect(viewer.can("standings.viewFrozen")).toBe(
         declared.includes("standings.viewFrozen") ||

@@ -4,7 +4,7 @@ import { backends } from "@/lib/backend/registry";
 import { externallyJudged } from "@/lib/problems/registry";
 
 const session = vi.hoisted(() => ({
-  user: null as { handle: string; groups: string[] } | null,
+  user: null as { uid: number; groups: string[] } | null,
 }));
 
 vi.mock("@/auth", () => ({
@@ -21,7 +21,7 @@ const target = externallyJudged().find(
 let calls = 0;
 
 function post(slug: string, action: string): Promise<Response> {
-  session.user = { handle: `caller-${++calls}`, groups: ["一个普通分组"] };
+  session.user = { uid: ++calls, groups: ["一个普通分组"] };
 
   const request = new Request(
     `http://localhost:3000/api/problems/${slug}/action/${action}`,

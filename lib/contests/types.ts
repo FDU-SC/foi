@@ -33,7 +33,7 @@ const participantsSchema = z
     z.object({ mode: z.literal("group"), group: z.string().min(1) }),
     z.object({
       mode: z.literal("list"),
-      handles: z.array(z.string().min(1)).min(1),
+      uids: z.array(z.number().int().positive()).min(1),
     }),
   ])
   .default({ mode: "open" });

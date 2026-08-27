@@ -12,11 +12,8 @@ export function at(minutes: number): Date {
   return new Date(START.getTime() + minutes * 60_000);
 }
 
-export function participants(...handles: string[]): Participant[] {
-  return handles.map((handle) => ({
-    handle,
-    displayName: handle.toUpperCase(),
-  }));
+export function participants(...uids: number[]): Participant[] {
+  return uids.map((uid) => ({ uid, nickname: `user-${uid}` }));
 }
 
 export function problem(
@@ -30,7 +27,7 @@ export function problem(
 let counter = 0;
 
 export function submission(options: {
-  handle: string;
+  uid: number;
   problemSlug: string;
   minutes: number;
   score: number;
@@ -43,7 +40,7 @@ export function submission(options: {
   const outcome = options.score >= maxScore ? "accepted" : "wrong_answer";
   return {
     id: `sub_${(counter += 1)}`,
-    handle: options.handle,
+    uid: options.uid,
     problemSlug: options.problemSlug,
     state,
     verdict:
@@ -58,29 +55,29 @@ export function submission(options: {
 }
 
 export function solve(
-  handle: string,
+  uid: number,
   problemSlug: string,
   minutes: number,
 ): SubmissionRecord {
-  return submission({ handle, problemSlug, minutes, score: 100 });
+  return submission({ uid, problemSlug, minutes, score: 100 });
 }
 
 export function fail(
-  handle: string,
+  uid: number,
   problemSlug: string,
   minutes: number,
   score = 0,
 ): SubmissionRecord {
-  return submission({ handle, problemSlug, minutes, score });
+  return submission({ uid, problemSlug, minutes, score });
 }
 
 export function unjudged(
-  handle: string,
+  uid: number,
   problemSlug: string,
   minutes: number,
   state: Exclude<SubmissionRecord["state"], "completed"> = "queued",
 ): SubmissionRecord {
-  return submission({ handle, problemSlug, minutes, score: 0, state });
+  return submission({ uid, problemSlug, minutes, score: 0, state });
 }
 
 export function input(options: {

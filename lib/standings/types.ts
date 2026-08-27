@@ -13,13 +13,13 @@ export interface ContestProblem {
 
 export interface Participant {
 
-  handle: string;
-  displayName: string;
+  uid: number;
+  nickname: string;
 }
 
 export interface SubmissionRecord {
   id: string;
-  handle: string;
+  uid: number;
   problemSlug: string;
   state: SubmissionState;
   verdict: Verdict | null;

@@ -44,7 +44,7 @@ async function loadAndCompute(
   const submissionRows = await db
     .select({
       id: submissions.id,
-      handle: submissions.handle,
+      uid: submissions.uid,
       problemSlug: submissions.problemSlug,
       state: submissions.state,
       verdict: submissions.verdict,
@@ -52,10 +52,10 @@ async function loadAndCompute(
       maxScore: submissions.maxScore,
       accepted: submissions.accepted,
       createdAt: submissions.createdAt,
-      displayName: accounts.displayName,
+      nickname: accounts.nickname,
     })
     .from(submissions)
-    .innerJoin(accounts, eq(accounts.handle, submissions.handle))
+    .innerJoin(accounts, eq(accounts.uid, submissions.uid))
     .where(eq(submissions.contestSlug, contest.slug))
     .orderBy(asc(submissions.createdAt));
 
@@ -65,8 +65,8 @@ async function loadAndCompute(
     declared === null
       ? deriveParticipants(submissionRows)
       : declared.map((entrant) => ({
-          handle: entrant.handle,
-          displayName: entrant.displayName,
+          uid: entrant.uid,
+          nickname: entrant.nickname,
         }));
 
   const freezeAt = ignoreFreeze ? null : (contest.freezeAt ?? null);
@@ -96,14 +96,14 @@ async function loadAndCompute(
 }
 
 function deriveParticipants(
-  rows: { handle: string; displayName: string }[],
+  rows: { uid: number; nickname: string }[],
 ): Participant[] {
-  const seen = new Map<string, Participant>();
+  const seen = new Map<number, Participant>();
   for (const row of rows) {
-    if (seen.has(row.handle)) continue;
-    seen.set(row.handle, {
-      handle: row.handle,
-      displayName: row.displayName,
+    if (seen.has(row.uid)) continue;
+    seen.set(row.uid, {
+      uid: row.uid,
+      nickname: row.nickname,
     });
   }
   return [...seen.values()];

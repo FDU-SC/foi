@@ -7,7 +7,7 @@ import { signIn } from "@/auth";
 import { findAccountByEmail } from "@/lib/accounts/queries";
 import {
   emailSchema,
-  handleSchema,
+  usernameSchema,
   normalizeEmail,
 } from "@/lib/accounts/types";
 import {
@@ -74,8 +74,8 @@ export interface RegisterState {
 
 const schema = z
   .object({
-    handle: handleSchema,
-    displayName: z.string().trim().min(1, "请填写显示名").max(64, "显示名过长"),
+    username: usernameSchema,
+    nickname: z.string().trim().min(1, "请填写昵称").max(64, "昵称过长"),
     email: emailSchema,
     password: z.string().min(8, "密码至少 8 位"),
     confirm: z.string(),
@@ -86,12 +86,11 @@ const schema = z
     message: "两次输入的密码不一致",
   });
 
-const HANDLE_UNAVAILABLE = "这个用户名不可用，换一个试试。";
+const USERNAME_UNAVAILABLE = "这个用户名不可用，换一个试试。";
 
 const REJECTIONS: Record<RegisterRejection, string> = {
   disabled: "当前未开放注册。",
-  "handle-taken": HANDLE_UNAVAILABLE,
-  "handle-reserved": HANDLE_UNAVAILABLE,
+  "username-taken": USERNAME_UNAVAILABLE,
   "email-domain": "这个邮箱域名不在允许注册的范围内。",
   "email-taken": "这个邮箱已经注册过了。如果是你本人，请用「找回密码」。",
   "email-unverified": "验证链接无效或已过期，请重新获取。",
@@ -104,8 +103,8 @@ export async function registerAction(
   if (!enrollmentPolicy.enabled) return { error: REJECTIONS.disabled };
 
   const parsed = schema.safeParse({
-    handle: formData.get("handle"),
-    displayName: formData.get("displayName"),
+    username: formData.get("username"),
+    nickname: formData.get("nickname"),
     email: formData.get("email"),
     password: formData.get("password"),
     confirm: formData.get("confirm"),
@@ -130,7 +129,7 @@ export async function registerAction(
 
   try {
     await signIn("credentials", {
-      handle: result.handle,
+      identifier: result.username,
       password: parsed.data.password,
       redirectTo: "/",
     });

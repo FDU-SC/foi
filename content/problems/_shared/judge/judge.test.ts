@@ -9,7 +9,7 @@ import { judgeLifeOscillator } from "./life-oscillator";
 import { judgeOutputOnly } from "./output-only";
 import { judgeRoulette } from "./roulette";
 
-const USER: BackendUser = { handle: "alice", groups: [] };
+const USER: BackendUser = { uid: 1, groups: [] };
 
 const CASE_COUNTS = [2, 3, 12, 14, 17];
 
@@ -190,8 +190,8 @@ describe("judgeRoulette", () => {
   it("不同选手同一天拿到各自的轮盘", () => {
     vi.stubEnv("AUTH_SECRET", "roulette-test-key-0123456789");
 
-    const spins = ["alice", "bob", "carol", "dave", "erin", "frank"].map(
-      (handle) => spin({ handle, groups: [] }),
+    const spins = [1, 2, 3, 4, 5, 6].map(
+      (uid) => spin({ uid, groups: [] }),
     );
 
     expect(new Set(spins).size).toBeGreaterThan(1);
@@ -207,13 +207,13 @@ describe("judgeRoulette", () => {
 
   it("换一把密钥，结果就完全不同——说明它不是只由日期决定的", () => {
     vi.stubEnv("AUTH_SECRET", "key-one-0123456789abcdef");
-    const first = ["a", "b", "c", "d", "e", "f"].map((h) =>
-      spin({ handle: h, groups: [] }),
+    const first = [1, 2, 3, 4, 5, 6].map((uid) =>
+      spin({ uid, groups: [] }),
     );
 
     vi.stubEnv("AUTH_SECRET", "key-two-0123456789abcdef");
-    const second = ["a", "b", "c", "d", "e", "f"].map((h) =>
-      spin({ handle: h, groups: [] }),
+    const second = [1, 2, 3, 4, 5, 6].map((uid) =>
+      spin({ uid, groups: [] }),
     );
 
     expect(first).not.toEqual(second);

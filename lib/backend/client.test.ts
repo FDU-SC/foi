@@ -39,7 +39,7 @@ describe("交互端点响应的 content-type 白名单", () => {
   const backend = () => resolveBackend(Object.keys(backends)[0]);
   const request = {
     action: "some-action",
-    user: { handle: "alice", groups: [] },
+    user: { uid: 1, groups: [] },
     problem: { slug: "some-problem", config: {} },
     contestSlug: null,
     payload: null,
@@ -125,7 +125,7 @@ describe("后端响应的字节上限", () => {
     await expect(
       callBackendAction(backend(), {
         action: "some-action",
-        user: { handle: "alice", groups: [] },
+        user: { uid: 1, groups: [] },
         problem: { slug: "some-problem", config: {} },
         contestSlug: null,
         payload: null,
@@ -141,7 +141,7 @@ describe("出站请求不跟随重定向", () => {
   const backend = () => resolveBackend(Object.keys(backends)[0]);
   const request = {
     action: "some-action",
-    user: { handle: "alice", groups: [] },
+    user: { uid: 1, groups: [] },
     problem: { slug: "some-problem", config: {} },
     contestSlug: null,
     payload: null,
@@ -247,7 +247,7 @@ describe("出站请求签的是它实际发出的 method 与 path", () => {
 
     await callBackendAction(resolveBackend(backendId), {
       action: "some-action",
-      user: { handle: "alice", groups: [] },
+      user: { uid: 1, groups: [] },
       problem: { slug: "some-problem", config: {} },
       contestSlug: null,
       payload: null,

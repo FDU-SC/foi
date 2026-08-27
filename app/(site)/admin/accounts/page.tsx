@@ -71,15 +71,15 @@ export default async function AdminAccountsPage({
   const { accounts: rows, lastSuspensionEvents } = directory;
 
   const query = typeof params.q === "string" ? params.q.trim().toLowerCase() : "";
-  const byHandle = new Map(rows.map((row) => [row.handle, row]));
+  const byUid = new Map(rows.map((row) => [row.uid, row]));
 
   const accounts = rows
     .map(resolveFromRow)
     .filter(
       (account) =>
         query.length === 0 ||
-        account.handle.includes(query) ||
-        account.displayName.toLowerCase().includes(query) ||
+        account.username.toLowerCase().includes(query) ||
+        account.nickname.toLowerCase().includes(query) ||
         (account.email?.includes(query) ?? false) ||
         account.groups.some((group) => group.toLowerCase().includes(query)),
     );
@@ -166,14 +166,14 @@ export default async function AdminAccountsPage({
           </thead>
           <tbody className="divide-border divide-y">
             {accounts.map((account) => {
-              const row = byHandle.get(account.handle);
+              const row = byUid.get(account.uid);
               const status = STATUS[account.status];
               return (
-                <tr key={account.handle} className="hover:bg-surface-2/60">
+                <tr key={account.uid} className="hover:bg-surface-2/60">
                   <td className="text-fg px-4 py-2.5 font-mono text-xs">
-                    {account.handle}
+                    {account.username}
                   </td>
-                  <td className="text-fg px-4 py-2.5">{account.displayName}</td>
+                  <td className="text-fg px-4 py-2.5">{account.nickname}</td>
 
                   <td className="px-4 py-2.5">
                     {account.email ? (
@@ -186,7 +186,7 @@ export default async function AdminAccountsPage({
                   </td>
                   <td className="px-4 py-2.5">
                     <Badge tone={status.tone}>{status.label}</Badge>
-                    <ModerationNote row={row} lastEvent={lastSuspensionEvents.get(account.handle)} />
+                    <ModerationNote row={row} lastEvent={lastSuspensionEvents.get(account.uid)} />
                   </td>
                   <td className="px-4 py-2.5">
                     {account.groups.length === 0 ? (
@@ -218,14 +218,15 @@ export default async function AdminAccountsPage({
                       <div className="flex flex-col items-end gap-1.5">
                         {canManage && !account.disabled ? (
                           <ResendResetForm
-                            handle={account.handle}
+                            uid={account.uid}
                             hasPassword={row?.passwordSetAt != null}
                           />
                         ) : null}
 
                         {canModerate && !hasPrivilege(account.groups) ? (
                           <ModerateForm
-                            handle={account.handle}
+                            uid={account.uid}
+                            username={account.username}
                             suspended={account.status === "suspended"}
                           />
                         ) : null}

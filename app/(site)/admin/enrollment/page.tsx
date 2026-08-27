@@ -6,7 +6,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { getViewer } from "@/auth";
 import { enrollmentViewFor } from "@/lib/admin/access";
 import { groupName, isPrivileged } from "@/lib/permissions/groups";
-import { isHandlesRule } from "@/lib/enrollment/types";
+import { isUidsRule } from "@/lib/enrollment/types";
 
 export const metadata: Metadata = { title: "分流规则" };
 export const dynamic = "force-dynamic";
@@ -89,8 +89,8 @@ export default async function AdminEnrollmentPage() {
         <CardHeader title="分流规则" />
         <CardBody className="space-y-3">
           <p className="text-fg-muted text-sm leading-6">
-            规则有两种形态，形态决定了它能不能发权限。按邮箱匹配的规则一条覆盖一整届，但发不出带权限的组——正则覆盖的地址是无穷的，注册时无法预留，写错一位数就会把权限发给一片人。列出
-            handles 的规则可以发权限，因为有限的名单能被预留：注册流程会拒绝这些用户名，所以规则命中就意味着这个人正是仓库指的那个人。
+            规则有两种形态，形态决定了它能不能发权限。按邮箱匹配的规则一条覆盖一整届，但发不出带权限的组——正则覆盖的地址是无穷的，写错一位数就会把权限发给一片人。列出
+            uid 的规则可以发权限，因为 uid 是不可变的唯一标识，命中就意味着这个人正是仓库指的那个人。
           </p>
           {rules.length === 0 ? (
             <p className="text-fg-muted text-sm leading-6">
@@ -124,8 +124,8 @@ export default async function AdminEnrollmentPage() {
                         {rule.label}
                       </td>
                       <td className="text-fg-muted px-3 py-2 align-top font-mono text-xs break-all">
-                        {isHandlesRule(rule)
-                          ? rule.handles.join("、")
+                        {isUidsRule(rule)
+                          ? rule.uids.join("、")
                           : String(rule.email)}
                       </td>
                       <td className="px-3 py-2 align-top">
@@ -172,8 +172,8 @@ export default async function AdminEnrollmentPage() {
             </p>
           ) : (
             <p className="text-fg-subtle text-xs leading-5">
-              命中数标黄说明这条规则一个人也没匹配上。邮箱规则多半是位数没跟真实学号对齐；handles
-              规则则是用户名拼错了，或者那个人还没注册。
+              命中数标黄说明这条规则一个人也没匹配上。邮箱规则多半是位数没跟真实学号对齐；uid
+              规则则是 uid 填错了，或者那个人还没注册。
             </p>
           )}
           {untagged !== null && untagged > 0 ? (

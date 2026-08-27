@@ -1,5 +1,5 @@
 {
-  "id": "9662db2d-442e-442b-b5c9-1ae34103b0a4",
+  "id": "daf0e6b9-4610-4166-bc56-c4e2f466d304",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -14,9 +14,9 @@
           "primaryKey": true,
           "notNull": true
         },
-        "handle": {
-          "name": "handle",
-          "type": "text",
+        "uid": {
+          "name": "uid",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -28,7 +28,7 @@
         },
         "performed_by": {
           "name": "performed_by",
-          "type": "text",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -47,11 +47,11 @@
         }
       },
       "indexes": {
-        "account_suspensions_handle_idx": {
-          "name": "account_suspensions_handle_idx",
+        "account_suspensions_uid_idx": {
+          "name": "account_suspensions_uid_idx",
           "columns": [
             {
-              "expression": "handle",
+              "expression": "uid",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -70,15 +70,15 @@
         }
       },
       "foreignKeys": {
-        "account_suspensions_handle_accounts_handle_fk": {
-          "name": "account_suspensions_handle_accounts_handle_fk",
+        "account_suspensions_uid_accounts_uid_fk": {
+          "name": "account_suspensions_uid_accounts_uid_fk",
           "tableFrom": "account_suspensions",
           "tableTo": "accounts",
           "columnsFrom": [
-            "handle"
+            "uid"
           ],
           "columnsTo": [
-            "handle"
+            "uid"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -94,14 +94,31 @@
       "name": "accounts",
       "schema": "",
       "columns": {
-        "handle": {
-          "name": "handle",
-          "type": "text",
+        "uid": {
+          "name": "uid",
+          "type": "integer",
           "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "accounts_uid_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "username": {
+          "name": "username",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true
         },
-        "display_name": {
-          "name": "display_name",
+        "nickname": {
+          "name": "nickname",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -147,6 +164,21 @@
         }
       },
       "indexes": {
+        "accounts_username_key": {
+          "name": "accounts_username_key",
+          "columns": [
+            {
+              "expression": "lower(\"username\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "accounts_email_key": {
           "name": "accounts_email_key",
           "columns": [
@@ -384,9 +416,9 @@
           "primaryKey": true,
           "notNull": true
         },
-        "handle": {
-          "name": "handle",
-          "type": "text",
+        "uid": {
+          "name": "uid",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -520,7 +552,7 @@
               "nulls": "last"
             },
             {
-              "expression": "handle",
+              "expression": "uid",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -575,11 +607,11 @@
           "method": "btree",
           "with": {}
         },
-        "submissions_handle_idx": {
-          "name": "submissions_handle_idx",
+        "submissions_uid_idx": {
+          "name": "submissions_uid_idx",
           "columns": [
             {
-              "expression": "handle",
+              "expression": "uid",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -600,7 +632,7 @@
           "name": "submissions_client_nonce_key",
           "columns": [
             {
-              "expression": "handle",
+              "expression": "uid",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -619,15 +651,15 @@
         }
       },
       "foreignKeys": {
-        "submissions_handle_accounts_handle_fk": {
-          "name": "submissions_handle_accounts_handle_fk",
+        "submissions_uid_accounts_uid_fk": {
+          "name": "submissions_uid_accounts_uid_fk",
           "tableFrom": "submissions",
           "tableTo": "accounts",
           "columnsFrom": [
-            "handle"
+            "uid"
           ],
           "columnsTo": [
-            "handle"
+            "uid"
           ],
           "onDelete": "restrict",
           "onUpdate": "no action"

@@ -1,13 +1,13 @@
 import { z } from "zod";
 import type { AccountStatus } from "@/lib/db/schema";
 
-const HANDLE_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const USERNAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
-export const handleSchema = z
+export const usernameSchema = z
   .string()
   .min(2, "用户名至少 2 个字符")
   .max(32, "用户名最多 32 个字符")
-  .regex(HANDLE_PATTERN, "用户名只能包含字母、数字、下划线和连字符");
+  .regex(USERNAME_PATTERN, "用户名只能包含字母、数字、下划线和连字符");
 
 export const emailSchema = z
   .string()
@@ -16,8 +16,8 @@ export const emailSchema = z
   .max(254)
   .pipe(z.email("请填写有效的邮箱地址"));
 
-export function normalizeHandle(handle: string): string {
-  return handle.trim().toLowerCase();
+export function normalizeUsername(username: string): string {
+  return username.trim().toLowerCase();
 }
 
 export function normalizeEmail(
@@ -36,8 +36,9 @@ export function normalizeEmail(
 }
 
 export interface ResolvedUser {
-  handle: string;
-  displayName: string;
+  uid: number;
+  username: string;
+  nickname: string;
   email: string | null;
   emailVerified: boolean;
   groups: string[];

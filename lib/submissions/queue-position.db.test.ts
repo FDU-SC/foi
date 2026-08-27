@@ -6,7 +6,8 @@ import { externallyJudged } from "@/lib/problems/registry";
 import { MAX_ATTEMPTS } from "@/lib/runner/queue";
 import { locateInQueues, locateOne } from "./queue-position";
 
-const HANDLE = "queue-lookup-alice";
+const USERNAME = "queue-lookup-alice";
+let ACCOUNT_UID = 0;
 
 const BACKEND = "queue-lookup-fixture";
 
@@ -22,7 +23,7 @@ async function enqueue(
 ): Promise<string> {
   await db.insert(submissions).values({
     id,
-    handle: HANDLE,
+    uid: ACCOUNT_UID,
     problemSlug: PROBLEM.slug,
     payload: {},
     backendId: BACKEND,
@@ -35,8 +36,11 @@ async function enqueue(
 const ago = (ms: number): Date => new Date(Date.now() - ms);
 
 async function cleanup(): Promise<void> {
-  await db.delete(submissions).where(eq(submissions.handle, HANDLE));
-  await db.delete(accounts).where(eq(accounts.handle, HANDLE));
+  const [existing] = await db.select({ uid: accounts.uid }).from(accounts).where(eq(accounts.username, USERNAME));
+  if (existing) {
+    await db.delete(submissions).where(eq(submissions.uid, existing.uid));
+    await db.delete(accounts).where(eq(accounts.uid, existing.uid));
+  }
 }
 
 describeDb("排队位次", () => {
@@ -46,13 +50,15 @@ describeDb("排队位次", () => {
       .insert(problems)
       .values({ slug: PROBLEM.slug, title: PROBLEM.title })
       .onConflictDoNothing();
-    await db
+    const [acct] = await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE });
+      .values({ username: USERNAME, nickname: USERNAME })
+      .returning({ uid: accounts.uid });
+    ACCOUNT_UID = acct.uid;
   });
 
   beforeEach(async () => {
-    await db.delete(submissions).where(eq(submissions.handle, HANDLE));
+    await db.delete(submissions).where(eq(submissions.uid, ACCOUNT_UID));
   });
 
   afterAll(cleanup);

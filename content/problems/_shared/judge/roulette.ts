@@ -29,7 +29,7 @@ export const judgeRoulette: InlineJudge = ({ payload, config, user }) => {
   }
 
   const digest = createHmac("sha256", secret)
-    .update(`roulette|${user.handle}|${today(new Date())}`)
+    .update(`roulette|${user.uid}|${today(new Date())}`)
     .digest();
 
   const number = digest.readUInt32BE(0) % 37;

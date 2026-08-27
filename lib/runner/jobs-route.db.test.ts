@@ -16,7 +16,8 @@ import { accounts, judgingSessions, problems, submissions } from "@/lib/db/schem
 import { externalProblem } from "@/test/content-shapes";
 import { jobPath } from "./auth";
 
-const HANDLE = "runner-route-alice";
+const USERNAME = "runner-route-alice";
+let ACCOUNT_UID = 0;
 
 const PROBLEM = externalProblem();
 const BACKEND = PROBLEM.backend.id;
@@ -35,7 +36,7 @@ const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
 async function holding(id: string, lease: string): Promise<string> {
   await db.insert(submissions).values({
     id,
-    handle: HANDLE,
+    uid: ACCOUNT_UID,
     problemSlug: PROBLEM.slug,
     payload: PAYLOAD,
     backendId: BACKEND,
@@ -129,8 +130,10 @@ async function rowOf(id: string): Promise<typeof submissions.$inferSelect> {
 }
 
 async function cleanup(): Promise<void> {
-  await db.delete(submissions).where(eq(submissions.handle, HANDLE));
-  await db.delete(accounts).where(eq(accounts.handle, HANDLE));
+  if (ACCOUNT_UID) {
+    await db.delete(submissions).where(eq(submissions.uid, ACCOUNT_UID));
+    await db.delete(accounts).where(eq(accounts.uid, ACCOUNT_UID));
+  }
 }
 
 describeDb("评测机作业接口", () => {
@@ -143,9 +146,11 @@ describeDb("评测机作业接口", () => {
       .insert(problems)
       .values({ slug: PROBLEM.slug, title: PROBLEM.title })
       .onConflictDoNothing();
-    await db
+    const [acct] = await db
       .insert(accounts)
-      .values({ handle: HANDLE, displayName: HANDLE });
+      .values({ username: USERNAME, nickname: USERNAME })
+      .returning({ uid: accounts.uid });
+    ACCOUNT_UID = acct.uid;
 
     await holding("sub_jr_mine", "lease-held-by-me");
     await holding("sub_jr_theirs", "lease-held-by-somebody-else");
@@ -166,7 +171,7 @@ describeDb("评测机作业接口", () => {
       id: "sub_jr_mine",
       payload: PAYLOAD,
       problem: { slug: PROBLEM.slug },
-      user: { handle: HANDLE },
+      user: { uid: ACCOUNT_UID },
     });
   });
 

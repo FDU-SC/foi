@@ -44,9 +44,9 @@ export function RegisterForm({
         邮箱已验证，请填写以下信息完成注册。
       </FormMessage>
 
-      <Field label="用户名" hint="2-32 位字母、数字、下划线或连字符，注册后不可更改">
+      <Field label="用户名" hint="2-32 位字母、数字、下划线或连字符">
         <Input
-          name="handle"
+          name="username"
           autoComplete="username"
           autoFocus
           required
@@ -57,8 +57,8 @@ export function RegisterForm({
         />
       </Field>
 
-      <Field label="显示名" hint="排行榜上展示的名字">
-        <Input name="displayName" autoComplete="name" required maxLength={64} />
+      <Field label="昵称" hint="排行榜上展示的名字">
+        <Input name="nickname" autoComplete="name" required maxLength={64} />
       </Field>
 
       <Field label="邮箱">

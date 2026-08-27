@@ -4,7 +4,6 @@ import {
   type AccountDirectory,
 } from "@/lib/accounts/access";
 import { listAccounts } from "@/lib/accounts/queries";
-import { normalizeHandle } from "@/lib/accounts/types";
 import { allContests } from "@/lib/contests/registry";
 import { resolveParticipants } from "@/lib/contests/resolve";
 import type { ContestConfig } from "@/lib/contests/types";
@@ -15,7 +14,7 @@ import {
   tallyCohorts,
 } from "@/lib/enrollment/registry";
 import {
-  isHandlesRule,
+  isUidsRule,
   type EnrollmentPolicy,
   type EnrollmentRule,
 } from "@/lib/enrollment/types";
@@ -86,15 +85,13 @@ export async function enrollmentViewFor(
 
   const { counts: groupCounts, untagged } = tallyCohorts(active);
 
-  const activeHandles = new Set(active.map((row) => row.handle));
+  const activeUids = new Set(active.map((row) => row.uid));
 
   return {
     ...base,
     ruleMatches: rules.map((rule) =>
-      isHandlesRule(rule)
-        ? rule.handles.filter((handle) =>
-            activeHandles.has(normalizeHandle(handle)),
-          ).length
+      isUidsRule(rule)
+        ? rule.uids.filter((uid) => activeUids.has(uid)).length
         : active.filter((row) => row.email && rule.email.test(row.email)).length,
     ),
     groupCounts,

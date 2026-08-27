@@ -1,5 +1,4 @@
 import { contestModules } from "@/content/contest-modules";
-import { handleSchema, normalizeHandle } from "@/lib/accounts/types";
 import { knownGroups } from "@/lib/enrollment/registry";
 import { audienceCovers, describeAudience } from "@/lib/permissions/audience";
 import { problemBySlug } from "@/lib/problems/registry";
@@ -105,27 +104,16 @@ export function contestWarnings(): string[] {
 
     if (participants.mode !== "list") continue;
 
-    const malformed = participants.handles.filter(
-      (handle) => !handleSchema.safeParse(handle.trim()).success,
-    );
-    if (malformed.length > 0) {
-      warnings.push(
-        `比赛 "${contest.slug}" 的参赛名单里有不可能属于任何账号的 handle：${malformed.join("、")}。` +
-          `用户名只能包含字母、数字、下划线和连字符，长度 2–32，所以这些条目永远不会匹配到人。`,
-      );
-    }
-
-    const seen = new Set<string>();
-    const duplicated = new Set<string>();
-    for (const handle of participants.handles) {
-      const normalised = normalizeHandle(handle);
-      if (seen.has(normalised)) duplicated.add(normalised);
-      else seen.add(normalised);
+    const seen = new Set<number>();
+    const duplicated = new Set<number>();
+    for (const uid of participants.uids) {
+      if (seen.has(uid)) duplicated.add(uid);
+      else seen.add(uid);
     }
     if (duplicated.size > 0) {
       warnings.push(
-        `比赛 "${contest.slug}" 的参赛名单里有重复的 handle：${[...duplicated].join("、")}。` +
-          `名单比对不区分大小写，重复的条目只算一个人。`,
+        `比赛 "${contest.slug}" 的参赛名单里有重复的 uid：${[...duplicated].join("、")}。` +
+          `重复的条目只算一个人。`,
       );
     }
   }

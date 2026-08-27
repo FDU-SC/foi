@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   const rule = ROUTE_LIMITS["GET /api/judges/status"];
   const limited = rateLimit(
-    `judges:${user.handle}`,
+    `judges:${user.uid}`,
     rule.max,
     rule.windowSeconds * 1000,
   );

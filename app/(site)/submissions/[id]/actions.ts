@@ -26,7 +26,7 @@ export async function rejudgeSubmissionAction(
 
   const rule = ACTION_LIMITS.rejudgeSubmissionAction;
   const limited = rateLimit(
-    `rejudge:${actor.handle}`,
+    `rejudge:${actor.uid}`,
     rule.max,
     rule.windowSeconds * 1000,
   );

@@ -15,7 +15,7 @@ export async function login(
 
   try {
     await signIn("credentials", {
-      handle: String(formData.get("handle") ?? ""),
+      identifier: String(formData.get("identifier") ?? ""),
       password: String(formData.get("password") ?? ""),
 
       redirectTo: next.startsWith("/") && !next.startsWith("//") ? next : "/",

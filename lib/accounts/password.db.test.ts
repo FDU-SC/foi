@@ -9,7 +9,8 @@ import {
   verifyPassword,
 } from "./password";
 
-const HANDLE = "credtest";
+const USERNAME = "credtest";
+let ACCOUNT_UID = 0;
 const PASSWORD = "correct-horse-battery";
 
 async function reachable(): Promise<boolean> {
@@ -29,66 +30,72 @@ if (!online) {
 }
 
 async function signIn(password: string): Promise<number | null> {
-  const check = await verifyPassword(HANDLE, password);
+  const check = await verifyPassword(ACCOUNT_UID, password);
   return check.ok ? check.setAt.getTime() : null;
 }
 
 async function stillValid(passwordAt: number): Promise<boolean> {
-  return sessionMatchesPassword(await passwordSetAt(HANDLE), passwordAt);
+  return sessionMatchesPassword(await passwordSetAt(ACCOUNT_UID), passwordAt);
+}
+
+async function cleanup(): Promise<void> {
+  if (ACCOUNT_UID) {
+    await db.delete(accounts).where(eq(accounts.uid, ACCOUNT_UID));
+  } else {
+    await db.delete(accounts).where(eq(accounts.username, USERNAME));
+  }
 }
 
 describeDb("password", () => {
   beforeEach(async () => {
-    await db.delete(accounts).where(eq(accounts.handle, HANDLE));
-    await db.insert(accounts).values({
-      handle: HANDLE,
-      displayName: "Credential Test",
-    });
-    await setPassword(HANDLE, PASSWORD);
+    await cleanup();
+    const [acct] = await db
+      .insert(accounts)
+      .values({ username: USERNAME, nickname: "Credential Test" })
+      .returning({ uid: accounts.uid });
+    ACCOUNT_UID = acct.uid;
+    await setPassword(ACCOUNT_UID, PASSWORD);
   });
 
-  afterAll(async () => {
-    await db.delete(accounts).where(eq(accounts.handle, HANDLE));
-  });
+  afterAll(cleanup);
 
   it("密码正确时给出该行的 passwordSetAt", async () => {
-    const check = await verifyPassword(HANDLE, PASSWORD);
+    const check = await verifyPassword(ACCOUNT_UID, PASSWORD);
 
     expect(check.ok).toBe(true);
     if (check.ok) {
-      expect(check.setAt).toEqual(await passwordSetAt(HANDLE));
+      expect(check.setAt).toEqual(await passwordSetAt(ACCOUNT_UID));
     }
   });
 
   it("密码错误时不给 passwordSetAt", async () => {
-    await expect(verifyPassword(HANDLE, "wrong")).resolves.toEqual({
+    await expect(verifyPassword(ACCOUNT_UID, "wrong")).resolves.toEqual({
       ok: false,
     });
   });
 
-  it("没有账号的 handle 也返回 ok: false", async () => {
-    await expect(verifyPassword("nobody-here", PASSWORD)).resolves.toEqual({
+  it("没有账号的 uid 也返回 ok: false", async () => {
+    await expect(verifyPassword(999999, PASSWORD)).resolves.toEqual({
       ok: false,
     });
-    await expect(passwordSetAt("nobody-here")).resolves.toBeNull();
+    await expect(passwordSetAt(999999)).resolves.toBeNull();
   });
 
   it("给不存在的账号设密码会抛错，而不是静默地什么都没改", async () => {
-    await expect(setPassword("nobody-here", PASSWORD)).rejects.toThrow(
-      "nobody-here",
-    );
+    await expect(setPassword(999999, PASSWORD)).rejects.toThrow("999999");
   });
 
   it("新建的账号两列都是空，设过密码之后两列都有值", async () => {
-    await db.delete(accounts).where(eq(accounts.handle, HANDLE));
-    await db.insert(accounts).values({
-      handle: HANDLE,
-      displayName: "Credential Test",
-    });
+    await cleanup();
+    const [acct] = await db
+      .insert(accounts)
+      .values({ username: USERNAME, nickname: "Credential Test" })
+      .returning({ uid: accounts.uid });
+    ACCOUNT_UID = acct.uid;
 
-    await expect(passwordSetAt(HANDLE)).resolves.toBeNull();
-    await setPassword(HANDLE, PASSWORD);
-    await expect(passwordSetAt(HANDLE)).resolves.not.toBeNull();
+    await expect(passwordSetAt(ACCOUNT_UID)).resolves.toBeNull();
+    await setPassword(ACCOUNT_UID, PASSWORD);
+    await expect(passwordSetAt(ACCOUNT_UID)).resolves.not.toBeNull();
   });
 
   it("刚签发的会话立刻就是有效的", async () => {
@@ -102,14 +109,14 @@ describeDb("password", () => {
     const stolen = await signIn(PASSWORD);
     await expect(stillValid(stolen!)).resolves.toBe(true);
 
-    await setPassword(HANDLE, "brand-new-password");
+    await setPassword(ACCOUNT_UID, "brand-new-password");
 
     await expect(stillValid(stolen!)).resolves.toBe(false);
   });
 
   it("改密之后新签发的会话是有效的", async () => {
     const stolen = await signIn(PASSWORD);
-    await setPassword(HANDLE, "brand-new-password");
+    await setPassword(ACCOUNT_UID, "brand-new-password");
 
     const fresh = await signIn("brand-new-password");
 
@@ -118,9 +125,9 @@ describeDb("password", () => {
   });
 
   it("setPassword 会把 passwordSetAt 往前推", async () => {
-    const before = await passwordSetAt(HANDLE);
-    await setPassword(HANDLE, "another-one");
-    const after = await passwordSetAt(HANDLE);
+    const before = await passwordSetAt(ACCOUNT_UID);
+    await setPassword(ACCOUNT_UID, "another-one");
+    const after = await passwordSetAt(ACCOUNT_UID);
 
     expect(after!.getTime()).toBeGreaterThan(before!.getTime());
   });
@@ -136,14 +143,14 @@ describeDb("password", () => {
       const [opened] = await tx
         .select({ at: sql<Date>`now()` })
         .from(accounts)
-        .where(eq(accounts.handle, HANDLE));
+        .where(eq(accounts.uid, ACCOUNT_UID));
 
-      await setPassword(HANDLE, "written-inside-a-transaction", tx);
+      await setPassword(ACCOUNT_UID, "written-inside-a-transaction", tx);
 
       const [row] = await tx
         .select({ passwordSetAt: accounts.passwordSetAt })
         .from(accounts)
-        .where(eq(accounts.handle, HANDLE));
+        .where(eq(accounts.uid, ACCOUNT_UID));
 
       expect(row.passwordSetAt!.getTime()).toBe(new Date(opened.at).getTime());
     });

@@ -9,8 +9,6 @@ export const policy: EnrollmentPolicyInput = {
 
   emailDomains: ["example.test"],
 
-  reservedHandles: ["root", "system", "admin", "foi", "judge", "support"],
-
   mailDelivery: "console",
 
   registrationsPerIpPerHour: 10,
@@ -50,7 +48,7 @@ export const rules: EnrollmentRuleInput[] = [
   {
 
     label: "管理员",
-    handles: ["admin"],
+    uids: [1],
     groups: ["管理员"],
   },
 ];

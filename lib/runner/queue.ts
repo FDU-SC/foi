@@ -126,11 +126,11 @@ export async function jobDetails(
       ? problem.backend.config
       : null;
 
-  const user = await resolveUser(sub.handle);
+  const user = await resolveUser(sub.uid);
 
   return {
     id: sub.id,
-    user: { handle: sub.handle, groups: user?.groups ?? [] },
+    user: { uid: sub.uid, groups: user?.groups ?? [] },
     problem: { slug: sub.problemSlug, config },
     contestSlug: sub.contestSlug,
     payload: sub.payload,

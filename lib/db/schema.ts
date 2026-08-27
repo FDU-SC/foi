@@ -21,8 +21,9 @@ export type SuspensionAction = "suspend" | "reinstate";
 export const accounts = pgTable(
   "accounts",
   {
-    handle: text("handle").primaryKey(),
-    displayName: text("display_name").notNull(),
+    uid: integer("uid").primaryKey().generatedAlwaysAsIdentity(),
+    username: text("username").notNull(),
+    nickname: text("nickname").notNull(),
 
     email: text("email"),
 
@@ -39,6 +40,7 @@ export const accounts = pgTable(
       .defaultNow(),
   },
   (table) => [
+    uniqueIndex("accounts_username_key").on(sql`lower(${table.username})`),
     uniqueIndex("accounts_email_key").on(table.email),
     index("accounts_status_idx").on(table.status),
 
@@ -58,18 +60,18 @@ export const accountSuspensions = pgTable(
   "account_suspensions",
   {
     id: text("id").primaryKey(),
-    handle: text("handle")
+    uid: integer("uid")
       .notNull()
-      .references(() => accounts.handle, { onDelete: "cascade" }),
+      .references(() => accounts.uid, { onDelete: "cascade" }),
     action: text("action").$type<SuspensionAction>().notNull(),
-    performedBy: text("performed_by").notNull(),
+    performedBy: integer("performed_by").notNull(),
     reason: text("reason"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
-    index("account_suspensions_handle_idx").on(table.handle, table.createdAt),
+    index("account_suspensions_uid_idx").on(table.uid, table.createdAt),
   ],
 );
 
@@ -96,9 +98,9 @@ export const submissions = pgTable(
   {
     id: text("id").primaryKey(),
 
-    handle: text("handle")
+    uid: integer("uid")
       .notNull()
-      .references(() => accounts.handle, { onDelete: "restrict" }),
+      .references(() => accounts.uid, { onDelete: "restrict" }),
 
     problemSlug: text("problem_slug")
       .notNull()
@@ -145,7 +147,7 @@ export const submissions = pgTable(
     index("submissions_standings_idx").on(
       table.contestSlug,
       table.problemSlug,
-      table.handle,
+      table.uid,
       table.createdAt,
     ),
 
@@ -156,10 +158,10 @@ export const submissions = pgTable(
     index("submissions_disrupted_idx")
       .on(table.judgedAt)
       .where(sql`state = 'disrupted'`),
-    index("submissions_handle_idx").on(table.handle, table.createdAt),
+    index("submissions_uid_idx").on(table.uid, table.createdAt),
 
     uniqueIndex("submissions_client_nonce_key").on(
-      table.handle,
+      table.uid,
       table.clientNonce,
     ),
   ],

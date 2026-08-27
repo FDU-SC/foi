@@ -3,7 +3,7 @@
 \set contest_slug 'demo-acm'
 \set contest_title '演示赛 · ACM 赛制'
 
-CREATE TEMP TABLE demo_plan (handle text, slug text, minute int, ok boolean);
+CREATE TEMP TABLE demo_plan (username text, slug text, minute int, ok boolean);
 
 INSERT INTO demo_plan VALUES
   ('alice', 'maze-runner', 20, true),
@@ -18,10 +18,10 @@ DO $$
 DECLARE
   missing text;
 BEGIN
-  SELECT string_agg(DISTINCT p.handle, '、') INTO missing
+  SELECT string_agg(DISTINCT p.username, '、') INTO missing
   FROM demo_plan p
-  LEFT JOIN accounts a ON a.handle = p.handle
-  WHERE a.handle IS NULL;
+  LEFT JOIN accounts a ON lower(a.username) = lower(p.username)
+  WHERE a.uid IS NULL;
 
   IF missing IS NOT NULL THEN
     RAISE EXCEPTION
@@ -45,15 +45,21 @@ window_start(at) AS (
 
 scoring(max_score) AS (
   VALUES (double precision '100')
+),
+
+resolved_uids AS (
+  SELECT p.username, p.slug, p.minute, p.ok, a.uid
+  FROM demo_plan p
+  INNER JOIN accounts a ON lower(a.username) = lower(p.username)
 )
 INSERT INTO submissions (
-  id, handle, problem_slug, contest_slug, payload, state,
+  id, uid, problem_slug, contest_slug, payload, state,
   verdict, score, max_score, backend_id,
   created_at, judged_at
 )
 SELECT
-  'sub_demo_' || plan.handle || '_' || plan.slug || '_' || plan.minute,
-  plan.handle,
+  'sub_demo_' || plan.uid || '_' || plan.slug || '_' || plan.minute,
+  plan.uid,
   plan.slug,
   :'contest_slug',
   '{"seeded": true}'::jsonb,
@@ -68,7 +74,7 @@ SELECT
   'traditional',
   w.at + (plan.minute || ' minutes')::interval,
   w.at + (plan.minute || ' minutes')::interval
-FROM demo_plan plan
+FROM resolved_uids plan
 CROSS JOIN window_start w
 CROSS JOIN scoring s
 ON CONFLICT (id) DO NOTHING;
@@ -82,7 +88,9 @@ BEGIN
   SELECT count(*) INTO present
   FROM submissions
   WHERE id IN (
-    SELECT 'sub_demo_' || handle || '_' || slug || '_' || minute FROM demo_plan
+    SELECT 'sub_demo_' || a.uid || '_' || p.slug || '_' || p.minute
+    FROM demo_plan p
+    INNER JOIN accounts a ON lower(a.username) = lower(p.username)
   );
 
   IF present <> planned THEN

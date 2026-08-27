@@ -2,14 +2,15 @@ import { capabilitiesOf } from "./groups";
 import type { Capability } from "./policy";
 
 export interface SessionUser {
-  handle: string;
-  displayName: string;
+  uid: number;
+  username: string;
+  nickname: string;
   groups: string[];
 }
 
 export interface Viewer {
 
-  readonly handle: string | null;
+  readonly uid: number | null;
 
   readonly groups: readonly string[];
 
@@ -17,13 +18,13 @@ export interface Viewer {
 }
 
 export function viewerFor(
-  user: { handle: string; groups: readonly string[] } | null | undefined,
+  user: { uid: number; groups: readonly string[] } | null | undefined,
 ): Viewer {
   const groups = user?.groups ?? [];
 
   const granted = capabilitiesOf(groups);
   return {
-    handle: user?.handle ?? null,
+    uid: user?.uid ?? null,
     groups,
     can: (capability) => granted.has(capability),
   };

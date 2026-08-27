@@ -4,7 +4,7 @@ import { AS_PLAYER } from "@/test/auth-support";
 import { viewerWith } from "@/test/content-shapes";
 import { viewerFor } from "./viewer";
 
-const player = viewerFor({ handle: "alice", groups: ["2026级", "本科生"] });
+const player = viewerFor({ uid: 1, groups: ["2026级", "本科生"] });
 
 describe("inAudience", () => {
   it("省略 visibleTo 表示所有人", () => {
@@ -35,7 +35,7 @@ describe("inAudience", () => {
 
   it("能力不参与这个判断——越权是调用方另外问的", () => {
 
-    const admin = viewerWith("problem.viewAll", "root");
+    const admin = viewerWith("problem.viewAll", 100);
     expect(inAudience(["校队"], admin)).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { normalizeHandle, type ResolvedUser } from "@/lib/accounts/types";
+import type { ResolvedUser } from "@/lib/accounts/types";
 import { inAudience, type Audience } from "@/lib/permissions/audience";
 import { viewerFor, type Viewer } from "@/lib/permissions/viewer";
 import { allContests, contestBySlug } from "./registry";
@@ -50,17 +50,13 @@ export function contestFor(
 
 export function canEnterContest(
   contest: ContestConfig,
-  user: Pick<ResolvedUser, "handle" | "groups">,
+  user: Pick<ResolvedUser, "uid" | "groups">,
 ): boolean {
   switch (contest.participants.mode) {
     case "open":
       return true;
-    case "list": {
-      const handle = normalizeHandle(user.handle);
-      return contest.participants.handles.some(
-        (entry) => normalizeHandle(entry) === handle,
-      );
-    }
+    case "list":
+      return contest.participants.uids.includes(user.uid);
     case "group":
       return user.groups.includes(contest.participants.group);
   }
@@ -86,7 +82,7 @@ export type ContestEntry =
 export function contestEntryFor(
   contestSlug: string,
   problemSlug: string,
-  user: Pick<ResolvedUser, "handle" | "groups"> | null,
+  user: Pick<ResolvedUser, "uid" | "groups"> | null,
   now = new Date(),
 ): ContestEntry {
   const config = contestBySlug(contestSlug);

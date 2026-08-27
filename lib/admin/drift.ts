@@ -4,7 +4,7 @@ import { savedBootWarnings } from "@/lib/boot/checks";
 import { allContests } from "@/lib/contests/registry";
 import { db } from "@/lib/db";
 import { contests, problems, submissions } from "@/lib/db/schema";
-import { enumeratedHandles, tallyCohorts } from "@/lib/enrollment/registry";
+import { enumeratedUids, tallyCohorts } from "@/lib/enrollment/registry";
 import { orphanedBackends } from "@/lib/backend/access";
 import { reaperHealth, recentDisruptions } from "@/lib/runner/reaper";
 import { allProblems } from "@/lib/problems/registry";
@@ -27,7 +27,7 @@ export interface AdminOverview {
   contestCount: number;
   submissionCount: number;
 
-  activeHandles: number;
+  activeUids: number;
 
   mirroredProblems: number;
   mirroredContests: number;
@@ -37,7 +37,7 @@ export interface AdminOverview {
 export async function loadAdminOverview(): Promise<AdminOverview> {
   const registryProblems = allProblems();
   const registryContests = allContests();
-  const named = enumeratedHandles();
+  const namedUids = enumeratedUids();
 
   const [accountRows, problemRows, contestRows, submissionStats] =
     await Promise.all([
@@ -47,12 +47,12 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       db
         .select({
           total: countDistinct(submissions.id),
-          handles: countDistinct(submissions.handle),
+          uids: countDistinct(submissions.uid),
         })
         .from(submissions),
     ]);
 
-  const accountHandles = new Set(accountRows.map((row) => row.handle));
+  const accountUids = new Set(accountRows.map((row) => row.uid));
 
   const findings: DriftFinding[] = [];
 
@@ -77,19 +77,19 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       title: "有账号的邮箱不匹配任何分流规则",
       detail:
         "他们不属于任何标签，因此进不了任何 tag 制比赛。多半是 content/enrollment/ 里的规则没跟上新的邮箱格式。",
-      items: untagged,
+      items: untagged.map(String),
     });
   }
 
-  const unclaimed = named.filter((handle) => !accountHandles.has(handle));
+  const unclaimed = namedUids.filter((uid) => !accountUids.has(uid));
 
   if (unclaimed.length > 0) {
     findings.push({
       severity: "info",
-      title: "有规则点名的用户名还没有账号",
+      title: "有规则点名的 uid 还没有对应账号",
       detail:
-        "这些用户名在 content/enrollment/ 的规则里被点名，但还没有人注册使用。它们已被注册流程预留，确认拼写无误，或等本人完成注册。",
-      items: unclaimed,
+        "这些 uid 在 content/enrollment/ 的规则里被点名，但数据库中不存在。确认 uid 填写无误。",
+      items: unclaimed.map(String),
     });
   }
 
@@ -159,7 +159,7 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     problemCount: registryProblems.length,
     contestCount: registryContests.length,
     submissionCount: submissionStats[0]?.total ?? 0,
-    activeHandles: submissionStats[0]?.handles ?? 0,
+    activeUids: submissionStats[0]?.uids ?? 0,
     mirroredProblems: problemRows.length,
     mirroredContests: contestRows.length,
     findings,

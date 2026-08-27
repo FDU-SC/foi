@@ -17,16 +17,16 @@ import {
 import { allContests } from "./registry";
 import { contestConfigSchema, type ContestConfig } from "./types";
 
-const PREVIEW = viewerWith("problem.viewAll", "an-admin");
+const PREVIEW = viewerWith("problem.viewAll", 100);
 
 const SETTER: Viewer = {
-  handle: "setter",
+  uid: 101,
   groups: ["出题人"],
   can: (capability) => capability === "problem.viewAll",
 };
 
 const CONTEST_READER: Viewer = {
-  handle: "reader",
+  uid: 102,
   groups: ["助教"],
   can: (capability) => capability === "contest.viewAll",
 };
@@ -159,8 +159,8 @@ describe("contestEntryFor", () => {
   const DURING = new Date(demo.startsAt.getTime() + 60_000);
   const AFTER = new Date(demo.endsAt.getTime() + 60_000);
 
-  function user(groups: string[]): Pick<ResolvedUser, "handle" | "groups"> {
-    return { handle: "entry-alice", groups };
+  function user(groups: string[]): Pick<ResolvedUser, "uid" | "groups"> {
+    return { uid: 10, groups };
   }
 
   const ENTRANT = user([GROUP]);

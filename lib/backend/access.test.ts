@@ -14,10 +14,10 @@ import {
   problemsServedBy,
 } from "./access";
 
-const PREVIEW = viewerWith("problem.viewAll", "an-admin");
+const PREVIEW = viewerWith("problem.viewAll", 100);
 
 const SETTER: Viewer = {
-  handle: "setter",
+  uid: 101,
   groups: ["出题人"],
   can: (capability) => capability === "problem.viewAll",
 };

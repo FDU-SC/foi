@@ -21,7 +21,7 @@ const contests = allContests();
 
 const demo = contests[0];
 
-const PREVIEW = viewerWith("problem.viewAll", "an-admin");
+const PREVIEW = viewerWith("problem.viewAll", 100);
 
 function before(date: Date): Date {
   return new Date(date.getTime() - 60_000);
@@ -34,7 +34,7 @@ function after(date: Date): Date {
 describe("viewerFor", () => {
   it("匿名与选手都拿不到预览", () => {
     expect(viewerFor(null).can("problem.viewAll")).toBe(false);
-    expect(viewerFor({ handle: "p", groups: [] }).can("problem.viewAll")).toBe(
+    expect(viewerFor({ uid: 1, groups: [] }).can("problem.viewAll")).toBe(
       false,
     );
   });
@@ -54,7 +54,7 @@ describe("viewerFor", () => {
   it("viewer 的答案与 capabilitiesOf 逐项一致，没有第二份定义", () => {
 
     for (const group of listGroups()) {
-      const viewer = viewerFor({ handle: "x", groups: [group.id] });
+      const viewer = viewerFor({ uid: 2, groups: [group.id] });
       const granted = capabilitiesOf([group.id]);
       for (const capability of CAPABILITIES) {
         expect(viewer.can(capability)).toBe(granted.has(capability));
@@ -67,7 +67,7 @@ describe("viewerFor", () => {
     if (declared.length === 0) return;
 
     const viewer = viewerFor({
-      handle: "x",
+      uid: 3,
       groups: [...declared.map((g) => g.id), "一个不存在的组"],
     });
     for (const group of declared) {
@@ -78,7 +78,7 @@ describe("viewerFor", () => {
   });
 
   it("未声明的组不带任何能力", () => {
-    const viewer = viewerFor({ handle: "x", groups: ["未声明的组-甲", "未声明的组-乙"] });
+    const viewer = viewerFor({ uid: 4, groups: ["未声明的组-甲", "未声明的组-乙"] });
     for (const capability of CAPABILITIES) {
       expect(viewer.can(capability)).toBe(false);
     }
@@ -182,7 +182,7 @@ describe("problemsFor", () => {
 
   it("没有任何参数能让选手视角看到被封禁的题目", () => {
 
-    const player = problemsFor(viewerFor({ handle: "player", groups: [] }));
+    const player = problemsFor(viewerFor({ uid: 5, groups: [] }));
     expect(player.every((entry) => entry.gate.visible)).toBe(true);
   });
 });
@@ -261,11 +261,11 @@ describe("能看到比赛与能看到题目的关系", () => {
 
   const VIEWERS: Viewer[] = [
     AS_PLAYER,
-    viewerFor({ handle: "player", groups: ["一个普通分组"] }),
+    viewerFor({ uid: 6, groups: ["一个普通分组"] }),
     PREVIEW,
-    { handle: "reader", groups: [], can: (c) => c === "contest.viewAll" },
+    { uid: 7, groups: [], can: (c) => c === "contest.viewAll" },
     {
-      handle: "both",
+      uid: 8,
       groups: [],
       can: (c) => c === "contest.viewAll" || c === "problem.viewAll",
     },
@@ -273,7 +273,7 @@ describe("能看到比赛与能看到题目的关系", () => {
 
   function insiderOf(contest: ContestConfig): Viewer {
     return {
-      handle: "insider",
+      uid: 9,
       groups: contest.visibleTo ?? [],
       can: () => false,
     };
@@ -292,7 +292,7 @@ describe("能看到比赛与能看到题目的关系", () => {
           for (const entry of contest.problems) {
             expect(
               problemFor(entry.slug, viewer, now),
-              `${viewer.handle} 拿得到 ${contest.slug}，却拿不到它的 ${entry.slug}`,
+              `${viewer.uid} 拿得到 ${contest.slug}，却拿不到它的 ${entry.slug}`,
             ).toBeDefined();
           }
         }
@@ -406,8 +406,8 @@ describe("problemStatus", () => {
 
 describe("受众与阶段的组合", () => {
 
-  const inTeam = viewerFor({ handle: "t", groups: ["无能力的组-甲"] });
-  const outsider = viewerFor({ handle: "o", groups: ["无能力的组-乙"] });
+  const inTeam = viewerFor({ uid: 10, groups: ["无能力的组-甲"] });
+  const outsider = viewerFor({ uid: 11, groups: ["无能力的组-乙"] });
 
   const gated = allProblems().find((problem) => problem.visibleTo?.length);
 
@@ -416,8 +416,8 @@ describe("受众与阶段的组合", () => {
 
   it.skipIf(!gated)("受众不通过就是不通过，与时刻无关", () => {
     const audience = gated!.visibleTo ?? [];
-    const excluded = viewerFor({ handle: "nobody", groups: [] });
-    const member = viewerFor({ handle: "member", groups: [...audience] });
+    const excluded = viewerFor({ uid: 12, groups: [] });
+    const member = viewerFor({ uid: 13, groups: [...audience] });
 
     for (const now of [new Date("2000-01-01"), new Date("2100-01-01")]) {
       expect(problemVisibility(gated!.slug, excluded, now)).toEqual({
@@ -433,7 +433,7 @@ describe("受众与阶段的组合", () => {
   });
 
   it.skipIf(!contested)("受众先于阶段：禁运期内的理由仍是 audience", () => {
-    const excluded = viewerFor({ handle: "nobody", groups: [] });
+    const excluded = viewerFor({ uid: 14, groups: [] });
     const opensAt = contestsUsing(contested!.slug)
       .map((contest) => contest.startsAt)
       .reduce((earliest, at) => (at < earliest ? at : earliest));

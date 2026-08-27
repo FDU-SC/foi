@@ -56,7 +56,7 @@ describe("sendPasswordReset", () => {
     relay.sent = [];
 
     await sendPasswordReset(
-      { handle: "alice", displayName: "Alice", email: "alice@example.test" },
+      { uid: 1, nickname: "Alice", email: "alice@example.test" },
       "fp_abc123",
     );
 
@@ -66,7 +66,7 @@ describe("sendPasswordReset", () => {
     const token = tokenFromLastMail();
     const payload = verifyToken(token, "password-reset");
     expect(payload).not.toBeNull();
-    expect(payload!.s).toBe("alice");
+    expect(payload!.s).toBe("1");
     expect(payload!.fp).toBe("fp_abc123");
 
     vi.unstubAllEnvs();

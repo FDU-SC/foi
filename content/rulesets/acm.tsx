@@ -71,13 +71,13 @@ export const ruleset: Ruleset<AcmCell> = {
         new Date(Date.now()),
       ) === "frozen";
 
-    const byUser = new Map<string, Map<string, AcmCell>>();
+    const byUser = new Map<number, Map<string, AcmCell>>();
     for (const participant of input.participants) {
-      byUser.set(participant.handle, new Map());
+      byUser.set(participant.uid, new Map());
     }
 
     for (const submission of submissionsInWindow(input)) {
-      const cells = byUser.get(submission.handle);
+      const cells = byUser.get(submission.uid);
       if (!cells) continue;
 
       const cell = cells.get(submission.problemSlug) ?? {
@@ -105,7 +105,7 @@ export const ruleset: Ruleset<AcmCell> = {
     }
 
     const rows = input.participants.map((participant) => {
-      const cells = Object.fromEntries(byUser.get(participant.handle) ?? []);
+      const cells = Object.fromEntries(byUser.get(participant.uid) ?? []);
       let solved = 0;
       let penalty = 0;
 

@@ -288,7 +288,7 @@ export const PAGE_CHECKS = {
     what: "把没登录的人从 /admin 挡回登录页",
     capabilities: ["admin.access"],
     why:
-      "答案只来自 token。会话回调按仓库里的授予解析 handle，从不读 accounts 表，" +
+      "答案只来自 token。会话回调按仓库里的授予解析 uid，从不读 accounts 表，" +
       "所以一个已被封禁、但还攥着有效 JWT 的账号在这里仍然看起来是管理员。" +
       "换来的是每次预取都便宜——真正拒绝的是下面这四个层。",
     enforcedBy: [

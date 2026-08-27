@@ -15,18 +15,30 @@ import type {
   AccountSuspensionRow,
 } from "@/lib/db/schema";
 import { invalidateAccounts } from "./cache";
-import { normalizeHandle } from "./types";
+import { normalizeUsername } from "./types";
 
 export type DbOrTx = PgDatabase<NodePgQueryResultHKT, typeof schema>;
 
 export async function getAccount(
-  handle: string,
+  uid: number,
   on: DbOrTx = db,
 ): Promise<AccountRow | undefined> {
   const [row] = await on
     .select(accountColumns)
     .from(accounts)
-    .where(eq(accounts.handle, normalizeHandle(handle)))
+    .where(eq(accounts.uid, uid))
+    .limit(1);
+  return row;
+}
+
+export async function getAccountByUsername(
+  username: string,
+  on: DbOrTx = db,
+): Promise<AccountRow | undefined> {
+  const [row] = await on
+    .select(accountColumns)
+    .from(accounts)
+    .where(sql`lower(${accounts.username}) = ${normalizeUsername(username)}`)
     .limit(1);
   return row;
 }
@@ -50,12 +62,12 @@ export async function listAccounts(options?: {
     .select(accountColumns)
     .from(accounts)
     .where(options?.status ? eq(accounts.status, options.status) : undefined)
-    .orderBy(asc(accounts.handle));
+    .orderBy(asc(accounts.uid));
 }
 
 export interface CreateAccountInput {
-  handle: string;
-  displayName: string;
+  username: string;
+  nickname: string;
   email?: string | null;
   status?: AccountStatus;
 }
@@ -67,8 +79,8 @@ export async function createAccount(
   const [row] = await on
     .insert(accounts)
     .values({
-      handle: normalizeHandle(input.handle),
-      displayName: input.displayName,
+      username: input.username,
+      nickname: input.nickname,
       email: input.email ?? null,
       status: input.status ?? "active",
     })
@@ -80,23 +92,21 @@ export async function createAccount(
 }
 
 export async function suspendAccount(
-  handle: string,
-  by: string,
+  uid: number,
+  by: number,
   reason: string,
 ): Promise<AccountRow | undefined> {
-  const normalized = normalizeHandle(handle);
-
   const [row] = await db
     .update(accounts)
     .set({ status: "suspended", updatedAt: sql`now()` })
-    .where(eq(accounts.handle, normalized))
+    .where(eq(accounts.uid, uid))
     .returning(accountColumns);
 
   if (!row) return undefined;
 
   await db.insert(accountSuspensions).values({
     id: `sus_${ulid()}`,
-    handle: normalized,
+    uid,
     action: "suspend",
     performedBy: by,
     reason,
@@ -107,22 +117,20 @@ export async function suspendAccount(
 }
 
 export async function reinstateAccount(
-  handle: string,
-  by: string,
+  uid: number,
+  by: number,
 ): Promise<AccountRow | undefined> {
-  const normalized = normalizeHandle(handle);
-
   const [row] = await db
     .update(accounts)
     .set({ status: "active", updatedAt: sql`now()` })
-    .where(eq(accounts.handle, normalized))
+    .where(eq(accounts.uid, uid))
     .returning(accountColumns);
 
   if (!row) return undefined;
 
   await db.insert(accountSuspensions).values({
     id: `sus_${ulid()}`,
-    handle: normalized,
+    uid,
     action: "reinstate",
     performedBy: by,
   });
@@ -132,13 +140,13 @@ export async function reinstateAccount(
 }
 
 export async function suspensionHistory(
-  handle: string,
+  uid: number,
   limit = 10,
 ): Promise<AccountSuspensionRow[]> {
   return db
     .select()
     .from(accountSuspensions)
-    .where(eq(accountSuspensions.handle, normalizeHandle(handle)))
+    .where(eq(accountSuspensions.uid, uid))
     .orderBy(desc(accountSuspensions.createdAt))
     .limit(limit);
 }

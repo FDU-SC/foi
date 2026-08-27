@@ -38,4 +38,4 @@ declare global {
 export const streamConcurrency = (globalThis.__foiStreamConcurrency ??=
   createConcurrency());
 
-export const MAX_STREAMS_PER_HANDLE = 5;
+export const MAX_STREAMS_PER_UID = 5;

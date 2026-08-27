@@ -3,8 +3,6 @@ services:
     image: ${FOI_IMAGE:?FOI_IMAGE is not set}
     restart: unless-stopped
     env_file: .env
-    environment:
-      DATABASE_URL: postgres://foi:foi_dev_password@postgres:5432/foi
     depends_on:
       postgres:
         condition: service_healthy

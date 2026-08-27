@@ -5,9 +5,8 @@ import { FlagPayloadView } from "./flag-payload";
 import { TextPayloadView } from "./text-payload";
 
 /**
- * Backward-compatible PayloadView that auto-detects payload type.
- * Prefer using CodePayloadView / FlagPayloadView / TextPayloadView directly
- * in per-problem views.tsx files.
+ * @deprecated Use CodePayloadView / FlagPayloadView / TextPayloadView directly
+ * in per-problem views.tsx files instead of this auto-detecting shim.
  */
 export function PayloadView({ payload }: { payload: unknown }) {
   if (typeof payload !== "object" || payload === null) {

@@ -55,10 +55,12 @@ export const judgeRoulette: InlineJudge = ({ payload, config, user }) => {
     hit = `未命中（${submitted || "空"}）`;
   }
 
+  const accepted = score >= scoreNumber;
+
   return {
     result: {
-      status:
-        score >= scoreNumber ? "accepted" : score > 0 ? "partial" : "wrong_answer",
+      status: accepted ? "accepted" : score > 0 ? "partial" : "wrong_answer",
+      accepted,
       score,
       maxScore: scoreNumber,
     },

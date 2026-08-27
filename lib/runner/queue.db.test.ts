@@ -1,11 +1,10 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
 import {
   accounts,
   contests,
-  judgingAttempts,
   judgingQueue,
   problems,
   runners,

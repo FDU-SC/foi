@@ -3,7 +3,6 @@ import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 import { authConfig } from "./auth.config";
 import { resolveUser, resolveUserByUsername } from "@/lib/accounts/resolve";
-import { normalizeUsername } from "@/lib/accounts/types";
 import type { ResolvedUser } from "@/lib/accounts/types";
 import {
   passwordSetAt,

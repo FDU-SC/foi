@@ -101,7 +101,7 @@ export async function GET(request: Request) {
         if (closed) return;
 
         cleanups.push(
-          subscribe(id, async (payload: NotifyPayload) => {
+          subscribe(id, async (_payload: NotifyPayload) => {
             if (closed) return;
             const row = await submissionFor(id, viewer);
             if (!row) return;

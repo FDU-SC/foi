@@ -1,4 +1,4 @@
-import { and, asc, count, eq, gte, inArray } from "drizzle-orm";
+import { and, asc, count, gte, inArray } from "drizzle-orm";
 import type { Viewer } from "@/lib/permissions/viewer";
 import { db } from "@/lib/db";
 import { judgingQueue, runners } from "@/lib/db/schema";

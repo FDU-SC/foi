@@ -1,4 +1,4 @@
-import type { BoardProps, ContestProblem, StandingsRow } from "@/lib/standings/types";
+import type { BoardProps } from "@/lib/standings/types";
 
 function DefaultCell({ cell }: { cell: unknown }) {
   if (cell === undefined || cell === null) {

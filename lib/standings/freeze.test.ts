@@ -12,7 +12,7 @@ import {
   fail,
 } from "@/test/standings-support";
 import { listRulesets } from "./registry";
-import type { AnyRuleset, StandingsInput, SubmissionRecord } from "./types";
+import type { AnyRuleset, SubmissionRecord } from "./types";
 
 const allRulesets = listRulesets();
 

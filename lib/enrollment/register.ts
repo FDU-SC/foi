@@ -4,7 +4,7 @@ import {
   getAccountByUsername,
 } from "@/lib/accounts/queries";
 import { setPassword } from "@/lib/accounts/password";
-import { normalizeEmail, normalizeUsername } from "@/lib/accounts/types";
+import { normalizeEmail } from "@/lib/accounts/types";
 import { db } from "@/lib/db";
 import { verifyToken } from "@/lib/tokens/stateless";
 import { enrollmentPolicy } from "./registry";

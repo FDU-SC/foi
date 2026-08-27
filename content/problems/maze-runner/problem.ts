@@ -19,7 +19,6 @@ export const problem = {
     },
   },
   ui: {
-    submit: "code",
     languages: ["cpp", "python", "java"],
     tags: ["BFS", "图论", "最短路"],
     difficulty: "普及",

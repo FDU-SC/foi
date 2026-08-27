@@ -7,6 +7,9 @@ import { Constraints } from "./mdx/constraints";
 import { ProblemBadges } from "./ui/problem-badges";
 import { Sample } from "./mdx/sample";
 import { SubmitPanel } from "./ui/submit-panel";
+import { CodeInput } from "./ui/code-input";
+import { FlagInput } from "./ui/flag-input";
+import { TextInput } from "./ui/text-input";
 
 export const presentation: Presentation = {
   mdxComponents: {
@@ -14,6 +17,9 @@ export const presentation: Presentation = {
     Constraints,
     Sample,
     SubmitPanel,
+    CodeInput,
+    FlagInput,
+    TextInput,
     Badge,
     Button,
   },

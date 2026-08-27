@@ -19,7 +19,6 @@ export const problem = {
     },
   },
   ui: {
-    submit: "code",
     languages: ["cpp", "python"],
     tags: ["递归", "分治", "趣味"],
     difficulty: "普及",

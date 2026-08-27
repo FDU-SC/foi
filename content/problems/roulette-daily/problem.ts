@@ -20,7 +20,6 @@ export const problem = {
     } satisfies RouletteConfig,
   },
   ui: {
-    submit: "text",
     placeholder: "red / black / green / 0-36 / big / small",
     tags: ["签到", "运气"],
   } satisfies ProblemUi,

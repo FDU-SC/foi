@@ -21,7 +21,6 @@ export const problem = {
     },
   },
   ui: {
-    submit: "flag",
     placeholder: "FOI{...}",
     tags: ["Web", "Rate Limit"],
   } satisfies ProblemUi,

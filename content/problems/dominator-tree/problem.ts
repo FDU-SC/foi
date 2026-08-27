@@ -19,7 +19,6 @@ export const problem = {
     },
   },
   ui: {
-    submit: "code",
     languages: ["cpp", "python"],
     tags: ["图论", "支配树", "Lengauer-Tarjan"],
     difficulty: "NOI",

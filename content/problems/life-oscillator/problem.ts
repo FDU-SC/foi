@@ -22,7 +22,6 @@ export const problem = {
     } satisfies LifeOscillatorConfig,
   },
   ui: {
-    submit: "text",
     placeholder: "粘贴图案（. 死 / O 活），场景之间空一行",
     tags: ["提交答案", "Special Judge", "模拟", "趣味"],
     difficulty: "省选",

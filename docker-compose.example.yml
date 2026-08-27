@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:?POSTGRES_USER is not set}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is not set}
+      DATABASE_URL: postgres://foi:foi_dev_password@postgres:5432/foi
     depends_on:
       postgres:
         condition: service_healthy
@@ -17,15 +17,15 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: foi
+      POSTGRES_PASSWORD: foi_dev_password
+      POSTGRES_DB: foi
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
       - internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h 127.0.0.1"]
+      test: ["CMD-SHELL", "pg_isready -U foi -d foi -h 127.0.0.1"]
       interval: 5s
       timeout: 5s
       retries: 12

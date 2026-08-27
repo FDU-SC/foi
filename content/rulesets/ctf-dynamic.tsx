@@ -69,6 +69,8 @@ export function CtfTotalView({ row }: { row: StandingsRow<CtfCell> }) {
   );
 }
 
+export const renderers = { Cell: CtfCellView, Total: CtfTotalView };
+
 export const ruleset: Ruleset<CtfCell> = {
   id: "ctf-dynamic",
   name: "CTF 动态分值",

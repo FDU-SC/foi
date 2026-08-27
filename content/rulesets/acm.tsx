@@ -66,6 +66,8 @@ export function AcmTotalView({ row }: { row: StandingsRow<AcmCell> }) {
   );
 }
 
+export const renderers = { Cell: AcmCellView, Total: AcmTotalView };
+
 export const ruleset: Ruleset<AcmCell> = {
   id: "acm",
   name: "ACM / ICPC",

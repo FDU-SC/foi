@@ -1,3 +1,4 @@
+import type { ComponentType } from "react";
 import type { SubmissionRecordState } from "@/lib/backend/types";
 
 export interface ContestProblem {
@@ -29,7 +30,6 @@ export interface ContestWindow {
   slug: string;
   startsAt: Date;
   endsAt: Date;
-  freezeAt: Date | null;
 }
 
 export interface StandingsInput {
@@ -68,6 +68,11 @@ export interface Ruleset<Cell = unknown> {
    The registry is heterogeneous by design: each ruleset picks its own Cell
    type, and callers don't need to know Cell at the registry level. */
 export type AnyRuleset = Ruleset<any>;
+
+export interface RulesetRenderers {
+  Cell?: ComponentType<{ cell: unknown; problem: ContestProblem }>;
+  Total?: ComponentType<{ row: StandingsRow<unknown> }>;
+}
 
 export function assignRanks<Cell>(
   rows: Omit<StandingsRow<Cell>, "rank">[],

@@ -13,18 +13,20 @@ import { db } from "@/lib/db";
 import { accounts, submissions } from "@/lib/db/schema";
 import type { Viewer } from "@/lib/permissions/viewer";
 import { cachedStandings, standingsKey } from "./cache";
-import { rulesetFor } from "./registry";
+import { renderersFor, rulesetFor } from "./registry";
 import type {
   AnyRuleset,
   ComputedStandings,
   ContestProblem,
   Participant,
+  RulesetRenderers,
   SubmissionRecord,
 } from "./types";
 
 export interface LeaderboardStandings {
   leaderboard: LeaderboardConfig;
   ruleset: AnyRuleset;
+  renderers: RulesetRenderers;
   /** Full standings (all submissions, admin view). */
   full: ComputedStandings<unknown>;
   /** Public standings (pre-freeze submissions only). null when no freeze is active. */
@@ -91,7 +93,6 @@ async function loadAndCompute(
         slug: contest.slug,
         startsAt: contest.startsAt,
         endsAt: contest.endsAt,
-        freezeAt: contest.freezeAt ?? null,
       },
       problems: problemRows,
       participants,
@@ -111,7 +112,13 @@ async function loadAndCompute(
       });
     }
 
-    return { leaderboard: lb, ruleset, full, public: publicBoard };
+    return {
+      leaderboard: lb,
+      ruleset,
+      renderers: renderersFor(lb.ruleset.id),
+      full,
+      public: publicBoard,
+    };
   });
 
   return {

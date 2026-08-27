@@ -114,7 +114,12 @@ export default async function StandingsPage({
               <Badge>{board.ruleset.name}</Badge>
             </div>
           )}
-          <StandingsTable board={board} problems={data.problems} />
+          <StandingsTable
+            board={board}
+            problems={data.problems}
+            CellView={board.renderers.Cell}
+            TotalView={board.renderers.Total}
+          />
         </section>
       ))}
     </div>

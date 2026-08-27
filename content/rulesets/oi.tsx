@@ -44,6 +44,8 @@ export function OiTotalView({ row }: { row: StandingsRow<OiCell> }) {
   );
 }
 
+export const renderers = { Cell: OiCellView, Total: OiTotalView };
+
 export const ruleset: Ruleset<OiCell> = {
   id: "oi",
   name: "OI",

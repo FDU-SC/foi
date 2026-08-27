@@ -1,4 +1,4 @@
-import type { Viewer } from "@/lib/auth/viewer";
+import type { Viewer } from "@/lib/permissions/viewer";
 import {
   accountDirectoryFor,
   accountsFor,

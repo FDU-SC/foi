@@ -145,7 +145,7 @@ export type EnrollmentPolicyInput = z.input<typeof enrollmentPolicySchema>;
  *
  * `requireEmailVerification` was a boolean defaulting to true. Proving the
  * address is not a thing a deployment gets to decide, for the reason
- * `lib/auth/email-verification.ts` gives about its own attempt cap: some
+ * `lib/enrollment/email-verification.ts` gives about its own attempt cap: some
  * settings are security parameters rather than deployment policy. Here the
  * stake is sharper than a weak cap — an address decides which cohort somebody
  * lands in, and a cohort decides which contests they may enter, so an unproven

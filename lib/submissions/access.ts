@@ -1,4 +1,4 @@
-import type { Viewer } from "@/lib/auth/viewer";
+import type { Viewer } from "@/lib/permissions/viewer";
 import type { SubmissionRow } from "@/lib/db/schema";
 import { getSubmissionRow, listSubmissions } from "./queries";
 import type { SubmissionListItem } from "./types";

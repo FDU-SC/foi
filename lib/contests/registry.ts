@@ -1,7 +1,7 @@
 import { contestModules } from "@/content/contest-modules";
 import { handleSchema, normalizeHandle } from "@/lib/accounts/types";
 import { knownGroups } from "@/lib/enrollment/registry";
-import { audienceCovers, describeAudience } from "@/lib/auth/audience";
+import { audienceCovers, describeAudience } from "@/lib/permissions/audience";
 import { problemBySlug } from "@/lib/problems/registry";
 import { getContestRuleset, rulesetFor } from "@/lib/standings/registry";
 import { contestConfigSchema, type ContestConfig } from "./types";

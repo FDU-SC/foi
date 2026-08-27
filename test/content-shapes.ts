@@ -1,6 +1,6 @@
-import { listGroups } from "@/lib/auth/groups";
-import type { Capability } from "@/lib/auth/policy";
-import { viewerFor, type Viewer } from "@/lib/auth/viewer";
+import { listGroups } from "@/lib/permissions/groups";
+import type { Capability } from "@/lib/permissions/policy";
+import { viewerFor, type Viewer } from "@/lib/permissions/viewer";
 import { allContests } from "@/lib/contests/registry";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import type { ContestConfig, ContestProblemConfig } from "@/lib/contests/types";

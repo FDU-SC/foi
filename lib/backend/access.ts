@@ -1,4 +1,4 @@
-import type { Viewer } from "@/lib/auth/viewer";
+import type { Viewer } from "@/lib/permissions/viewer";
 import { problemFor } from "@/lib/problems/access";
 import { externallyJudged } from "@/lib/problems/registry";
 import { backends } from "./registry";

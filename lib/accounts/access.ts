@@ -1,8 +1,7 @@
-import type { Viewer } from "@/lib/auth/viewer";
-import { listCredentials, type CredentialState } from "@/lib/auth/credentials";
-import { listPendingTokens } from "@/lib/auth/tokens";
+import type { Viewer } from "@/lib/permissions/viewer";
 import type { AccountRow, AccountStatus } from "@/lib/db/schema";
 import { listAccounts } from "./queries";
+import { listPendingTokens } from "./tokens";
 
 /**
  * How the operations console obtains account data.
@@ -18,15 +17,18 @@ import { listAccounts } from "./queries";
  */
 
 export interface AccountDirectory {
+  /**
+   * Whether an account has a password, and when it was last set, ride along
+   * on the row as `passwordSetAt` — there is no second list to join against
+   * since the two tables became one.
+   */
   accounts: AccountRow[];
-  credentials: CredentialState[];
   /** Handles with a password reset link still outstanding. */
   awaitingReset: Set<string>;
 }
 
 const EMPTY: AccountDirectory = {
   accounts: [],
-  credentials: [],
   awaitingReset: new Set(),
 };
 
@@ -42,15 +44,13 @@ export async function accountDirectoryFor(
 ): Promise<AccountDirectory> {
   if (!viewer.can("account.read")) return EMPTY;
 
-  const [accounts, credentials, pending] = await Promise.all([
+  const [accounts, pending] = await Promise.all([
     listAccounts(),
-    listCredentials(),
     listPendingTokens("password_reset"),
   ]);
 
   return {
     accounts,
-    credentials,
     awaitingReset: new Set(pending.map((row) => row.handle)),
   };
 }

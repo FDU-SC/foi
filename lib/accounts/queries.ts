@@ -2,7 +2,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
-import { accounts } from "@/lib/db/schema";
+import { accountColumns, accounts } from "@/lib/db/schema";
 import type * as schema from "@/lib/db/schema";
 import type { AccountRow, AccountSource, AccountStatus } from "@/lib/db/schema";
 import { invalidateAccounts } from "./cache";
@@ -14,7 +14,8 @@ import { normalizeHandle } from "./types";
  * may act go through `getAccount`, which never consults that snapshot.
  *
  * The ones registration and password reset need take an optional `DbOrTx` so
- * they can be pulled into a transaction with the writes in `lib/auth/`. Read
+ * they can be pulled into a transaction with the writes in `./password.ts`,
+ * `./tokens.ts` and `@/lib/enrollment/email-verification.ts`. Read
  * that way the account is the one the same transaction is about to act on;
  * written that way the invalidation fires before the commit does, which at
  * worst leaves the snapshot a few seconds behind a row that is about to exist
@@ -37,13 +38,17 @@ export type DbOrTx = PgDatabase<NodePgQueryResultHKT, typeof schema>;
  *
  * Authorisation calls this. A suspension has to bite on the very next request,
  * which rules out reading `status` from anything with a TTL.
+ *
+ * `accountColumns` rather than `select()`, here and in every read below, so
+ * that no caller can be handed a password hash it did not ask for — see the
+ * note on the projection in `lib/db/schema.ts`.
  */
 export async function getAccount(
   handle: string,
   on: DbOrTx = db,
 ): Promise<AccountRow | undefined> {
   const [row] = await on
-    .select()
+    .select(accountColumns)
     .from(accounts)
     .where(eq(accounts.handle, normalizeHandle(handle)))
     .limit(1);
@@ -55,7 +60,7 @@ export async function findAccountByEmail(
   on: DbOrTx = db,
 ): Promise<AccountRow | undefined> {
   const [row] = await on
-    .select()
+    .select(accountColumns)
     .from(accounts)
     .where(eq(accounts.email, email))
     .limit(1);
@@ -66,7 +71,7 @@ export async function listAccounts(options?: {
   status?: AccountStatus;
 }): Promise<AccountRow[]> {
   return db
-    .select()
+    .select(accountColumns)
     .from(accounts)
     .where(options?.status ? eq(accounts.status, options.status) : undefined)
     .orderBy(asc(accounts.handle));
@@ -101,7 +106,7 @@ export async function createAccount(
       status: input.status ?? "active",
     })
     .onConflictDoNothing()
-    .returning();
+    .returning(accountColumns);
 
   if (row) invalidateAccounts();
   return row;
@@ -140,7 +145,7 @@ async function updateAccount(
     .update(accounts)
     .set({ ...patch, updatedAt: sql`now()` })
     .where(eq(accounts.handle, normalizeHandle(handle)))
-    .returning();
+    .returning(accountColumns);
 
   if (row) invalidateAccounts();
   return row;

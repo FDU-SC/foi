@@ -2,10 +2,10 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAccount } from "@/lib/accounts/queries";
 import { reservedHandle } from "@/test/content-shapes";
-import { issueCode, verifyCode } from "@/lib/auth/email-verification";
-import { issueRegistrationProof } from "@/lib/auth/registration-proof";
 import { db } from "@/lib/db";
-import { accounts, credentials, emailVerifications } from "@/lib/db/schema";
+import { accounts, emailVerifications } from "@/lib/db/schema";
+import { issueCode, verifyCode } from "./email-verification";
+import { issueRegistrationProof } from "./registration-proof";
 import { register } from "./register";
 
 /**
@@ -31,15 +31,15 @@ const TAKEN = "regtest-taken";
  * never writes a hash would make the successful paths prove less than they
  * look like they prove.
  */
-const credentialsHook = vi.hoisted(() => ({ failSetPassword: false }));
+const passwordHook = vi.hoisted(() => ({ failSetPassword: false }));
 
-vi.mock("@/lib/auth/credentials", async (importOriginal) => {
+vi.mock("@/lib/accounts/password", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("@/lib/auth/credentials")>();
+    await importOriginal<typeof import("@/lib/accounts/password")>();
   return {
     ...actual,
     setPassword: async (...args: Parameters<typeof actual.setPassword>) => {
-      if (credentialsHook.failSetPassword) throw new Error("写密码故意失败");
+      if (passwordHook.failSetPassword) throw new Error("写密码故意失败");
       return actual.setPassword(...args);
     },
   };
@@ -70,7 +70,6 @@ async function prove(email: string): Promise<string> {
 
 async function cleanup(): Promise<void> {
   const handles = [HANDLE, TAKEN];
-  await db.delete(credentials).where(inArray(credentials.handle, handles));
   await db.delete(accounts).where(inArray(accounts.handle, handles));
   await db.delete(emailVerifications).where(eq(emailVerifications.email, EMAIL));
 }
@@ -92,7 +91,7 @@ const FORM = {
 describeDb("register", () => {
   beforeEach(() => {
     vi.stubEnv("AUTH_SECRET", "register-suite-signing-key-32b");
-    credentialsHook.failSetPassword = false;
+    passwordHook.failSetPassword = false;
     return cleanup();
   });
   afterAll(async () => {
@@ -209,22 +208,19 @@ describeDb("register", () => {
 
   it("写密码失败时整笔回滚，不留下一个登不进去的账号", async () => {
     const proof = await prove(EMAIL);
-    credentialsHook.failSetPassword = true;
+    passwordHook.failSetPassword = true;
 
     await expect(register({ ...FORM, proof })).rejects.toThrow(
       "写密码故意失败",
     );
 
     // 账号行是在抛错之前就插进去的，所以它现在不在，只可能是回滚的结果。
-    // 没有事务的时候留下的正是这一行：账号存在、没有凭据、登不进去，而且
-    // 注册页会告诉这个人用户名已被占用——占用者是他自己。
+    // 没有事务的时候留下的正是这一行：账号存在、password_hash 是空的、登不
+    // 进去，而且注册页会告诉这个人用户名已被占用——占用者是他自己。
     expect(await getAccount(HANDLE)).toBeUndefined();
-    await expect(
-      db.select().from(credentials).where(eq(credentials.handle, HANDLE)),
-    ).resolves.toHaveLength(0);
 
     // 邮箱证明也没被花掉，所以重试一次就能过，不必再跑一趟收件箱。
-    credentialsHook.failSetPassword = false;
+    passwordHook.failSetPassword = false;
     await expect(register({ ...FORM, proof })).resolves.toMatchObject({
       ok: true,
       handle: HANDLE,

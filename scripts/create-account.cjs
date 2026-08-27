@@ -40,9 +40,9 @@ const { Client } = require("pg");
 // this tool reads it.
 const ARGON2_OPTIONS = (() => {
   try {
-    return require("../lib/auth/argon2-options.cjs");
+    return require("../lib/accounts/argon2-options.cjs");
   } catch {
-    return require("./lib/auth/argon2-options.cjs");
+    return require("./lib/accounts/argon2-options.cjs");
   }
 })();
 
@@ -159,13 +159,10 @@ async function main() {
 
     await client.query(
       `insert into accounts
-         (handle, display_name, email, email_verified_at, source, status)
-       values ($1, $2, $3, now(), 'bootstrap', 'active')`,
-      [normalizedHandle, name, normalizedEmail],
-    );
-    await client.query(
-      "insert into credentials (handle, password_hash) values ($1, $2)",
-      [normalizedHandle, passwordHash],
+         (handle, display_name, email, email_verified_at, source, status,
+          password_hash, password_set_at)
+       values ($1, $2, $3, now(), 'bootstrap', 'active', $4, now())`,
+      [normalizedHandle, name, normalizedEmail, passwordHash],
     );
 
     await client.query("commit");

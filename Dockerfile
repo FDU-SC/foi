@@ -125,7 +125,7 @@ COPY --from=builder --chown=foi:nodejs /app/scripts/create-account.cjs ./scripts
 # The account tool hashes with the same parameters `verifyPassword` expects.
 # The application imports this file too, but as part of a bundled chunk rather
 # than as a traced file on disk, so the tool needs its own copy.
-COPY --from=builder --chown=foi:nodejs /app/lib/auth/argon2-options.cjs ./lib/auth/
+COPY --from=builder --chown=foi:nodejs /app/lib/accounts/argon2-options.cjs ./lib/accounts/
 
 USER foi
 EXPOSE 3000

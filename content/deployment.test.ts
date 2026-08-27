@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listGroups } from "@/lib/auth/groups";
+import { listGroups } from "@/lib/permissions/groups";
 import { allContests, contestBySlug } from "@/lib/contests/registry";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";

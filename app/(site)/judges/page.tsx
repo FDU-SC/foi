@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
-import { viewerFor } from "@/lib/auth/viewer";
+import { viewerFor } from "@/lib/permissions/viewer";
 import { judgeQueuesFor } from "@/lib/backend/board";
 import { JudgeStatusBoard } from "./judge-status-board";
 

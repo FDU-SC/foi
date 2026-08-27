@@ -1,6 +1,6 @@
 import { getSessionUser } from "@/auth";
 import { resolveUser } from "@/lib/accounts/resolve";
-import { viewerFor } from "@/lib/auth/viewer";
+import { viewerFor } from "@/lib/permissions/viewer";
 import { isSettled } from "@/lib/backend/types";
 import { rateLimit } from "@/lib/ratelimit";
 import {

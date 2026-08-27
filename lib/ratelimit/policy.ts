@@ -1,7 +1,7 @@
 /**
  * Every way into this application, and what bounds it.
  *
- * The same shape `lib/auth/policy.ts` uses for authorisation, and for the same
+ * The same shape `lib/permissions/policy.ts` uses for authorisation, and for the same
  * reason: the value of listing every decision in one place is not the array,
  * it is that the list can be read to the end.
  *
@@ -14,8 +14,8 @@
  * What this table is not:
  *
  * It is not the only bound on any of these. `proxy.ts` counts by source ahead
- * of every page and Server Action, and `lib/auth/tokens.ts` and
- * `lib/auth/email-verification.ts` hold durable per-recipient cooldowns that
+ * of every page and Server Action, and `lib/accounts/tokens.ts` and
+ * `lib/enrollment/email-verification.ts` hold durable per-recipient cooldowns that
  * survive a restart. Three layers, and they are separated by what each counts:
  * a source, a person, a mailbox.
  *

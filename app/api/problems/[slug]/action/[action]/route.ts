@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getResolvedUser } from "@/auth";
-import { viewerFor } from "@/lib/auth/viewer";
+import { viewerFor } from "@/lib/permissions/viewer";
 import { callBackendAction } from "@/lib/backend/client";
 import { resolveBackend } from "@/lib/backend/resolve";
 import { readTextBody } from "@/lib/body-limit";

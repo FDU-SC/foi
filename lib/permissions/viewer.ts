@@ -4,9 +4,9 @@ import type { Capability } from "./policy";
 /**
  * The identity the kernel carries around.
  *
- * `handle` is the primary key everywhere — in the account row, in the
- * credentials row that lets them log in, and on their submissions. There is no
- * separate opaque id, for the same reason a problem is keyed by its slug: one
+ * `handle` is the primary key everywhere — in the account row that lets them
+ * log in, and on their submissions. There is no separate opaque id, for the
+ * same reason a problem is keyed by its slug: one
  * name, derivable from the URL and from the source file, with no lookup table
  * in between.
  *

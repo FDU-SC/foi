@@ -1,11 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { ulid } from "ulid";
-import type { DbOrTx } from "@/lib/accounts/queries";
-import { normalizeHandle } from "@/lib/accounts/types";
 import { db } from "@/lib/db";
 import { authTokens } from "@/lib/db/schema";
 import type { TokenPurpose } from "@/lib/db/schema";
+import type { DbOrTx } from "./queries";
+import { normalizeHandle } from "./types";
 
 /**
  * Single-use secrets that arrive by email, addressed to an existing account.

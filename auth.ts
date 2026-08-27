@@ -9,9 +9,9 @@ import {
   passwordSetAt,
   sessionMatchesPassword,
   verifyPassword,
-} from "@/lib/auth/credentials";
-import type { Capability } from "@/lib/auth/policy";
-import { viewerFor, type SessionUser, type Viewer } from "@/lib/auth/viewer";
+} from "@/lib/accounts/password";
+import type { Capability } from "@/lib/permissions/policy";
+import { viewerFor, type SessionUser, type Viewer } from "@/lib/permissions/viewer";
 import { rateLimit, rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { ACTION_LIMITS, alsoRule, fixedRule } from "@/lib/ratelimit/policy";
 
@@ -76,11 +76,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
 
       /**
-       * Two independent checks against two different tables: the account says
-       * whether this person exists and is in a state to log in, the
-       * credentials row says whether they got the password right. Neither can
-       * stand in for the other — suspending someone locks them out even
-       * though their hash is untouched.
+       * Two independent checks against one row: `status` says whether this
+       * person exists and is in a state to log in, the hash says whether they
+       * got the password right. Neither can stand in for the other —
+       * suspending someone locks them out even though their hash is untouched.
        */
       async authorize(raw, request) {
         const parsed = credentialsSchema.safeParse(raw);
@@ -108,15 +107,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const check = await verifyPassword(user.handle, password);
         if (!check.ok) return null;
 
-        // The handle, plus the state of the credentials row this session is
-        // being minted against; everything else is re-resolved on each request
+        // The handle, plus the password this session is being minted
+        // against; everything else is re-resolved on each request
         // so a suspension or a demotion lands immediately. That second claim
         // is what `getResolvedUser` compares to make a password reset end the
         // sessions that came before it.
         return {
           id: user.handle,
           handle: user.handle,
-          credentialsAt: check.setAt.getTime(),
+          passwordAt: check.setAt.getTime(),
         };
       },
     }),
@@ -155,7 +154,7 @@ export async function getResolvedUser(): Promise<ResolvedUser | null> {
    * right way round.
    */
   const setAt = await passwordSetAt(handle);
-  if (!sessionMatchesPassword(setAt, session.user.credentialsAt)) return null;
+  if (!sessionMatchesPassword(setAt, session.user.passwordAt)) return null;
 
   return user;
 }
@@ -195,7 +194,7 @@ export async function getViewer(): Promise<Viewer> {
  *
  * The capability is carried rather than interpolated into the message, because
  * the message is written for whoever is looking at the screen and the
- * capability name is an identifier out of `lib/auth/policy.ts`. Anything
+ * capability name is an identifier out of `lib/permissions/policy.ts`. Anything
  * wanting to say which one was missing can read the field.
  */
 export class ForbiddenError extends Error {

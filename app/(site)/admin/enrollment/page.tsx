@@ -5,8 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { getViewer } from "@/auth";
 import { enrollmentViewFor } from "@/lib/admin/access";
-import { codeTtlMinutes } from "@/lib/auth/email-verification";
-import { groupName, isPrivileged } from "@/lib/auth/groups";
+import { codeTtlMinutes } from "@/lib/enrollment/email-verification";
+import { groupName, isPrivileged } from "@/lib/permissions/groups";
 import { isHandlesRule } from "@/lib/enrollment/types";
 
 export const metadata: Metadata = { title: "分流规则" };

@@ -1,5 +1,5 @@
-import { inAudience, type Audience } from "@/lib/auth/audience";
-import type { Viewer } from "@/lib/auth/viewer";
+import { inAudience, type Audience } from "@/lib/permissions/audience";
+import type { Viewer } from "@/lib/permissions/viewer";
 import { contestFor } from "@/lib/contests/access";
 import { allContests } from "@/lib/contests/registry";
 import {
@@ -181,7 +181,7 @@ export function problemVisibility(
  * which the load-time check cannot see: `contest.viewAll` reaches past a
  * round's `visibleTo`, and nothing then puts its holder in the audience of the
  * problems inside. Closing it at retrieval rather than filtering at render is
- * the same choice `lib/auth/audience.ts` argues for.
+ * the same choice `lib/permissions/audience.ts` argues for.
  *
  * `hasContestStarted` is load-bearing and must not be dropped. Without it a
  * competitor who *is* in an unstarted round's audience matches — `contestFor`

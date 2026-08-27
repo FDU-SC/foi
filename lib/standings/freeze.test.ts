@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/test/auth-support";
-import { capabilitiesOf, listGroups } from "@/lib/auth/groups";
-import { viewerFor } from "@/lib/auth/viewer";
+import { capabilitiesOf, listGroups } from "@/lib/permissions/groups";
+import { viewerFor } from "@/lib/permissions/viewer";
 import { contestPhase } from "@/lib/contests/types";
 import { groupWith } from "@/test/content-shapes";
 import {
@@ -139,7 +139,7 @@ describe("谁能看穿封榜", () => {
 
   /**
    * Not "only if it declares the capability", which is what this used to say.
-   * `submission.readAny` implies it — see `IMPLIES` in `lib/auth/policy.ts` —
+   * `submission.readAny` implies it — see `IMPLIES` in `lib/permissions/policy.ts` —
    * so a group holding that and nothing else still reads through the freeze,
    * and asserting the narrower rule would have failed the first time somebody
    * split the two apart.

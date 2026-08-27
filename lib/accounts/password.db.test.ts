@@ -1,13 +1,13 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { accounts, credentials } from "@/lib/db/schema";
+import { accounts } from "@/lib/db/schema";
 import {
   passwordSetAt,
   sessionMatchesPassword,
   setPassword,
   verifyPassword,
-} from "./credentials";
+} from "./password";
 
 /**
  * The half of session lifetime that lives in SQL.
@@ -42,7 +42,7 @@ const online = await reachable();
 const describeDb = online ? describe : describe.skip;
 
 if (!online) {
-  console.warn("[test] 数据库不可达，跳过 credentials 集成用例");
+  console.warn("[test] 数据库不可达，跳过密码集成用例");
 }
 
 /** What `authorize` freezes into the token when somebody signs in. */
@@ -52,13 +52,12 @@ async function signIn(password: string): Promise<number | null> {
 }
 
 /** What `getResolvedUser` asks on every request that carries that token. */
-async function stillValid(credentialsAt: number): Promise<boolean> {
-  return sessionMatchesPassword(await passwordSetAt(HANDLE), credentialsAt);
+async function stillValid(passwordAt: number): Promise<boolean> {
+  return sessionMatchesPassword(await passwordSetAt(HANDLE), passwordAt);
 }
 
-describeDb("credentials", () => {
+describeDb("password", () => {
   beforeEach(async () => {
-    await db.delete(credentials).where(eq(credentials.handle, HANDLE));
     await db.delete(accounts).where(eq(accounts.handle, HANDLE));
     await db.insert(accounts).values({
       handle: HANDLE,
@@ -69,11 +68,10 @@ describeDb("credentials", () => {
   });
 
   afterAll(async () => {
-    await db.delete(credentials).where(eq(credentials.handle, HANDLE));
     await db.delete(accounts).where(eq(accounts.handle, HANDLE));
   });
 
-  it("密码正确时给出该行的 updatedAt", async () => {
+  it("密码正确时给出该行的 passwordSetAt", async () => {
     const check = await verifyPassword(HANDLE, PASSWORD);
 
     expect(check.ok).toBe(true);
@@ -82,17 +80,42 @@ describeDb("credentials", () => {
     }
   });
 
-  it("密码错误时不给 updatedAt", async () => {
+  it("密码错误时不给 passwordSetAt", async () => {
     await expect(verifyPassword(HANDLE, "wrong")).resolves.toEqual({
       ok: false,
     });
   });
 
-  it("没有凭据行的 handle 也返回 ok: false", async () => {
+  it("没有账号的 handle 也返回 ok: false", async () => {
     await expect(verifyPassword("nobody-here", PASSWORD)).resolves.toEqual({
       ok: false,
     });
     await expect(passwordSetAt("nobody-here")).resolves.toBeNull();
+  });
+
+  /**
+   * What the foreign key used to refuse. A password row with nobody behind it
+   * could not be written at all; an `update` naming a handle nobody registered
+   * matches nothing and reports success, so the refusal has to be written out.
+   */
+  it("给不存在的账号设密码会抛错，而不是静默地什么都没改", async () => {
+    await expect(setPassword("nobody-here", PASSWORD)).rejects.toThrow(
+      "nobody-here",
+    );
+  });
+
+  /** The check constraint is what lets `passwordSetAt` stand in for the hash. */
+  it("新建的账号两列都是空，设过密码之后两列都有值", async () => {
+    await db.delete(accounts).where(eq(accounts.handle, HANDLE));
+    await db.insert(accounts).values({
+      handle: HANDLE,
+      displayName: "Credential Test",
+      source: "registration",
+    });
+
+    await expect(passwordSetAt(HANDLE)).resolves.toBeNull();
+    await setPassword(HANDLE, PASSWORD);
+    await expect(passwordSetAt(HANDLE)).resolves.not.toBeNull();
   });
 
   it("刚签发的会话立刻就是有效的", async () => {
@@ -122,7 +145,7 @@ describeDb("credentials", () => {
     await expect(stillValid(stolen!)).resolves.toBe(false);
   });
 
-  it("setPassword 会把 updatedAt 往前推", async () => {
+  it("setPassword 会把 passwordSetAt 往前推", async () => {
     const before = await passwordSetAt(HANDLE);
     await setPassword(HANDLE, "another-one");
     const after = await passwordSetAt(HANDLE);
@@ -130,12 +153,12 @@ describeDb("credentials", () => {
     expect(after!.getTime()).toBeGreaterThan(before!.getTime());
   });
 
-  it("没有 credentialsAt 声明的旧 token 一律失效", async () => {
+  it("没有 passwordAt 声明的旧 token 一律失效", async () => {
     // Tokens minted before the claim existed decode to 0.
     await expect(stillValid(0)).resolves.toBe(false);
   });
 
-  it("updatedAt 由数据库的时钟写入，而不是这个进程的", async () => {
+  it("passwordSetAt 由数据库的时钟写入，而不是这个进程的", async () => {
     // `now()` is the transaction's timestamp and does not move within one, so
     // this is an equality rather than a tolerance: whatever `setPassword`
     // writes inside this transaction either is that timestamp or came from
@@ -145,17 +168,17 @@ describeDb("credentials", () => {
     await db.transaction(async (tx) => {
       const [opened] = await tx
         .select({ at: sql<Date>`now()` })
-        .from(credentials)
-        .where(eq(credentials.handle, HANDLE));
+        .from(accounts)
+        .where(eq(accounts.handle, HANDLE));
 
       await setPassword(HANDLE, "written-inside-a-transaction", tx);
 
       const [row] = await tx
-        .select({ updatedAt: credentials.updatedAt })
-        .from(credentials)
-        .where(eq(credentials.handle, HANDLE));
+        .select({ passwordSetAt: accounts.passwordSetAt })
+        .from(accounts)
+        .where(eq(accounts.handle, HANDLE));
 
-      expect(row.updatedAt.getTime()).toBe(new Date(opened.at).getTime());
+      expect(row.passwordSetAt!.getTime()).toBe(new Date(opened.at).getTime());
     });
   });
 });

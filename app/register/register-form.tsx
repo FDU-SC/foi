@@ -37,7 +37,7 @@ type Phase = "idle" | "sent" | "verified";
 
 /**
  * Both numbers arrive as props rather than being imported here: they live
- * beside the code they describe in `lib/auth/email-verification.ts`, which
+ * beside the code they describe in `lib/enrollment/email-verification.ts`, which
  * reaches the database, and this is a client component.
  */
 export function RegisterForm({

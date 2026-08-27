@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/test/auth-support";
-import { viewerFor, type Viewer } from "@/lib/auth/viewer";
+import { viewerFor, type Viewer } from "@/lib/permissions/viewer";
 import { viewerWith } from "@/test/content-shapes";
 import { allContests } from "@/lib/contests/registry";
 import { problemFor } from "@/lib/problems/access";

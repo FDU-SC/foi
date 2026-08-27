@@ -1,6 +1,6 @@
 import { normalizeHandle, type ResolvedUser } from "@/lib/accounts/types";
-import { inAudience, type Audience } from "@/lib/auth/audience";
-import { viewerFor, type Viewer } from "@/lib/auth/viewer";
+import { inAudience, type Audience } from "@/lib/permissions/audience";
+import { viewerFor, type Viewer } from "@/lib/permissions/viewer";
 import { allContests, contestBySlug } from "./registry";
 import {
   hasContestStarted,

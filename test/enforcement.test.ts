@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CAPABILITIES } from "@/lib/auth/policy";
+import { CAPABILITIES } from "@/lib/permissions/policy";
 import {
   PAGE_CHECKS,
   READ_GATES,
@@ -55,15 +55,18 @@ const ROOT = join(import.meta.dirname, "..");
 /**
  * The kernel is skipped by every scan below.
  *
- * `lib/auth/` owns the vocabulary, the viewer and the primitives the gates are
- * built out of, and owns no resource — so it can hold no gate, and the
- * `viewer.can("…")` spellings in it are documentation of how to write one.
+ * `lib/permissions/` owns the vocabulary, the viewer and the primitives the gates are
+ * built out of. It reaches no database, so it owns no resource — it can hold
+ * no gate, and the `viewer.can("…")` spellings in it are documentation of how
+ * to write one. The modules that did own rows have since moved out to the
+ * directories whose flows they belong to, which is what makes the skip safe
+ * rather than merely conventional.
  */
-const KERNEL = join("lib", "auth");
+const KERNEL = join("lib", "permissions");
 
 /**
  * Comments are stripped before scanning, because this file's own prose is full
- * of `viewer.can("…")` and so is `lib/auth/policy.ts`'s. The naive stripper
+ * of `viewer.can("…")` and so is `lib/permissions/policy.ts`'s. The naive stripper
  * can eat the tail of a line whose string literal contains `//`; that can only
  * lose a detection, never invent one, which is the right way round for a scan
  * whose failures edit the map.

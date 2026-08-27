@@ -3,6 +3,8 @@ CREATE TABLE "accounts" (
 	"display_name" text NOT NULL,
 	"email" text,
 	"email_verified_at" timestamp with time zone,
+	"password_hash" text,
+	"password_set_at" timestamp with time zone,
 	"source" text DEFAULT 'registration' NOT NULL,
 	"status" text DEFAULT 'active' NOT NULL,
 	"suspended_at" timestamp with time zone,
@@ -10,7 +12,8 @@ CREATE TABLE "accounts" (
 	"suspended_reason" text,
 	"reinstated_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "accounts_password_pair_ck" CHECK (("accounts"."password_hash" is null) = ("accounts"."password_set_at" is null))
 );
 --> statement-breakpoint
 CREATE TABLE "auth_tokens" (
@@ -27,13 +30,6 @@ CREATE TABLE "contests" (
 	"slug" text PRIMARY KEY NOT NULL,
 	"title" text NOT NULL,
 	"synced_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "credentials" (
-	"handle" text PRIMARY KEY NOT NULL,
-	"password_hash" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "email_verifications" (
@@ -87,7 +83,6 @@ CREATE TABLE "submissions" (
 );
 --> statement-breakpoint
 ALTER TABLE "auth_tokens" ADD CONSTRAINT "auth_tokens_handle_accounts_handle_fk" FOREIGN KEY ("handle") REFERENCES "public"."accounts"("handle") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "credentials" ADD CONSTRAINT "credentials_handle_accounts_handle_fk" FOREIGN KEY ("handle") REFERENCES "public"."accounts"("handle") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "submissions" ADD CONSTRAINT "submissions_handle_accounts_handle_fk" FOREIGN KEY ("handle") REFERENCES "public"."accounts"("handle") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "submissions" ADD CONSTRAINT "submissions_problem_slug_problems_slug_fk" FOREIGN KEY ("problem_slug") REFERENCES "public"."problems"("slug") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "submissions" ADD CONSTRAINT "submissions_contest_slug_contests_slug_fk" FOREIGN KEY ("contest_slug") REFERENCES "public"."contests"("slug") ON DELETE set null ON UPDATE no action;--> statement-breakpoint

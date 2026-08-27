@@ -8,10 +8,10 @@ declare module "next-auth" {
       displayName: string;
       groups: string[];
       /**
-       * `credentials.updatedAt` as of sign-in, epoch milliseconds. Zero on a
+       * `accounts.passwordSetAt` as of sign-in, epoch milliseconds. Zero on a
        * token minted before the claim existed, and on no token at all.
        */
-      credentialsAt: number;
+      passwordAt: number;
     } & DefaultSession["user"];
   }
 
@@ -19,10 +19,10 @@ declare module "next-auth" {
    * What `authorize` returns. Display name and group membership are absent on
    * purpose: they are derived on every request rather than frozen into the
    * token, so a change to `content/enrollment/` lands on the next page load.
-   * `credentialsAt` is frozen for the opposite reason — see `auth.config.ts`.
+   * `passwordAt` is frozen for the opposite reason — see `auth.config.ts`.
    */
   interface User {
     handle: string;
-    credentialsAt: number;
+    passwordAt: number;
   }
 }

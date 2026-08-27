@@ -1,5 +1,5 @@
 import type { ResolvedUser } from "@/lib/accounts/types";
-import { viewerFor } from "@/lib/auth/viewer";
+import { viewerFor } from "@/lib/permissions/viewer";
 import { contestEntryFor } from "@/lib/contests/access";
 import type { ContestConfig } from "@/lib/contests/types";
 import { problemFor } from "@/lib/problems/access";

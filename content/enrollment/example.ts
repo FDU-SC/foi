@@ -1,4 +1,4 @@
-import type { GroupInput } from "@/lib/auth/groups";
+import type { GroupInput } from "@/lib/permissions/groups";
 import type {
   EnrollmentPolicyInput,
   EnrollmentRuleInput,
@@ -40,7 +40,7 @@ export const policy: EnrollmentPolicyInput = {
 /**
  * What each group may do. Only groups carrying capabilities go here; a group
  * that appears only in a rule below is an ordinary cohort, which is what makes
- * adding one free. The capability names come from `lib/auth/policy.ts`.
+ * adding one free. The capability names come from `lib/permissions/policy.ts`.
  */
 export const groups: GroupInput[] = [
   {

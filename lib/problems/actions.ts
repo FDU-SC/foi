@@ -1,4 +1,4 @@
-import type { Viewer } from "@/lib/auth/viewer";
+import type { Viewer } from "@/lib/permissions/viewer";
 import { problemFor } from "./access";
 import {
   DEFAULT_ACTION_RATE_LIMIT,

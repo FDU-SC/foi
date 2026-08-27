@@ -5,8 +5,8 @@ import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { adminOverviewFor } from "@/lib/admin/access";
-import { capabilitiesOf, listGroups } from "@/lib/auth/groups";
-import { CAPABILITY_LABELS } from "@/lib/auth/policy";
+import { capabilitiesOf, listGroups } from "@/lib/permissions/groups";
+import { CAPABILITY_LABELS } from "@/lib/permissions/policy";
 import { listRulesets } from "@/lib/standings/registry";
 
 export const metadata: Metadata = { title: "管理" };
@@ -132,7 +132,7 @@ export default async function AdminPage() {
             纯分组不需要声明，出现在规则或授权里即可使用。列出的是
             <strong className="text-fg font-medium">实际生效</strong>
             的能力，鼠标悬停看中文说明；蓝色那些是文件里没写、由别的能力蕴含而来的
-            （见 <code className="font-mono">lib/auth/policy.ts</code> 的{" "}
+            （见 <code className="font-mono">lib/permissions/policy.ts</code> 的{" "}
             <code className="font-mono">IMPLIES</code>）。
           </p>
           <div className="border-border overflow-hidden rounded-md border">

@@ -3,14 +3,11 @@ import {
   findAccountByEmail,
   getAccount,
 } from "@/lib/accounts/queries";
+import { setPassword } from "@/lib/accounts/password";
 import { normalizeEmail, normalizeHandle } from "@/lib/accounts/types";
-import { setPassword } from "@/lib/auth/credentials";
-import { checkRegistrationProof } from "@/lib/auth/registration-proof";
-import {
-  consumeVerifiedEmail,
-  isEmailVerified,
-} from "@/lib/auth/email-verification";
 import { db } from "@/lib/db";
+import { consumeVerifiedEmail, isEmailVerified } from "./email-verification";
+import { checkRegistrationProof } from "./registration-proof";
 import { enrollmentPolicy, rulesForHandle } from "./registry";
 
 /**
@@ -132,7 +129,7 @@ export async function register(input: {
   //
   // Run separately they have two ways to come apart, and both leave the person
   // worse off than a plain failure would: a crash after the insert gives an
-  // account with no credentials row — it exists, it cannot log in, and the form
+  // account with no password — it exists, it cannot log in, and the form
   // now says the handle is taken by somebody who turns out to be them — and a
   // crash before the last statement leaves a proof standing for an address that
   // has already been spent. Neither is swept up by anything.

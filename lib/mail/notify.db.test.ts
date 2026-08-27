@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { redeemToken } from "@/lib/auth/tokens";
+import { redeemToken } from "@/lib/accounts/tokens";
 import { db } from "@/lib/db";
 import { accounts, authTokens } from "@/lib/db/schema";
 import type { MailMessage } from "./transport";

@@ -44,7 +44,7 @@ export async function requestPasswordReset(
   //
   // With no trusted proxy in front there is no source to count and this stands
   // aside entirely — see `rateLimitBySource`. What still holds then is the
-  // durable per-recipient cooldown in `lib/auth/tokens.ts`: one link per
+  // durable per-recipient cooldown in `lib/accounts/tokens.ts`: one link per
   // account per minute, which bounds what any single mailbox can be made to
   // receive but not how many mailboxes can be aimed at in an hour.
   const rule = fixedRule(ACTION_LIMITS.requestPasswordReset);

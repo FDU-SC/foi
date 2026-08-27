@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/test/auth-support";
-import { viewerFor } from "@/lib/auth/viewer";
+import { viewerFor } from "@/lib/permissions/viewer";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
 import { accountDirectoryFor, accountsFor } from "./access";
@@ -74,6 +74,19 @@ describeDb("账号目录门禁", () => {
     });
 
     /**
+     * What `accountColumns` is for. These rows are rendered in a server
+     * component and some of them are handed to client components, which would
+     * serialise every field they carry into the RSC payload.
+     */
+    it("目录里的行不带 passwordHash", async () => {
+      const directory = await accountDirectoryFor(reader);
+
+      for (const row of directory.accounts) {
+        expect(row).not.toHaveProperty("passwordHash");
+      }
+    });
+
+    /**
      * Empty rather than an exception, matching the other access layers: a page
      * that somehow reaches this without the capability renders an empty console
      * instead of a stack trace, and there is no partial state to reason about.
@@ -82,7 +95,6 @@ describeDb("账号目录门禁", () => {
       const directory = await accountDirectoryFor(player);
 
       expect(directory.accounts).toEqual([]);
-      expect(directory.credentials).toEqual([]);
       expect(directory.awaitingReset.size).toBe(0);
     });
 

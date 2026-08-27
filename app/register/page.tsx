@@ -6,7 +6,7 @@ import { AuthShell } from "@/components/auth/auth-shell";
 import {
   codeTtlMinutes,
   resendCooldownMs,
-} from "@/lib/auth/email-verification";
+} from "@/lib/enrollment/email-verification";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import { RegisterForm } from "./register-form";
 

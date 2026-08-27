@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { audienceSchema } from "@/lib/auth/audience";
+import { audienceSchema } from "@/lib/permissions/audience";
 import { actionRateLimitSchema } from "@/lib/problems/types";
 
 /**

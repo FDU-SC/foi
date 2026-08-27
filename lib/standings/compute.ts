@@ -7,7 +7,7 @@ import {
 import { contestPhase, type ContestConfig } from "@/lib/contests/types";
 import { db } from "@/lib/db";
 import { accounts, submissions } from "@/lib/db/schema";
-import type { Viewer } from "@/lib/auth/viewer";
+import type { Viewer } from "@/lib/permissions/viewer";
 import { cachedStandings, standingsKey } from "./cache";
 import { rulesetFor } from "./registry";
 import type {

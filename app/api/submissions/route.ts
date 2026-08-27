@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { ulid } from "ulid";
 import { getResolvedUser, getSessionUser } from "@/auth";
 import type { DbOrTx } from "@/lib/accounts/queries";
-import { viewerFor } from "@/lib/auth/viewer";
+import { viewerFor } from "@/lib/permissions/viewer";
 import { readTextBody } from "@/lib/body-limit";
 import { releaseSha } from "@/lib/boot/deployment";
 import { db } from "@/lib/db";

@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { resolveFromRow } from "@/lib/accounts/resolve";
 import { adminAccountsFor } from "@/lib/admin/access";
 import type { AccountRow } from "@/lib/db/schema";
-import { groupName, hasPrivilege, isPrivileged } from "@/lib/auth/groups";
+import { groupName, hasPrivilege, isPrivileged } from "@/lib/permissions/groups";
 import { Field, Input } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { ResendResetForm } from "../resend-reset-form";
@@ -86,10 +86,10 @@ export default async function AdminAccountsPage({
   ]);
   if (!directory) notFound();
 
-  const { accounts: rows, credentials, awaitingReset } = directory;
+  const { accounts: rows, awaitingReset } = directory;
 
   const query = typeof params.q === "string" ? params.q.trim().toLowerCase() : "";
-  const suspensions = new Map(rows.map((row) => [row.handle, row]));
+  const byHandle = new Map(rows.map((row) => [row.handle, row]));
 
   const accounts = rows
     .map(resolveFromRow)
@@ -102,7 +102,6 @@ export default async function AdminAccountsPage({
         account.groups.some((group) => group.toLowerCase().includes(query)),
     );
 
-  const byHandle = new Map(credentials.map((row) => [row.handle, row]));
   const canManage = viewer.can("credential.manage");
   const canModerate = viewer.can("account.moderate");
   const showActions = canManage || canModerate;
@@ -185,7 +184,7 @@ export default async function AdminAccountsPage({
           </thead>
           <tbody className="divide-border divide-y">
             {accounts.map((account) => {
-              const credential = byHandle.get(account.handle);
+              const row = byHandle.get(account.handle);
               const status = STATUS[account.status];
               return (
                 <tr key={account.handle} className="hover:bg-surface-2/60">
@@ -210,7 +209,7 @@ export default async function AdminAccountsPage({
                   </td>
                   <td className="px-4 py-2.5">
                     <Badge tone={status.tone}>{status.label}</Badge>
-                    <ModerationNote row={suspensions.get(account.handle)} />
+                    <ModerationNote row={row} />
                   </td>
                   <td className="px-4 py-2.5">
                     {account.groups.length === 0 ? (
@@ -229,9 +228,9 @@ export default async function AdminAccountsPage({
                     )}
                   </td>
                   <td className="px-4 py-2.5">
-                    {credential?.hasPassword ? (
+                    {row?.passwordSetAt ? (
                       <span className="text-fg-subtle font-mono text-xs">
-                        {formatter.format(credential.updatedAt)}
+                        {formatter.format(row.passwordSetAt)}
                       </span>
                     ) : (
                       <Badge tone="warn">未设置密码</Badge>
@@ -248,7 +247,7 @@ export default async function AdminAccountsPage({
                         {canManage && !account.disabled ? (
                           <ResendResetForm
                             handle={account.handle}
-                            hasPassword={credential?.hasPassword ?? false}
+                            hasPassword={row?.passwordSetAt != null}
                           />
                         ) : null}
                         {/* `suspendAccountAction` refuses a privileged target,

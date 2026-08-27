@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getSessionUser } from "@/auth";
-import { groupName } from "@/lib/auth/groups";
-import { viewerFor } from "@/lib/auth/viewer";
+import { groupName } from "@/lib/permissions/groups";
+import { viewerFor } from "@/lib/permissions/viewer";
 import { ThemeToggle } from "@/components/site/theme-toggle";
 import { UserMenu } from "@/components/site/user-menu";
 

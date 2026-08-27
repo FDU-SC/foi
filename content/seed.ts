@@ -2,8 +2,8 @@ import { hash } from "@node-rs/argon2";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import { Pool } from "pg";
-import { accounts, credentials } from "../lib/db/schema";
-import ARGON2_OPTIONS from "../lib/auth/argon2-options.cjs";
+import { accounts } from "../lib/db/schema";
+import ARGON2_OPTIONS from "../lib/accounts/argon2-options.cjs";
 
 /**
  * Creates the development accounts and gives them all one password.
@@ -101,6 +101,8 @@ async function main() {
         emailVerifiedAt: entry.email ? new Date() : null,
         source: entry.source,
         status: "active",
+        passwordHash,
+        passwordSetAt: sql`now()`,
       })
       .onConflictDoUpdate({
         target: accounts.handle,
@@ -109,17 +111,8 @@ async function main() {
           email: sql`excluded.email`,
           emailVerifiedAt: sql`excluded.email_verified_at`,
           status: sql`'active'`,
-          updatedAt: sql`now()`,
-        },
-      });
-
-    await db
-      .insert(credentials)
-      .values({ handle: entry.handle, passwordHash })
-      .onConflictDoUpdate({
-        target: credentials.handle,
-        set: {
           passwordHash: sql`excluded.password_hash`,
+          passwordSetAt: sql`excluded.password_set_at`,
           updatedAt: sql`now()`,
         },
       });

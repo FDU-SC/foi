@@ -1,5 +1,5 @@
 import { and, asc, count, gte, inArray } from "drizzle-orm";
-import type { Viewer } from "@/lib/auth/viewer";
+import type { Viewer } from "@/lib/permissions/viewer";
 import { db } from "@/lib/db";
 import { runners, submissions } from "@/lib/db/schema";
 import { RUNNER_ONLINE_MS } from "@/lib/runner/queue";

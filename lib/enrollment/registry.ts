@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { normalizeHandle } from "@/lib/accounts/types";
-import { declaredGroupIds, isPrivileged, privilegedGroupIds } from "@/lib/auth/groups";
+import { declaredGroupIds, isPrivileged, privilegedGroupIds } from "@/lib/permissions/groups";
 import { enrollmentSources } from "./modules";
 import {
   enrollmentPolicySchema,

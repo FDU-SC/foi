@@ -11,7 +11,7 @@ import "server-only";
  * The sharpest of the eight to keep off the client. A rule file carries the
  * address patterns for an entire intake and the handles of everybody holding
  * privilege, and none of it is redacted on the way out because nothing is ever
- * supposed to send it. `lib/auth/groups.ts` reads this, so a client component
+ * supposed to send it. `lib/permissions/groups.ts` reads this, so a client component
  * reaching for something as innocuous as `groupName` ships the whole set.
  */
 export const enrollmentModules = import.meta.glob("./enrollment/*.ts", {

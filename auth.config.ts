@@ -11,7 +11,7 @@ import { groupsFor } from "@/lib/enrollment/registry";
  * one indexed read, and makes both an edit to `content/enrollment/` and a
  * suspension take effect on the next page load.
  *
- * `credentialsAt` is the exception, and it is here for the opposite reason: it
+ * `passwordAt` is the exception, and it is here for the opposite reason: it
  * is a fact about the token rather than about the person. It says which
  * password this session was issued against, so that `getResolvedUser` can
  * compare it with the current one and refuse a session older than the last
@@ -23,8 +23,8 @@ import { groupsFor } from "@/lib/enrollment/registry";
  */
 interface FoiClaims {
   handle: string;
-  /** `credentials.updatedAt` as of sign-in, in epoch milliseconds. */
-  credentialsAt: number;
+  /** `accounts.passwordSetAt` as of sign-in, in epoch milliseconds. */
+  passwordAt: number;
 }
 
 /**
@@ -56,7 +56,7 @@ export const authConfig = {
       if (user) {
         const claims: FoiClaims = {
           handle: user.handle,
-          credentialsAt: user.credentialsAt,
+          passwordAt: user.passwordAt,
         };
         Object.assign(token, claims);
       }
@@ -71,14 +71,14 @@ export const authConfig = {
         session.user.handle = "";
         session.user.displayName = "";
         session.user.groups = [];
-        session.user.credentialsAt = 0;
+        session.user.passwordAt = 0;
         return session;
       }
 
       session.user.handle = handle;
       // Zero for a token minted before this claim existed, which is older than
-      // any credentials row and so fails the comparison in `getResolvedUser`.
-      session.user.credentialsAt = claims.credentialsAt ?? 0;
+      // any password and so fails the comparison in `getResolvedUser`.
+      session.user.passwordAt = claims.passwordAt ?? 0;
       // A placeholder until `getResolvedUser()` reads the real one. Nothing
       // renders this: pages take their display name from the resolved user.
       session.user.displayName = handle;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { backends } from "@/lib/backend/registry";
 import { AS_PLAYER } from "@/test/auth-support";
-import { type Viewer } from "@/lib/auth/viewer";
+import { type Viewer } from "@/lib/permissions/viewer";
 import { viewerWith } from "@/test/content-shapes";
 import { allContests } from "@/lib/contests/registry";
 import { problemFor } from "@/lib/problems/access";

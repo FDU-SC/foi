@@ -1,10 +1,10 @@
 "use server";
 
 import { z } from "zod";
+import { setPassword } from "@/lib/accounts/password";
 import { getAccount } from "@/lib/accounts/queries";
 import { resolveFromRow } from "@/lib/accounts/resolve";
-import { setPassword } from "@/lib/auth/credentials";
-import { redeemToken } from "@/lib/auth/tokens";
+import { redeemToken } from "@/lib/accounts/tokens";
 import { db } from "@/lib/db";
 import { rateLimitByCaller } from "@/lib/ratelimit";
 import { ACTION_LIMITS, fixedRule } from "@/lib/ratelimit/policy";

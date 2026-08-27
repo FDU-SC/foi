@@ -10,13 +10,13 @@ import {
   handleSchema,
   normalizeEmail,
 } from "@/lib/accounts/types";
-import { maxAttempts, verifyCode } from "@/lib/auth/email-verification";
+import { maxAttempts, verifyCode } from "@/lib/enrollment/email-verification";
 import {
   checkRegistrationProof,
   issueRegistrationProof,
   REGISTRATION_PROOF_COOKIE,
   registrationProofCookieOptions,
-} from "@/lib/auth/registration-proof";
+} from "@/lib/enrollment/registration-proof";
 import {
   domainAllowed,
   register,

@@ -6,7 +6,7 @@ import type { AccountStatus } from "@/lib/db/schema";
  * and what the rest of the application gets when it asks who somebody is.
  *
  * Kept apart from `lib/accounts/queries.ts` so that modules needing only to
- * normalise a handle — the credentials store, the CLI, the enrollment
+ * normalise a handle — the password module, the CLI, the enrollment
  * registry — do not pull in a database connection to do it.
  */
 

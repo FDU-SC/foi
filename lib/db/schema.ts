@@ -1,6 +1,7 @@
-import { sql } from "drizzle-orm";
+import { getTableColumns, sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   doublePrecision,
   index,
   integer,
@@ -17,7 +18,7 @@ import type { SubmissionState, Verdict } from "@/lib/backend/types";
  * The database holds two kinds of thing and nothing else:
  *
  *   1. secrets and personal data, which cannot be committed — `accounts`
- *      (the email address), `credentials`, `auth_tokens`,
+ *      (the email address and the password hash), `auth_tokens`,
  *      `email_verifications`
  *   2. things that actually happened — `submissions`, every row in `accounts`
  *      that came from someone filling in the registration form, and the
@@ -27,7 +28,7 @@ import type { SubmissionState, Verdict } from "@/lib/backend/types";
  * What is deliberately absent is any column an administrator would want to
  * edit in order to change what somebody may do. Groups are not stored:
  * `content/enrollment/` declares the rules that produce them and
- * `lib/auth/policy.ts` declares what each capability means, so a privilege
+ * `lib/permissions/policy.ts` declares what each capability means, so a privilege
  * change is a reviewed commit rather than an UPDATE nobody can find
  * afterwards.
  */
@@ -36,10 +37,11 @@ import type { SubmissionState, Verdict } from "@/lib/backend/types";
  * Who exists.
  *
  * The table holds no authority of its own: `handle`, `displayName` and `email`
- * say who someone claims to be, and `status` says whether they may act at all.
- * The answer to "what may they do" is computed in `lib/accounts/resolve.ts`
- * from the email address and the rules in `content/enrollment/`, and is never
- * written back — see the note on tags there.
+ * say who someone claims to be, `passwordHash` is how they prove it, and
+ * `status` says whether they may act at all. The answer to "what may they do"
+ * is computed in `lib/accounts/resolve.ts` from the email address and the
+ * rules in `content/enrollment/`, and is never written back — see the note on
+ * tags there.
  *
  * `email` is nullable only for accounts predating the current registration
  * flow; both ways in supply one now. The unique index tolerates the nulls that
@@ -63,6 +65,36 @@ export const accounts = pgTable(
      */
     email: text("email"),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+
+    /**
+     * The one field here that is a secret rather than a claim, and the reason
+     * `accountColumns` below exists: every read that is not the login path
+     * goes through that projection, so the hash cannot reach a page by being
+     * carried along inside a row somebody selected with `*`.
+     *
+     * Null for an account nobody has chosen a password for yet — which is a
+     * real state, not a placeholder: `scripts/create-account.cjs` can make an
+     * account whose owner sets the password from a reset link.
+     */
+    passwordHash: text("password_hash"),
+
+    /**
+     * When the hash beside it was last written, and nothing else.
+     *
+     * Separate from `updatedAt` because it is the clock a session is pinned
+     * to: `verifyPassword` reads it into the JWT and `sessionMatchesPassword`
+     * reads it back out, so anything that advances it ends every session
+     * issued before it. `updatedAt` moves when an account is suspended or
+     * reinstated, and a moderator reversing their own decision must not
+     * thereby sign the account out.
+     *
+     * Written by the database rather than by this process. Both values in
+     * every comparison come from this column, and a `new Date()` on one side
+     * of it puts a second clock in the pair — where the two disagree by more
+     * than the argon2 work between them, a reset stamps the row *earlier* than
+     * the session it was meant to end and the session survives.
+     */
+    passwordSetAt: timestamp("password_set_at", { withTimezone: true }),
 
     source: text("source")
       .$type<AccountSource>()
@@ -97,33 +129,38 @@ export const accounts = pgTable(
   (table) => [
     uniqueIndex("accounts_email_key").on(table.email),
     index("accounts_status_idx").on(table.status),
+    // The two password columns are one fact and are always written together,
+    // which is what lets `AccountRow` carry only the timestamp and still
+    // answer "does this account have a password". Enforced here rather than
+    // trusted, because the projection depends on it: with a hash and no
+    // timestamp the console would report an account as having no password
+    // while its owner logs in perfectly well.
+    check(
+      "accounts_password_pair_ck",
+      sql`(${table.passwordHash} is null) = (${table.passwordSetAt} is null)`,
+    ),
   ],
 );
 
 /**
- * The one thing that genuinely cannot live in Git.
+ * Every column of `accounts` except the hash.
  *
- * A row here means "this handle has been given a way to log in on this
- * deployment". It carries no identity of its own — that is what `accounts` is
- * for — which is why the module in `lib/auth/credentials.ts` deals only in
- * handles and hashes.
+ * The default projection: `lib/accounts/queries.ts` selects this and nothing
+ * selects `accounts` whole, so a row handed to a page cannot be carrying a
+ * password hash it had no reason to fetch. That matters more than it sounds
+ * like, because these rows are read in server components and the ones that
+ * pass a row to a client component would serialise every field of it into the
+ * RSC payload.
  *
- * `passwordHash` is nullable because an account can exist before anyone has
- * chosen a password.
+ * Derived by subtraction rather than listed, so a column added above is in it
+ * by default and only the hash has to be argued for. The login path in
+ * `lib/accounts/password.ts` names the two columns it needs by hand, which is
+ * the whole of the code that may see one.
  */
-export const credentials = pgTable("credentials", {
-  handle: text("handle")
-    .primaryKey()
-    .references(() => accounts.handle, { onDelete: "cascade" }),
-  passwordHash: text("password_hash"),
+const { passwordHash: _passwordHash, ...accountColumnsWithoutHash } =
+  getTableColumns(accounts);
 
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const accountColumns = accountColumnsWithoutHash;
 
 /**
  * Single-use, hashed, expiring secrets mailed to the owner of an account.
@@ -206,7 +243,7 @@ export const emailVerifications = pgTable("email_verifications", {
   verifiedAt: timestamp("verified_at", { withTimezone: true }),
 
   /** When the code went out. The resend cooldown reads this, for the reason
-   * given in `lib/auth/tokens.ts`: the row recording the send is the row
+   * given in `lib/accounts/tokens.ts`: the row recording the send is the row
    * recording when. */
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -586,10 +623,17 @@ export const runners = pgTable(
   ],
 );
 
-export type AccountRow = typeof accounts.$inferSelect;
+/**
+ * An account as everything but the login path sees one.
+ *
+ * Deliberately not `$inferSelect`: that includes `passwordHash`, and a type
+ * that admits the hash is a type that lets a page render it. What a caller
+ * wanting to know whether an account has a password reads is `passwordSetAt`,
+ * which the check constraint above keeps in step with the hash.
+ */
+export type AccountRow = Omit<typeof accounts.$inferSelect, "passwordHash">;
 export type AuthTokenRow = typeof authTokens.$inferSelect;
 export type EmailVerificationRow = typeof emailVerifications.$inferSelect;
-export type CredentialRow = typeof credentials.$inferSelect;
 export type ProblemRow = typeof problems.$inferSelect;
 export type ContestRow = typeof contests.$inferSelect;
 export type SubmissionRow = typeof submissions.$inferSelect;

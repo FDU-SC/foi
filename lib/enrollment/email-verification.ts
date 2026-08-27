@@ -7,7 +7,7 @@ import { emailVerifications } from "@/lib/db/schema";
 /**
  * The short code that proves someone can read the address they typed.
  *
- * This is the sibling of `lib/auth/tokens.ts` and deliberately not part of it.
+ * This is the sibling of `lib/accounts/tokens.ts` and deliberately not part of it.
  * A token there is 160 bits, belongs to an account, and travels as a link; a
  * code here is six digits, belongs to an address that may never become an
  * account, and is retyped by hand. Those differences change every decision, so
@@ -59,7 +59,7 @@ const CODE_DIGITS = 6;
 
 /**
  * Read at call time, not at import, so the module loads in a process that has
- * not been handed a secret yet — the same reason `lib/auth/registration-proof.ts`
+ * not been handed a secret yet — the same reason `lib/enrollment/registration-proof.ts`
  * does it this way. `assertEnv` requires the variable, so a boot that got here
  * without one is a boot that should not have happened.
  */
@@ -78,7 +78,7 @@ function pepper(): string {
  * whole space is a million, so a plain hash of `address:code` is a preimage
  * anybody holding a dump of this table can find in under a second — for every
  * row at once, and the row also carries the address the code was mailed to.
- * The neighbouring `lib/auth/tokens.ts` can afford `createHash` because 160
+ * The neighbouring `lib/accounts/tokens.ts` can afford `createHash` because 160
  * bits of randomness has nothing to grind against; this cannot. With the
  * secret mixed in, reading the table is no longer enough to recover a code.
  */

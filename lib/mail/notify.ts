@@ -1,5 +1,5 @@
-import { issueCode } from "@/lib/auth/email-verification";
-import { issueToken, lastIssuedAt, revokeTokens } from "@/lib/auth/tokens";
+import { issueCode } from "@/lib/enrollment/email-verification";
+import { issueToken, lastIssuedAt, revokeTokens } from "@/lib/accounts/tokens";
 import type { TokenPurpose } from "@/lib/db/schema";
 import { emailTemplates } from "./registry";
 import { deliver } from "./transport";
@@ -13,7 +13,7 @@ import { deliver } from "./transport";
  * person types back into the page they are already on, and its throttle lives
  * in the row the code is stored in rather than here.
  *
- * `lib/auth/email-verification.ts` holds a constant of the same name and the
+ * `lib/enrollment/email-verification.ts` holds a constant of the same name and the
  * same value, and they are deliberately two policies rather than one that got
  * copied. This one is keyed by handle and purpose and derived from the last
  * row in `auth_tokens`, because a reset link is minted against an account that

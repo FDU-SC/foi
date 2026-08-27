@@ -1,9 +1,9 @@
-import { viewerFor, type Viewer } from "@/lib/auth/viewer";
+import { viewerFor, type Viewer } from "@/lib/permissions/viewer";
 
 /**
  * Viewers the access suites need and production does not.
  *
- * Kept out of `lib/auth/viewer.ts` for the same reason `./standings-support`
+ * Kept out of `lib/permissions/viewer.ts` for the same reason `./standings-support`
  * is kept out of the ruleset modules: a fixture exported from the module it
  * exercises reads like part of that module's interface, and this one did.
  */

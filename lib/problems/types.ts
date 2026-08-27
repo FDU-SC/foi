@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { audienceSchema } from "@/lib/auth/audience";
+import { audienceSchema } from "@/lib/permissions/audience";
 // Types only: `PublicProblemConfig` is handed to client components, so nothing
 // here may pull a runtime dependency on the backend layer into a browser chunk.
 import type { BackendUser, Verdict } from "@/lib/backend/types";

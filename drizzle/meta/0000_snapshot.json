@@ -1,5 +1,5 @@
 {
-  "id": "5a8cc135-1ecd-410f-a377-e2b7d79a097f",
+  "id": "b42fc06e-8b2b-4646-abd9-cbcfd39476f1",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -28,6 +28,18 @@
         },
         "email_verified_at": {
           "name": "email_verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "password_set_at": {
+          "name": "password_set_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
@@ -121,7 +133,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "accounts_password_pair_ck": {
+          "name": "accounts_password_pair_ck",
+          "value": "(\"accounts\".\"password_hash\" is null) = (\"accounts\".\"password_set_at\" is null)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.auth_tokens": {
@@ -263,59 +280,6 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.credentials": {
-      "name": "credentials",
-      "schema": "",
-      "columns": {
-        "handle": {
-          "name": "handle",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "password_hash": {
-          "name": "password_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "credentials_handle_accounts_handle_fk": {
-          "name": "credentials_handle_accounts_handle_fk",
-          "tableFrom": "credentials",
-          "tableTo": "accounts",
-          "columnsFrom": [
-            "handle"
-          ],
-          "columnsTo": [
-            "handle"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

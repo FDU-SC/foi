@@ -1,10 +1,10 @@
-import type { Capability } from "@/lib/auth/policy";
+import type { Capability } from "@/lib/permissions/policy";
 
 /**
  * Every place this application decides whether somebody may have something.
  *
  * Three separate things in this codebase get called "permission".
- * `lib/auth/policy.ts` is the *vocabulary* — which decisions exist.
+ * `lib/permissions/policy.ts` is the *vocabulary* — which decisions exist.
  * `content/enrollment/` plus each resource's own `visibleTo` / `participants`
  * are the *grants* — who holds what. This file is the third: *enforcement*,
  * meaning where the question actually gets asked.
@@ -22,7 +22,7 @@ import type { Capability } from "@/lib/auth/policy";
  * reads its number out of it, which is what stops the number drifting. Doing
  * the same here would make every gate read
  * `viewer.can(READ_GATES["…"].capabilities[0])` in place of
- * `viewer.can("account.read")`, and `lib/auth/viewer.ts` is explicit that
+ * `viewer.can("account.read")`, and `lib/permissions/viewer.ts` is explicit that
  * every question about permission is spelled `viewer.can("…")`. A layer of
  * indirection over a string literal buys nothing and costs the one spelling.
  * So this is documentation, and `enforcement.test.ts` keeps it honest:
@@ -41,10 +41,11 @@ import type { Capability } from "@/lib/auth/policy";
  * Keying on the filename would have declared those two exceptions; keying on
  * the signature means there are none.
  *
- * `inAudience` in `lib/auth/audience.ts` is not here either, for the opposite
+ * `inAudience` in `lib/permissions/audience.ts` is not here either, for the opposite
  * reason: it is the shared primitive the audience column below is written in,
- * not a gate. `lib/auth/` is the kernel — vocabulary, identity, primitives —
- * and owns no resource, so it can hold no gate. That is why the scan skips it.
+ * not a gate. `lib/permissions/` is the vocabulary and the viewer, it reaches no
+ * database at all, and so it owns no resource and can hold no gate. That is
+ * why the scan skips it.
  *
  * **The load-time checks over `content/` cannot see the capability axis, and
  * that is a boundary of the approach rather than a gap somebody left.**
@@ -144,7 +145,7 @@ export interface Gate {
   /** The activity, phrased the way somebody would ask about it. */
   what: string;
   /**
-   * Capabilities that change this gate's answer, in `lib/auth/policy.ts`'s
+   * Capabilities that change this gate's answer, in `lib/permissions/policy.ts`'s
    * spelling.
    *
    * Empty is a legitimate and interesting answer, and `noOverride` is then
@@ -242,7 +243,7 @@ export const READ_GATES = {
    * can print the right notice without asking a capability of its own.
    *
    * Deliberately not written as `IMPLIES: contest.viewAll → problem.viewAll`
-   * in `lib/auth/policy.ts`, which would be far too wide — it would hand over
+   * in `lib/permissions/policy.ts`, which would be far too wide — it would hand over
    * unstarted rounds too, and that file is explicit that proofreading a round
    * before it opens is the entire reason `problem.viewAll` exists on its own.
    */

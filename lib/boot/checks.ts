@@ -25,34 +25,6 @@ export interface Check {
   fatalIn: readonly Tier[];
 }
 
-export interface Findings {
-  /** Said, then thrown. */
-  refusals: string[];
-  /** Said, and that is all. */
-  warnings: string[];
-}
-
-/**
- * The severity rule itself, with nothing around it.
- *
- * Split out because it is the part worth pinning and the part that cannot be
- * reached otherwise: the checks below read the live registries, so a test that
- * went through `assertBootConfiguration` would be asserting about whatever
- * `content/` this deployment happens to ship rather than about the rule.
- */
-export function partitionFindings(checks: Check[], current: Tier): Findings {
-  const findings: Findings = { refusals: [], warnings: [] };
-
-  for (const check of checks) {
-    const into = check.fatalIn.includes(current)
-      ? findings.refusals
-      : findings.warnings;
-    into.push(...check.complaints());
-  }
-
-  return findings;
-}
-
 const ONLY_PROD = ["prod"] as const;
 const NEVER = [] as const;
 
@@ -125,7 +97,14 @@ export async function assertBootConfiguration(): Promise<void> {
     `[foi] 环境 ${current}，构建自 ${sha ?? "未知 commit（非 CI 构建）"}`,
   );
 
-  const { refusals, warnings } = partitionFindings(await loadChecks(), current);
+  // Every check runs before any of them is allowed to stop the boot.
+  const refusals: string[] = [];
+  const warnings: string[] = [];
+
+  for (const check of await loadChecks()) {
+    const into = check.fatalIn.includes(current) ? refusals : warnings;
+    into.push(...check.complaints());
+  }
 
   for (const warning of warnings) console.warn(`[foi] ${warning}`);
 

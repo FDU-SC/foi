@@ -4,7 +4,7 @@
  * `NODE_ENV` cannot answer either question. The Dockerfile pins it to
  * `production` and all three deployed environments run that image, so a check
  * written against it treats staging as prod — which is why
- * `lib/auth/registration-proof.ts` derives its cookie posture from
+ * `lib/enrollment/registration-proof.ts` derives its cookie posture from
  * `FOI_PUBLIC_URL` instead, and why `content/seed.ts` and
  * `content/mock-runner.ts` both note that "三套部署环境都会命中". Those are
  * three separate workarounds for one missing concept.

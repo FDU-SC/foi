@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { sessionMatchesPassword } from "./credentials";
+import { sessionMatchesPassword } from "./password";
 
 /**
- * The rule a stolen cookie runs into. `credentials.db.test.ts` checks it
- * against real rows; this pins the comparison itself, including the boundary
- * that decides whether a session survives its own creation.
+ * The rule a stolen cookie runs into. `password.db.test.ts` checks it against
+ * real rows; this pins the comparison itself, including the boundary that
+ * decides whether a session survives its own creation.
  */
 describe("sessionMatchesPassword", () => {
-  it("凭据行不存在就判定失效", () => {
+  it("账号没有密码就判定失效", () => {
     expect(sessionMatchesPassword(null, Date.now())).toBe(false);
   });
 
@@ -33,7 +33,7 @@ describe("sessionMatchesPassword", () => {
     expect(sessionMatchesPassword(changed, issued.getTime())).toBe(true);
   });
 
-  it("旧 token 的 credentialsAt 缺省为 0，一律判定失效", () => {
+  it("旧 token 的 passwordAt 缺省为 0，一律判定失效", () => {
     expect(sessionMatchesPassword(new Date(), 0)).toBe(false);
   });
 });

@@ -67,7 +67,7 @@ export async function register() {
   // one is somebody's mailbox, and an abandoned attempt should not leave it in
   // the database.
   const { purgeExpiredVerifications } = await import(
-    "@/lib/auth/email-verification"
+    "@/lib/enrollment/email-verification"
   );
 
   const sweep = () => {

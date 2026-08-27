@@ -14,7 +14,7 @@ import { isResolvedSource, sourceFrom } from "./source";
  * asking for a password reset both send mail, and an unmetered form that sends
  * mail is a way to have somebody else's inbox filled from your domain. The
  * per-recipient half of that is handled separately and durably, by
- * `lib/auth/tokens.ts` and `lib/auth/email-verification.ts`, neither of which
+ * `lib/accounts/tokens.ts` and `lib/enrollment/email-verification.ts`, neither of which
  * will send to the same recipient twice within a minute; what this adds is a
  * cap on how many *different* addresses one source can aim at — for as long as
  * there is a source to count, which `rateLimitBySource` below is where that
@@ -79,7 +79,7 @@ export { sourceFrom };
  * It raises the cost of volume; it is not what stops anybody doing anything.
  * The bounds that do that are keyed on a handle or on a mailbox — the login
  * counter's first half, and the durable per-recipient cooldowns in
- * `lib/auth/tokens.ts` and `lib/auth/email-verification.ts` — and none of them
+ * `lib/accounts/tokens.ts` and `lib/enrollment/email-verification.ts` — and none of them
  * are affected by what the proxy header says.
  */
 export function rateLimitBySource(

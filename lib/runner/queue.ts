@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import { resolveUser } from "@/lib/accounts/resolve";
 import type { JobDetails, JobTicket, Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
@@ -206,7 +206,7 @@ export async function reportDone(
       and(
         eq(judgingAttempts.submissionId, id),
         eq(judgingAttempts.runnerId, queueRow.runnerId!),
-        eq(judgingAttempts.outcome, sql`null`),
+        isNull(judgingAttempts.outcome),
       ),
     );
 
@@ -224,7 +224,6 @@ export async function reportFailed(
   const [queueRow] = await db
     .select({
       submissionId: judgingQueue.submissionId,
-      attempts: judgingQueue.attempts,
       runnerId: judgingQueue.runnerId,
       runnerStatus: judgingQueue.runnerStatus,
     })
@@ -234,40 +233,19 @@ export async function reportFailed(
 
   if (!queueRow) return false;
 
-  const exhausted = queueRow.attempts >= MAX_ATTEMPTS;
+  await db
+    .update(submissions)
+    .set({
+      state: "disrupted",
+      backendVersion,
+      error: reason,
+      judgedAt: new Date(),
+    })
+    .where(eq(submissions.id, id));
 
-  if (exhausted) {
-    await db
-      .update(submissions)
-      .set({
-        state: "disrupted",
-        backendVersion,
-        error: reason,
-        judgedAt: new Date(),
-      })
-      .where(eq(submissions.id, id));
-
-    await db
-      .delete(judgingQueue)
-      .where(eq(judgingQueue.submissionId, id));
-
-    await publish(db, id, { state: "disrupted" });
-  } else {
-    await db
-      .update(judgingQueue)
-      .set({
-        state: "waiting",
-        runnerId: null,
-        lease: null,
-        runnerStatus: null,
-        heartbeatAt: null,
-        claimedAt: null,
-        queuedAt: sql`now()`,
-      })
-      .where(eq(judgingQueue.submissionId, id));
-
-    await publish(db, id, { state: "queued" });
-  }
+  await db
+    .delete(judgingQueue)
+    .where(eq(judgingQueue.submissionId, id));
 
   await db
     .update(judgingAttempts)
@@ -276,9 +254,11 @@ export async function reportFailed(
       and(
         eq(judgingAttempts.submissionId, id),
         eq(judgingAttempts.runnerId, queueRow.runnerId!),
-        eq(judgingAttempts.outcome, sql`null`),
+        isNull(judgingAttempts.outcome),
       ),
     );
+
+  await publish(db, id, { state: "disrupted" });
 
   return true;
 }

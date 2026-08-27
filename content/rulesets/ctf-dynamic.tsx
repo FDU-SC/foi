@@ -75,7 +75,9 @@ export function CtfTotalView({ row }: { row: StandingsRow<CtfCell> }) {
   );
 }
 
-export const renderers = { Cell: CtfCellView, Total: CtfTotalView };
+import { ProblemGridBoard } from "@/content/_shared/leaderboards/problem-grid";
+
+export const renderers = { Cell: CtfCellView, Total: CtfTotalView, Board: ProblemGridBoard };
 
 export const ruleset: Ruleset<CtfCell> = {
   id: "ctf-dynamic",

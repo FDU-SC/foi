@@ -10,7 +10,28 @@ import {
 import type { ContestConfig } from "@/lib/contests/types";
 import { standingsFor } from "@/lib/standings/compute";
 import { dateFormatter } from "@/lib/format";
-import { ProblemGridBoard } from "@/content/_shared/leaderboards/problem-grid";
+import type { BoardProps } from "@/lib/standings/types";
+
+function DefaultBoard({ board }: BoardProps) {
+  if (board.standings.rows.length === 0) {
+    return (
+      <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
+        还没有提交记录。
+      </p>
+    );
+  }
+  return (
+    <ol className="divide-border divide-y">
+      {board.standings.rows.map((row) => (
+        <li key={row.participant.uid} className="flex items-center gap-3 px-3 py-2">
+          <span className="text-fg-muted font-mono text-xs tabular-nums w-8 text-right">{row.rank}</span>
+          <span className="text-fg font-medium">{row.participant.nickname}</span>
+          <span className="text-fg-muted ml-auto font-mono text-sm tabular-nums">{Math.round(row.total)}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 export const dynamic = "force-dynamic";
 
@@ -109,12 +130,10 @@ export default async function StandingsPage({
               <Badge>{board.ruleset.name}</Badge>
             </div>
           )}
-          <ProblemGridBoard
-            board={board}
-            problems={data.problems}
-            CellView={board.renderers.Cell}
-            TotalView={board.renderers.Total}
-          />
+          {(() => {
+            const Board = board.renderers.Board ?? DefaultBoard;
+            return <Board board={board} problems={data.problems} />;
+          })()}
         </section>
       ))}
     </div>

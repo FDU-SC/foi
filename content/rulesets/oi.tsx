@@ -53,7 +53,9 @@ export function OiTotalView({ row }: { row: StandingsRow<OiCell> }) {
   );
 }
 
-export const renderers = { Cell: OiCellView, Total: OiTotalView };
+import { ProblemGridBoard } from "@/content/_shared/leaderboards/problem-grid";
+
+export const renderers = { Cell: OiCellView, Total: OiTotalView, Board: ProblemGridBoard };
 
 export const ruleset: Ruleset<OiCell> = {
   id: "oi",

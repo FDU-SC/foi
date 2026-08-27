@@ -66,7 +66,9 @@ export function AcmTotalView({ row }: { row: StandingsRow<AcmCell> }) {
   );
 }
 
-export const renderers = { Cell: AcmCellView, Total: AcmTotalView };
+import { ProblemGridBoard } from "@/content/_shared/leaderboards/problem-grid";
+
+export const renderers = { Cell: AcmCellView, Total: AcmTotalView, Board: ProblemGridBoard };
 
 export const ruleset: Ruleset<AcmCell> = {
   id: "acm",

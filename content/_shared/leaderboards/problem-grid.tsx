@@ -1,6 +1,4 @@
-import type { ComponentType } from "react";
-import type { LeaderboardStandings } from "@/lib/standings/compute";
-import type { ContestProblem, StandingsRow } from "@/lib/standings/types";
+import type { BoardProps, ContestProblem, StandingsRow } from "@/lib/standings/types";
 
 function DefaultCell({ cell }: { cell: unknown }) {
   if (cell === undefined || cell === null) {
@@ -19,32 +17,15 @@ function DefaultTotal({ row }: { row: { total: number } }) {
   );
 }
 
-export interface ProblemGridProps {
-  board: LeaderboardStandings;
-  problems: ContestProblem[];
-  CellView?: ComponentType<{ cell: unknown; problem: ContestProblem }>;
-  TotalView?: ComponentType<{ row: StandingsRow<unknown> }>;
-  emptyMessage?: string;
-  participantLabel?: string;
-}
-
-export function ProblemGridBoard({
-  board,
-  problems,
-  CellView,
-  TotalView,
-  emptyMessage = "还没有提交记录。",
-  participantLabel = "选手",
-}: ProblemGridProps) {
-  const Cell = CellView ?? DefaultCell;
-  const Total = TotalView ?? DefaultTotal;
-
+export function ProblemGridBoard({ board, problems }: BoardProps) {
+  const Cell = board.renderers.Cell ?? DefaultCell;
+  const Total = board.renderers.Total ?? DefaultTotal;
   const { standings } = board;
 
   if (standings.rows.length === 0) {
     return (
       <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
-        {emptyMessage}
+        还没有提交记录。
       </p>
     );
   }
@@ -58,7 +39,7 @@ export function ProblemGridBoard({
               #
             </th>
             <th className="border-border border-b px-3 py-2.5 text-left font-semibold">
-              {participantLabel}
+              选手
             </th>
             <th className="border-border w-20 border-b px-3 py-2.5 text-center font-semibold">
               {standings.totalLabel}

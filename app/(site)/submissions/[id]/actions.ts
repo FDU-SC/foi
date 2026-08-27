@@ -9,7 +9,12 @@ import {
   rejudgeSubmissions,
   submissionStateOf,
 } from "@/lib/submissions/rejudge";
-import { skipAcceptedFilter } from "@/content/_shared/submission-utils";
+import type { RejudgeSkipFilter } from "@/lib/submissions/rejudge";
+
+// Convention: backends set result.accepted = true for passing submissions.
+const skipAcceptedFilter: RejudgeSkipFilter = (row) =>
+  row.state === "completed" &&
+  (row.result as { accepted?: boolean } | null)?.accepted === true;
 
 export interface ActionState {
   error?: string;

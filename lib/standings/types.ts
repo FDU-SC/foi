@@ -73,6 +73,16 @@ export type AnyRuleset = Ruleset<any>;
 export interface RulesetRenderers {
   Cell?: ComponentType<{ cell: unknown; problem: ContestProblem }>;
   Total?: ComponentType<{ row: StandingsRow<unknown> }>;
+  /** Entire leaderboard view. Falls back to a plain ranked list in the platform. */
+  Board?: ComponentType<BoardProps>;
+}
+
+export interface BoardProps {
+  board: {
+    standings: ComputedStandings<unknown>;
+    renderers: RulesetRenderers;
+  };
+  problems: ContestProblem[];
 }
 
 /** Fixed comparator: total descending, tiebreak ascending. Not customizable by rulesets. */

@@ -30,7 +30,7 @@ _shared/
     constraints.tsx     Time/memory limit display
     sample.tsx          Sample input/output with copy buttons
     copy-button.tsx     Copy-to-clipboard button
-  leaderboards/    Leaderboard display templates
+  leaderboards/    Leaderboard display templates (passed to platform via renderers.Board)
     problem-grid.tsx  "Rank | Name | Total | per-problem columns" table
   verdicts.ts      Global verdict translation table (AC/WA/TLE/MLE/RE/CE/...)
   presentation.tsx Assembly file — wires templates into the Presentation interface

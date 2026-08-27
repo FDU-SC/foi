@@ -1,4 +1,4 @@
-import { and, eq, gte, lt, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { judgingAttempts, judgingQueue, submissions } from "@/lib/db/schema";
 import { publish } from "@/lib/submissions/events";
@@ -81,7 +81,7 @@ export async function reapOnce(): Promise<{
           and(
             eq(judgingAttempts.submissionId, row.submissionId),
             eq(judgingAttempts.runnerId, row.runnerId),
-            eq(judgingAttempts.outcome, sql`null`),
+            isNull(judgingAttempts.outcome),
           ),
         );
     }

@@ -13,6 +13,8 @@ content/
   rulesets/       Scoring algorithms + companion renderers
   enrollment/     Groups, enrollment policies, routing rules
   emails/         Email templates (verification, password reset, email change)
+  _globs.ts       import.meta.glob discovery, server-only — must sit here, see _modules/AGENTS.md
+  _view-globs.ts  import.meta.glob discovery for per-problem views (client-visible)
   backends.ts     External backend connection registry
   site.ts         Site-wide configuration (brand, locale, navigation, password policy)
 ```

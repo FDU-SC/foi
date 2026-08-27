@@ -1,5 +1,3 @@
 import "server-only";
 
-export const rulesetModules = import.meta.glob("../rulesets/*.tsx", {
-  eager: true,
-});
+export { rulesetModules } from "../_globs";

@@ -8,6 +8,7 @@ import { resolveFromRow } from "@/lib/accounts/resolve";
 import { verifyToken } from "@/lib/tokens/stateless";
 import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
+import { site } from "@/lib/site";
 
 export interface ResetState {
   error?: string;
@@ -17,7 +18,7 @@ export interface ResetState {
 const schema = z
   .object({
     token: z.string().min(1, "重置链接不完整"),
-    password: z.string().min(8, "密码至少 8 位"),
+    password: z.string().min(site.passwordMinLength ?? 8, `密码至少 ${site.passwordMinLength ?? 8} 位`),
     confirm: z.string(),
   })
   .refine((data) => data.password === data.confirm, {

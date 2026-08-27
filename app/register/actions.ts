@@ -18,6 +18,7 @@ import {
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import { sendVerificationLink } from "@/lib/mail/notify";
 import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
+import { site } from "@/lib/site";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
 
 function normalize(email: string): string {
@@ -79,7 +80,7 @@ const schema = z
     username: usernameSchema,
     nickname: z.string().trim().min(1, "请填写昵称").max(64, "昵称过长"),
     email: emailSchema,
-    password: z.string().min(8, "密码至少 8 位"),
+    password: z.string().min(site.passwordMinLength ?? 8, `密码至少 ${site.passwordMinLength ?? 8} 位`),
     confirm: z.string(),
     token: z.string().min(1, "验证链接不完整"),
   })

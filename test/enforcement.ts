@@ -283,12 +283,6 @@ export type PageCheck =
     };
 
 export const PAGE_CHECKS = {
-  "components/site/header.tsx": {
-    kind: "chrome",
-    what: "决定导航栏里显不显示「管理」入口",
-    capabilities: ["admin.access"],
-    enforcedBy: ["lib/admin/access.ts#adminOverviewFor"],
-  },
   "app/(site)/admin/accounts/page.tsx": {
     kind: "chrome",
     what: "决定每一行要不要画「发送重置邮件」和「封禁」按钮",

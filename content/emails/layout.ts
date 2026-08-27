@@ -1,5 +1,6 @@
 import { escapeHtml } from "@/lib/mail/html";
 import type { MailBody } from "@/lib/mail/types";
+import { site } from "../site";
 
 export type { MailBody };
 
@@ -24,10 +25,10 @@ export interface CodeMail {
   footnote?: string[];
 }
 
-const formatter = new Intl.DateTimeFormat("zh-CN", {
+const formatter = new Intl.DateTimeFormat(site.lang, {
   dateStyle: "long",
   timeStyle: "short",
-  timeZone: "Asia/Shanghai",
+  timeZone: site.timezone,
 });
 
 function paragraph(line: string): string {
@@ -40,10 +41,10 @@ function note(line: string, first = false): string {
 
 function shell(inner: string): string {
   return `<!doctype html>
-<html lang="zh-CN">
+<html lang="${site.lang}">
 <body style="margin:0;padding:24px;background:#f6f7f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,'PingFang SC','Microsoft YaHei',sans-serif;">
   <div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:32px;">
-    <div style="font-size:20px;font-weight:700;letter-spacing:-0.01em;color:#111827;margin-bottom:24px;">FOI</div>
+    <div style="font-size:20px;font-weight:700;letter-spacing:-0.01em;color:#111827;margin-bottom:24px;">${escapeHtml(site.name)}</div>
 ${inner}
   </div>
 </body>
@@ -62,7 +63,7 @@ export function actionMail(mail: ActionMail): MailBody {
     expiry,
     ...footnote,
     "",
-    "— FOI",
+    `— ${site.name}`,
   ].join("\n");
 
   const html = shell(
@@ -95,7 +96,7 @@ export function codeMail(mail: CodeMail): MailBody {
     expiry,
     ...footnote,
     "",
-    "— FOI",
+    `— ${site.name}`,
   ].join("\n");
 
   const html = shell(

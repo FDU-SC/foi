@@ -71,7 +71,7 @@ export default async function AdminContestsPage() {
       ) : (
         all.map((contest) => {
           const phase = contestPhase(contest);
-          const ruleset = rulesetFor(contest.ruleset.id);
+          const ruleset = rulesetFor(contest.leaderboards[0].ruleset.id);
 
           return (
             <Card key={contest.slug}>
@@ -86,11 +86,11 @@ export default async function AdminContestsPage() {
                     </Link>
                     <Badge tone={PHASE_TONE[phase]}>{PHASE_LABEL[phase]}</Badge>
                     <Badge>{ruleset?.name ?? "自定义赛制"}</Badge>
-                    {contest.ruleset.id ? null : (
-                      <Badge tone="info" title="ruleset.tsx 与这场比赛一起冻结在 git 里，不随共享模板演进">
-                        自带
+                    {contest.leaderboards.length > 1 ? (
+                      <Badge tone="info">
+                        {contest.leaderboards.length} 个排行榜
                       </Badge>
-                    )}
+                    ) : null}
                     {contest.visibleTo === undefined ? null : (
                       <Badge tone="warn">
                         可见 {describeAudience(contest.visibleTo)}

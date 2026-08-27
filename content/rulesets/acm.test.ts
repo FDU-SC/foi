@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   at,
-  END,
   fail,
   input,
   participants,
@@ -15,10 +14,8 @@ import { ruleset as acmRuleset } from "./acm";
 
 function compute(
   options: Parameters<typeof input>[0],
-  now: Date = at(120),
 ) {
-  vi.setSystemTime(now);
-  return acmRuleset.computeStandings(input(options));
+  return acmRuleset.compute(input(options));
 }
 
 function cell(
@@ -29,10 +26,6 @@ function cell(
   const row = standings.rows.find((entry) => entry.participant.uid === uid);
   return row?.cells[slug] as AcmCell | undefined;
 }
-
-afterEach(() => {
-  vi.useRealTimers();
-});
 
 const problems = [problem("a", "A"), problem("b", "B")];
 
@@ -180,80 +173,6 @@ describe("acm 未判完的提交", () => {
       pending: 0,
       solvedAt: 30,
     });
-  });
-});
-
-describe("acm 封榜", () => {
-  const frozenContest = {
-    participants: participants(1),
-    problems,
-    freezeAt: at(240),
-    submissions: [solve(1, "a", 10), solve(1, "b", 250)],
-  };
-
-  it("封榜前一切照常", () => {
-    const standings = compute(frozenContest, at(239));
-
-    expect(standings.frozen).toBe(false);
-    expect(standings.rows[0].total).toBe(2);
-  });
-
-  it("封榜后的提交只计 pending，不进总分", () => {
-    const standings = compute(frozenContest, at(250));
-
-    expect(standings.frozen).toBe(true);
-    expect(standings.rows[0].total).toBe(1);
-    expect(cell(standings, 1, "b")).toMatchObject({
-      attempts: 0,
-      pending: 1,
-      solvedAt: null,
-    });
-  });
-
-  it("封榜在 freezeAt 当刻即生效", () => {
-    expect(compute(frozenContest, at(240)).frozen).toBe(true);
-  });
-
-  it("封榜前交上、还没判完的提交同样算 pending", () => {
-    const standings = compute(
-      {
-        ...frozenContest,
-        submissions: [unjudged(1, "a", 100), solve(1, "b", 250)],
-      },
-      at(250),
-    );
-
-    expect(standings.rows[0].total).toBe(0);
-    expect(cell(standings, 1, "a")?.pending).toBe(1);
-    expect(cell(standings, 1, "b")?.pending).toBe(1);
-  });
-
-  it("结束当刻仍算封榜，和 contestPhase 的闭区间对齐", () => {
-    expect(compute(frozenContest, END).frozen).toBe(true);
-  });
-
-  it("比赛结束后解冻，封榜期的提交被重新计入", () => {
-    const standings = compute(frozenContest, new Date(END.getTime() + 1));
-
-    expect(standings.frozen).toBe(false);
-    expect(standings.rows[0].total).toBe(2);
-    expect(cell(standings, 1, "b")?.solvedAt).toBe(250);
-  });
-
-  it("freezeAt 等于 endsAt 时，结束之前都不封榜", () => {
-    const standings = compute(
-      { ...frozenContest, freezeAt: END },
-      new Date(END.getTime() - 1),
-    );
-
-    expect(standings.frozen).toBe(false);
-  });
-
-  it("没有 freezeAt 就不会封榜", () => {
-    const standings = compute({ ...frozenContest, freezeAt: null }, at(250));
-
-    expect(standings.frozen).toBe(false);
-    expect(standings.rows[0].total).toBe(2);
   });
 });
 

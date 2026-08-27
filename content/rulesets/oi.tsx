@@ -10,7 +10,6 @@ import {
 interface OiResult { score: number; maxScore: number }
 
 const configSchema = z.object({
-
   take: z.enum(["best", "last"]).default("best"),
 });
 
@@ -18,11 +17,10 @@ export interface OiCell {
   score: number;
   maxScore: number;
   attempts: number;
-
   at: number | null;
 }
 
-function OiCellView({ cell }: { cell: OiCell | undefined }) {
+export function OiCellView({ cell }: { cell: OiCell | undefined }) {
   if (!cell || cell.attempts === 0) {
     return <span className="text-fg-subtle">·</span>;
   }
@@ -38,12 +36,20 @@ function OiCellView({ cell }: { cell: OiCell | undefined }) {
   );
 }
 
+export function OiTotalView({ row }: { row: StandingsRow<OiCell> }) {
+  return (
+    <span className="text-fg font-mono font-semibold tabular-nums">
+      {Math.round(row.total)}
+    </span>
+  );
+}
+
 export const ruleset: Ruleset<OiCell> = {
   id: "oi",
   name: "OI",
   description: "每题取最高分（或最后一次提交），按总分排名。",
 
-  computeStandings(input: StandingsInput) {
+  compute(input: StandingsInput) {
     const { take } = configSchema.parse(input.config ?? {});
     const start = input.contest.startsAt.getTime();
 
@@ -105,16 +111,6 @@ export const ruleset: Ruleset<OiCell> = {
     return {
       rows: assignRanks<OiCell>(rows),
       totalLabel: "总分",
-      frozen: false,
     };
-  },
-
-  render: {
-    Cell: OiCellView,
-    Total: ({ row }: { row: StandingsRow<OiCell> }) => (
-      <span className="text-fg font-mono font-semibold tabular-nums">
-        {Math.round(row.total)}
-      </span>
-    ),
   },
 };

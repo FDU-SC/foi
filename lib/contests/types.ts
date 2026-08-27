@@ -38,6 +38,17 @@ const participantsSchema = z
   ])
   .default({ mode: "open" });
 
+const leaderboardSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  ruleset: z.object({
+    id: z.string().min(1),
+    config: z.unknown().optional(),
+  }),
+});
+
+export type LeaderboardConfig = z.infer<typeof leaderboardSchema>;
+
 export const contestConfigSchema = z
   .object({
     slug: z
@@ -47,10 +58,15 @@ export const contestConfigSchema = z
     title: z.string().min(1),
     description: z.string().optional(),
 
-    ruleset: z.object({
-      id: z.string().min(1),
-      config: z.unknown().optional(),
-    }),
+    /** @deprecated Use `leaderboards` instead. Kept as sugar: auto-expands to a single leaderboard. */
+    ruleset: z
+      .object({
+        id: z.string().min(1),
+        config: z.unknown().optional(),
+      })
+      .optional(),
+
+    leaderboards: z.array(leaderboardSchema).optional(),
 
     startsAt: zonedDateTime,
     endsAt: zonedDateTime,
@@ -61,6 +77,20 @@ export const contestConfigSchema = z
 
     problems: z.array(contestProblemSchema).default([]),
     participants: participantsSchema,
+  })
+  .transform((raw) => {
+    const leaderboards =
+      raw.leaderboards ??
+      (raw.ruleset
+        ? [{ id: "main", title: "排行榜", ruleset: raw.ruleset }]
+        : undefined);
+
+    const { ruleset: _ignored, ...rest } = raw;
+    return { ...rest, leaderboards: leaderboards! };
+  })
+  .refine((c) => c.leaderboards && c.leaderboards.length > 0, {
+    path: ["leaderboards"],
+    message: "至少需要一个排行榜（或提供 ruleset 语法糖）",
   })
   .superRefine((contest, ctx) => {
     if (contest.endsAt <= contest.startsAt) {
@@ -82,7 +112,6 @@ export const contestConfigSchema = z
           message: "封榜时间必须落在比赛区间内",
         });
       } else if (contest.freezeAt.getTime() === contest.endsAt.getTime()) {
-
         ctx.addIssue({
           code: "custom",
           path: ["freezeAt"],
@@ -90,6 +119,18 @@ export const contestConfigSchema = z
             "封榜时间不能等于结束时间：那是一个空的封榜窗口，比赛永远不会进入封榜相位。请提前 freezeAt，或去掉它。",
         });
       }
+    }
+
+    const lbIds = new Set<string>();
+    for (const [index, lb] of contest.leaderboards.entries()) {
+      if (lbIds.has(lb.id)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["leaderboards", index, "id"],
+          message: `排行榜 "${lb.id}" 重复`,
+        });
+      }
+      lbIds.add(lb.id);
     }
 
     const slugs = new Set<string>();

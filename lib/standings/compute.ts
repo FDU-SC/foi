@@ -4,7 +4,11 @@ import {
   resolveContestProblems,
   resolveParticipants,
 } from "@/lib/contests/resolve";
-import { contestPhase, type ContestConfig } from "@/lib/contests/types";
+import {
+  contestPhase,
+  type ContestConfig,
+  type LeaderboardConfig,
+} from "@/lib/contests/types";
 import { db } from "@/lib/db";
 import { accounts, submissions } from "@/lib/db/schema";
 import type { Viewer } from "@/lib/permissions/viewer";
@@ -12,18 +16,26 @@ import { cachedStandings, standingsKey } from "./cache";
 import { rulesetFor } from "./registry";
 import type {
   AnyRuleset,
+  ComputedStandings,
   ContestProblem,
   Participant,
-  Standings,
   SubmissionRecord,
 } from "./types";
+
+export interface LeaderboardStandings {
+  leaderboard: LeaderboardConfig;
+  ruleset: AnyRuleset;
+  /** Full standings (all submissions, admin view). */
+  full: ComputedStandings<unknown>;
+  /** Public standings (pre-freeze submissions only). null when no freeze is active. */
+  public: ComputedStandings<unknown> | null;
+}
 
 export interface ContestStandings {
   contest: ContestConfig;
   problems: ContestProblem[];
-  ruleset: AnyRuleset;
-  standings: Standings<unknown>;
-
+  boards: LeaderboardStandings[];
+  frozen: boolean;
   freezeBypassed: boolean;
 }
 
@@ -33,11 +45,6 @@ async function loadAndCompute(
 ): Promise<ContestStandings | null> {
   const contest = contestBySlug(slug);
   if (!contest) return null;
-
-  const ruleset = rulesetFor(contest.ruleset.id);
-  if (!ruleset) {
-    throw new Error(`比赛 "${contest.slug}" 没有可用的赛制`);
-  }
 
   const problemRows = resolveContestProblems(contest);
 
@@ -66,29 +73,53 @@ async function loadAndCompute(
           nickname: entrant.nickname,
         }));
 
-  const freezeAt = ignoreFreeze ? null : (contest.freezeAt ?? null);
+  const phase = contestPhase(contest);
+  const isFrozen = phase === "frozen";
+  const shouldFreeze = isFrozen && !ignoreFreeze && !!contest.freezeAt;
 
-  const input = {
-    config: contest.ruleset.config,
-    contest: {
-      slug: contest.slug,
-      startsAt: contest.startsAt,
-      endsAt: contest.endsAt,
-      freezeAt,
-    },
-    problems: problemRows satisfies ContestProblem[],
-    participants,
-    submissions: submissionRows satisfies SubmissionRecord[],
-  };
+  const boards: LeaderboardStandings[] = contest.leaderboards.map((lb) => {
+    const ruleset = rulesetFor(lb.ruleset.id);
+    if (!ruleset) {
+      throw new Error(
+        `排行榜 "${lb.id}" 引用了不存在的赛制 "${lb.ruleset.id}"`,
+      );
+    }
 
-  const wouldFreeze = contestPhase(contest) === "frozen";
+    const baseInput = {
+      config: lb.ruleset.config,
+      contest: {
+        slug: contest.slug,
+        startsAt: contest.startsAt,
+        endsAt: contest.endsAt,
+        freezeAt: contest.freezeAt ?? null,
+      },
+      problems: problemRows,
+      participants,
+      submissions: submissionRows satisfies SubmissionRecord[],
+    };
+
+    const full = ruleset.compute(baseInput);
+
+    let publicBoard: ComputedStandings<unknown> | null = null;
+    if (shouldFreeze) {
+      const preFreezeSubmissions = submissionRows.filter(
+        (s) => s.createdAt < contest.freezeAt!,
+      );
+      publicBoard = ruleset.compute({
+        ...baseInput,
+        submissions: preFreezeSubmissions,
+      });
+    }
+
+    return { leaderboard: lb, ruleset, full, public: publicBoard };
+  });
 
   return {
     contest,
     problems: problemRows,
-    ruleset,
-    standings: ruleset.computeStandings(input),
-    freezeBypassed: ignoreFreeze && wouldFreeze,
+    boards,
+    frozen: isFrozen,
+    freezeBypassed: ignoreFreeze && isFrozen,
   };
 }
 

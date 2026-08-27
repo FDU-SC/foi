@@ -40,7 +40,7 @@ export default async function ContestsPage() {
                   <span className="text-fg font-medium">{contest.title}</span>
                   {gate.visible ? null : <Badge tone="warn">未公开</Badge>}
                   <Badge>
-                    {rulesetFor(contest.ruleset.id)?.name ??
+                    {rulesetFor(contest.leaderboards[0].ruleset.id)?.name ??
                       "自定义赛制"}
                   </Badge>
                   <span className="text-fg-subtle ml-auto font-mono text-xs">

@@ -90,8 +90,9 @@ describe("演示赛", () => {
   });
 
   it("用 acm 赛制，罚时二十分钟", () => {
-    expect(demo?.ruleset.id).toBe("acm");
-    expect(demo?.ruleset.config).toEqual({ penaltyMinutes: 20 });
+    const main = demo?.leaderboards[0];
+    expect(main?.ruleset.id).toBe("acm");
+    expect(main?.ruleset.config).toEqual({ penaltyMinutes: 20 });
   });
 
   it("题单里的每道题都真的存在", () => {

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { contestPhase } from "@/lib/contests/types";
 import { formatDuration } from "@/lib/utils";
 import {
   assignRanks,
@@ -22,13 +21,11 @@ const configSchema = z.object({
 
 export interface AcmCell {
   attempts: number;
-
   solvedAt: number | null;
-
   pending: number;
 }
 
-function AcmCellView({ cell }: { cell: AcmCell | undefined }) {
+export function AcmCellView({ cell }: { cell: AcmCell | undefined }) {
   if (!cell || (cell.attempts === 0 && cell.pending === 0)) {
     return <span className="text-fg-subtle">·</span>;
   }
@@ -56,26 +53,27 @@ function AcmCellView({ cell }: { cell: AcmCell | undefined }) {
   );
 }
 
+export function AcmTotalView({ row }: { row: StandingsRow<AcmCell> }) {
+  return (
+    <span className="inline-flex flex-col items-center leading-tight">
+      <span className="text-fg font-mono font-semibold tabular-nums">
+        {row.total}
+      </span>
+      <span className="text-fg-subtle font-mono text-[10px] tabular-nums">
+        {row.tiebreak}
+      </span>
+    </span>
+  );
+}
+
 export const ruleset: Ruleset<AcmCell> = {
   id: "acm",
   name: "ACM / ICPC",
   description: "按通过题数排名，同数按罚时（解题时间 + 错误提交罚分）排序。",
-  supportsFreeze: true,
 
-  computeStandings(input: StandingsInput) {
+  compute(input: StandingsInput) {
     const { penaltyMinutes } = configSchema.parse(input.config ?? {});
     const start = input.contest.startsAt.getTime();
-    const freezeAt = input.contest.freezeAt;
-
-    const frozen =
-      contestPhase(
-        {
-          startsAt: input.contest.startsAt,
-          endsAt: input.contest.endsAt,
-          freezeAt: freezeAt ?? undefined,
-        },
-        new Date(Date.now()),
-      ) === "frozen";
 
     const byUser = new Map<number, Map<string, AcmCell>>();
     for (const participant of input.participants) {
@@ -95,9 +93,7 @@ export const ruleset: Ruleset<AcmCell> = {
 
       if (cell.solvedAt !== null) continue;
 
-      const withheld =
-        frozen && freezeAt !== null && submission.createdAt >= freezeAt;
-      if (withheld || submission.state !== "completed") {
+      if (submission.state !== "completed") {
         cell.pending += 1;
         continue;
       }
@@ -127,21 +123,6 @@ export const ruleset: Ruleset<AcmCell> = {
     return {
       rows: assignRanks<AcmCell>(rows),
       totalLabel: "解题",
-      frozen,
     };
-  },
-
-  render: {
-    Cell: AcmCellView,
-    Total: ({ row }: { row: StandingsRow<AcmCell> }) => (
-      <span className="inline-flex flex-col items-center leading-tight">
-        <span className="text-fg font-mono font-semibold tabular-nums">
-          {row.total}
-        </span>
-        <span className="text-fg-subtle font-mono text-[10px] tabular-nums">
-          {row.tiebreak}
-        </span>
-      </span>
-    ),
   },
 };

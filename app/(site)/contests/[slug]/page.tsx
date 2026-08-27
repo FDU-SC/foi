@@ -10,6 +10,7 @@ import {
 import { resolveContestProblems } from "@/lib/contests/resolve";
 import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
 import { rulesetFor } from "@/lib/standings/registry";
+import type { LeaderboardConfig } from "@/lib/contests/types";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,8 @@ export default async function ContestPage({
   if (!view) notFound();
 
   const contest = view.config;
-  const ruleset = rulesetFor(contest.ruleset.id);
+  const primaryLb: LeaderboardConfig = contest.leaderboards[0];
+  const ruleset = rulesetFor(primaryLb.ruleset.id);
 
   const now = new Date();
   const phase = contestPhase(contest, now);
@@ -49,7 +51,7 @@ export default async function ContestPage({
       <header className="border-border border-b pb-5">
         <div className="mb-2 flex items-center gap-2">
           <Badge tone={PHASE_TONE[phase]}>{PHASE_LABEL[phase]}</Badge>
-          <Badge>{ruleset?.name ?? contest.ruleset.id}</Badge>
+          <Badge>{ruleset?.name ?? primaryLb.ruleset.id}</Badge>
         </div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">
           {contest.title}

@@ -72,6 +72,8 @@ export default async function StandingsPage({
   const data = await standingsFor(contest.slug, viewer);
   if (!data) notFound();
 
+  const totalRows = data.boards[0]?.full.rows.length ?? 0;
+
   return (
     <div className="space-y-5">
       <nav className="text-fg-subtle flex items-center gap-1.5 text-xs">
@@ -89,17 +91,32 @@ export default async function StandingsPage({
 
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-fg text-2xl font-bold tracking-tight">排行榜</h1>
-        <Badge>{data.ruleset.name}</Badge>
-        {data.standings.frozen ? <Badge tone="warn">已封榜</Badge> : null}
+        {data.frozen ? <Badge tone="warn">已封榜</Badge> : null}
         {data.freezeBypassed ? (
           <Badge tone="info">封榜中 · 你看到的是完整排名</Badge>
         ) : null}
         <span className="text-fg-subtle ml-auto text-xs">
-          共 {data.standings.rows.length} 人
+          共 {totalRows} 人
         </span>
       </div>
 
-      <StandingsTable data={data} />
+      {data.boards.map((board) => (
+        <section key={board.leaderboard.id} className="space-y-3">
+          {data.boards.length > 1 ? (
+            <div className="flex items-center gap-2">
+              <h2 className="text-fg text-lg font-semibold">
+                {board.leaderboard.title}
+              </h2>
+              <Badge>{board.ruleset.name}</Badge>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Badge>{board.ruleset.name}</Badge>
+            </div>
+          )}
+          <StandingsTable board={board} problems={data.problems} />
+        </section>
+      ))}
     </div>
   );
 }

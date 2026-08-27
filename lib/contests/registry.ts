@@ -52,19 +52,13 @@ function buildRegistry(): Map<string, ContestConfig> {
       }
     }
 
-    const named = parsed.data.ruleset.id;
-
-    const ruleset = rulesetFor(named);
-    if (!ruleset) {
-      throw new Error(
-        `${path} 引用了未知的赛制 "${named}"，请检查 content/rulesets/`,
-      );
-    }
-
-    if (parsed.data.freezeAt && ruleset.supportsFreeze !== true) {
-      throw new Error(
-        `${path} 配置了 freezeAt，但赛制 "${ruleset.id}" 不支持封榜，这个字段不会有任何效果。请去掉 freezeAt，或改用支持封榜的赛制。`,
-      );
+    for (const lb of parsed.data.leaderboards) {
+      const ruleset = rulesetFor(lb.ruleset.id);
+      if (!ruleset) {
+        throw new Error(
+          `${path} 的排行榜 "${lb.id}" 引用了未知的赛制 "${lb.ruleset.id}"，请检查 content/rulesets/`,
+        );
+      }
     }
 
     registry.set(dirSlug, parsed.data);

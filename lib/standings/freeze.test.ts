@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/test/auth-support";
 import { capabilitiesOf, listGroups } from "@/lib/permissions/groups";
 import { viewerFor } from "@/lib/permissions/viewer";
-import { contestPhase } from "@/lib/contests/types";
 import { groupWith } from "@/test/content-shapes";
 import {
   at,
@@ -14,83 +13,99 @@ import {
   START,
 } from "@/test/standings-support";
 import { listRulesets } from "./registry";
-import type { AnyRuleset } from "./types";
+import type { AnyRuleset, StandingsInput } from "./types";
 
-const freezing = listRulesets().filter((ruleset) => ruleset.supportsFreeze);
+const allRulesets = listRulesets();
 
 const problems = [problem("a", "A"), problem("b", "B")];
 const submissions = [solve(1, "a", 10), solve(1, "b", 250)];
 
-function board(ruleset: AnyRuleset, freezeAt: Date | null, now: Date) {
+function dualCompute(
+  ruleset: AnyRuleset,
+  freezeAt: Date | null,
+  baseInput: StandingsInput,
+) {
+  const full = ruleset.compute(baseInput);
 
-  const original = Date.now;
-  Date.now = () => now.getTime();
-  try {
-    return ruleset.computeStandings(
-      input({
+  let publicBoard = null;
+  if (freezeAt) {
+    const preFreezeSubmissions = baseInput.submissions.filter(
+      (s) => s.createdAt < freezeAt,
+    );
+    publicBoard = ruleset.compute({
+      ...baseInput,
+      submissions: preFreezeSubmissions,
+    });
+  }
+
+  return { full, public: publicBoard };
+}
+
+describe("封榜：任何赛制都支持双次计算", () => {
+  it("至少有一种赛制可测", () => {
+    expect(allRulesets.length).toBeGreaterThan(0);
+  });
+
+  const freezeAt = at(240);
+
+  it.each(allRulesets.map((r) => ({ ruleset: r, id: r.id })))(
+    "$id：带 freezeAt 时，public 榜过滤掉了封榜后的提交",
+    ({ ruleset }) => {
+      const base = input({
         participants: participants(1),
         problems,
         freezeAt,
         submissions,
-      }),
-    );
-  } finally {
-    Date.now = original;
-  }
-}
+      });
 
-describe("封榜的开关就是 freezeAt", () => {
-  it("至少有一种赛制支持封榜，否则这组用例什么也没测", () => {
-    expect(freezing.length).toBeGreaterThan(0);
-  });
+      const { full, public: pub } = dualCompute(ruleset, freezeAt, base);
 
-  const during = at(250);
-  const freezeAt = at(240);
-
-  it.each(freezing.map((ruleset) => ({ ruleset, id: ruleset.id })))(
-    "$id：带 freezeAt 就封，去掉就不封",
-    ({ ruleset }) => {
-      expect(board(ruleset, freezeAt, during).frozen).toBe(true);
-      expect(board(ruleset, null, during).frozen).toBe(false);
+      expect(pub).not.toBeNull();
+      expect(full.rows[0].total).toBeGreaterThanOrEqual(
+        pub!.rows[0].total,
+      );
     },
   );
 
-  it.each(freezing.map((ruleset) => ({ ruleset, id: ruleset.id })))(
-    "$id：解冻后的榜与比赛结束后的榜一致",
+  it.each(allRulesets.map((r) => ({ ruleset: r, id: r.id })))(
+    "$id：不带 freezeAt 时没有 public 榜",
     ({ ruleset }) => {
+      const base = input({
+        participants: participants(1),
+        problems,
+        submissions,
+      });
 
-      const bypassed = board(ruleset, null, during);
-      const afterEnd = board(ruleset, freezeAt, new Date(END.getTime() + 1));
+      const { public: pub } = dualCompute(ruleset, null, base);
+      expect(pub).toBeNull();
+    },
+  );
 
-      const shape = (b: ReturnType<typeof board>) =>
+  it.each(allRulesets.map((r) => ({ ruleset: r, id: r.id })))(
+    "$id：全量计算与无封榜计算结果一致",
+    ({ ruleset }) => {
+      const base = input({
+        participants: participants(1),
+        problems,
+        freezeAt,
+        submissions,
+      });
+
+      const noFreeze = input({
+        participants: participants(1),
+        problems,
+        submissions,
+      });
+
+      const { full } = dualCompute(ruleset, freezeAt, base);
+      const plain = ruleset.compute(noFreeze);
+
+      const shape = (b: { rows: { participant: { uid: number }; total: number; tiebreak: number }[] }) =>
         b.rows.map((row) => [row.participant.uid, row.total, row.tiebreak]);
 
-      expect(shape(bypassed)).toEqual(shape(afterEnd));
+      expect(shape(full)).toEqual(shape(plain));
     },
   );
-});
-
-describe("封榜窗口与比赛相位说的是同一个窗口", () => {
-  const freezeAt = at(240);
-  const clock = { startsAt: START, endsAt: END, freezeAt };
-
-  const moments = [
-    { label: "封榜前一刻", now: new Date(freezeAt.getTime() - 1) },
-    { label: "封榜当刻", now: freezeAt },
-    { label: "封榜期间", now: at(250) },
-    { label: "结束当刻", now: END },
-    { label: "结束之后", now: new Date(END.getTime() + 1) },
-  ];
-
-  it.each(
-    freezing.flatMap((ruleset) =>
-      moments.map((moment) => ({ ...moment, ruleset, id: ruleset.id })),
-    ),
-  )("$id · $label", ({ ruleset, now }) => {
-    expect(board(ruleset, freezeAt, now).frozen).toBe(
-      contestPhase(clock, now) === "frozen",
-    );
-  });
 });
 
 describe("谁能看穿封榜", () => {

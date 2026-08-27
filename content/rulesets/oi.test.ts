@@ -4,7 +4,7 @@ import type { OiCell } from "./oi";
 import { ruleset as oiRuleset } from "./oi";
 
 function compute(options: Parameters<typeof input>[0]) {
-  return oiRuleset.computeStandings(input(options));
+  return oiRuleset.compute(input(options));
 }
 
 function cell(
@@ -159,14 +159,3 @@ describe("oi 分值上限", () => {
   });
 });
 
-describe("oi 封榜", () => {
-  it("这个赛制不支持封榜", () => {
-    expect(
-      compute({
-        participants: participants(1),
-        problems,
-        submissions: [],
-      }).frozen,
-    ).toBe(false);
-  });
-});

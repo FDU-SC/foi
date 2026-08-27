@@ -4,7 +4,7 @@ import type { CtfCell } from "./ctf-dynamic";
 import { ruleset as ctfDynamicRuleset } from "./ctf-dynamic";
 
 function compute(options: Parameters<typeof input>[0]) {
-  return ctfDynamicRuleset.computeStandings(input(options));
+  return ctfDynamicRuleset.compute(input(options));
 }
 
 function cell(
@@ -221,13 +221,4 @@ describe("ctf 总分与排名", () => {
     expect(standings.rows[0].participant.uid).toBe(2);
   });
 
-  it("这个赛制不支持封榜", () => {
-    expect(
-      compute({
-        participants: participants(1),
-        problems,
-        submissions: [],
-      }).frozen,
-    ).toBe(false);
-  });
 });

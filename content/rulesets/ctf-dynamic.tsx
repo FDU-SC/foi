@@ -17,23 +17,20 @@ function isAccepted(submission: SubmissionRecord): boolean {
 const configSchema = z.object({
   initial: z.number().positive().default(500),
   minimum: z.number().nonnegative().default(100),
-
   decay: z.number().positive().default(20),
-
   bloodBonus: z.array(z.number()).default([0.1, 0.05, 0.02]),
 });
 
 export interface CtfCell {
   score: number;
   solvedAt: number | null;
-
   blood: number | null;
   attempts: number;
 }
 
 const BLOOD_LABEL = ["一血", "二血", "三血"];
 
-function CtfCellView({ cell }: { cell: CtfCell | undefined }) {
+export function CtfCellView({ cell }: { cell: CtfCell | undefined }) {
   if (!cell || cell.attempts === 0) {
     return <span className="text-fg-subtle">·</span>;
   }
@@ -64,12 +61,20 @@ function CtfCellView({ cell }: { cell: CtfCell | undefined }) {
   );
 }
 
+export function CtfTotalView({ row }: { row: StandingsRow<CtfCell> }) {
+  return (
+    <span className="text-fg font-mono font-semibold tabular-nums">
+      {Math.round(row.total)}
+    </span>
+  );
+}
+
 export const ruleset: Ruleset<CtfCell> = {
   id: "ctf-dynamic",
   name: "CTF 动态分值",
   description: "题目分值随解出人数衰减，前三名解出者获得一/二/三血加成。",
 
-  computeStandings(input: StandingsInput) {
+  compute(input: StandingsInput) {
     const config = configSchema.parse(input.config ?? {});
     const start = input.contest.startsAt.getTime();
 
@@ -107,7 +112,6 @@ export const ruleset: Ruleset<CtfCell> = {
       const value = decayedValue(config, list.length);
 
       list.forEach((solve, index) => {
-
         const cells = cellsByUser.get(solve.uid);
         if (!cells) return;
         const bonus = config.bloodBonus[index] ?? 0;
@@ -141,17 +145,7 @@ export const ruleset: Ruleset<CtfCell> = {
     return {
       rows: assignRanks<CtfCell>(rows),
       totalLabel: "总分",
-      frozen: false,
     };
-  },
-
-  render: {
-    Cell: CtfCellView,
-    Total: ({ row }: { row: StandingsRow<CtfCell> }) => (
-      <span className="text-fg font-mono font-semibold tabular-nums">
-        {Math.round(row.total)}
-      </span>
-    ),
   },
 };
 

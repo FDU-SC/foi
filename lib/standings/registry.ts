@@ -15,18 +15,11 @@ function exportedRuleset(path: string, mod: unknown): AnyRuleset {
   if (
     typeof candidate.id !== "string" ||
     typeof candidate.name !== "string" ||
-    typeof candidate.computeStandings !== "function"
+    typeof candidate.compute !== "function"
   ) {
     throw new Error(
-      `${path} 导出的 ruleset 不符合 Ruleset 接口，请检查 id、name 与 computeStandings。`,
+      `${path} 导出的 ruleset 不符合 Ruleset 接口，请检查 id、name 与 compute。`,
     );
-  }
-
-  if (
-    candidate.supportsFreeze !== undefined &&
-    typeof candidate.supportsFreeze !== "boolean"
-  ) {
-    throw new Error(`${path} 的 supportsFreeze 必须是布尔值，或者干脆不写。`);
   }
 
   return candidate as AnyRuleset;

@@ -199,11 +199,6 @@ export default async function AdminPage() {
                 <code className="text-fg-subtle font-mono text-xs">
                   {ruleset.id}
                 </code>
-                {ruleset.supportsFreeze ? (
-                  <Badge tone="info">支持封榜</Badge>
-                ) : (
-                  <Badge>不支持封榜</Badge>
-                )}
               </div>
               <p className="text-fg-muted text-xs leading-5">
                 {ruleset.description}

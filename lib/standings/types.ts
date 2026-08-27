@@ -1,4 +1,3 @@
-import type { ComponentType } from "react";
 import type { SubmissionRecordState } from "@/lib/backend/types";
 
 export interface ContestProblem {
@@ -52,12 +51,9 @@ export interface StandingsRow<Cell> {
   cells: Record<string, Cell | undefined>;
 }
 
-export interface Standings<Cell> {
+export interface ComputedStandings<Cell> {
   rows: StandingsRow<Cell>[];
-
   totalLabel: string;
-
-  frozen: boolean;
 }
 
 export interface Ruleset<Cell = unknown> {
@@ -65,18 +61,12 @@ export interface Ruleset<Cell = unknown> {
   name: string;
   description: string;
 
-  supportsFreeze?: boolean;
-  computeStandings(input: StandingsInput): Standings<Cell>;
-  render?: {
-    Cell?: ComponentType<{ cell: Cell | undefined; problem: ContestProblem }>;
-    Total?: ComponentType<{ row: StandingsRow<Cell> }>;
-  };
+  compute(input: StandingsInput): ComputedStandings<Cell>;
 }
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any --
    The registry is heterogeneous by design: each ruleset picks its own Cell
-   type, and Cell appears in both covariant (Standings) and contravariant
-   (render.Cell props) positions, so no single sound supertype exists. */
+   type, and callers don't need to know Cell at the registry level. */
 export type AnyRuleset = Ruleset<any>;
 
 export function assignRanks<Cell>(

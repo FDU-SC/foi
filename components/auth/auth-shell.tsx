@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { site } from "@/lib/site";
 
 export function AuthShell({
   children,
@@ -15,7 +16,7 @@ export function AuthShell({
           href="/"
           className="text-fg mb-8 block text-center text-2xl font-bold tracking-tight"
         >
-          FOI
+          {site.name}
         </Link>
         {children}
         {footer ? (

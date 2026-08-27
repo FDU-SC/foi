@@ -3,24 +3,7 @@ import { getViewer } from "@/auth";
 import { ProblemBadgesSlot } from "@/components/problem/badges-slot";
 import { Badge } from "@/components/ui/badge";
 import { problemsFor } from "@/lib/problems/access";
-
-const ENTRIES = [
-  {
-    href: "/problems",
-    title: "题库",
-    description: "浏览全部题目，随时提交练习。",
-  },
-  {
-    href: "/contests",
-    title: "比赛",
-    description: "查看进行中与已结束的比赛及其排行榜。",
-  },
-  {
-    href: "/submissions",
-    title: "提交记录",
-    description: "追踪自己的评测结果与得分明细。",
-  },
-] as const;
+import { site } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +13,9 @@ export default async function HomePage() {
   return (
     <div className="space-y-12">
       <section className="pt-6">
-        <h1 className="text-fg text-3xl font-bold tracking-tight">FOI</h1>
+        <h1 className="text-fg text-3xl font-bold tracking-tight">
+          {site.name}
+        </h1>
         <p className="text-fg-muted mt-3 max-w-2xl leading-7">
           一个可插拔的竞赛平台。题面、评测机与赛制计分都以代码形式存放在仓库中，
           可以像写组件一样定制每一道题的页面。
@@ -38,7 +23,7 @@ export default async function HomePage() {
       </section>
 
       <section className="grid gap-3 sm:grid-cols-3">
-        {ENTRIES.map((entry) => (
+        {(site.homeEntries ?? []).map((entry) => (
           <Link
             key={entry.href}
             href={entry.href}

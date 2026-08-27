@@ -1,4 +1,5 @@
 import { Header } from "@/components/site/header";
+import { site } from "@/lib/site";
 
 export default function SiteLayout({ children }: LayoutProps<"/">) {
   return (
@@ -8,7 +9,7 @@ export default function SiteLayout({ children }: LayoutProps<"/">) {
         {children}
       </main>
       <footer className="border-border text-fg-subtle border-t px-4 py-6 text-center text-xs">
-        FOI · 内部竞赛平台
+        {site.name} · {site.description}
       </footer>
     </>
   );

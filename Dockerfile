@@ -1,32 +1,29 @@
-FROM node:24-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df AS base
+FROM node:22-alpine AS base
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
 
-FROM base AS toolchain
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
-
-ENV pnpm_config_node_linker=hoisted
-
-ENV pnpm_config_store_dir=/pnpm/store
+# --- deps: install dependencies (hoisted for standalone tracing) ---
+FROM base AS deps
 RUN corepack enable
-
-FROM toolchain AS deps
+ENV pnpm_config_node_linker=hoisted
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-
-RUN --mount=type=cache,target=/pnpm/store,sharing=locked \
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 
-RUN test ! -L node_modules/next \
-  || { echo "nodeLinker: hoisted 未生效，node_modules 仍为符号链接布局" >&2; exit 1; }
-
-FROM toolchain AS builder
+# --- builder: compile the Next.js app ---
+FROM base AS builder
+RUN corepack enable
+ENV pnpm_config_node_linker=hoisted
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
+ARG FOI_RELEASE_SHA=""
+ENV FOI_RELEASE_SHA=$FOI_RELEASE_SHA
 
 RUN --mount=type=cache,target=/app/.next/cache \
     pnpm build
 
+# --- runner: minimal production image ---
 FROM base AS runner
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -36,24 +33,16 @@ ARG FOI_RELEASE_SHA=""
 ENV FOI_RELEASE_SHA=$FOI_RELEASE_SHA
 
 LABEL org.opencontainers.image.source="https://github.com/FDU-SC/foi-internal" \
-      org.opencontainers.image.revision="$FOI_RELEASE_SHA" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.revision="$FOI_RELEASE_SHA"
 
-RUN groupadd --gid 1001 nodejs \
-  && useradd --uid 1001 --gid nodejs --no-create-home --shell /usr/sbin/nologin foi
+RUN addgroup --system --gid 1001 nodejs \
+ && adduser --system --uid 1001 --ingroup nodejs foi
 
 COPY --from=builder --chown=foi:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=foi:nodejs /app/.next/static ./.next/static
-
-RUN test "$(stat -c '%U' .next)" = foi \
-  || { echo ".next 不属于 foi，运行时写不了增量缓存" >&2; exit 1; }
-
 COPY --from=builder --chown=foi:nodejs /app/public ./public
-
 COPY --from=builder --chown=foi:nodejs /app/drizzle ./drizzle
-
-COPY --from=builder --chown=foi:nodejs /app/scripts/create-account.cjs ./scripts/
-
+COPY --from=builder --chown=foi:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=foi:nodejs /app/lib/accounts/argon2-options.cjs ./lib/accounts/
 
 USER foi

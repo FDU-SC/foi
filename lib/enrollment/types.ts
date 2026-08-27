@@ -40,13 +40,9 @@ export const enrollmentPolicySchema = z.object({
 
   enabled: z.boolean().default(true),
 
-  mailDelivery: z.enum(["smtp", "console"]).default("smtp"),
-
   emailDomains: z.array(z.string().min(1)).default([]),
 
   stripSubaddress: z.boolean().default(true),
-
-  registrationsPerIpPerHour: z.number().int().positive().default(10),
 });
 
 export type EnrollmentPolicy = z.infer<typeof enrollmentPolicySchema>;

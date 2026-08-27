@@ -1,5 +1,5 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
 
 const root = join(process.cwd(), ".next", "static");
 const files: string[] = [];
@@ -14,64 +14,154 @@ function collect(directory: string) {
 
 collect(root);
 
-const PROTOCOL_MARKERS = [
-  { label: "题目后端配置", value: "backend:{id:" },
-  { label: "内联判题配置", value: 'backend:{kind:"inline"' },
-  { label: "题目配置模块", value: 's.s(["problem",0,{slug:' },
-  { label: "报名规则", value: "enrollmentPolicy" },
+// ------------------------------------------------------------------
+// Structural markers: object property shapes that survive minification.
+// Minifiers preserve property names; we match on those, not on variable
+// names or call-site patterns that change with every bundler release.
+// ------------------------------------------------------------------
+const STRUCTURAL = [
+  { label: "外挂后端配置 (backend.id)", pattern: /backend:\{id:"/ },
+  { label: "内联判题配置 (backend.kind)", pattern: /backend:\{kind:"inline"/ },
 ];
 
-const MARKERS_FILE = join(process.cwd(), "content", "leak-markers.json");
+// ------------------------------------------------------------------
+// Auto-extracted markers from server-only source files.
+// We read the judge modules and problem configs at check time and
+// pull out distinctive strings that must never reach the client.
+// ------------------------------------------------------------------
 
-function contentMarkers(): { label: string; value: string }[] | null {
-  if (!existsSync(MARKERS_FILE)) return null;
+const contentRoot = join(process.cwd(), "content", "problems");
 
-  const parsed: unknown = JSON.parse(readFileSync(MARKERS_FILE, "utf8"));
-  if (!Array.isArray(parsed)) {
-    throw new Error("content/leak-markers.json 必须是一个数组");
+function readIfExists(path: string): string | null {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return null;
   }
-  for (const marker of parsed) {
-    if (
-      typeof marker !== "object" ||
-      marker === null ||
-      typeof (marker as { label?: unknown }).label !== "string" ||
-      typeof (marker as { value?: unknown }).value !== "string"
-    ) {
-      throw new Error(
-        "content/leak-markers.json 的每一项都要有字符串 label 与 value",
-      );
-    }
-  }
-  return parsed as { label: string; value: string }[];
 }
 
-const declared = contentMarkers();
-const markers = [...PROTOCOL_MARKERS, ...(declared ?? [])];
+interface Marker {
+  label: string;
+  value: string;
+}
+
+function extractJudgeExports(): Marker[] {
+  const markers: Marker[] = [];
+  const judgeDir = join(contentRoot, "_shared", "judge");
+
+  let entries: import("node:fs").Dirent[];
+  try {
+    entries = readdirSync(judgeDir, { withFileTypes: true });
+  } catch {
+    return markers;
+  }
+
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith(".ts") || entry.name.endsWith(".test.ts")) continue;
+
+    const source = readIfExists(join(judgeDir, entry.name));
+    if (!source) continue;
+
+    // Only check files that declare server-only
+    if (!source.includes('"server-only"')) continue;
+
+    // Extract exported function/const names like `judgeRoulette`, `judgeOutputOnly`
+    const exportedNames = [
+      ...source.matchAll(/export\s+(?:const|function)\s+(\w+)/g),
+    ].map((m) => m[1]);
+
+    for (const name of exportedNames) {
+      // Skip type-only exports and very short/generic names
+      if (name.length < 8) continue;
+      markers.push({
+        label: `判题函数 ${name} (${entry.name})`,
+        value: name,
+      });
+    }
+  }
+
+  return markers;
+}
+
+function extractInlineAnswers(): Marker[] {
+  const markers: Marker[] = [];
+
+  let dirs: import("node:fs").Dirent[];
+  try {
+    dirs = readdirSync(contentRoot, { withFileTypes: true });
+  } catch {
+    return markers;
+  }
+
+  for (const dir of dirs) {
+    if (!dir.isDirectory() || dir.name.startsWith("_")) continue;
+
+    const problemPath = join(contentRoot, dir.name, "problem.ts");
+    const source = readIfExists(problemPath);
+    if (!source) continue;
+
+    // Only care about inline-judged problems
+    if (!source.includes('kind: "inline"') && !source.includes("kind: 'inline'")) continue;
+
+    const rel = relative(process.cwd(), problemPath);
+
+    // Extract `expected:` string values — these are answer keys
+    for (const match of source.matchAll(/expected:\s*"([^"]+)"/g)) {
+      const value = match[1];
+      if (value.length < 2) continue;
+      markers.push({
+        label: `答案 "${value}" (${rel})`,
+        value,
+      });
+    }
+
+    // Extract config objects with distinctive scoring constants.
+    // Values like `scoreNumber: 100` are too generic; skip those.
+    // But `scoreColor: 30` paired with `scoreSize: 10` together are distinctive.
+    for (const match of source.matchAll(
+      /(\w+Config)\s*,?\s*$/gm,
+    )) {
+      markers.push({
+        label: `内联配置类型 ${match[1]} (${rel})`,
+        value: match[1],
+      });
+    }
+  }
+
+  return markers;
+}
+
+const judgeMarkers = extractJudgeExports();
+const answerMarkers = extractInlineAnswers();
 
 const findings: string[] = [];
 for (const file of files) {
   const source = readFileSync(file, "utf8");
-  for (const marker of markers) {
+  const short = relative(join(process.cwd(), ".next"), file);
+
+  for (const { label, pattern } of STRUCTURAL) {
+    if (pattern.test(source)) {
+      findings.push(`${label}: ${short}`);
+    }
+  }
+
+  for (const marker of [...judgeMarkers, ...answerMarkers]) {
     if (source.includes(marker.value)) {
-      findings.push(`${marker.label}: ${file}`);
+      findings.push(`${marker.label}: ${short}`);
     }
   }
 }
 
 if (findings.length > 0) {
-  console.error("客户端产物包含仅应存在于服务端的题目资料：");
+  console.error("客户端产物包含仅应存在于服务端的内容：");
   for (const finding of findings) console.error(`  - ${finding}`);
   process.exitCode = 1;
-} else if (declared === null) {
-
-  console.log(
-    `客户端边界检查通过（扫描 ${files.length} 个 JavaScript 文件），` +
-      `但本次只检查了 ${PROTOCOL_MARKERS.length} 条协议 marker：` +
-      `没有 content/leak-markers.json，内联判题与题目私有配置里的字符串未被覆盖`,
-  );
 } else {
+  const total = STRUCTURAL.length + judgeMarkers.length + answerMarkers.length;
   console.log(
     `客户端边界检查通过（扫描 ${files.length} 个 JavaScript 文件，` +
-      `${PROTOCOL_MARKERS.length} 条协议 marker 加 ${declared.length} 条来自 content）`,
+      `${STRUCTURAL.length} 条结构 marker + ` +
+      `${judgeMarkers.length} 条判题函数 + ` +
+      `${answerMarkers.length} 条答案 marker = ${total} 条）`,
   );
 }

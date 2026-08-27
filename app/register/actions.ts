@@ -18,6 +18,7 @@ import {
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import { sendVerificationLink } from "@/lib/mail/notify";
 import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
+import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
 
 function normalize(email: string): string {
   return normalizeEmail(email, {
@@ -49,11 +50,12 @@ export async function sendVerificationLinkAction(
     return { error: "这个邮箱已经注册过了。如果是你本人，请用「找回密码」。" };
   }
 
+  const { max, windowSeconds } = ACTION_LIMITS.sendVerificationLinkAction;
   const limit = rateLimitBySource(
     "send-verification-link",
     sourceFrom(await headers()),
-    enrollmentPolicy.registrationsPerIpPerHour,
-    60 * 60 * 1000,
+    max,
+    windowSeconds * 1000,
   );
   if (!limit.ok) return { error: "请求过于频繁，请稍后再试。" };
 
@@ -114,11 +116,12 @@ export async function registerAction(
     return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
   }
 
+  const reg = ACTION_LIMITS.registerAction;
   const limit = rateLimitBySource(
     "register",
     sourceFrom(await headers()),
-    enrollmentPolicy.registrationsPerIpPerHour,
-    60 * 60 * 1000,
+    reg.max,
+    reg.windowSeconds * 1000,
   );
   if (!limit.ok) {
     return { error: "注册过于频繁，请稍后再试。" };

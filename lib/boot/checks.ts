@@ -27,8 +27,6 @@ async function loadChecks(): Promise<Check[]> {
 
     { complaints: mail.mailDeliveryComplaints, fatalIn: ONLY_PROD },
 
-    { complaints: mail.defaultedMailDeliveryComplaints, fatalIn: NEVER },
-
     { complaints: backend.backendsSharingSecret, fatalIn: ONLY_PROD },
 
     { complaints: backend.backendsMissingActionUrl, fatalIn: ONLY_PROD },

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Tier } from "@/lib/boot/deployment";
 import {
-  defaultedMailDeliveryComplaints,
+  declaredDelivery,
   mailDeliveryComplaints,
   mailDeliveryUnmet,
   mailSink,
@@ -15,6 +15,7 @@ const NO_RELAY = {
   FOI_SMTP_PASSWORD: undefined,
   FOI_SMTP_SECURE: undefined,
   FOI_ENV: undefined,
+  FOI_MAIL_DELIVERY: undefined,
 } as const;
 
 function withEnv(overrides: Record<string, string | undefined>): void {
@@ -98,51 +99,45 @@ describe("没有明文豁免", () => {
   });
 });
 
-describe("声明的投递方式与环境不一致时", () => {
-  it("声明 console 就走控制台，配没配中继都一样", () => {
+describe("declaredDelivery", () => {
+  it("不设 FOI_MAIL_DELIVERY 时默认 smtp", () => {
+    withEnv({});
+    expect(declaredDelivery()).toBe("smtp");
+  });
+
+  it("显式设置 console 时返回 console", () => {
+    withEnv({ FOI_MAIL_DELIVERY: "console" });
+    expect(declaredDelivery()).toBe("console");
+  });
+
+  it("显式设置 smtp 时返回 smtp", () => {
+    withEnv({ FOI_MAIL_DELIVERY: "smtp" });
+    expect(declaredDelivery()).toBe("smtp");
+  });
+});
+
+describe("邮件投递策略", () => {
+  it("FOI_MAIL_DELIVERY=console 时什么都不报", () => {
+    withEnv({ FOI_MAIL_DELIVERY: "console" });
+    atTier("prod");
+
+    expect(mailDeliveryComplaints()).toEqual([]);
+  });
+
+  it("smtp 且配了中继就真的投递", () => {
     withEnv({ FOI_SMTP_HOST: "smtp.example.com" });
-    expect(mailSink("console")).toBe("console");
-
-    vi.unstubAllEnvs();
-    withEnv({});
-    expect(mailSink("console")).toBe("console");
-  });
-
-  it("声明 console 时什么都不报", () => {
-    withEnv({});
     atTier("prod");
 
-    expect(mailDeliveryComplaints("console")).toEqual([]);
-    expect(defaultedMailDeliveryComplaints("console", false)).toEqual([]);
+    expect(mailDeliveryComplaints()).toEqual([]);
+    expect(mailSink()).toBe("smtp");
   });
 
-  it("声明 smtp 且配了中继就真的投递", () => {
-    withEnv({ FOI_SMTP_HOST: "smtp.example.com" });
-    atTier("prod");
-
-    expect(mailDeliveryComplaints("smtp")).toEqual([]);
-    expect(mailSink("smtp")).toBe("smtp");
-  });
-
-  it("声明了 smtp 却没有中继，在哪一层都是一条发现", () => {
-    for (const tier of ["dev", "staging", "prod"] as const) {
-      vi.unstubAllEnvs();
-      withEnv({});
-      atTier(tier);
-
-      expect(mailDeliveryComplaints("smtp")).toHaveLength(1);
-      expect(mailDeliveryComplaints("smtp")[0]).toMatch(/FOI_SMTP_HOST/);
-    }
-  });
-
-  it("完全没有 content/enrollment/ 时，报的是另一条、且两条互斥", () => {
+  it("smtp（默认）却没有中继时报出来", () => {
     withEnv({});
     atTier("prod");
 
-    expect(mailDeliveryComplaints("smtp", false)).toEqual([]);
-    const defaulted = defaultedMailDeliveryComplaints("smtp", false);
-    expect(defaulted).toHaveLength(1);
-    expect(defaulted[0]).toMatch(/content\/enrollment\//);
+    expect(mailDeliveryComplaints()).toHaveLength(1);
+    expect(mailDeliveryComplaints()[0]).toMatch(/FOI_SMTP_HOST/);
   });
 
   it("dev 与 staging 缺中继时回落到控制台", () => {
@@ -152,7 +147,7 @@ describe("声明的投递方式与环境不一致时", () => {
       vi.stubEnv("NODE_ENV", "production");
       atTier(tier);
 
-      expect(mailSink("smtp")).toBe("console");
+      expect(mailSink()).toBe("console");
     }
   });
 
@@ -162,7 +157,7 @@ describe("声明的投递方式与环境不一致时", () => {
       withEnv({ FOI_SMTP_HOST: "smtp.example.com" });
       atTier(tier);
 
-      expect(mailSink("smtp")).toBe("smtp");
+      expect(mailSink()).toBe("smtp");
     }
   });
 
@@ -170,23 +165,26 @@ describe("声明的投递方式与环境不一致时", () => {
     withEnv({});
     atTier("prod");
 
-    expect(() => mailSink("smtp")).toThrow(/FOI_SMTP_HOST/);
+    expect(() => mailSink()).toThrow(/FOI_SMTP_HOST/);
   });
 
-  it("声明 smtp 却没有中继，是一条可以报告的分歧，生产环境下也只是报告", () => {
+  it("smtp 却没有中继，是一条可以报告的分歧", () => {
     withEnv({});
     atTier("prod");
 
-    expect(mailDeliveryUnmet("smtp")).toBe(true);
+    expect(mailDeliveryUnmet()).toBe(true);
   });
 
   it("其余三种组合都不是分歧", () => {
-    withEnv({});
-    expect(mailDeliveryUnmet("console")).toBe(false);
+    withEnv({ FOI_MAIL_DELIVERY: "console" });
+    expect(mailDeliveryUnmet()).toBe(false);
 
     vi.unstubAllEnvs();
     withEnv({ FOI_SMTP_HOST: "smtp.example.com" });
-    expect(mailDeliveryUnmet("console")).toBe(false);
-    expect(mailDeliveryUnmet("smtp")).toBe(false);
+    expect(mailDeliveryUnmet()).toBe(false);
+
+    vi.unstubAllEnvs();
+    withEnv({ FOI_SMTP_HOST: "smtp.example.com", FOI_MAIL_DELIVERY: "console" });
+    expect(mailDeliveryUnmet()).toBe(false);
   });
 });

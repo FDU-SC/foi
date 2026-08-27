@@ -7,7 +7,6 @@ describe("enrollmentPolicySchema", () => {
       enabled: true,
       emailDomains: [],
       stripSubaddress: true,
-      registrationsPerIpPerHour: 10,
     });
   });
 });

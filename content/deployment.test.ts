@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { listGroups } from "@/lib/permissions/groups";
 import { allContests, contestBySlug } from "@/lib/contests/registry";
-import { enrollmentPolicy } from "@/lib/enrollment/registry";
+import { mailSink } from "@/lib/mail/transport";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
 import { backends } from "@/lib/backend/registry";
 import { undeclaredBackends } from "@/lib/backend/access";
@@ -71,7 +71,7 @@ describe("这套 content 自身自洽", () => {
   });
 
   it("开发环境把邮件打到控制台，而不是假装有 relay", () => {
-    expect(enrollmentPolicy.mailDelivery).toBe("console");
+    expect(mailSink()).toBe("console");
   });
 
   it("problems/views.ts 真的被 content/problem-view-modules 找到了", () => {

@@ -48,6 +48,12 @@ const schema = z.object({
       "必须是 git commit 的十六进制 sha",
     ),
 
+  FOI_MAIL_DELIVERY: z
+    .enum(["smtp", "console"], {
+      message: '必须是 "smtp" 或 "console"',
+    })
+    .optional(),
+
   FOI_TRUSTED_PROXY_HOPS: z
     .string()
     .optional()

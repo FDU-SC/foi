@@ -121,8 +121,8 @@ export const ACTION_LIMITS = {
     unlimited: true,
     why: "只清 cookie，不写库不发信；限它反而会把人卡在登录态里",
   },
-  sendVerificationLinkAction: { content: true, declaredIn: "content/enrollment/*.ts" },
-  registerAction: { content: true, declaredIn: "content/enrollment/*.ts" },
+  sendVerificationLinkAction: { max: 10, windowSeconds: 3600 },
+  registerAction: { max: 10, windowSeconds: 3600 },
   requestPasswordReset: {
     max: 10,
     windowSeconds: 3600,

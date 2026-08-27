@@ -61,12 +61,6 @@ export default async function AdminEnrollmentPage() {
                 30 分钟
               </dd>
             </div>
-            <div className="flex justify-between gap-2">
-              <dt className="text-fg-muted">单 IP 每小时注册上限</dt>
-              <dd className="text-fg font-mono text-xs">
-                {enrollmentPolicy.registrationsPerIpPerHour}
-              </dd>
-            </div>
           </dl>
           <div className="border-border mt-3 border-t pt-3">
             <p className="text-fg-subtle mb-1.5 text-xs">允许注册的邮箱域名</p>

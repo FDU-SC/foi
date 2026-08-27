@@ -6,24 +6,6 @@ import { problemsServedBy } from "@/lib/backend/access";
 import { db } from "@/lib/db";
 import { loadAdminOverview } from "./drift";
 
-const declared = vi.hoisted(() => ({
-  mailDelivery: null as "smtp" | "console" | null,
-}));
-
-vi.mock("@/lib/enrollment/registry", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@/lib/enrollment/registry")>();
-  return {
-    ...actual,
-    enrollmentPolicy: {
-      ...actual.enrollmentPolicy,
-      get mailDelivery() {
-        return declared.mailDelivery ?? actual.enrollmentPolicy.mailDelivery;
-      },
-    },
-  };
-});
-
 async function reachable(): Promise<boolean> {
   try {
     await db.execute(sql`select 1`);
@@ -55,14 +37,13 @@ function patchBackend(id: string, changes: Partial<ProblemBackend>): void {
 
 afterEach(() => {
   vi.unstubAllEnvs();
-  declared.mailDelivery = null;
   for (const [id, entry] of savedBackends) backends[id] = entry;
   savedBackends.clear();
 });
 
 describeDb("运维台偏差：邮件", () => {
-  it("声明了 smtp 却没有中继时报出来，因为注册与找回对用户已经失效", async () => {
-    declared.mailDelivery = "smtp";
+  it("FOI_MAIL_DELIVERY=smtp 却没有中继时报出来", async () => {
+    vi.stubEnv("FOI_MAIL_DELIVERY", "smtp");
     vi.stubEnv("FOI_SMTP_HOST", undefined);
 
     const finding = findingAbout((await loadAdminOverview()).findings, "SMTP");
@@ -72,8 +53,8 @@ describeDb("运维台偏差：邮件", () => {
     expect(finding?.severity).toBe("warn");
   });
 
-  it("声明了 smtp 且配了中继就不报，否则这条会变成人人都学会忽略的常驻噪音", async () => {
-    declared.mailDelivery = "smtp";
+  it("FOI_MAIL_DELIVERY=smtp 且配了中继就不报", async () => {
+    vi.stubEnv("FOI_MAIL_DELIVERY", "smtp");
     vi.stubEnv("FOI_SMTP_HOST", "smtp.example.com");
 
     expect(
@@ -81,8 +62,8 @@ describeDb("运维台偏差：邮件", () => {
     ).toBeUndefined();
   });
 
-  it("声明了 console 就不报——那是个决定，不是可以修的偏差", async () => {
-    declared.mailDelivery = "console";
+  it("FOI_MAIL_DELIVERY=console 就不报——那是个决定，不是可以修的偏差", async () => {
+    vi.stubEnv("FOI_MAIL_DELIVERY", "console");
 
     for (const host of [undefined, "smtp.example.com"]) {
       vi.stubEnv("FOI_SMTP_HOST", host);

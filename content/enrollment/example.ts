@@ -8,10 +8,6 @@ export const policy: EnrollmentPolicyInput = {
   enabled: true,
 
   emailDomains: ["example.test"],
-
-  mailDelivery: "console",
-
-  registrationsPerIpPerHour: 10,
 };
 
 export const groups: GroupInput[] = [

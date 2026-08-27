@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import { rateLimitBySource } from "./index";
-import { ROUTE_LIMITS, SOURCE_GATE, type RouteKey } from "./policy";
+import { rateLimitBySource } from "@/lib/ratelimit";
+import { ROUTE_LIMITS, type RouteKey } from "@/lib/ratelimit/policy";
 import { sourceFrom } from "./source";
+
+export const SOURCE_GATE = { max: 300, windowSeconds: 60 } as const;
 
 export function guardRequest(
   request: Request,

@@ -7,7 +7,7 @@ import { readJsonBody } from "@/lib/body-limit";
 import { contestEntryFor } from "@/lib/contests/access";
 import { actionFor } from "@/lib/problems/actions";
 import { rateLimit } from "@/lib/ratelimit";
-import { guardRequest, tooManyRequests } from "@/lib/ratelimit/gate";
+import { guardRequest, tooManyRequests } from "@/lib/server/guard";
 
 export const runtime = "nodejs";
 

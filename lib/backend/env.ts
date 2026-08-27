@@ -1,20 +1,11 @@
-import { tier } from "@/lib/boot/deployment";
 import type { ProblemBackend } from "./types";
-
-function developmentFallbackUrl(): string | undefined {
-  return process.env.FOI_DEV_BACKEND_URL || undefined;
-}
 
 export function envFragment(id: string): string {
   return id.replace(/-/g, "_").toUpperCase();
 }
 
 export function backendUrl(id: string): string | undefined {
-
-  const configured = process.env[`FOI_BACKEND_${envFragment(id)}_URL`];
-  if (configured) return configured;
-
-  return tier() === "dev" ? developmentFallbackUrl() : undefined;
+  return process.env[`FOI_BACKEND_${envFragment(id)}_URL`] || undefined;
 }
 
 export function backendSecret(id: string): string | undefined {

@@ -22,7 +22,7 @@ import {
 import { invalidateStandings } from "@/lib/standings/cache";
 import { verdictColumns } from "@/lib/submissions/verdict";
 import { rateLimit } from "@/lib/ratelimit";
-import { guardRequest, tooManyRequests } from "@/lib/ratelimit/gate";
+import { guardRequest, tooManyRequests } from "@/lib/server/guard";
 import { ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { publish } from "@/lib/submissions/events";
 import { submitFor, type SubmitGate } from "@/lib/submissions/gate";

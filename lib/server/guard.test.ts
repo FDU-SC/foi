@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { guardRequest } from "./gate";
+import { guardRequest, SOURCE_GATE } from "./guard";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -272,5 +272,12 @@ describe("每个 api 路由都取来源闸", () => {
     expect(missing, "这些路由不在 proxy 的 matcher 里，也没有自己取来源闸").toEqual(
       [],
     );
+  });
+});
+
+describe("SOURCE_GATE", () => {
+  it("来源闸的数值仍然是个闸", () => {
+    expect(SOURCE_GATE.max).toBeGreaterThan(0);
+    expect(SOURCE_GATE.max).toBeLessThanOrEqual(1_000);
   });
 });

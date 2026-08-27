@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { readJsonBody } from "@/lib/body-limit";
-import { guardRequest } from "@/lib/ratelimit/gate";
+import { guardRequest } from "@/lib/server/guard";
 import { jobRequestSchema } from "@/lib/backend/types";
 import { CLAIM_PATH, verifyRunner } from "@/lib/runner/auth";
 import { claimJob } from "@/lib/runner/queue";

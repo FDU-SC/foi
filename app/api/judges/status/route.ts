@@ -3,7 +3,7 @@ import { getSessionUser } from "@/auth";
 import { viewerFor } from "@/lib/permissions/viewer";
 import { judgeQueuesFor } from "@/lib/backend/board";
 import { rateLimit } from "@/lib/ratelimit";
-import { guardRequest, tooManyRequests } from "@/lib/ratelimit/gate";
+import { guardRequest, tooManyRequests } from "@/lib/server/guard";
 import { ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 
 export const runtime = "nodejs";

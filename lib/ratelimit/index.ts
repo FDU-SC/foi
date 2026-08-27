@@ -1,5 +1,7 @@
 import { createFixedWindow, type RateLimitResult } from "./window";
-import { isResolvedSource, sourceFrom } from "./source";
+import { isResolvedSource } from "@/lib/server/source";
+
+export { sourceFrom } from "@/lib/server/source";
 
 declare global {
   var __foiRateLimit: ReturnType<typeof createFixedWindow> | undefined;
@@ -19,8 +21,6 @@ export function rateLimit(
 ): RateLimitResult {
   return window.take(key, limit, windowMs);
 }
-
-export { sourceFrom };
 
 export function rateLimitBySource(
   activity: string,

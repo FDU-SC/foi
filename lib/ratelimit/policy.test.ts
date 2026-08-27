@@ -1,12 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import {
-  ACTION_LIMITS,
-  ROUTE_LIMITS,
-  SOURCE_GATE,
-  type RateLimitRule,
-} from "./policy";
+import { ACTION_LIMITS, ROUTE_LIMITS, type RateLimitRule } from "./policy";
 
 const ROOT = join(import.meta.dirname, "..", "..");
 
@@ -160,9 +155,5 @@ describe("限流入口表", () => {
     ).toEqual([]);
   });
 
-  it("来源闸的数值仍然是个闸", () => {
-    expect(SOURCE_GATE.max).toBeGreaterThan(0);
-    expect(SOURCE_GATE.max).toBeLessThanOrEqual(1_000);
-  });
 });
 

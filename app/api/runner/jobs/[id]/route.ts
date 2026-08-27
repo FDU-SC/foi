@@ -5,7 +5,7 @@ import { jobReportSchema } from "@/lib/backend/types";
 import { readJsonBody } from "@/lib/body-limit";
 import { db } from "@/lib/db";
 import { submissions } from "@/lib/db/schema";
-import { guardRequest } from "@/lib/ratelimit/gate";
+import { guardRequest } from "@/lib/server/guard";
 import { jobPath, verifyRunner } from "@/lib/runner/auth";
 import {
   jobDetails,

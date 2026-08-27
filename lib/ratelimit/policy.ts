@@ -152,6 +152,4 @@ export const ACTION_LIMITS = {
   },
 } as const satisfies Record<string, RateLimitRule>;
 
-export const SOURCE_GATE = { max: 300, windowSeconds: 60 } as const;
-
 export type RouteKey = keyof typeof ROUTE_LIMITS;

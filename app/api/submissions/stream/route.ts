@@ -7,7 +7,7 @@ import {
   MAX_STREAMS_PER_HANDLE,
   streamConcurrency,
 } from "@/lib/ratelimit/concurrency";
-import { guardRequest } from "@/lib/ratelimit/gate";
+import { guardRequest } from "@/lib/server/guard";
 import { ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { subscribe } from "@/lib/submissions/events";
 import { submissionFor } from "@/lib/submissions/access";

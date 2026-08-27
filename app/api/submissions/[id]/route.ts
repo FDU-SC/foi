@@ -3,7 +3,7 @@ import { getSessionUser } from "@/auth";
 import { viewerFor } from "@/lib/permissions/viewer";
 import { isSettled } from "@/lib/backend/types";
 import { rateLimit } from "@/lib/ratelimit";
-import { guardRequest, tooManyRequests } from "@/lib/ratelimit/gate";
+import { guardRequest, tooManyRequests } from "@/lib/server/guard";
 import { ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { submissionFor } from "@/lib/submissions/access";
 import { toView } from "@/lib/submissions/queries";

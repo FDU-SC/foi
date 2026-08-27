@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "./auth.config";
 import { viewerFor } from "@/lib/permissions/viewer";
-import { isResolvedSource, sourceFrom } from "@/lib/ratelimit/source";
+import { isResolvedSource, sourceFrom } from "@/lib/server/source";
 import { createFixedWindow } from "@/lib/ratelimit/window";
 
 const { auth } = NextAuth(authConfig);

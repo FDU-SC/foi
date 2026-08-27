@@ -2,7 +2,7 @@ import { gte, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { runners } from "@/lib/db/schema";
-import { guardRequest } from "@/lib/ratelimit/gate";
+import { guardRequest } from "@/lib/server/guard";
 import { RUNNER_ONLINE_MS } from "@/lib/runner/queue";
 import { reaperHealth } from "@/lib/runner/reaper";
 

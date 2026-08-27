@@ -10,7 +10,7 @@ import {
 import type { ContestConfig } from "@/lib/contests/types";
 import { standingsFor } from "@/lib/standings/compute";
 import { dateFormatter } from "@/lib/format";
-import { StandingsTable } from "./standings-table";
+import { ProblemGridBoard } from "@/content/_shared/leaderboards/problem-grid";
 
 export const dynamic = "force-dynamic";
 
@@ -109,7 +109,7 @@ export default async function StandingsPage({
               <Badge>{board.ruleset.name}</Badge>
             </div>
           )}
-          <StandingsTable
+          <ProblemGridBoard
             board={board}
             problems={data.problems}
             CellView={board.renderers.Cell}

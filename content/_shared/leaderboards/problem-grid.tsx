@@ -6,11 +6,8 @@ function DefaultCell({ cell }: { cell: unknown }) {
   if (cell === undefined || cell === null) {
     return <span className="text-fg-subtle">·</span>;
   }
-  const score = (cell as { score?: number }).score;
   return (
-    <span className="text-fg font-mono text-xs tabular-nums">
-      {typeof score === "number" ? Math.round(score) : "✓"}
-    </span>
+    <span className="text-fg font-mono text-xs tabular-nums">✓</span>
   );
 }
 
@@ -22,19 +19,23 @@ function DefaultTotal({ row }: { row: { total: number } }) {
   );
 }
 
-export interface StandingsTableProps {
+export interface ProblemGridProps {
   board: LeaderboardStandings;
   problems: ContestProblem[];
   CellView?: ComponentType<{ cell: unknown; problem: ContestProblem }>;
   TotalView?: ComponentType<{ row: StandingsRow<unknown> }>;
+  emptyMessage?: string;
+  participantLabel?: string;
 }
 
-export function StandingsTable({
+export function ProblemGridBoard({
   board,
   problems,
   CellView,
   TotalView,
-}: StandingsTableProps) {
+  emptyMessage = "还没有提交记录。",
+  participantLabel = "选手",
+}: ProblemGridProps) {
   const Cell = CellView ?? DefaultCell;
   const Total = TotalView ?? DefaultTotal;
 
@@ -43,7 +44,7 @@ export function StandingsTable({
   if (standings.rows.length === 0) {
     return (
       <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
-        还没有提交记录。
+        {emptyMessage}
       </p>
     );
   }
@@ -57,7 +58,7 @@ export function StandingsTable({
               #
             </th>
             <th className="border-border border-b px-3 py-2.5 text-left font-semibold">
-              选手
+              {participantLabel}
             </th>
             <th className="border-border w-20 border-b px-3 py-2.5 text-center font-semibold">
               {standings.totalLabel}

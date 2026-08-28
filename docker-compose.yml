@@ -67,7 +67,9 @@ services:
     environment:
       FOI_STUB_RUNNER: yes-fake-verdicts
       FOI_KERNEL_URL: http://app:3000
-      FOI_BACKEND_SECRET: ${FOI_BACKEND_SECRET:?}
+      # 同 tunnel：不用 :? 强制，否则未激活这个 profile 的部署也会在解析时失败。
+      # 值为空时 stub-runner 自己会在启动检查里报出来。
+      FOI_BACKEND_SECRET: ${FOI_BACKEND_SECRET:-}
       FOI_STUB_BACKENDS: ${FOI_STUB_BACKENDS:-traditional,interactive,performance}
     depends_on:
       - app
@@ -83,7 +85,9 @@ services:
     restart: unless-stopped
     command: tunnel --no-autoupdate run
     environment:
-      TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN:?}
+      # 不用 :? 强制：即使 profile 没激活，compose 也会解析整个文件，那样每一个
+      # 不走隧道的部署都会在这里失败。启用 tunnel profile 时它必须有值。
+      TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN:-}
     networks:
       - internal
 

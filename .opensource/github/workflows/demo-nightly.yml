@@ -1,0 +1,177 @@
+name: 每夜重建 demo
+
+# 演示站每晚从 main 重新生成一次。重建的意义不在省资源，而在于公开站点会积累陌生人
+# 注册的账号与垃圾提交，每天早上该是一份干净的示例数据。
+#
+# 这里只做到把镜像推上去为止。演示站自己定时比对 :nightly 的摘要，变了就重建——
+# 部署由目标机主动发起，CI 不需要任何进入那台机器的凭据，也就没有一把能登进服务器
+# 的私钥躺在这个仓库的 secrets 里。代价是这里看不到部署结果，那边的失败要在那边看。
+#
+# 这个文件必须待在默认分支：schedule 事件只在默认分支触发，放到 nightly 分支上永远
+# 不会跑。它操作 nightly 分支，但自己不住在那里。
+#
+# 公开仓库的定时工作流在仓库 60 天无活动后会被自动停用。失败会开 issue，那条 issue
+# 本身也算仓库活动，可以顺带把停用的时钟推后。
+on:
+  schedule:
+    # 18:07 UTC = 次日 02:07 Asia/Shanghai。避开整点，那是 Actions 排队的高峰。
+    - cron: "7 18 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: demo-nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # 推镜像之前先过一遍完整检查。main 上合进一个能构建、但一启动就崩的改动是可能的，
+  # 那种情况应该停在这里，而不是让演示站去拉一个坏版本。
+  check:
+    name: 检查
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    name: 重放补丁并发布镜像
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: write
+
+    env:
+      REGISTRY: ghcr.io
+
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: 记下基线
+        id: base
+        run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      # 演示账号的密码要印在首页上，它从来不是秘密，所以用 variable 而不是 secret。
+      # 目标机上的 demo-seed 必须拿到同一个值，两处要一起改。
+      - name: 套用 demo 配置补丁
+        env:
+          FOI_DEMO_PASSWORD: ${{ vars.DEMO_PASSWORD || 'foi-demo' }}
+          FOI_DEMO_ACCOUNT_COUNT: ${{ vars.DEMO_ACCOUNT_COUNT || '5' }}
+        run: node scripts/demo-config.cjs
+
+      # 重放而不是合并：nightly 始终是 main 的干净快照加同一份差异，不会像长期分支
+      # 那样把每晚的合并提交越堆越多，也就不会累积冲突。
+      - name: 重放到 nightly 分支
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B nightly
+          git add -A
+          git commit -m "demo: 基于 ${{ steps.base.outputs.sha }} 重建演示配置"
+          git push --force origin nightly
+
+      - name: 确定镜像
+        id: image
+        run: |
+          set -euo pipefail
+          repo="${REGISTRY}/${GITHUB_REPOSITORY,,}"
+          echo "image=${repo}:nightly-${{ steps.base.outputs.sha }}" >> "$GITHUB_OUTPUT"
+          echo "tags=${repo}:nightly-${{ steps.base.outputs.sha }},${repo}:nightly" >> "$GITHUB_OUTPUT"
+
+      - name: 登录镜像仓库
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" \
+            | docker login "$REGISTRY" -u '${{ github.repository_owner }}' --password-stdin
+
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e
+
+      # 推 :nightly 这个移动标签就是给演示站的信号——它比对摘要，发现变了就重建。
+      - name: 构建并推送
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.image.outputs.tags }}
+          build-args: |
+            FOI_RELEASE_SHA=${{ steps.base.outputs.sha }}
+
+      # nightly 镜像除了最近几个都没有用处——演示站不需要回滚到上个月。留一个够查
+      # 问题的窗口，其余删掉，免得包页面被几百个 tag 淹没。
+      - name: 清理旧镜像
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KEEP: "7"
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${{ github.event.repository.name }}/versions"
+
+          # 带 nightly 移动标签的那个是演示站即将拉取的，一律保护。
+          stale=$(gh api --paginate "$api" --jq '
+            [ .[] | select(any((.metadata.container.tags // [])[]; . == "nightly") | not) ]
+            | sort_by(.created_at) | reverse | .['"$KEEP"':] | .[].id
+          ')
+
+          [ -z "$stale" ] && { echo "没有需要清理的版本"; exit 0; }
+
+          count=0
+          for id in $stale; do
+            gh api -X DELETE "$api/$id" && count=$((count + 1)) || true
+          done
+          echo "已清理 $count 个旧版本（保留最近 $KEEP 个）"
+
+      - name: 交接
+        run: |
+          echo "镜像已发布：${{ steps.image.outputs.image }}"
+          echo "演示站会在下一次定时检查时拉取 :nightly 并重建。"
+
+  # 定时任务失败最容易的下场是没人发现。开一条 issue 并持续更新它，而不是每晚新开。
+  notify:
+    name: 失败时开 issue
+    needs: [check, publish]
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+
+    steps:
+      - name: 开或更新 issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          title="演示站每夜重建失败"
+
+          {
+            echo "最近一次镜像发布没有成功，演示站会继续停在上一版。"
+            echo
+            echo "失败的运行：[#${{ github.run_number }}]($RUN_URL)"
+            echo
+            echo "常见原因："
+            echo
+            echo "- \`scripts/demo-config.cjs\` 的补丁打不上，说明 main 动了它要改的那几处结构"
+            echo "- 检查未通过，main 上有坏改动"
+            echo
+            echo "这里只负责发布镜像。若镜像发布成功而站点仍是旧的，问题在目标机那侧的定时重建。"
+            echo
+            echo "> 这条 issue 由每夜重建维护，后续失败会更新它而不是另开一条。修好之后手动关闭。"
+          } > body.md
+
+          existing=$(gh issue list --repo "$REPO" --state open \
+            --search "$title in:title" --json number --jq '.[0].number // empty')
+
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --repo "$REPO" --body-file body.md
+            echo "已更新 issue #$existing"
+          else
+            gh issue create --repo "$REPO" --title "$title" --body-file body.md
+          fi

@@ -42,7 +42,7 @@ content/        All contest-specific code — see content/AGENTS.md
 
 ## Platform → Content Boundary
 
-The platform discovers content exclusively through `content/_modules/` (currently 8 registries). The `app/` and `components/` layers NEVER import from `content/` directly. Only `lib/` imports from `content/_modules/`.
+The platform discovers content through eight entry points: the six registries under `content/_modules/`, plus `content/site.ts` and `content/backends.ts`. The `app/` and `components/` layers NEVER import from `content/` directly — only `lib/` does, and only through those eight.
 
 ## Key Contracts
 

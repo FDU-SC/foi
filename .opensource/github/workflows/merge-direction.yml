@@ -1,0 +1,44 @@
+name: 合并方向
+
+# nightly 是 main 加一份 demo 专属配置（站点名、演示账号公告、停用需要靶机的题目），
+# 每晚由 demo-nightly.yml 在 main 之上重放补丁后强推。它是纯粹的下游：合回 main 会把
+# demo 配置带进平台本身，而下一次重放又会把这次合并覆盖掉。
+#
+# GitHub 的 ruleset 只能按目标分支设条件，管不到 PR 的来源分支，所以这条约束只能靠
+# 必需检查来落地。把本工作流设为 main 的必需检查即可。
+#
+# 这里刻意不设 paths-ignore：被路径过滤跳过的作业不会上报状态，作为必需检查会让 PR
+# 永远停在 pending。
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: merge-direction-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  direction:
+    name: 只许向下游合并
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 拒绝回流
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+        # 变量一律写成 ${}，紧跟其后的中文标点会被当成变量名的一部分。
+        run: |
+          set -euo pipefail
+
+          if [ "${HEAD_REF}" != "nightly" ]; then
+            echo "${HEAD_REF} → ${BASE_REF}，方向没问题。"
+            exit 0
+          fi
+
+          echo "::error::nightly → ${BASE_REF} 是反向合并。nightly 只是 main 加一份 demo 配置，每晚都会在 main 之上重新生成，合回来既会把 demo 配置带进平台，也会在下一次重放时丢失。平台改动请直接对 main 提 PR。"
+          exit 1

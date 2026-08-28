@@ -1,0 +1,21 @@
+[Unit]
+Description=FOI 演示站：发现新镜像时重建
+Documentation=https://github.com/FDU-SC/foi
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=foi-deploy
+Group=foi-deploy
+ExecStart=<deploy-path>/foi-demo/demo-rebuild.sh
+
+# 重建包含拉镜像、清库、迁移、重启，慢但有限。卡住的话让它失败，下一次唤起会重试。
+TimeoutStartSec=20min
+
+# 输出进 journal：journalctl -u foi-demo-rebuild
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

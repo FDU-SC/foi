@@ -1,0 +1,176 @@
+name: CI
+
+# 跑在 GitHub 托管 runner 上。公开仓库的用量不计费，而任何人都可以 fork 后提 PR，
+# 依赖安装脚本会随之执行——这类工作负载不应落在自己的机器上。
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+concurrency:
+  # 带上调用方的名字：被每夜重建复用时，它不该和 main 上的推送检查抢同一个组，
+  # 否则谁先跑谁被取消。
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DATABASE_URL: postgres://foi:foi_ci_password@localhost:5432/foi
+
+jobs:
+  check:
+    name: 检查
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+        env:
+          POSTGRES_USER: foi
+          POSTGRES_PASSWORD: foi_ci_password
+          POSTGRES_DB: foi
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U foi"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+
+      - name: 启用 pnpm
+        run: corepack enable
+
+      - name: 准备环境
+        run: |
+          cp .env.example .env
+          echo "DATABASE_URL=${DATABASE_URL}" >> .env
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 类型检查
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: 应用迁移
+        run: pnpm db:migrate
+
+      - name: 测试
+        run: pnpm test
+
+      - name: 构建
+        run: pnpm build
+
+      - name: 启动
+        # 生产构建下 tier() 会判成 prod 并要求只在生产生效的那组配置。这一步只验证
+        # 服务起得来，真实部署仍然会走那些检查。
+        env:
+          FOI_ENV: dev
+        run: |
+          pnpm start > "$RUNNER_TEMP/run.log" 2>&1 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 30); do
+            if node -e 'fetch("http://127.0.0.1:3000/api/health").then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))'; then
+              cat "$RUNNER_TEMP/run.log"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "服务在 30 秒内没有就绪，启动日志：" >&2
+          cat "$RUNNER_TEMP/run.log" >&2
+          exit 1
+
+  content-free:
+    name: 抽空 content
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+        env:
+          POSTGRES_USER: foi
+          POSTGRES_PASSWORD: foi_ci_password
+          POSTGRES_DB: foi
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U foi"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+
+      - name: 启用 pnpm
+        run: corepack enable
+
+      - name: 准备环境
+        run: |
+          cp .env.example .env
+          echo "DATABASE_URL=${DATABASE_URL}" >> .env
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: content/ 仅保留骨架
+        run: |
+          # 平台通过 content/_modules/ 的注册表发现内容，从不直接 import content/。
+          # 把 content/ 删到只剩注册表骨架，平台仍然要能编译和启动。这个检查挂掉，
+          # 就说明有内容语义漏进了平台层。
+          for entry in content/*; do
+            case "$(basename "$entry")" in
+              _modules|_globs.ts|_view-globs.ts|site.ts|backends.ts) ;;
+              *) rm -rf "$entry" ;;
+            esac
+          done
+
+      - name: 类型检查
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: 构建
+        run: pnpm build
+
+      - name: 启动
+        env:
+          FOI_ENV: dev
+        run: |
+          pnpm start > "$RUNNER_TEMP/run.log" 2>&1 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 30); do
+            if node -e 'fetch("http://127.0.0.1:3000/api/health").then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))'; then
+              cat "$RUNNER_TEMP/run.log"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "服务在 30 秒内没有就绪，启动日志：" >&2
+          cat "$RUNNER_TEMP/run.log" >&2
+          exit 1

@@ -25,13 +25,46 @@ const USAGE = `用法:
 需要环境变量 DATABASE_URL 与 FOI_DEMO_PASSWORD。
 
 密码会公示在 demo 站首页，所以由调用方显式给出，不自动生成。
-已存在的账号会被重置成这个密码，不会报错。`;
+已存在的账号会被重置成这个密码，不会报错。
+
+空库上会先插一个没有密码的保留账号，占住被分流规则点名成管理员的那个 uid。`;
 
 // 与 content/site.ts 的 passwordMinLength 保持一致。
 const PASSWORD_MIN_LENGTH = 8;
 
 /** 演示账号用的邮箱域名。不存在的域名，收不到也发不出。 */
 const EMAIL_DOMAIN = "example.test";
+
+// 与 content/enrollment/example.ts 里那条按 uid 点名管理员的规则保持一致。
+const RESERVED_UID = 1;
+const RESERVED_USERNAME = "reserved";
+
+/**
+ * 占住 uid=1。分流规则按 uid 点名管理员，而演示账号的密码是公示的：不占住它，
+ * db-reset 之后第一个建出来的演示账号就会顺位捡到那份权限。
+ *
+ * 这一行没有密码哈希，登录必定失败（见 lib/accounts/password.ts 的 verifyPassword）。
+ * 运维要用它进 /admin，在服务器上跑 scripts/set-password.cjs 给它设个密码即可。
+ */
+async function reserve(client) {
+  const held = await client.query(
+    "select uid, username from accounts where uid = $1",
+    [RESERVED_UID],
+  );
+  if (held.rows.length > 0) return { ...held.rows[0], created: false };
+
+  // 只有空库才谈得上占位：identity 序列走过的号回不来，非空库里插进去的行拿不到它。
+  const existing = await client.query("select 1 from accounts limit 1");
+  if (existing.rows.length > 0) return null;
+
+  const inserted = await client.query(
+    `insert into accounts (username, nickname, status)
+     values ($1, '保留账号', 'active')
+     returning uid, username`,
+    [RESERVED_USERNAME],
+  );
+  return { ...inserted.rows[0], created: true };
+}
 
 async function upsert(client, account) {
   const { rows } = await client.query(
@@ -97,7 +130,10 @@ async function main() {
   const passwordHash = await hashPassword(password);
 
   const created = [];
+  let reserved = null;
   await withClient(async (client) => {
+    reserved = await reserve(client);
+
     for (let index = 1; index <= count; index += 1) {
       const username = `${prefix}${index}`;
       const outcome = await upsert(client, {
@@ -109,6 +145,22 @@ async function main() {
       created.push({ username, ...outcome });
     }
   });
+
+  const captured = created.find((account) => account.uid === RESERVED_UID);
+  if (captured) {
+    bail(
+      `${captured.username} 拿到了 uid=${RESERVED_UID}，而分流规则按这个 uid 点名管理员。` +
+        `\n演示账号的密码是公开的，不能带着那份权限上线：先 scripts/db-reset.cjs 清库再重跑。`,
+    );
+  }
+
+  if (reserved) {
+    console.log(
+      reserved.created
+        ? `保留账号 ${reserved.username}（uid=${reserved.uid}）已建，它没有密码，登不进去`
+        : `uid=${RESERVED_UID} 已归 ${reserved.username}，未改动`,
+    );
+  }
 
   const fresh = created.filter((account) => account.created).length;
   console.log(

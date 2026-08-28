@@ -32,7 +32,9 @@ ENV HOSTNAME=0.0.0.0
 ARG FOI_RELEASE_SHA=""
 ENV FOI_RELEASE_SHA=$FOI_RELEASE_SHA
 
-LABEL org.opencontainers.image.source="https://github.com/FDU-SC/foi-internal" \
+# 平台代码的规范位置。下游部署换掉的是 content/，源仍然是这里。
+LABEL org.opencontainers.image.source="https://github.com/FDU-SC/foi" \
+      org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.revision="$FOI_RELEASE_SHA"
 
 RUN addgroup --system --gid 1001 nodejs \

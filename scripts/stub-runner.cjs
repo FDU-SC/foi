@@ -44,6 +44,15 @@ const BACKEND_VERSION = "stub-demo";
 const SIMULATION_NOTE =
   "这是模拟评测机：它不会编译或运行你提交的代码，上面的结果是按提交内容的哈希预设的。";
 
+/**
+ * 这个评测机可能产出的判定状态。
+ *
+ * 平台把 result 当作不透明 JSONB，不认识这些字符串——认识它们的是 content 里的
+ * 判定翻译表。两边必须对齐：这里出现的每个值都要在那张表里有一条，否则页面上只会
+ * 显示原始字符串。
+ */
+const STATUSES = ["accepted", "partial", "wrong_answer", "compile_error"];
+
 function positiveInt(raw, fallback) {
   const value = Number(raw);
   return Number.isInteger(value) && value > 0 ? value : fallback;
@@ -294,4 +303,4 @@ if (require.main === module) {
 }
 
 // 供测试比对签名算法与判定形状。
-module.exports = { sign, verdictFor, main, SIMULATION_NOTE };
+module.exports = { sign, verdictFor, main, SIMULATION_NOTE, STATUSES };

@@ -1,7 +1,6 @@
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import { sign as platformSign } from "@/lib/backend/signature";
-import { verdicts } from "@/content/_shared/verdicts";
 
 const require = createRequire(import.meta.url);
 const stub = require("./stub-runner.cjs") as {
@@ -17,6 +16,7 @@ const stub = require("./stub-runner.cjs") as {
     detail: { tests?: { name: string; status: string; score: number; maxScore: number }[]; message?: string };
   };
   SIMULATION_NOTE: string;
+  STATUSES: string[];
 };
 
 const SECRET = "9f2c1b7e4a6d8035fe1c2b3a4d5e6f70";
@@ -57,11 +57,13 @@ describe("stub-runner 的签名", () => {
 });
 
 describe("stub-runner 的判定", () => {
-  it("status 落在 content 认识的九个键里", () => {
+  // 不 import content：抽空 content 之后平台仍要能通过检查，测试也不例外。这里验证
+  // 的是「产出没有超出自己声明的集合」，那个集合与 content 判定表的对齐是部署时的事。
+  it("status 不超出自己声明的集合", () => {
     const sources = ["a", "bb", "ccc", "dddd", "eeeee", "ffffff", "ggggggg"];
     for (const source of sources) {
       const { result } = stub.verdictFor(job({ source }));
-      expect(Object.keys(verdicts)).toContain(result.status);
+      expect(stub.STATUSES).toContain(result.status);
     }
   });
 
@@ -126,6 +128,6 @@ describe("stub-runner 的判定", () => {
 
   it("flag 型提交也能判", () => {
     const { result } = stub.verdictFor(job({ flag: "FOI{abc}" }));
-    expect(Object.keys(verdicts)).toContain(result.status);
+    expect(stub.STATUSES).toContain(result.status);
   });
 });

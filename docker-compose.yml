@@ -1,0 +1,94 @@
+# 平台与一个 PostgreSQL。
+#
+#   cp .env.example .env
+#   docker compose up -d
+#
+# 服务监听 http://localhost:3000 。数据库自建，表结构在应用启动时迁移。
+#
+# .env 里的密钥是占位值。对外的部署必须换掉，否则应用拒绝启动，见 lib/boot/secrets.ts。
+#
+# 两个可选的 profile：
+#
+#   docker compose --profile demo up -d      # 加一台模拟评测机
+#   docker compose --profile tunnel up -d    # 经 Cloudflare Tunnel 对外，不开放端口
+#
+# 要改这里的任何一项，不要直接编辑本文件——写一份 docker-compose.override.yml，
+# compose 会自动读取并合并，那个文件不进版本控制。
+
+services:
+  app:
+    image: ${FOI_IMAGE:-ghcr.io/fdu-sc/foi:latest}
+    # 想从源码构建而不是拉镜像，注释掉上面一行，改用这个：
+    # build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-foi}:${POSTGRES_PASSWORD:-foi_dev_password}@postgres:5432/${POSTGRES_DB:-foi}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      # 走 Cloudflare Tunnel 时把 FOI_BIND 设成 127.0.0.1，宿主上就只剩一个本地端口。
+      - "${FOI_BIND:-0.0.0.0}:${FOI_PORT:-3000}:3000"
+    networks:
+      - internal
+
+  postgres:
+    image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-foi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-foi_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-foi}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-foi} -d ${POSTGRES_DB:-foi} -h 127.0.0.1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # 模拟评测机。同一个镜像换一个入口，走完整的领活协议，但不编译也不运行任何代码
+  # ——判定按提交内容的哈希预设，每条判定都会在详情页说明这一点。
+  #
+  # 有了它，那些声明了外部后端的题目才不会停在队列里。真实评测需要独立部署的评测机，
+  # 实现不在本仓库。
+  stub-runner:
+    profiles: [demo]
+    image: ${FOI_IMAGE:-ghcr.io/fdu-sc/foi:latest}
+    restart: unless-stopped
+    command: ["node", "scripts/stub-runner.cjs"]
+    environment:
+      FOI_STUB_RUNNER: yes-fake-verdicts
+      FOI_KERNEL_URL: http://app:3000
+      FOI_BACKEND_SECRET: ${FOI_BACKEND_SECRET:?}
+      FOI_STUB_BACKENDS: ${FOI_STUB_BACKENDS:-traditional,interactive,performance}
+    depends_on:
+      - app
+    networks:
+      - internal
+
+  # 经 Cloudflare Tunnel 对外：连接由 cloudflared 主动向外建立，宿主不必开放任何
+  # 入站端口，也不需要公网 IP 或证书。启用它时把 app 的端口映射收回本地环回地址，
+  # 隧道走的是容器网络里的 app:3000。
+  tunnel:
+    profiles: [tunnel]
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN:?}
+    networks:
+      - internal
+
+networks:
+  internal:
+
+volumes:
+  pgdata:

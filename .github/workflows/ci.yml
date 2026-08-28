@@ -23,6 +23,10 @@ env:
 jobs:
   check:
     name: 检查
+    # 只在上游仓库运行。下游部署把这份文件一并继承下去，但那边有自己的流水线，
+    # 跑两遍只是白白吃掉额度。fork 的 PR 不受影响——pull_request 事件里
+    # github.repository 是接收 PR 的仓库，不是 fork。
+    if: github.repository == 'FDU-SC/foi'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -98,6 +102,7 @@ jobs:
 
   content-free:
     name: 抽空 content
+    if: github.repository == 'FDU-SC/foi'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 

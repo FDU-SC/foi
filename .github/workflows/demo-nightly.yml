@@ -35,6 +35,9 @@ jobs:
   publish:
     name: 重放补丁并发布镜像
     needs: check
+    # 演示站只有一个，只由上游仓库发布。下游继承这份文件，但不该跟着推镜像、
+    # 更不该强推 nightly 分支。
+    if: github.repository == 'FDU-SC/foi'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

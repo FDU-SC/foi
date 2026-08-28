@@ -1,4 +1,11 @@
-export const TIERS = ["dev", "staging", "prod"] as const;
+/**
+ * 部署档位。
+ *
+ * 回答的是「这套部署里有没有真东西」，不是它在发布流程里排第几。装着真实账号与
+ * 未公开赛题的预发布环境，和生产一样经不起一次配置疏忽，它填 `prod`。发布流程分
+ * 几级是运维的事，平台不需要知道。
+ */
+export const TIERS = ["dev", "prod"] as const;
 
 export type Tier = (typeof TIERS)[number];
 

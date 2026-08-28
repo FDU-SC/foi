@@ -1,5 +1,6 @@
 import { assertEnv } from "@/lib/env";
 import { releaseSha, tier, type Tier } from "./deployment";
+import { placeholderSecrets } from "./secrets";
 
 export interface Check {
 
@@ -24,6 +25,8 @@ async function loadChecks(): Promise<Check[]> {
     ]);
 
   return [
+
+    { complaints: () => placeholderSecrets(), fatalIn: ONLY_PROD },
 
     { complaints: mail.mailDeliveryComplaints, fatalIn: ONLY_PROD },
 

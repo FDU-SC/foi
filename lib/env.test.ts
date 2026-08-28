@@ -55,14 +55,18 @@ describe("assertEnv", () => {
   });
 
   it("FOI_ENV 拼错时拒绝启动，并列出合法取值", () => {
-    expect(check({ FOI_ENV: "stagning" })).toThrow(/FOI_ENV/);
-    expect(check({ FOI_ENV: "stagning" })).toThrow(/staging/);
+    expect(check({ FOI_ENV: "prodution" })).toThrow(/FOI_ENV/);
+    expect(check({ FOI_ENV: "prodution" })).toThrow(/prod/);
   });
 
-  it("FOI_ENV 的三个合法取值都通过，不设也通过", () => {
-    for (const declared of ["dev", "staging", "prod", undefined, ""]) {
+  it("FOI_ENV 的两个合法取值都通过，不设也通过", () => {
+    for (const declared of ["dev", "prod", undefined, ""]) {
       expect(check({ FOI_ENV: declared })).not.toThrow();
     }
+  });
+
+  it("不接受 staging，预发布环境按 prod 对待", () => {
+    expect(check({ FOI_ENV: "staging" })).toThrow(/FOI_ENV/);
   });
 
   it("FOI_RELEASE_SHA 不是 sha 时拒绝启动，缺失则通过", () => {

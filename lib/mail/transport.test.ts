@@ -140,25 +140,19 @@ describe("邮件投递策略", () => {
     expect(mailDeliveryComplaints()[0]).toMatch(/FOI_SMTP_HOST/);
   });
 
-  it("dev 与 staging 缺中继时回落到控制台", () => {
-    for (const tier of ["dev", "staging"] as const) {
-      vi.unstubAllEnvs();
-      withEnv({});
-      vi.stubEnv("NODE_ENV", "production");
-      atTier(tier);
+  it("dev 缺中继时回落到控制台", () => {
+    withEnv({});
+    vi.stubEnv("NODE_ENV", "production");
+    atTier("dev");
 
-      expect(mailSink()).toBe("console");
-    }
+    expect(mailSink()).toBe("console");
   });
 
-  it("dev 与 staging 上配了中继就仍然走中继", () => {
-    for (const tier of ["dev", "staging"] as const) {
-      vi.unstubAllEnvs();
-      withEnv({ FOI_SMTP_HOST: "smtp.example.com" });
-      atTier(tier);
+  it("dev 上配了中继就仍然走中继", () => {
+    withEnv({ FOI_SMTP_HOST: "smtp.example.com" });
+    atTier("dev");
 
-      expect(mailSink()).toBe("smtp");
-    }
+    expect(mailSink()).toBe("smtp");
   });
 
   it("prod 即便绕过了启动校验，投递也不会退回控制台", () => {

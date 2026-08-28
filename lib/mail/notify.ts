@@ -1,16 +1,21 @@
 import { issueToken } from "@/lib/tokens/stateless";
 import { emailTemplates } from "./registry";
 import { deliver } from "./transport";
+import type { SecurityChangeKind } from "./types";
 
 const VERIFY_TTL_MS = 30 * 60 * 1000;
 const RESET_TTL_MS = 60 * 60 * 1000;
 const EMAIL_CHANGE_TTL_MS = 30 * 60 * 1000;
 
-function linkTo(path: string, token: string): string {
+function urlTo(path: string): URL {
   const base = process.env.FOI_PUBLIC_URL;
   if (!base) throw new Error("缺少环境变量 FOI_PUBLIC_URL");
 
-  const url = new URL(path, base);
+  return new URL(path, base);
+}
+
+function linkTo(path: string, token: string): string {
+  const url = urlTo(path);
   url.searchParams.set("token", token);
   return url.toString();
 }
@@ -58,6 +63,23 @@ export async function sendPasswordReset(
       displayName: to.nickname,
       url: linkTo("/reset-password", token),
       expiresAt,
+    }),
+  });
+}
+
+export async function sendSecurityNotice(
+  to: Recipient,
+  kind: SecurityChangeKind,
+  detail?: string,
+): Promise<void> {
+  await deliver({
+    to: to.email,
+    ...emailTemplates.securityNotice({
+      displayName: to.nickname,
+      kind,
+      changedAt: new Date(),
+      detail,
+      recoverUrl: urlTo("/forgot-password").toString(),
     }),
   });
 }

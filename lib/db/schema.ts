@@ -28,6 +28,7 @@ export const accounts = pgTable(
   {
     uid: integer("uid").primaryKey().generatedAlwaysAsIdentity(),
     username: text("username").notNull(),
+    usernameChangedAt: timestamp("username_changed_at", { withTimezone: true }),
     nickname: text("nickname").notNull(),
 
     email: text("email"),

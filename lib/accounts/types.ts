@@ -9,6 +9,12 @@ export const usernameSchema = z
   .max(32, "用户名最多 32 个字符")
   .regex(USERNAME_PATTERN, "用户名只能包含字母、数字、下划线和连字符");
 
+export const nicknameSchema = z
+  .string()
+  .trim()
+  .min(1, "请填写昵称")
+  .max(64, "昵称过长");
+
 export const emailSchema = z
   .string()
   .trim()

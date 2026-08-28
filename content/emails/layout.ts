@@ -14,6 +14,17 @@ export interface ActionMail {
   footnote?: string[];
 }
 
+export interface NoticeMail {
+  subject: string;
+
+  intro: string[];
+
+  /** Rendered as an inline link, not a button — a notice should not train users to click through. */
+  link?: { label: string; url: string };
+
+  footnote?: string[];
+}
+
 export interface CodeMail {
   subject: string;
 
@@ -78,6 +89,39 @@ export function actionMail(mail: ActionMail): MailBody {
     </p>`,
       note(expiry, true),
       ...footnote.map((line) => note(line)),
+    ].join("\n"),
+  );
+
+  return { subject: mail.subject, text, html };
+}
+
+export function formatMoment(at: Date): string {
+  return formatter.format(at);
+}
+
+export function noticeMail(mail: NoticeMail): MailBody {
+  const footnote = mail.footnote ?? [];
+
+  const text = [
+    ...mail.intro,
+    ...(mail.link ? ["", `${mail.link.label}：${mail.link.url}`] : []),
+    "",
+    ...footnote,
+    "",
+    `— ${site.name}`,
+  ].join("\n");
+
+  const html = shell(
+    [
+      ...mail.intro.map((line) => paragraph(line)),
+      ...(mail.link
+        ? [
+            `    <p style="margin:0 0 12px;font-size:14px;line-height:1.7;color:#374151;">
+      <a href="${escapeHtml(mail.link.url)}" style="color:#111827;">${escapeHtml(mail.link.label)}</a>
+    </p>`,
+          ]
+        : []),
+      ...footnote.map((line, index) => note(line, index === 0)),
     ].join("\n"),
   );
 

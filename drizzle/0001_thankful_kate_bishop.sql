@@ -1,0 +1,1 @@
+ALTER TABLE "accounts" ADD COLUMN "username_changed_at" timestamp with time zone;

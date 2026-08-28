@@ -14,6 +14,7 @@ import { accounts } from "@/lib/db/schema";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import { sendEmailChangeLink } from "@/lib/mail/notify";
 import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
+import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
 import { verifyToken } from "@/lib/tokens/stateless";
 
 export interface EmailChangeState {
@@ -55,11 +56,12 @@ export async function requestEmailChangeAction(
     return { error: "这个邮箱已被其他账号使用。" };
   }
 
+  const rule = ACTION_LIMITS.requestEmailChangeAction;
   const limit = rateLimitBySource(
     "email-change",
     sourceFrom(await headers()),
-    5,
-    60 * 60 * 1000,
+    rule.max,
+    rule.windowSeconds * 1000,
   );
   if (!limit.ok) {
     return { error: "请求过于频繁，请稍后再试。" };
@@ -94,6 +96,17 @@ export async function confirmEmailChangeAction(
 ): Promise<ConfirmEmailChangeState> {
   const viewer = await getResolvedUser();
   if (!viewer) redirect("/login");
+
+  const rule = ACTION_LIMITS.confirmEmailChangeAction;
+  const limit = rateLimitBySource(
+    "email-change-confirm",
+    sourceFrom(await headers()),
+    rule.max,
+    rule.windowSeconds * 1000,
+  );
+  if (!limit.ok) {
+    return { error: "请求过于频繁，请稍后再试。" };
+  }
 
   const payload = verifyToken(token, "email-change");
   if (!payload) {

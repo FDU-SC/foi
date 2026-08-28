@@ -22,8 +22,21 @@ export interface EmailChangeMail {
   expiresAt: Date;
 }
 
+export type SecurityChangeKind = "password" | "username";
+
+export interface SecurityNoticeMail {
+  displayName: string;
+  kind: SecurityChangeKind;
+  changedAt: Date;
+
+  detail?: string;
+
+  recoverUrl: string;
+}
+
 export interface EmailTemplates {
   verificationLink(input: VerificationLinkMail): MailBody;
   resetPassword(input: PasswordResetMail): MailBody;
   emailChange(input: EmailChangeMail): MailBody;
+  securityNotice(input: SecurityNoticeMail): MailBody;
 }

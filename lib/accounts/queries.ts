@@ -91,6 +91,63 @@ export async function createAccount(
   return row;
 }
 
+export async function updateNickname(
+  uid: number,
+  nickname: string,
+): Promise<AccountRow | undefined> {
+  const [row] = await db
+    .update(accounts)
+    .set({ nickname, updatedAt: sql`now()` })
+    .where(eq(accounts.uid, uid))
+    .returning(accountColumns);
+
+  if (row) invalidateAccounts();
+  return row;
+}
+
+const UNIQUE_VIOLATION = "23505";
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === UNIQUE_VIOLATION
+  );
+}
+
+export type UsernameUpdate =
+  | { ok: true; account: AccountRow }
+  | { ok: false; reason: "taken" | "missing" };
+
+export async function updateUsername(
+  uid: number,
+  username: string,
+): Promise<UsernameUpdate> {
+  let row: AccountRow | undefined;
+
+  try {
+    [row] = await db
+      .update(accounts)
+      .set({
+        username,
+        usernameChangedAt: sql`now()`,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(accounts.uid, uid))
+      .returning(accountColumns);
+  } catch (error) {
+    // The pre-check and this write are not atomic; the unique index is the real referee.
+    if (isUniqueViolation(error)) return { ok: false, reason: "taken" };
+    throw error;
+  }
+
+  if (!row) return { ok: false, reason: "missing" };
+
+  invalidateAccounts();
+  return { ok: true, account: row };
+}
+
 export async function suspendAccount(
   uid: number,
   by: number,

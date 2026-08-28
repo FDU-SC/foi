@@ -7,6 +7,7 @@ import { signIn } from "@/auth";
 import { findAccountByEmail } from "@/lib/accounts/queries";
 import {
   emailSchema,
+  nicknameSchema,
   usernameSchema,
   normalizeEmail,
 } from "@/lib/accounts/types";
@@ -78,7 +79,7 @@ export interface RegisterState {
 const schema = z
   .object({
     username: usernameSchema,
-    nickname: z.string().trim().min(1, "请填写昵称").max(64, "昵称过长"),
+    nickname: nicknameSchema,
     email: emailSchema,
     password: z.string().min(site.passwordMinLength ?? 8, `密码至少 ${site.passwordMinLength ?? 8} 位`),
     confirm: z.string(),

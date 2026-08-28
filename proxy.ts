@@ -37,7 +37,8 @@ export default auth((req) => {
   const needsAuth =
     path.startsWith("/admin") ||
     path.startsWith("/submissions") ||
-    path.startsWith("/judges");
+    path.startsWith("/judges") ||
+    path.startsWith("/settings");
 
   if (needsAuth && !signedIn) {
     const login = new URL("/login", nextUrl);

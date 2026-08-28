@@ -60,6 +60,13 @@ export function UserMenu({
           >
             我的提交
           </Link>
+          <Link
+            href="/settings"
+            onClick={() => setOpen(false)}
+            className="text-fg-muted hover:bg-surface-2 hover:text-fg block px-3 py-2 text-sm transition-colors"
+          >
+            个人设置
+          </Link>
           <form action={logout}>
             <button
               type="submit"

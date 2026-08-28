@@ -136,6 +136,18 @@ export const ACTION_LIMITS = {
     max: 10,
     windowSeconds: 3600,
   },
+  updateNicknameAction: {
+    max: 20,
+    windowSeconds: 3600,
+  },
+  updateUsernameAction: {
+    max: 10,
+    windowSeconds: 3600,
+  },
+  changePasswordAction: {
+    max: 10,
+    windowSeconds: 3600,
+  },
   requestEmailChangeAction: {
     max: 5,
     windowSeconds: 3600,

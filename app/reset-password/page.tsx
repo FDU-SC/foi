@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getSessionUser } from "@/auth";
 import { AuthShell } from "@/components/auth/auth-shell";
+import {
+  SELF_SERVICE_OFF,
+  selfServiceEnabled,
+} from "@/lib/accounts/self-service";
 import { ResetForm } from "./reset-form";
 
 export const metadata: Metadata = { title: "重置密码" };
@@ -13,6 +17,26 @@ export default async function ResetPasswordPage({
     getSessionUser(),
     searchParams,
   ]);
+
+  if (!selfServiceEnabled) {
+    return (
+      <AuthShell
+        footer={
+          <>
+            回到{" "}
+            <Link href="/login" className="hover:text-fg underline">
+              登录
+            </Link>
+            。
+          </>
+        }
+      >
+        <p className="text-warn bg-warn-subtle rounded-md px-3 py-2 text-sm leading-6">
+          {SELF_SERVICE_OFF}
+        </p>
+      </AuthShell>
+    );
+  }
 
   if (typeof token !== "string" || token.length === 0) {
     return (

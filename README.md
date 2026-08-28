@@ -2,7 +2,7 @@
 
 一个 一切皆代码 的竞赛平台。题目、比赛、计分规则、报名策略、邮件模板等都是仓库里的 TypeScript 文件；平台不对其做理解。
 
-演示站点：https://foi-nightly.fdusc.moe （用首页公示的演示账号登录，数据每晚重置）
+演示站点：https://foi-nightly.fdusc.moe （用首页公示的演示账号登录，账号资料不可修改，数据每晚重置）
 
 ## Why FOI?
 

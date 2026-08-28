@@ -56,7 +56,7 @@ function demoAccountHint() {
   if (!password) fail("缺少环境变量 FOI_DEMO_PASSWORD，首页要公示演示账号的密码");
   if (!Number.isInteger(count) || count < 1) fail("FOI_DEMO_ACCOUNT_COUNT 不是正整数");
 
-  return `用 demo1 到 demo${count} 登录，密码 ${password}。数据每晚重置。`;
+  return `用 demo1 到 demo${count} 登录，密码 ${password}。账号资料不可修改，数据每晚重置。`;
 }
 
 function patchSite(source, what) {
@@ -73,6 +73,14 @@ function patchSite(source, what) {
     next,
     '^  description: ".*",$',
     '  description: "开源竞赛平台 FOI 的演示站点，数据每晚重置。",',
+    what,
+  );
+
+  // 账号是公开共享的：谁改了昵称、用户名、邮箱或密码，其他访客就用不了这批账号了。
+  next = replaceOnce(
+    next,
+    "^(  passwordMinLength: \\d+,)$",
+    "$1\n\n  accountSelfService: false,",
     what,
   );
 

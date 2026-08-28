@@ -16,7 +16,7 @@ content/
   _globs.ts       import.meta.glob discovery, server-only — must sit here, see _modules/AGENTS.md
   _view-globs.ts  import.meta.glob discovery for per-problem views (client-visible)
   backends.ts     External backend connection registry
-  site.ts         Site-wide configuration (brand, locale, navigation, password policy)
+  site.ts         Site-wide configuration (brand, locale, navigation, account policy)
 ```
 
 ## Creating Content
@@ -132,3 +132,5 @@ The `result` object shape is your decision. The platform stores it as opaque JSO
 ## Site Configuration
 
 `content/site.ts` defines deployment-wide settings: brand name, language, timezone, navigation, password policy. The platform reads these—it never hardcodes them.
+
+Setting `accountSelfService: false` makes every account read-only to its owner: nickname, username, email and password all refuse to change, and the password-reset links stop working. A deployment whose accounts are shared needs this—the public demo hands the same credentials to every visitor, so the first change would lock out everyone else.

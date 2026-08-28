@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { resolveFromRow } from "@/lib/accounts/resolve";
+import { selfServiceEnabled } from "@/lib/accounts/self-service";
 import { adminAccountsFor } from "@/lib/admin/access";
 import type { AccountRow, AccountSuspensionRow } from "@/lib/db/schema";
 import { dateFormatter } from "@/lib/format";
@@ -82,7 +83,8 @@ export default async function AdminAccountsPage({
         account.groups.some((group) => group.toLowerCase().includes(query)),
     );
 
-  const canManage = viewer.can("credential.manage");
+  // Where self-service is off the action refuses too, and the link it mails is a dead end.
+  const canManage = selfServiceEnabled && viewer.can("credential.manage");
   const canModerate = viewer.can("account.moderate");
   const showActions = canManage || canModerate;
 

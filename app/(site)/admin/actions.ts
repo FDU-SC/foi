@@ -6,6 +6,7 @@ import { ForbiddenError, requireCapability } from "@/auth";
 import { getPasswordFingerprint } from "@/lib/accounts/password";
 import { reinstateAccount, suspendAccount } from "@/lib/accounts/queries";
 import { resolveUser } from "@/lib/accounts/resolve";
+import { selfServiceEnabled } from "@/lib/accounts/self-service";
 import { hasPrivilege } from "@/lib/permissions/groups";
 import type { Viewer } from "@/lib/permissions/viewer";
 import { sendPasswordReset } from "@/lib/mail/notify";
@@ -39,6 +40,15 @@ export async function resendPasswordResetAction(
     actor = await requireCapability("credential.manage");
   } catch (error) {
     return refused(error);
+  }
+
+  // The link would land on /reset-password, which refuses too. Sending it would only
+  // hand the user a dead end.
+  if (!selfServiceEnabled) {
+    return {
+      error:
+        "本站已关闭账号自助修改，重置链接发出去也用不了。要改密码请在服务器上执行 scripts/set-password.cjs。",
+    };
   }
 
   const rule = ACTION_LIMITS.resendPasswordResetAction;

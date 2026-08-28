@@ -5,6 +5,10 @@ import { z } from "zod";
 import { getPasswordFingerprint } from "@/lib/accounts/password";
 import { findAccountByEmail, getAccountByUsername } from "@/lib/accounts/queries";
 import { resolveFromRow } from "@/lib/accounts/resolve";
+import {
+  SELF_SERVICE_OFF,
+  selfServiceEnabled,
+} from "@/lib/accounts/self-service";
 import { normalizeEmail } from "@/lib/accounts/types";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import { sendPasswordReset, type Recipient } from "@/lib/mail/notify";
@@ -26,6 +30,8 @@ export async function requestPasswordReset(
   _prev: ForgotState,
   formData: FormData,
 ): Promise<ForgotState> {
+  if (!selfServiceEnabled) return { error: SELF_SERVICE_OFF };
+
   const parsed = schema.safeParse({ identifier: formData.get("identifier") });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "参数不合法" };

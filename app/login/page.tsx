@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { FormMessage } from "@/components/form";
+import { selfServiceEnabled } from "@/lib/accounts/self-service";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "登录" };
@@ -24,11 +25,16 @@ export default async function LoginPage({
           <Link href="/register" className="hover:text-fg underline">
             注册
           </Link>
-          。忘记密码？{" "}
-          <Link href="/forgot-password" className="hover:text-fg underline">
-            用邮箱找回
-          </Link>
           。
+          {selfServiceEnabled ? (
+            <>
+              忘记密码？{" "}
+              <Link href="/forgot-password" className="hover:text-fg underline">
+                用邮箱找回
+              </Link>
+              。
+            </>
+          ) : null}
         </>
       }
     >

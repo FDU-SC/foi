@@ -6,6 +6,10 @@ import { z } from "zod";
 import { getResolvedUser, signIn } from "@/auth";
 import { setPassword, verifyPassword } from "@/lib/accounts/password";
 import {
+  SELF_SERVICE_OFF,
+  selfServiceEnabled,
+} from "@/lib/accounts/self-service";
+import {
   getAccount,
   getAccountByUsername,
   updateNickname,
@@ -70,6 +74,8 @@ export async function updateNicknameAction(
   _prev: SettingsState,
   formData: FormData,
 ): Promise<SettingsState> {
+  if (!selfServiceEnabled) return { error: SELF_SERVICE_OFF };
+
   const viewer = await getResolvedUser();
   if (!viewer) redirect("/login");
 
@@ -102,6 +108,8 @@ export async function updateUsernameAction(
   _prev: SettingsState,
   formData: FormData,
 ): Promise<SettingsState> {
+  if (!selfServiceEnabled) return { error: SELF_SERVICE_OFF };
+
   const viewer = await getResolvedUser();
   if (!viewer) redirect("/login");
 
@@ -179,6 +187,8 @@ export async function changePasswordAction(
   _prev: SettingsState,
   formData: FormData,
 ): Promise<SettingsState> {
+  if (!selfServiceEnabled) return { error: SELF_SERVICE_OFF };
+
   const viewer = await getResolvedUser();
   if (!viewer) redirect("/login");
 

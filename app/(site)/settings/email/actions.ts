@@ -8,6 +8,10 @@ import { getResolvedUser } from "@/auth";
 import { getEmailFingerprint } from "@/lib/accounts/password";
 import { findAccountByEmail } from "@/lib/accounts/queries";
 import { invalidateAccounts } from "@/lib/accounts/cache";
+import {
+  SELF_SERVICE_OFF,
+  selfServiceEnabled,
+} from "@/lib/accounts/self-service";
 import { emailSchema, normalizeEmail } from "@/lib/accounts/types";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
@@ -30,6 +34,8 @@ export async function requestEmailChangeAction(
   _prev: EmailChangeState,
   formData: FormData,
 ): Promise<EmailChangeState> {
+  if (!selfServiceEnabled) return { error: SELF_SERVICE_OFF };
+
   const viewer = await getResolvedUser();
   if (!viewer) redirect("/login");
 
@@ -94,6 +100,8 @@ export interface ConfirmEmailChangeState {
 export async function confirmEmailChangeAction(
   token: string,
 ): Promise<ConfirmEmailChangeState> {
+  if (!selfServiceEnabled) return { error: SELF_SERVICE_OFF };
+
   const viewer = await getResolvedUser();
   if (!viewer) redirect("/login");
 

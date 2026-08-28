@@ -5,6 +5,10 @@ import { z } from "zod";
 import { getPasswordFingerprint, setPassword } from "@/lib/accounts/password";
 import { getAccount } from "@/lib/accounts/queries";
 import { resolveFromRow } from "@/lib/accounts/resolve";
+import {
+  SELF_SERVICE_OFF,
+  selfServiceEnabled,
+} from "@/lib/accounts/self-service";
 import { verifyToken } from "@/lib/tokens/stateless";
 import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
@@ -30,6 +34,8 @@ export async function resetPasswordAction(
   _prev: ResetState,
   formData: FormData,
 ): Promise<ResetState> {
+  if (!selfServiceEnabled) return { error: SELF_SERVICE_OFF };
+
   const parsed = schema.safeParse({
     token: formData.get("token"),
     password: formData.get("password"),

@@ -22,6 +22,9 @@ export interface SiteConfig {
   navigation: NavItem[];
   homeEntries?: HomeEntry[];
   passwordMinLength?: number;
+
+  /** Whether users may change their own nickname, username, email and password. Defaults to true. */
+  accountSelfService?: boolean;
 }
 
 export const site: SiteConfig = declared;

@@ -112,15 +112,17 @@ describe("backendsSharingSecret", () => {
 });
 
 describe("backendsMissingActionUrl", () => {
+  const problemsWithActions = externallyJudged().filter(
+    (problem) => Object.keys(problem.backend.actions).length > 0,
+  );
   const withActions = [
     ...new Set(
-      externallyJudged()
-        .filter((problem) => Object.keys(problem.backend.actions).length > 0)
-        .map((problem) => problem.backend.id),
+      problemsWithActions.map((problem) => problem.backend.id),
     ),
   ];
 
   const saved = new Map<string, ProblemBackend>();
+  const savedRetired = new Map<(typeof problemsWithActions)[number], boolean>();
 
   function patch(id: string, changes: Partial<ProblemBackend>): void {
     if (!saved.has(id)) saved.set(id, backends[id]);
@@ -129,7 +131,9 @@ describe("backendsMissingActionUrl", () => {
 
   afterEach(() => {
     for (const [id, entry] of saved) backends[id] = entry;
+    for (const [problem, retired] of savedRetired) problem.retired = retired;
     saved.clear();
+    savedRetired.clear();
   });
 
   it("有题目声明了动作、后端却没有地址时，点名该填哪个变量", () => {
@@ -159,6 +163,16 @@ describe("backendsMissingActionUrl", () => {
           ? "http://backend.internal:4100"
           : undefined,
       });
+    }
+
+    expect(backendsMissingActionUrl()).toEqual([]);
+  });
+
+  it("已下架题目的交互后端没有地址也不算缺", () => {
+    for (const problem of problemsWithActions) {
+      savedRetired.set(problem, problem.retired);
+      problem.retired = true;
+      patch(problem.backend.id, { url: undefined });
     }
 
     expect(backendsMissingActionUrl()).toEqual([]);

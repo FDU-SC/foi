@@ -25,6 +25,7 @@ export function backendsSharingSecret(): string[] {
 
 export function backendsMissingActionUrl(): string[] {
   return externallyJudged()
+    .filter((problem) => !problem.retired)
     .filter((problem) => Object.keys(problem.backend.actions).length > 0)
     .map((problem) => problem.backend.id)
     .filter((id, index, ids) => ids.indexOf(id) === index)

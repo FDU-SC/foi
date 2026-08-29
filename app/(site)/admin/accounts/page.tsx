@@ -7,7 +7,9 @@ import { resolveFromRow } from "@/lib/accounts/resolve";
 import { adminAccountsFor } from "@/lib/admin/access";
 import type { AccountRow, AccountSuspensionRow } from "@/lib/db/schema";
 import { dateFormatter } from "@/lib/format";
-import { groupName, hasPrivilege, isPrivileged } from "@/lib/permissions/groups";
+import { allows } from "@/lib/authz/engine";
+import { groupName } from "@/lib/authz/groups";
+import { isPrivilegedGroup } from "@/lib/authz/introspect";
 import { Field, Input } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { ResendResetForm } from "../resend-reset-form";
@@ -71,6 +73,8 @@ export default async function AdminAccountsPage({
   const query = typeof params.q === "string" ? params.q.trim().toLowerCase() : "";
   const byUid = new Map(rows.map((row) => [row.uid, row]));
 
+  // Each button is drawn from the same decision the action itself will make,
+  // so a row can never offer something that would be refused on submit.
   const accounts = rows
     .map(resolveFromRow)
     .filter(
@@ -80,11 +84,16 @@ export default async function AdminAccountsPage({
         account.nickname.toLowerCase().includes(query) ||
         (account.email?.includes(query) ?? false) ||
         account.groups.some((group) => group.toLowerCase().includes(query)),
-    );
+    )
+    .map((account) => ({
+      account,
+      canManage: allows("account.sendPasswordReset", account, viewer),
+      canModerate: allows("account.suspend", account, viewer),
+    }));
 
-  const canManage = viewer.can("credential.manage");
-  const canModerate = viewer.can("account.moderate");
-  const showActions = canManage || canModerate;
+  const showActions = accounts.some(
+    (entry) => entry.canManage || entry.canModerate,
+  );
 
   return (
     <div className="space-y-6">
@@ -163,7 +172,7 @@ export default async function AdminAccountsPage({
             </tr>
           </thead>
           <tbody className="divide-border divide-y">
-            {accounts.map((account) => {
+            {accounts.map(({ account, canManage, canModerate }) => {
               const row = byUid.get(account.uid);
               const status = STATUS[account.status];
               return (
@@ -194,7 +203,9 @@ export default async function AdminAccountsPage({
                         {account.groups.map((group) => (
                           <Badge
                             key={group}
-                            tone={isPrivileged(group) ? "primary" : "neutral"}
+                            tone={
+                              isPrivilegedGroup(group) ? "primary" : "neutral"
+                            }
                           >
                             {groupName(group)}
                           </Badge>
@@ -214,14 +225,14 @@ export default async function AdminAccountsPage({
                   {showActions ? (
                     <td className="px-4 py-2.5">
                       <div className="flex flex-col items-end gap-1.5">
-                        {canManage && !account.disabled ? (
+                        {canManage ? (
                           <ResendResetForm
                             uid={account.uid}
                             hasPassword={row?.passwordSetAt != null}
                           />
                         ) : null}
 
-                        {canModerate && !hasPrivilege(account.groups) ? (
+                        {canModerate ? (
                           <ModerateForm
                             uid={account.uid}
                             username={account.username}

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { backends } from "@/lib/backend/registry";
 import { AS_PLAYER } from "@/test/auth-support";
-import { type Viewer } from "@/lib/permissions/viewer";
 import { viewerWith } from "@/test/content-shapes";
 import { allContests } from "@/lib/contests/registry";
 import { problemFor } from "@/lib/problems/access";
@@ -14,13 +13,8 @@ import {
   problemsServedBy,
 } from "./access";
 
-const PREVIEW = viewerWith("problem.viewAll", 100);
-
-const SETTER: Viewer = {
-  uid: 101,
-  groups: ["出题人"],
-  can: (capability) => capability === "problem.viewAll",
-};
+const INSPECTOR = viewerWith("backend.inspect", 100);
+const SETTER = viewerWith("problem.read", 101);
 
 const demo = allContests()[0];
 
@@ -66,9 +60,9 @@ describe("题目后端→题目 反向索引", () => {
 });
 
 describe("canSeeBackend", () => {
-  it("持有 backend.inspect 的人看得到全部题目后端，包括没有题目指向的", () => {
+  it("被放行 backend.read 的人看得到全部题目后端，包括没有题目指向的", () => {
     for (const id of Object.keys(backends)) {
-      expect(canSeeBackend(id, PREVIEW)).toBe(true);
+      expect(canSeeBackend(id, INSPECTOR)).toBe(true);
     }
   });
 
@@ -118,7 +112,7 @@ describe("backendsFor", () => {
   });
 
   it("检查者拿到全集", () => {
-    expect(backendsFor(PREVIEW).sort()).toEqual(Object.keys(backends).sort());
+    expect(backendsFor(INSPECTOR).sort()).toEqual(Object.keys(backends).sort());
   });
 
   it("与 canSeeBackend 逐项一致", () => {

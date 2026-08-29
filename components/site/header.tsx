@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { getSessionUser } from "@/auth";
-import { groupName } from "@/lib/permissions/groups";
-import { viewerFor } from "@/lib/permissions/viewer";
+import { allows } from "@/lib/authz/engine";
+import { groupName } from "@/lib/authz/groups";
+import { viewerFor } from "@/lib/authz/viewer";
 import { site } from "@/lib/site";
 import { ThemeToggle } from "@/components/site/theme-toggle";
 import { UserMenu } from "@/components/site/user-menu";
@@ -22,7 +23,10 @@ export async function Header() {
 
         <nav className="flex items-center gap-1 text-sm">
           {site.navigation
-            .filter((item) => !item.capability || viewer.can(item.capability))
+            .filter(
+              (item) =>
+                !item.visibleWhen || allows(item.visibleWhen, null, viewer),
+            )
             .map((item) => (
               <Link
                 key={item.href}

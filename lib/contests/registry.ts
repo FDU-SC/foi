@@ -1,6 +1,5 @@
 import { contestModules } from "@/content/_modules/contests";
-import { knownGroups } from "@/lib/enrollment/registry";
-import { audienceCovers, describeAudience } from "@/lib/permissions/audience";
+import { audienceCovers, describeAudience } from "@/lib/authz/audience";
 import { problemBySlug } from "@/lib/problems/registry";
 import { slugFromGlobPath } from "@/lib/slug-from-path";
 import { rulesetFor } from "@/lib/standings/registry";
@@ -77,40 +76,4 @@ export function allContests(): ContestConfig[] {
 
 export function contestBySlug(slug: string): ContestConfig | undefined {
   return registry.get(slug);
-}
-
-export function contestWarnings(): string[] {
-  const warnings: string[] = [];
-  const { groups, exhaustive } = knownGroups();
-  const known = new Set(groups);
-
-  for (const contest of registry.values()) {
-    const participants = contest.participants;
-
-    if (participants.mode === "group") {
-      if (!exhaustive) continue;
-      if (known.has(participants.group)) continue;
-      warnings.push(
-        `比赛 "${contest.slug}" 的参赛用户组 "${participants.group}" 不会被 content/enrollment/ 中的任何规则或授权产生，排行榜将为空。`,
-      );
-      continue;
-    }
-
-    if (participants.mode !== "list") continue;
-
-    const seen = new Set<number>();
-    const duplicated = new Set<number>();
-    for (const uid of participants.uids) {
-      if (seen.has(uid)) duplicated.add(uid);
-      else seen.add(uid);
-    }
-    if (duplicated.size > 0) {
-      warnings.push(
-        `比赛 "${contest.slug}" 的参赛名单里有重复的 uid：${[...duplicated].join("、")}。` +
-          `重复的条目只算一个人。`,
-      );
-    }
-  }
-
-  return warnings;
 }

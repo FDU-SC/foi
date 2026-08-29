@@ -15,7 +15,7 @@ type InstanceView =
 const POLL_INTERVAL_MS = 1500;
 
 export function InstanceControl() {
-  const { config, contestSlug, canAct } = useProblem();
+  const { config, contestSlug, canAct, blocked } = useProblem();
   const [view, setView] = useState<InstanceView | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,10 +114,16 @@ export function InstanceControl() {
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         {!canAct ? (
           <span className="text-fg-muted text-xs">
-            <Link href="/login" className="text-primary hover:underline">
-              登录
-            </Link>
-            后即可启动属于你的靶机实例。
+            {blocked?.code === "unauthenticated" ? (
+              <>
+                <Link href="/login" className="text-primary hover:underline">
+                  登录
+                </Link>
+                后即可启动属于你的靶机实例。
+              </>
+            ) : (
+              (blocked?.message ?? "这道题现在不能启动靶机实例。")
+            )}
           </span>
         ) : ready ? (
           <>

@@ -1,6 +1,7 @@
-import { listGroups } from "@/lib/permissions/groups";
-import type { Capability } from "@/lib/permissions/policy";
-import { viewerFor, type Viewer } from "@/lib/permissions/viewer";
+import type { ActionId } from "@/lib/authz/actions";
+import { allPolicies } from "@/lib/authz/registry";
+import type { CompiledPolicy } from "@/lib/authz/types";
+import { viewerFor, type Viewer } from "@/lib/authz/viewer";
 import { allContests } from "@/lib/contests/registry";
 import type { ContestConfig, ContestProblemConfig } from "@/lib/contests/types";
 import { problemsFor } from "@/lib/problems/access";
@@ -17,15 +18,61 @@ function required<T>(value: T | undefined, shape: string): T {
   return value;
 }
 
-export function groupWith(capability: Capability): string {
-  const group = listGroups().find((entry) =>
-    entry.capabilities.includes(capability),
-  );
-  return required(group, `一个带 ${capability} 能力的用户组`).id;
+function grantedGroups(entry: CompiledPolicy): readonly string[] {
+  const principal = entry.principal;
+  if (!principal) return [];
+  if ("group" in principal) return [principal.group];
+  if ("anyGroup" in principal) return principal.anyGroup;
+  return [];
 }
 
-export function viewerWith(capability: Capability, uid = 99): Viewer {
-  return viewerFor({ uid, groups: [groupWith(capability)] });
+/** A group some policy grants this action to, unconditionally. */
+export function groupWith(action: ActionId): string {
+  const found = allPolicies()
+    .filter(
+      (entry) =>
+        entry.effect === "permit" &&
+        !entry.when &&
+        entry.actions.includes(action),
+    )
+    .flatMap(grantedGroups)[0];
+
+  return required(found, `一条无条件放行 ${action} 给某个用户组的策略`);
+}
+
+export function viewerWith(action: ActionId, uid = 99): Viewer {
+  return viewerFor({ uid, groups: [groupWith(action)] });
+}
+
+function groupsGranted(action: ActionId): Set<string> {
+  return new Set(
+    allPolicies()
+      .filter(
+        (entry) =>
+          entry.effect === "permit" &&
+          !entry.when &&
+          entry.actions.includes(action),
+      )
+      .flatMap(grantedGroups),
+  );
+}
+
+/**
+ * Someone a policy lets in but stops short of: proof that the layers compose,
+ * and the fixture behind "运维台打得开，表却是空的".
+ */
+export function viewerAllowedOnly(
+  granted: ActionId,
+  withheld: ActionId,
+  uid = 98,
+): Viewer {
+  const blocked = groupsGranted(withheld);
+  const group = [...groupsGranted(granted)].find((id) => !blocked.has(id));
+
+  return viewerFor({
+    uid,
+    groups: [required(group, `一个能 ${granted} 但不能 ${withheld} 的用户组`)],
+  });
 }
 
 export function contestWithGroupEntry(): {

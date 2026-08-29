@@ -36,6 +36,10 @@ export const enrollmentModules = import.meta.glob("./enrollment/*.ts", {
   eager: true,
 });
 
+export const policyModules = import.meta.glob("./policies/*.ts", {
+  eager: true,
+});
+
 export const emailModules = import.meta.glob("./emails/index.ts", {
   eager: true,
 });

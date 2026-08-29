@@ -9,6 +9,12 @@ export interface ProblemContextValue {
   contestSlug: string | null;
 
   canAct: boolean;
+
+  /**
+   * Why not, when `canAct` is false. It is the refusal the submit endpoint
+   * would give, so the panel never has to guess at a reason.
+   */
+  blocked: { code: string; message: string } | null;
 }
 
 const ProblemContext = createContext<ProblemContextValue | null>(null);

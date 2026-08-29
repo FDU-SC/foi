@@ -11,7 +11,8 @@ import {
 } from "@/lib/contests/types";
 import { db } from "@/lib/db";
 import { accounts, submissions } from "@/lib/db/schema";
-import type { Viewer } from "@/lib/permissions/viewer";
+import { allows } from "@/lib/authz/engine";
+import type { Viewer } from "@/lib/authz/viewer";
 import { cachedStandings, standingsKey } from "./cache";
 import { renderersFor, rulesetFor } from "./registry";
 import type {
@@ -132,11 +133,26 @@ function deriveParticipants(
   return [...seen.values()];
 }
 
+/**
+ * Freeze is not a second computation — it is result masking, and which of the
+ * two boards a viewer gets is one authorization question like any other.
+ */
 export function standingsFor(
   slug: string,
   viewer: Viewer,
+  now = new Date(),
 ): Promise<ContestStandings | null> {
-  const ignoreFreeze = viewer.can("standings.viewFrozen");
+  const contest = contestBySlug(slug);
+  if (!contest) return Promise.resolve(null);
+
+  if (!allows("standings.read", contest, viewer, { now })) {
+    return Promise.resolve(null);
+  }
+
+  const ignoreFreeze = allows("standings.readUnfrozen", contest, viewer, {
+    now,
+  });
+
   return cachedStandings(
     standingsKey(slug, ignoreFreeze ? "unfrozen" : "public"),
     () => loadAndCompute(slug, ignoreFreeze),

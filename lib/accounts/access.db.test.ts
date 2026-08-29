@@ -1,11 +1,11 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/test/auth-support";
-import { viewerFor } from "@/lib/permissions/viewer";
+import { viewerFor } from "@/lib/authz/viewer";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
 import { accountDirectoryFor, accountsFor } from "./access";
-import { viewerWith } from "@/test/content-shapes";
+import { viewerAllowedOnly, viewerWith } from "@/test/content-shapes";
 
 const ACTIVE_USERNAME = "acctaccess-active";
 const SUSPENDED_USERNAME = "acctaccess-suspended";
@@ -93,9 +93,8 @@ describeDb("账号目录门禁", () => {
       expect((await accountDirectoryFor(AS_PLAYER)).accounts).toEqual([]);
     });
 
-    it("只有 admin.access 而没有 account.read 时读不到邮箱", async () => {
-      const consoleOnly = viewerFor({ uid: 2, groups: [] });
-      expect(consoleOnly.can("admin.access")).toBe(false);
+    it("能进运维台不等于能读邮箱", async () => {
+      const consoleOnly = viewerAllowedOnly("admin.enter", "account.read", 2);
 
       const directory = await accountDirectoryFor(consoleOnly);
       expect(directory.accounts).toEqual([]);

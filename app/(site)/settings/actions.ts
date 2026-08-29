@@ -3,7 +3,7 @@
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { getResolvedUser, signIn } from "@/auth";
+import { requireSelf, signIn } from "@/auth";
 import { setPassword, verifyPassword } from "@/lib/accounts/password";
 import {
   getAccount,
@@ -70,8 +70,7 @@ export async function updateNicknameAction(
   _prev: SettingsState,
   formData: FormData,
 ): Promise<SettingsState> {
-  const viewer = await getResolvedUser();
-  if (!viewer) redirect("/login");
+  const viewer = await requireSelf("account.changeNickname");
 
   const parsed = nicknameForm.safeParse({ nickname: formData.get("nickname") });
   if (!parsed.success) {
@@ -102,8 +101,7 @@ export async function updateUsernameAction(
   _prev: SettingsState,
   formData: FormData,
 ): Promise<SettingsState> {
-  const viewer = await getResolvedUser();
-  if (!viewer) redirect("/login");
+  const viewer = await requireSelf("account.changeUsername");
 
   const parsed = usernameForm.safeParse({
     username: formData.get("username"),
@@ -179,8 +177,7 @@ export async function changePasswordAction(
   _prev: SettingsState,
   formData: FormData,
 ): Promise<SettingsState> {
-  const viewer = await getResolvedUser();
-  if (!viewer) redirect("/login");
+  const viewer = await requireSelf("account.changePassword");
 
   const parsed = passwordForm.safeParse({
     currentPassword: formData.get("currentPassword"),

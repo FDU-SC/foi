@@ -35,7 +35,7 @@ describe("inAudience", () => {
 
   it("能力不参与这个判断——越权是调用方另外问的", () => {
 
-    const admin = viewerWith("problem.viewAll", 100);
+    const admin = viewerWith("problem.read", 100);
     expect(inAudience(["校队"], admin)).toBe(false);
   });
 });

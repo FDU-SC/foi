@@ -48,8 +48,8 @@ Different leaderboards in the same contest can use different rulesets.
 
 Freeze is NOT "compute twice and diff." It is permission-based result masking:
 
-1. `standingsFor(slug, viewer)` checks `viewer.can("standings.viewFrozen")`
-2. If the viewer lacks this permission and the contest is in frozen phase, submissions after `freezeAt` have their `result` set to `null`
+1. `standingsFor(slug, viewer)` asks `authorize("standings.readUnfrozen", contest, viewer)` — one authorization question like any other
+2. If it is refused and the contest is in frozen phase, submissions after `freezeAt` have their `result` set to `null`
 3. The ruleset's `compute()` receives these masked submissions and naturally treats `result: null` as "pending" (via `hasResult()`)
 4. Only one computation happens per cache key
 

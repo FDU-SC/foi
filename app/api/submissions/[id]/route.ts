@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/auth";
-import { viewerFor } from "@/lib/permissions/viewer";
+import { denialFor } from "@/lib/authz/actions";
+import { denied, UNAUTHENTICATED } from "@/lib/authz/adapters";
+import { apiDeny } from "@/lib/authz/http";
+import { viewerFor } from "@/lib/authz/viewer";
 import { isSettled } from "@/lib/backend/types";
 import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest, tooManyRequests } from "@/lib/server/guard";
@@ -19,9 +22,7 @@ export async function GET(
   if (gated) return gated;
 
   const user = await getSessionUser();
-  if (!user) {
-    return NextResponse.json({ error: "请先登录" }, { status: 401 });
-  }
+  if (!user) return apiDeny(UNAUTHENTICATED);
 
   const rule = ROUTE_LIMITS["GET /api/submissions/[id]"];
   const limited = rateLimit(
@@ -33,9 +34,7 @@ export async function GET(
 
   const { id } = await params;
   const row = await submissionFor(id, viewerFor(user));
-  if (!row) {
-    return NextResponse.json({ error: "提交不存在" }, { status: 404 });
-  }
+  if (!row) return apiDeny(denied(denialFor("submission.read")));
 
   const queueInfo = row.state === "pending" ? await getQueueInfo(row.id) : null;
   const view = toView(row, queueInfo);

@@ -32,6 +32,10 @@ export default auth((req) => {
     }
   }
 
+  // A convenience redirect, not a boundary: the JWT alone says nothing about
+  // groups, so no policy can be evaluated here. Every page and route below
+  // asks `authorize` for itself, and a suspended or demoted session that slips
+  // past this check is refused there.
   const signedIn = Boolean(user?.uid);
 
   const needsAuth =

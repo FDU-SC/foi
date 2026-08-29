@@ -1,4 +1,4 @@
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
 import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import { ulid } from "ulid";
@@ -57,11 +57,19 @@ export async function findAccountByEmail(
 
 export async function listAccounts(options?: {
   status?: AccountStatus;
+
+  /** What the viewer is allowed to see, from `rowScope`. */
+  scope?: SQL;
 }): Promise<AccountRow[]> {
+  const filters = [
+    options?.scope,
+    options?.status ? eq(accounts.status, options.status) : undefined,
+  ].filter((clause) => clause !== undefined);
+
   return db
     .select(accountColumns)
     .from(accounts)
-    .where(options?.status ? eq(accounts.status, options.status) : undefined)
+    .where(filters.length > 0 ? and(...filters) : undefined)
     .orderBy(asc(accounts.uid));
 }
 

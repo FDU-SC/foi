@@ -1,4 +1,6 @@
-import type { Viewer } from "@/lib/permissions/viewer";
+import { allows } from "@/lib/authz/engine";
+import { rowScope } from "@/lib/authz/filter";
+import type { Viewer } from "@/lib/authz/viewer";
 import type { SubmissionRow } from "@/lib/db/schema";
 import { getSubmissionRow, listSubmissions } from "./queries";
 import type { SubmissionListItem } from "./types";
@@ -10,11 +12,14 @@ export async function submissionFor(
   const row = await getSubmissionRow(id);
   if (!row) return undefined;
 
-  const mayRead =
-    viewer.can("submission.readAny") || row.uid === viewer.uid;
-  return mayRead ? row : undefined;
+  return allows("submission.read", row, viewer) ? row : undefined;
 }
 
+/**
+ * The listing narrows on what the caller asked for, then intersects it with
+ * what the viewer may see. Asking for someone else's uid is allowed to be a
+ * no-op rather than an error: the scope decides what comes back.
+ */
 export function submissionsFor(
   viewer: Viewer,
   options?: {
@@ -24,9 +29,11 @@ export function submissionsFor(
     limit?: number;
   },
 ): Promise<SubmissionListItem[]> {
-  if (viewer.can("submission.readAny")) return listSubmissions({ ...options });
+  const scope = rowScope("submission.read", viewer);
+  if (scope.kind === "none") return Promise.resolve([]);
 
-  if (!viewer.uid) return Promise.resolve([]);
-
-  return listSubmissions({ ...options, uid: viewer.uid });
+  return listSubmissions({
+    ...options,
+    scope: scope.kind === "where" ? scope.sql : undefined,
+  });
 }

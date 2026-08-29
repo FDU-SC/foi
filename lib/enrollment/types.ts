@@ -36,9 +36,11 @@ export function isUidsRule(rule: EnrollmentRule): rule is UidsRule {
   return "uids" in rule;
 }
 
+/**
+ * How an address becomes an account. Whether registration is open at all is a
+ * separate question, answered by the `account.register` policy.
+ */
 export const enrollmentPolicySchema = z.object({
-
-  enabled: z.boolean().default(true),
 
   emailDomains: z.array(z.string().min(1)).default([]),
 

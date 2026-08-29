@@ -1,9 +1,11 @@
-import type { Viewer } from "@/lib/permissions/viewer";
+import { allows } from "@/lib/authz/engine";
+import { canQueryAny } from "@/lib/authz/filter";
+import type { Viewer } from "@/lib/authz/viewer";
 import {
   accountDirectoryFor,
+  accountsFor,
   type AccountDirectory,
 } from "@/lib/accounts/access";
-import { listAccounts } from "@/lib/accounts/queries";
 import { allContests } from "@/lib/contests/registry";
 import { resolveParticipants } from "@/lib/contests/resolve";
 import type { ContestConfig } from "@/lib/contests/types";
@@ -23,14 +25,14 @@ import { loadAdminOverview, type AdminOverview } from "./drift";
 export async function adminOverviewFor(
   viewer: Viewer,
 ): Promise<AdminOverview | null> {
-  if (!viewer.can("admin.access")) return null;
+  if (!allows("admin.enter", null, viewer)) return null;
   return loadAdminOverview();
 }
 
 export async function adminAccountsFor(
   viewer: Viewer,
 ): Promise<AccountDirectory | null> {
-  if (!viewer.can("admin.access")) return null;
+  if (!allows("admin.enter", null, viewer)) return null;
   return accountDirectoryFor(viewer);
 }
 
@@ -43,7 +45,7 @@ export interface AdminContestRow {
 export async function adminContestsFor(
   viewer: Viewer,
 ): Promise<AdminContestRow[] | null> {
-  if (!viewer.can("admin.access")) return null;
+  if (!allows("admin.enter", null, viewer)) return null;
 
   return Promise.all(
     allContests().map(async (config) => ({
@@ -68,7 +70,7 @@ export interface EnrollmentView {
 export async function enrollmentViewFor(
   viewer: Viewer,
 ): Promise<EnrollmentView | null> {
-  if (!viewer.can("admin.access")) return null;
+  if (!allows("admin.enter", null, viewer)) return null;
 
   const rules = listRules();
   const base = {
@@ -77,11 +79,11 @@ export async function enrollmentViewFor(
     known: knownGroups(),
   };
 
-  if (!viewer.can("account.read")) {
+  if (!canQueryAny("account.read", viewer)) {
     return { ...base, ruleMatches: null, groupCounts: null, untagged: null };
   }
 
-  const active = await listAccounts({ status: "active" });
+  const active = await accountsFor(viewer, { status: "active" });
 
   const { counts: groupCounts, untagged } = tallyCohorts(active);
 

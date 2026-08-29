@@ -1,10 +1,15 @@
-import type { Capability } from "@/lib/permissions/policy";
+import type { SiteActionId } from "@/lib/authz/actions";
 import { site as declared } from "@/content/site";
 
 export interface NavItem {
   href: string;
   label: string;
-  capability?: Capability;
+
+  /**
+   * Hide the link unless this action is permitted. It names the same action the
+   * destination enforces, so the nav cannot drift from what the page allows.
+   */
+  visibleWhen?: SiteActionId;
 }
 
 export interface HomeEntry {

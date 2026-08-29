@@ -14,6 +14,7 @@ import {
 import {
   domainAllowed,
   register,
+  registrationOpen,
   type RegisterRejection,
 } from "@/lib/enrollment/register";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
@@ -36,7 +37,7 @@ export interface SendLinkState {
 export async function sendVerificationLinkAction(
   rawEmail: string,
 ): Promise<SendLinkState> {
-  if (!enrollmentPolicy.enabled) return { error: "当前未开放注册。" };
+  if (!registrationOpen()) return { error: REJECTIONS.closed };
 
   const parsed = emailSchema.safeParse(rawEmail);
   if (!parsed.success) {
@@ -93,7 +94,7 @@ const schema = z
 const USERNAME_UNAVAILABLE = "这个用户名不可用，换一个试试。";
 
 const REJECTIONS: Record<RegisterRejection, string> = {
-  disabled: "当前未开放注册。",
+  closed: "当前未开放注册。",
   "username-taken": USERNAME_UNAVAILABLE,
   "email-domain": "这个邮箱域名不在允许注册的范围内。",
   "email-taken": "这个邮箱已经注册过了。如果是你本人，请用「找回密码」。",
@@ -104,7 +105,7 @@ export async function registerAction(
   _prev: RegisterState,
   formData: FormData,
 ): Promise<RegisterState> {
-  if (!enrollmentPolicy.enabled) return { error: REJECTIONS.disabled };
+  if (!registrationOpen()) return { error: REJECTIONS.closed };
 
   const parsed = schema.safeParse({
     username: formData.get("username"),

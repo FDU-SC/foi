@@ -1,7 +1,7 @@
 import { accountSnapshot } from "@/lib/accounts/cache";
 import { groupsFor } from "@/lib/enrollment/registry";
 import { problemBySlug } from "@/lib/problems/registry";
-import type { ContestConfig } from "./types";
+import { matchesParticipants, type ContestConfig } from "./types";
 
 export interface ResolvedContestProblem {
   slug: string;
@@ -38,27 +38,33 @@ export interface ResolvedParticipant {
   nickname: string;
 }
 
+/**
+ * The roster: who the contest names as a competitor. An open contest has no
+ * roster to resolve — its standings are derived from whoever submitted.
+ *
+ * Being on the roster is not permission to compete; that is `contest.enter`.
+ */
 export async function resolveParticipants(
   contest: ContestConfig,
 ): Promise<ResolvedParticipant[] | null> {
-  if (contest.participants.mode === "open") return null;
+  const { participants } = contest;
+  if (participants.mode === "open") return null;
 
   const accounts = await accountSnapshot();
 
-  if (contest.participants.mode === "list") {
-    return contest.participants.uids.flatMap((uid) => {
-      const account = accounts.get(uid);
-      return account && account.status === "active"
-        ? [{ uid: account.uid, nickname: account.nickname }]
-        : [];
-    });
-  }
-
-  const wanted = contest.participants.group;
   const matched: ResolvedParticipant[] = [];
   for (const account of accounts.values()) {
     if (account.status !== "active") continue;
-    if (!groupsFor(account.uid, account.email).includes(wanted)) continue;
+
+    const named = matchesParticipants(participants, {
+      uid: account.uid,
+      groups:
+        participants.mode === "group"
+          ? groupsFor(account.uid, account.email)
+          : [],
+    });
+    if (!named) continue;
+
     matched.push({ uid: account.uid, nickname: account.nickname });
   }
 

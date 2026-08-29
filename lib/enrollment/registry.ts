@@ -1,5 +1,6 @@
 import type { z } from "zod";
-import { declaredGroupIds, isPrivileged, privilegedGroupIds } from "@/lib/permissions/groups";
+import { declaredGroupIds } from "@/lib/authz/groups";
+import { isPrivilegedGroup, privilegedGroups } from "@/lib/authz/introspect";
 import { enrollmentSources } from "./modules";
 import {
   enrollmentPolicySchema,
@@ -9,9 +10,18 @@ import {
   type EnrollmentRule,
 } from "./types";
 
+interface RuleOrigin {
+  path: string;
+
+  /** 1-based, so it reads the same way as the boot message. */
+  position: number;
+}
+
 interface Registry {
   policy: EnrollmentPolicy;
   rules: EnrollmentRule[];
+
+  origins: Map<EnrollmentRule, RuleOrigin>;
 
   uidIndex: Map<number, EnrollmentRule[]>;
 
@@ -27,6 +37,7 @@ function fail(path: string, what: string, error: z.ZodError): never {
 
 function buildRegistry(): Registry {
   const rules: EnrollmentRule[] = [];
+  const origins = new Map<EnrollmentRule, RuleOrigin>();
   const uidIndex = new Map<number, EnrollmentRule[]>();
 
   let policy: EnrollmentPolicy | undefined;
@@ -59,23 +70,13 @@ function buildRegistry(): Registry {
         if (!parsed.success) fail(path, `第 ${index + 1} 条分流规则`, parsed.error);
         const rule = parsed.data;
 
-        if (!isUidsRule(rule) && Array.isArray(rule.groups)) {
-          const privileged = rule.groups.filter(isPrivileged);
-          if (privileged.length > 0) {
-            throw new Error(
-              `${path} 第 ${index + 1} 条分流规则试图授予带权限的用户组 ${privileged.join("、")}。` +
-                `按邮箱匹配的规则覆盖的地址是无穷的，注册时无法预留，正则写错就会把权限发给一片人；` +
-                `带权限的组只能由列出 uid 的规则授予。`,
-            );
-          }
-        }
-
         if (isUidsRule(rule)) {
           for (const uid of rule.uids) {
             uidIndex.set(uid, [...(uidIndex.get(uid) ?? []), rule]);
           }
         }
 
+        origins.set(rule, { path, position: index + 1 });
         rules.push(rule);
       });
     }
@@ -84,6 +85,7 @@ function buildRegistry(): Registry {
   return {
     policy: policy ?? enrollmentPolicySchema.parse({}),
     rules,
+    origins,
     uidIndex,
     declared: sources.length > 0,
   };
@@ -128,7 +130,7 @@ export function groupsFor(uid: number, email: string | null): string[] {
 
     const mayGrantPrivilege = isUidsRule(rule);
     for (const id of produced) {
-      if (!mayGrantPrivilege && isPrivileged(id)) {
+      if (!mayGrantPrivilege && isPrivilegedGroup(id)) {
         console.warn(
           `[foi] 分流规则「${rule.label}」算出了带权限的用户组 "${id}"，已忽略。带权限的组只能由列出 uid 的规则授予。`,
         );
@@ -139,6 +141,30 @@ export function groupsFor(uid: number, email: string | null): string[] {
   }
 
   return [...groups];
+}
+
+/**
+ * An email pattern matches an unbounded set of addresses, so a typo in one
+ * would hand a privileged group to everybody who happens to match. Only rules
+ * that name uids may grant a group that some policy gives power to.
+ *
+ * Checked at boot rather than while building the registry, because deciding
+ * what "privileged" means requires the policy set, which is built on top of it.
+ */
+export function enrollmentPrivilegeViolations(): string[] {
+  return registry.rules.flatMap((rule) => {
+    if (isUidsRule(rule) || typeof rule.groups === "function") return [];
+
+    const privileged = rule.groups.filter(isPrivilegedGroup);
+    if (privileged.length === 0) return [];
+
+    const origin = registry.origins.get(rule);
+    return [
+      `${origin?.path ?? "content/enrollment/"} 第 ${origin?.position ?? "?"} 条分流规则试图授予带权限的用户组 ` +
+        `${privileged.join("、")}。按邮箱匹配的规则覆盖的地址是无穷的，注册时无法预留，` +
+        `正则写错就会把权限发给一片人；带权限的组只能由列出 uid 的规则授予。`,
+    ];
+  });
 }
 
 export interface TallyableAccount {
@@ -219,7 +245,7 @@ export function looseGroupWarnings(): string[] {
 export function enrollmentWarnings(): string[] {
   const warnings: string[] = [];
 
-  const privileged = new Set(privilegedGroupIds());
+  const privileged = privilegedGroups();
   const admins = registry.rules.filter(
     (rule) => isUidsRule(rule) && rule.groups.some((id) => privileged.has(id)),
   );
@@ -235,9 +261,9 @@ export function enrollmentWarnings(): string[] {
     );
   }
 
-  if (enrollmentPolicy.enabled && enrollmentPolicy.emailDomains.length === 0) {
+  if (enrollmentPolicy.emailDomains.length === 0) {
     warnings.push(
-      "注册已开启但没有限制邮箱域名，任何人都可以注册。如非有意，请设置 policy.emailDomains。",
+      "没有限制邮箱域名，任何地址都能注册。如非有意，请设置 policy.emailDomains。",
     );
   }
 

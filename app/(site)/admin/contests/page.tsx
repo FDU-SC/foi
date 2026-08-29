@@ -5,7 +5,7 @@ import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { adminContestsFor } from "@/lib/admin/access";
-import { describeAudience } from "@/lib/permissions/audience";
+import { describeAudience } from "@/lib/authz/audience";
 import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
 import { dateFormatter } from "@/lib/format";
 import { rulesetFor } from "@/lib/standings/registry";

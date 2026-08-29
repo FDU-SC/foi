@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { listGroups } from "@/lib/permissions/groups";
+import { listGroups } from "@/lib/authz/groups";
+import { privilegedGroups } from "@/lib/authz/introspect";
 import { allContests, contestBySlug } from "@/lib/contests/registry";
 import { mailSink } from "@/lib/mail/transport";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
@@ -8,7 +9,7 @@ import { undeclaredBackends } from "@/lib/backend/access";
 import { isInlineBackend } from "@/lib/problems/types";
 import { viewsFor } from "@/lib/problems/views";
 import { problemsFor } from "@/lib/problems/access";
-import { viewerFor } from "@/lib/permissions/viewer";
+import { viewerFor } from "@/lib/authz/viewer";
 
 describe("内核测试需要的形状", () => {
   it("有一场按 group 限制参赛、且第一道题覆盖了 rateLimit 的比赛", () => {
@@ -37,11 +38,21 @@ describe("内核测试需要的形状", () => {
     expect(inline.length, "提交当次同步判完这条路径靠它").toBeGreaterThan(0);
   });
 
-  it("有带能力的组", () => {
-    const privileged = listGroups().filter(
-      (group) => group.capabilities.length > 0,
-    );
-    expect(privileged.length, "每一条按能力取 viewer 的用例都靠它").toBeGreaterThan(0);
+  it("有被策略点名的用户组", () => {
+    expect(
+      privilegedGroups().size,
+      "每一条按动作取 viewer 的用例都靠它",
+    ).toBeGreaterThan(0);
+  });
+
+  it("被点名的组都在 content/enrollment/ 里声明过", () => {
+    const declared = new Set(listGroups().map((group) => group.id));
+    for (const id of privilegedGroups()) {
+      expect(
+        declared.has(id),
+        `content/policies/ 把权限给了 "${id}"，但 content/enrollment/ 没有声明它`,
+      ).toBe(true);
+    }
   });
 
   it("有一道不属于任何比赛的公开题", () => {

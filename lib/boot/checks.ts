@@ -1,5 +1,5 @@
 import { assertEnv } from "@/lib/env";
-import { releaseSha, tier, type Tier } from "./deployment";
+import { releaseSha, tier, TIERS, type Tier } from "./deployment";
 import { placeholderSecrets } from "./secrets";
 
 export interface Check {
@@ -9,24 +9,42 @@ export interface Check {
   fatalIn: readonly Tier[];
 }
 
+const ALWAYS = TIERS;
 const ONLY_PROD = ["prod"] as const;
 const NEVER = [] as const;
 
 async function loadChecks(): Promise<Check[]> {
-  const [backend, access, mail, mailTemplates, enrollment, contests, problems] =
-    await Promise.all([
-      import("@/lib/backend/boot"),
-      import("@/lib/backend/access"),
-      import("@/lib/mail/transport"),
-      import("@/lib/mail/registry"),
-      import("@/lib/enrollment/registry"),
-      import("@/lib/contests/registry"),
-      import("@/lib/problems/access"),
-    ]);
+  const [
+    backend,
+    access,
+    mail,
+    mailTemplates,
+    enrollment,
+    contests,
+    problems,
+    policies,
+    authz,
+  ] = await Promise.all([
+    import("@/lib/backend/boot"),
+    import("@/lib/backend/access"),
+    import("@/lib/mail/transport"),
+    import("@/lib/mail/registry"),
+    import("@/lib/enrollment/registry"),
+    import("@/lib/contests/warnings"),
+    import("@/lib/problems/warnings"),
+    import("@/lib/authz/registry"),
+    import("@/lib/authz/introspect"),
+  ]);
+
+  // Forces the policy set to build, so a malformed policy refuses the boot
+  // rather than the first request that happens to consult it.
+  policies.assertPolicyRegistry();
 
   return [
 
     { complaints: () => placeholderSecrets(), fatalIn: ONLY_PROD },
+
+    { complaints: enrollment.enrollmentPrivilegeViolations, fatalIn: ALWAYS },
 
     { complaints: mail.mailDeliveryComplaints, fatalIn: ONLY_PROD },
 
@@ -37,6 +55,7 @@ async function loadChecks(): Promise<Check[]> {
     { complaints: enrollment.enrollmentWarnings, fatalIn: NEVER },
     { complaints: contests.contestWarnings, fatalIn: NEVER },
     { complaints: problems.problemGateWarnings, fatalIn: NEVER },
+    { complaints: authz.policyWarnings, fatalIn: NEVER },
     {
       complaints: () =>
         access.undeclaredBackends().map(

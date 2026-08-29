@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
-import { viewerFor } from "@/lib/permissions/viewer";
+import { allows } from "@/lib/authz/engine";
+import { viewerFor } from "@/lib/authz/viewer";
 import { judgeQueuesFor } from "@/lib/backend/board";
 import { site } from "@/lib/site";
 import { JudgeStatusBoard } from "./judge-status-board";
@@ -13,7 +14,10 @@ export default async function JudgesPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login?next=/judges");
 
-  const visible = await judgeQueuesFor(viewerFor(user));
+  const viewer = viewerFor(user);
+  if (!allows("judge.readBoard", null, viewer)) notFound();
+
+  const visible = await judgeQueuesFor(viewer);
 
   return (
     <div className="space-y-5">

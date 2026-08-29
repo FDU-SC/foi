@@ -30,7 +30,6 @@ export default async function ContestPage({
 }: PageProps<"/contests/[slug]">) {
   const { slug } = await params;
   const viewer = await getViewer();
-  const preview = viewer.can("problem.viewAll");
 
   const view = contestFor(slug, viewer);
   if (!view) notFound();
@@ -72,7 +71,7 @@ export default async function ContestPage({
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-fg text-lg font-semibold">题目</h2>
 
-        {phase === "upcoming" && preview ? (
+        {phase === "upcoming" && problemSetVisible ? (
           <Badge tone="warn">预览 · 尚未对选手公开</Badge>
         ) : null}
         <Link

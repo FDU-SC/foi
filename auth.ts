@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { authConfig } from "./auth.config";
 import { resolveUser, resolveUserByUsername } from "@/lib/accounts/resolve";
@@ -10,8 +11,10 @@ import {
   verifyPassword,
 } from "@/lib/accounts/password";
 import { findAccountByEmail } from "@/lib/accounts/queries";
-import type { Capability } from "@/lib/permissions/policy";
-import { viewerFor, type SessionUser, type Viewer } from "@/lib/permissions/viewer";
+import type { AccountActionId } from "@/lib/authz/actions";
+import { assertAllowed } from "@/lib/authz/adapters";
+import { authorize } from "@/lib/authz/engine";
+import { viewerFor, type SessionUser, type Viewer } from "@/lib/authz/viewer";
 import { rateLimit, rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
 
@@ -128,17 +131,19 @@ export async function getViewer(): Promise<Viewer> {
   return viewerFor(await getSessionUser());
 }
 
-export class ForbiddenError extends Error {
-  constructor(readonly capability: Capability) {
-    super("没有执行这个操作的权限");
-    this.name = "ForbiddenError";
-  }
-}
+/**
+ * The signed-in account, together with the right to take this action on it.
+ *
+ * Self-service is authorization like anything else: a deployment can forbid
+ * changing an email during a contest, and the answer arrives here rather than
+ * as a condition scattered through the form handlers.
+ */
+export async function requireSelf(
+  action: AccountActionId,
+): Promise<ResolvedUser> {
+  const user = await getResolvedUser();
+  if (!user) redirect("/login");
 
-export async function requireCapability(
-  capability: Capability,
-): Promise<Viewer> {
-  const viewer = await getViewer();
-  if (!viewer.can(capability)) throw new ForbiddenError(capability);
-  return viewer;
+  assertAllowed(authorize(action, user, viewerFor(user)));
+  return user;
 }

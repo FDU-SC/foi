@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { listGroups } from "@/lib/permissions/groups";
+import { listGroups } from "@/lib/authz/groups";
 import { backends } from "@/lib/backend/registry";
 import { allContests } from "@/lib/contests/registry";
 import { allProblems } from "@/lib/problems/registry";

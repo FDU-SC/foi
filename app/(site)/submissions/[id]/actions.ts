@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireCapability } from "@/auth";
+import { getViewer } from "@/auth";
+import { authorize } from "@/lib/authz/engine";
 import { rateLimit } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
 import {
@@ -31,7 +32,7 @@ export async function rejudgeSubmissionAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const actor = await requireCapability("submission.rejudge");
+  const actor = await getViewer();
 
   const rule = ACTION_LIMITS.rejudgeSubmissionAction;
   const limited = rateLimit(
@@ -55,6 +56,9 @@ export async function rejudgeSubmissionAction(
 
   const row = await submissionStateOf(parsed.data.id);
   if (!row) return { error: "提交不存在" };
+
+  const decision = authorize("submission.rejudge", row, actor);
+  if (!decision.allow) return { error: decision.reason.message };
 
   if (row.state === "pending") {
     return { error: "这条提交还没有评测完，不需要重判。" };

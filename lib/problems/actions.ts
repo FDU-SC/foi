@@ -1,5 +1,3 @@
-import type { Viewer } from "@/lib/permissions/viewer";
-import { problemFor } from "./access";
 import {
   DEFAULT_ACTION_RATE_LIMIT,
   isInlineBackend,
@@ -16,25 +14,26 @@ export interface ResolvedAction {
   rateLimit: ActionRateLimit;
 }
 
-export function actionFor(
-  slug: string,
+/**
+ * The interactive action a client named, if this problem declares it.
+ *
+ * Existence only — whether the caller may invoke it is `problem.invoke`, asked
+ * separately so that "no such action" and "not allowed" stay distinguishable
+ * at the enforcement point.
+ */
+export function declaredAction(
+  problem: ProblemConfig,
   action: string,
-  viewer: Viewer,
-  now = new Date(),
 ): ResolvedAction | undefined {
+  if (isInlineBackend(problem.backend)) return undefined;
 
-  const open = problemFor(slug, viewer, now);
-  if (!open?.open) return undefined;
-
-  if (isInlineBackend(open.config.backend)) return undefined;
-
-  const declared = open.config.backend.actions[action];
+  const declared = problem.backend.actions[action];
   if (!declared) return undefined;
 
   return {
-    problem: open.config,
+    problem,
     action,
-    backendId: open.config.backend.id,
+    backendId: problem.backend.id,
     rateLimit: declared.rateLimit ?? DEFAULT_ACTION_RATE_LIMIT,
   };
 }

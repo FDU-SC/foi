@@ -158,7 +158,7 @@ export const ACTION_LIMITS = {
   },
   suspendAccountAction: {
     unlimited: true,
-    why: "写自己库里的一行，且 account.moderate 拒绝带权限的目标；成本不外溢",
+    why: "写自己库里的一行，且策略拒绝带权限的目标；成本不外溢",
   },
   reinstateAccountAction: {
     unlimited: true,

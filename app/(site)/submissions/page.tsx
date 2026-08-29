@@ -5,7 +5,7 @@ import { getSessionUser } from "@/auth";
 import { ProblemRef } from "@/components/problem/problem-ref";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
-import { viewerFor } from "@/lib/permissions/viewer";
+import { viewerFor } from "@/lib/authz/viewer";
 import { isSettled } from "@/lib/backend/types";
 import { dateFormatter } from "@/lib/format";
 import { submissionsFor } from "@/lib/submissions/access";

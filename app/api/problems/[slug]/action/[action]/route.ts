@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { getResolvedUser } from "@/auth";
-import { viewerFor } from "@/lib/permissions/viewer";
+import { UNAUTHENTICATED } from "@/lib/authz/adapters";
+import { authorize } from "@/lib/authz/engine";
+import { apiDeny } from "@/lib/authz/http";
+import { viewerFor } from "@/lib/authz/viewer";
 import { callBackendAction } from "@/lib/backend/client";
 import { resolveBackend } from "@/lib/backend/resolve";
 import { readJsonBody } from "@/lib/body-limit";
 import { contestEntryFor } from "@/lib/contests/access";
-import { actionFor } from "@/lib/problems/actions";
+import { declaredAction } from "@/lib/problems/actions";
+import { problemBySlug } from "@/lib/problems/registry";
 import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest, tooManyRequests } from "@/lib/server/guard";
 
@@ -21,18 +25,35 @@ export async function POST(
   if (gated) return gated;
 
   const user = await getResolvedUser();
-  if (!user) {
-    return NextResponse.json({ error: "请先登录" }, { status: 401 });
-  }
+  if (!user) return apiDeny(UNAUTHENTICATED);
   const viewer = viewerFor(user);
 
   const { slug, action } = await params;
 
-  const resolved = actionFor(slug, action, viewer);
+  const problem = problemBySlug(slug);
+  if (!problem) {
+    return NextResponse.json({ error: "题目不存在" }, { status: 404 });
+  }
+
+  // Naming a contest is a claim about attribution, and a claim that does not
+  // hold is refused rather than quietly dropped — otherwise an interaction the
+  // client believed counted for a round would run as practice.
+  const requested = request.headers.get("x-foi-contest");
+  const round = requested ? contestEntryFor(requested, slug, viewer) : null;
+  if (round && !round.ok) return apiDeny(round.denial);
+
+  const contest = round?.contest ?? null;
+
+  const decision = authorize("problem.invoke", problem, viewer, {
+    contest,
+    invocation: action,
+  });
+  if (!decision.allow) return apiDeny(decision);
+
+  const resolved = declaredAction(problem, action);
   if (!resolved) {
     return NextResponse.json({ error: "题目不存在" }, { status: 404 });
   }
-  const problem = resolved.problem;
 
   const verdict = rateLimit(
     `action:${user.uid}:${slug}:${action}`,
@@ -54,12 +75,6 @@ export async function POST(
   }
   const payload = read.body;
 
-  const requested = request.headers.get("x-foi-contest");
-  const round = requested
-    ? contestEntryFor(requested, problem.slug, user)
-    : null;
-  const contestSlug = round?.ok ? round.contest.slug : null;
-
   let response;
   try {
     const backend = resolveBackend(resolved.backendId);
@@ -67,7 +82,7 @@ export async function POST(
       action,
       user: { uid: user.uid, groups: user.groups },
       problem: { slug: problem.slug, config: problem.backend.config },
-      contestSlug,
+      contestSlug: contest?.slug ?? null,
       payload,
     });
   } catch (error) {

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { audienceSchema } from "@/lib/permissions/audience";
+import { audienceSchema } from "@/lib/authz/audience";
 import { SLUG_PATTERN } from "@/lib/utils";
 
 import type { BackendUser } from "@/lib/backend/types";

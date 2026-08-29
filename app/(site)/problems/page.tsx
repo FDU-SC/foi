@@ -34,7 +34,7 @@ export default async function ProblemsPage() {
             </tr>
           </thead>
           <tbody className="divide-border divide-y">
-            {problems.map(({ config: problem, gate }) => (
+            {problems.map(({ config: problem, preview }) => (
               <tr key={problem.slug} className="hover:bg-surface-2/60">
                 <td className="text-fg-subtle px-4 py-2.5 font-mono text-xs">
                   {problem.slug}
@@ -46,11 +46,11 @@ export default async function ProblemsPage() {
                   >
                     {problem.title}
                   </Link>
-                  {gate.visible ? null : (
+                  {preview ? (
                     <Badge tone="warn" className="ml-2">
                       未公开
                     </Badge>
-                  )}
+                  ) : null}
                 </td>
                 <td className="px-4 py-2.5">
                   <div className="flex flex-wrap items-center gap-1.5">

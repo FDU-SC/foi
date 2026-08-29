@@ -2,10 +2,12 @@
 
 import { headers } from "next/headers";
 import { z } from "zod";
+import { getViewer } from "@/auth";
 import { getPasswordFingerprint } from "@/lib/accounts/password";
 import { findAccountByEmail, getAccountByUsername } from "@/lib/accounts/queries";
 import { resolveFromRow } from "@/lib/accounts/resolve";
 import { normalizeEmail } from "@/lib/accounts/types";
+import { allows } from "@/lib/authz/engine";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import { sendPasswordReset, type Recipient } from "@/lib/mail/notify";
 import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
@@ -52,10 +54,12 @@ export async function requestPasswordReset(
       )
     : await getAccountByUsername(identifier);
 
+  // The answer is the same either way: whether an address is registered must
+  // not be readable from this form.
   if (row) {
     const user = resolveFromRow(row);
 
-    if (!user.disabled && user.email && user.emailVerified) {
+    if (user.email && allows("account.sendPasswordReset", user, await getViewer())) {
       await notifyQuietly({
         uid: user.uid,
         nickname: user.nickname,

@@ -1,6 +1,9 @@
 import { getSessionUser } from "@/auth";
 import { resolveUser } from "@/lib/accounts/resolve";
-import { viewerFor } from "@/lib/permissions/viewer";
+import { denialFor } from "@/lib/authz/actions";
+import { denied, UNAUTHENTICATED } from "@/lib/authz/adapters";
+import { apiDeny } from "@/lib/authz/http";
+import { viewerFor } from "@/lib/authz/viewer";
 import { isSettled } from "@/lib/backend/types";
 import { rateLimit } from "@/lib/ratelimit";
 import {
@@ -24,7 +27,7 @@ export async function GET(request: Request) {
   if (gated) return gated;
 
   const user = await getSessionUser();
-  if (!user) return new Response("Unauthorized", { status: 401 });
+  if (!user) return apiDeny(UNAUTHENTICATED);
 
   const opens = ROUTE_LIMITS["GET /api/submissions/stream"];
   if (
@@ -42,7 +45,7 @@ export async function GET(request: Request) {
 
   const viewer = viewerFor(user);
   const initial = await submissionFor(id, viewer);
-  if (!initial) return new Response("Not found", { status: 404 });
+  if (!initial) return apiDeny(denied(denialFor("submission.read")));
 
   const release = streamConcurrency.acquire(
     `stream:${user.uid}`,

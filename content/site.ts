@@ -11,8 +11,8 @@ export const site: SiteConfig = {
     { href: "/problems", label: "题库" },
     { href: "/contests", label: "比赛" },
     { href: "/submissions", label: "提交记录" },
-    { href: "/judges", label: "评测机", capability: "admin.access" },
-    { href: "/admin", label: "管理", capability: "admin.access" },
+    { href: "/judges", label: "评测机", visibleWhen: "judge.readBoard" },
+    { href: "/admin", label: "管理", visibleWhen: "admin.enter" },
   ],
 
   passwordMinLength: 8,

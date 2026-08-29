@@ -113,8 +113,8 @@ async function main() {
   console.log(`已创建账号 uid=${uid}（${username}，${nick}，${values.email}）`);
   reportPassword(generated, password);
   console.log(
-    `\n它现在还没有任何权限。在 content/enrollment/ 加一条规则，把它放进一个带` +
-      ` admin.access 能力的组，然后重新部署：\n` +
+    `\n它现在还没有任何权限。在 content/enrollment/ 加一条规则，把它放进一个被` +
+      ` content/policies/ 放行了 admin.enter 的用户组，然后重新部署：\n` +
       `  { label: "…", uids: [${uid}], groups: ["…"] }`,
   );
 }

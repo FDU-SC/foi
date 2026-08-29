@@ -5,7 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { getViewer } from "@/auth";
 import { enrollmentViewFor } from "@/lib/admin/access";
-import { groupName, isPrivileged } from "@/lib/permissions/groups";
+import { groupName } from "@/lib/authz/groups";
+import { isPrivilegedGroup } from "@/lib/authz/introspect";
+import { registrationOpen } from "@/lib/enrollment/register";
 import { isUidsRule } from "@/lib/enrollment/types";
 
 export const metadata: Metadata = { title: "分流规则" };
@@ -50,8 +52,8 @@ export default async function AdminEnrollmentPage() {
             <div className="flex justify-between gap-2">
               <dt className="text-fg-muted">开放注册</dt>
               <dd>
-                <Badge tone={enrollmentPolicy.enabled ? "ok" : "neutral"}>
-                  {enrollmentPolicy.enabled ? "是" : "否"}
+                <Badge tone={registrationOpen() ? "ok" : "neutral"}>
+                  {registrationOpen() ? "是" : "否"}
                 </Badge>
               </dd>
             </div>
@@ -132,7 +134,7 @@ export default async function AdminEnrollmentPage() {
                             {rule.groups.map((id) => (
                               <Badge
                                 key={id}
-                                tone={isPrivileged(id) ? "primary" : "neutral"}
+                                tone={isPrivilegedGroup(id) ? "primary" : "neutral"}
                               >
                                 {groupName(id)}
                               </Badge>
@@ -200,7 +202,7 @@ export default async function AdminEnrollmentPage() {
                       tone={
                         count === 0
                           ? "warn"
-                          : isPrivileged(id)
+                          : isPrivilegedGroup(id)
                             ? "primary"
                             : "neutral"
                       }

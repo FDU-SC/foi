@@ -1,11 +1,11 @@
 import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/test/auth-support";
-import { viewerFor } from "@/lib/permissions/viewer";
+import { viewerFor } from "@/lib/authz/viewer";
 import { db } from "@/lib/db";
 import { allContests } from "@/lib/contests/registry";
 import { listRules } from "@/lib/enrollment/registry";
-import { viewerWith } from "@/test/content-shapes";
+import { viewerAllowedOnly, viewerWith } from "@/test/content-shapes";
 import {
   adminAccountsFor,
   adminContestsFor,
@@ -29,7 +29,8 @@ if (!online) {
   console.warn("[test] 数据库不可达，跳过运维台门禁集成用例");
 }
 
-const admin = viewerWith("admin.access");
+const admin = viewerWith("admin.enter");
+const consoleOnly = viewerAllowedOnly("admin.enter", "account.read", 88);
 const player = viewerFor({ uid: 1, groups: [] });
 
 const suspended = AS_PLAYER;
@@ -67,13 +68,7 @@ describeDb("运维台门禁", () => {
       expect(await adminAccountsFor(suspended)).toBeNull();
     });
 
-    it("只有 admin.access 时拿到页面，但表是空的", async () => {
-      const consoleOnly: typeof admin = {
-        uid: 88,
-        groups: [],
-        can: (capability) => capability === "admin.access",
-      };
-
+    it("只能进运维台、不能读账号时拿到页面，但表是空的", async () => {
       const directory = await adminAccountsFor(consoleOnly);
 
       expect(directory).not.toBeNull();
@@ -117,13 +112,7 @@ describeDb("运维台门禁", () => {
       expect(view?.untagged).not.toBeNull();
     });
 
-    it("只有 admin.access 时给规则不给命中数", async () => {
-      const consoleOnly: typeof admin = {
-        uid: 88,
-        groups: [],
-        can: (capability) => capability === "admin.access",
-      };
-
+    it("只能进运维台、不能读账号时给规则不给命中数", async () => {
       const view = await enrollmentViewFor(consoleOnly);
 
       expect(view).not.toBeNull();

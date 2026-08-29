@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/test/auth-support";
-import { viewerFor } from "@/lib/permissions/viewer";
+import { viewerFor } from "@/lib/authz/viewer";
 import { db } from "@/lib/db";
 import { accounts, problems, submissions } from "@/lib/db/schema";
 import { submissionFor, submissionsFor } from "./access";
@@ -68,7 +68,7 @@ describeDb("提交门禁", () => {
 
     ownerViewer = viewerFor({ uid: OWNER_UID, groups: [] });
     otherViewer = viewerFor({ uid: OTHER_UID, groups: [] });
-    adminViewer = viewerWith("submission.readAny");
+    adminViewer = viewerWith("submission.read");
 
     await db.insert(submissions).values([
       {
@@ -108,7 +108,7 @@ describeDb("提交门禁", () => {
       ).resolves.toBeUndefined();
     });
 
-    it("持有 submission.readAny 的人可读他人提交", async () => {
+    it("被放行 submission.read 的人可读他人提交", async () => {
       await expect(
         submissionFor("sub_access_other", adminViewer),
       ).resolves.toBeDefined();
@@ -142,12 +142,12 @@ describeDb("提交门禁", () => {
       expect(rows.map((r) => r.uid)).toEqual([OTHER_UID]);
     });
 
-    it("选手点名他人的 uid 不会放宽，仍然只拿到自己的", async () => {
+    it("选手点名他人的 uid 拿到空，而不是被悄悄换成自己的", async () => {
       const rows = await submissionsFor(ownerViewer, {
         problemSlug: SLUG,
         uid: OTHER_UID,
       });
-      expect(rows.map((r) => r.uid)).toEqual([OWNER_UID]);
+      expect(rows).toEqual([]);
     });
 
     it("不给任何过滤条件时，选手拿到的仍然只有自己的", async () => {

@@ -2,9 +2,11 @@
 
 import { headers } from "next/headers";
 import { z } from "zod";
+import { getViewer } from "@/auth";
 import { getPasswordFingerprint, setPassword } from "@/lib/accounts/password";
 import { getAccount } from "@/lib/accounts/queries";
 import { resolveFromRow } from "@/lib/accounts/resolve";
+import { allows } from "@/lib/authz/engine";
 import { verifyToken } from "@/lib/tokens/stateless";
 import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
@@ -67,7 +69,7 @@ export async function resetPasswordAction(
 
   const row = await getAccount(uid);
   const user = row ? resolveFromRow(row) : null;
-  if (!user || user.disabled) {
+  if (!user || !allows("account.resetPassword", user, await getViewer())) {
     return { error: "该账号当前无法登录，请联系管理员" };
   }
 

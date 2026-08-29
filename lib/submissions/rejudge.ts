@@ -143,11 +143,26 @@ export function isRejudgeable(row: {
   );
 }
 
-export async function submissionStateOf(
-  id: string,
-): Promise<{ state: SubmissionRecordState; backendId: string } | undefined> {
+export async function submissionStateOf(id: string): Promise<
+  | {
+      id: string;
+      uid: number;
+      problemSlug: string;
+      contestSlug: string | null;
+      state: SubmissionRecordState;
+      backendId: string;
+    }
+  | undefined
+> {
   const [row] = await db
-    .select({ state: submissions.state, backendId: submissions.backendId })
+    .select({
+      id: submissions.id,
+      uid: submissions.uid,
+      problemSlug: submissions.problemSlug,
+      contestSlug: submissions.contestSlug,
+      state: submissions.state,
+      backendId: submissions.backendId,
+    })
     .from(submissions)
     .where(eq(submissions.id, id))
     .limit(1);

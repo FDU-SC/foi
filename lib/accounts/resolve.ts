@@ -1,3 +1,4 @@
+import type { AccountRef } from "@/lib/authz/resources";
 import type { AccountRow } from "@/lib/db/schema";
 import { groupsFor } from "@/lib/enrollment/registry";
 import { getAccount, getAccountByUsername } from "./queries";
@@ -28,4 +29,13 @@ export async function resolveUserByUsername(
 ): Promise<ResolvedUser | null> {
   const account = await getAccountByUsername(username);
   return account ? resolveFromRow(account) : null;
+}
+
+/**
+ * An account as the *target* of an action rather than the actor behind it.
+ * A `ResolvedUser` already carries everything policies read; this names the
+ * intent at the call site.
+ */
+export function accountRef(account: AccountRow): AccountRef {
+  return resolveFromRow(account);
 }

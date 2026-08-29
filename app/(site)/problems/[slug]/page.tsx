@@ -5,8 +5,9 @@ import { getResolvedUser } from "@/auth";
 import { ProblemBadgesSlot } from "@/components/problem/badges-slot";
 import { ProblemProvider } from "@/components/problem/problem-context";
 import { Badge } from "@/components/ui/badge";
-import { describeAudience } from "@/lib/permissions/audience";
-import { viewerFor } from "@/lib/permissions/viewer";
+import { describeAudience } from "@/lib/authz/audience";
+import { authorize } from "@/lib/authz/engine";
+import { viewerFor } from "@/lib/authz/viewer";
 import { contestEntryFor } from "@/lib/contests/access";
 import { loadStatement, problemFor } from "@/lib/problems/access";
 import { dateFormatter } from "@/lib/format";
@@ -43,24 +44,34 @@ export default async function ProblemPage({
   const view = problemFor(slug, viewer);
   if (!view) notFound();
 
-  const { config, gate } = view;
+  const { config } = view;
   const Statement = await loadStatement(slug);
   if (!Statement) notFound();
 
   const requested = (await searchParams).contest;
   const round =
     typeof requested === "string"
-      ? contestEntryFor(requested, slug, user)
+      ? contestEntryFor(requested, slug, viewer)
       : null;
   const contest = round?.ok ? round.contest : null;
+
+  // The panel is enabled by the same question the submit endpoint will ask,
+  // and when it refuses, it explains itself in the same words.
+  const submittable = authorize("problem.submit", config, viewer, { contest });
+  const canAct = submittable.allow;
 
   return (
     <ProblemProvider
       value={{
         config: toPublicConfig(config),
         contestSlug: contest?.slug ?? null,
-
-        canAct: Boolean(user) && view.open,
+        canAct,
+        blocked: submittable.allow
+          ? null
+          : {
+              code: submittable.reason.code,
+              message: submittable.reason.message,
+            },
       }}
     >
       <article className="mx-auto max-w-3xl">
@@ -78,7 +89,7 @@ export default async function ProblemPage({
           </div>
         ) : null}
 
-        {!gate.visible && view.reachedVia === "problem.viewAll" ? (
+        {view.preview ? (
           <div className="border-warn/40 bg-warn/10 mb-4 rounded-lg border px-4 py-3">
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone="warn">预览</Badge>
@@ -87,28 +98,12 @@ export default async function ProblemPage({
               </span>
             </div>
             <p className="text-fg-muted mt-1.5 text-xs leading-5">
-              {gate.reason === "embargo"
-                ? `将在比赛「${gate.contestSlug}」于 ${gateFormatter.format(gate.opensAt)} 开始时自动公开，无需重新部署。`
-                : `题目的 visibleTo 是 ${describeAudience(gate.audience)}，你不在其中。`}
-              目前只有具备 problem.viewAll 能力的人能看到本页，提交也已停用。
-            </p>
-          </div>
-        ) : null}
-
-        {!gate.visible && view.reachedVia === "contest" ? (
-          <div className="border-info/40 bg-info/10 mb-4 rounded-lg border px-4 py-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge tone="info">经由比赛</Badge>
-              <span className="text-fg text-sm font-medium">
-                这道题目不对你开放，你是通过比赛权限读到它的
-              </span>
-            </div>
-
-            <p className="text-fg-muted mt-1.5 text-xs leading-5">
-              {gate.reason === "audience"
-                ? `题目的 visibleTo 是 ${describeAudience(gate.audience)}，你不在其中；`
-                : null}
-              你能打开本页，是因为你看得到引用它的某场已开赛比赛。题面照常可读，提交与交互操作都已停用。
+              {view.embargo
+                ? `将在比赛「${view.embargo.contestSlug}」于 ${gateFormatter.format(view.embargo.opensAt)} 开始时自动公开，无需重新部署。`
+                : `题目的 visibleTo 是 ${describeAudience(config.visibleTo)}，你不在其中。`}
+              {canAct
+                ? null
+                : "目前只有能预览未公开内容的人看得到本页，提交也已停用。"}
             </p>
           </div>
         ) : null}

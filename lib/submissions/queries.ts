@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, type SQL } from "drizzle-orm";
 import { failureReason, type SubmissionState } from "@/lib/backend/types";
 import { db } from "@/lib/db";
 import {
@@ -98,8 +98,12 @@ export async function listSubmissions(options: {
   problemSlug?: string;
   contestSlug?: string;
   limit?: number;
+
+  /** What the viewer is allowed to see, from `rowScope`. */
+  scope?: SQL;
 }): Promise<SubmissionListItem[]> {
   const filters = [
+    options.scope,
     options.uid ? eq(submissions.uid, options.uid) : undefined,
     options.problemSlug
       ? eq(submissions.problemSlug, options.problemSlug)

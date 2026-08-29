@@ -1,10 +1,9 @@
 "use server";
 
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { getResolvedUser } from "@/auth";
+import { requireSelf } from "@/auth";
 import { getEmailFingerprint } from "@/lib/accounts/password";
 import { findAccountByEmail } from "@/lib/accounts/queries";
 import { invalidateAccounts } from "@/lib/accounts/cache";
@@ -30,8 +29,7 @@ export async function requestEmailChangeAction(
   _prev: EmailChangeState,
   formData: FormData,
 ): Promise<EmailChangeState> {
-  const viewer = await getResolvedUser();
-  if (!viewer) redirect("/login");
+  const viewer = await requireSelf("account.changeEmail");
 
   const parsed = emailChangeSchema.safeParse({
     newEmail: formData.get("newEmail"),
@@ -94,8 +92,7 @@ export interface ConfirmEmailChangeState {
 export async function confirmEmailChangeAction(
   token: string,
 ): Promise<ConfirmEmailChangeState> {
-  const viewer = await getResolvedUser();
-  if (!viewer) redirect("/login");
+  const viewer = await requireSelf("account.changeEmail");
 
   const rule = ACTION_LIMITS.confirmEmailChangeAction;
   const limit = rateLimitBySource(

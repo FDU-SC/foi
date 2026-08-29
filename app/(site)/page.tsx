@@ -50,7 +50,7 @@ export default async function HomePage() {
           </Link>
         </div>
         <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
-          {problems.slice(0, 5).map(({ config: problem, gate }) => (
+          {problems.slice(0, 5).map(({ config: problem, preview }) => (
             <li key={problem.slug}>
               <Link
                 href={`/problems/${problem.slug}`}
@@ -62,7 +62,7 @@ export default async function HomePage() {
                 <span className="text-fg flex-1 truncate text-sm font-medium">
                   {problem.title}
                 </span>
-                {gate.visible ? null : <Badge tone="warn">未公开</Badge>}
+                {preview ? <Badge tone="warn">未公开</Badge> : null}
                 <ProblemBadgesSlot config={problem} />
               </Link>
             </li>

@@ -11,7 +11,8 @@ content/
   problems/       Problem instances (one directory per problem)
   contests/       Contest instances (one directory per contest)
   rulesets/       Scoring algorithms + companion renderers
-  enrollment/     Groups, enrollment policies, routing rules
+  enrollment/     Group labels, registration policy, routing rules
+  policies/       Authorization policies — who may do what
   emails/         Email templates (verification, password reset, email change)
   _globs.ts       import.meta.glob discovery, server-only — must sit here, see _modules/AGENTS.md
   _view-globs.ts  import.meta.glob discovery for per-problem views (client-visible)
@@ -129,6 +130,39 @@ The `result` object shape is your decision. The platform stores it as opaque JSO
 1. Problem-level `verdicts` in `views.tsx`
 2. Fallback: display raw status string
 
+### Adding an Authorization Policy
+
+Create or edit a file under `content/policies/` and export `policies`:
+
+```typescript
+import { policy } from "@/lib/authz/types";
+
+export const policies = [
+  policy({
+    id: "staff:submissions",
+    effect: "permit",
+    describe: "查看任何人的提交，并把已终结的提交放回评测队列",
+    action: ["submission.read", "submission.rejudge"],
+    principal: { group: "管理员" },
+  }),
+];
+```
+
+The platform default-denies, so a permit is what grants. A `forbid` beats every permit — use it for rules nothing should override.
+
+- `action` names ids from `lib/authz/actions.ts`. Content does not invent actions; if a gate is missing, the platform needs a new one.
+- `principal` is data, not a function (`{ group }` / `{ anyGroup }` / `{ authenticated: true }` / `{ self: true }`, or omitted for everyone). That is what lets the platform derive which groups are privileged and render the policy matrix at `/admin`.
+- `when` is an arbitrary predicate over `{ viewer, resource, now, contest, invocation }`. On a *queryable* action it must be paired with a `filter` that says the same thing in SQL — list endpoints ask the database, not each row.
+- `describe` is shown wherever the policy set is listed, so write it for whoever inherits this deployment.
+
+A group named by a permit becomes privileged, which means `content/enrollment/` may only hand it out by uid, never by an email pattern.
+
 ## Site Configuration
 
 `content/site.ts` defines deployment-wide settings: brand name, language, timezone, navigation, password policy. The platform reads these—it never hardcodes them.
+
+Navigation entries gate on the same action their destination enforces:
+
+```typescript
+{ href: "/admin", label: "管理", visibleWhen: "admin.enter" }
+```

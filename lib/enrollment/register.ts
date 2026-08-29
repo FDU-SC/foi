@@ -5,16 +5,23 @@ import {
 } from "@/lib/accounts/queries";
 import { setPassword } from "@/lib/accounts/password";
 import { normalizeEmail } from "@/lib/accounts/types";
+import { allows } from "@/lib/authz/engine";
+import { ANONYMOUS } from "@/lib/authz/viewer";
 import { db } from "@/lib/db";
 import { verifyToken } from "@/lib/tokens/stateless";
 import { enrollmentPolicy } from "./registry";
 
 export type RegisterRejection =
-  | "disabled"
+  | "closed"
   | "username-taken"
   | "email-domain"
   | "email-taken"
   | "email-unverified";
+
+/** Registration happens without a session, so the policy is asked as nobody. */
+export function registrationOpen(): boolean {
+  return allows("account.register", null, ANONYMOUS);
+}
 
 export type RegisterResult =
   | { ok: true; uid: number; username: string; nickname: string; email: string }
@@ -45,7 +52,7 @@ export async function register(input: {
   password: string;
   token: string;
 }): Promise<RegisterResult> {
-  if (!enrollmentPolicy.enabled) return { ok: false, reason: "disabled" };
+  if (!registrationOpen()) return { ok: false, reason: "closed" };
 
   const email = normalizeEmail(input.email, {
     stripSubaddress: enrollmentPolicy.stripSubaddress,

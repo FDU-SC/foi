@@ -10,7 +10,7 @@ import { useSubmit } from "@/lib/submissions/use-submit";
 import { SubmitProvider } from "./submit-context";
 
 export function SubmitPanel({ children }: { children: ReactNode }) {
-  const { config, canAct } = useProblem();
+  const { config, canAct, blocked } = useProblem();
   const { submit, submission, submitting, error } = useSubmit();
 
   return (
@@ -29,14 +29,20 @@ export function SubmitPanel({ children }: { children: ReactNode }) {
       <CardBody>
         {!canAct ? (
           <p className="text-fg-muted text-sm">
-            请先
-            <a
-              className="text-primary underline underline-offset-2"
-              href="/login"
-            >
-              登录
-            </a>
-            后提交。
+            {blocked?.code === "unauthenticated" ? (
+              <>
+                请先
+                <a
+                  className="text-primary underline underline-offset-2"
+                  href="/login"
+                >
+                  登录
+                </a>
+                后提交。
+              </>
+            ) : (
+              (blocked?.message ?? "这道题现在不接受提交。")
+            )}
           </p>
         ) : (
           <SubmitProvider value={{ submit, submitting }}>

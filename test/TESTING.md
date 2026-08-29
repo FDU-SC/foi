@@ -52,7 +52,7 @@ it("比赛已结束时是 contest-mismatch", () => {
 
 - `lib/ratelimit/policy.test.ts` — 每个 route handler / Server Action 都在限流表里
 - `lib/server/guard.test.ts` — 每个 route.ts 都调了 `guardRequest`
-- `test/enforcement.test.ts` — 每个门禁函数都在授权地图里
+- `lib/authz/registry.test.ts` — 每个动作都有放行策略，内核之外没有人自己回答「他能不能」
 - `test/content-names.test.ts` — 内核不硬编码 content 名字
 
 守卫测试的最后一条通常是"扫描确实找到了东西"，防止路径写错导致空真。
@@ -71,10 +71,11 @@ it("比赛已结束时是 contest-mismatch", () => {
 
 | 文件 | 提供什么 |
 |------|----------|
-| `test/content-shapes.ts` | 从真实 content 中按形状取出测试所需的题目、比赛、分组 |
+| `test/content-shapes.ts` | 从真实 content 中按形状取出测试所需的题目、比赛、分组、视角 |
 | `test/standings-support.ts` | 构造排行榜计算所需的虚拟提交、选手、题目 |
 | `test/auth-support.ts` | `AS_PLAYER`：匿名视角 |
-| `test/enforcement.ts` | 授权地图的声明（READ_GATES / WRITE_GATES / PAGE_CHECKS）|
+
+取视角用 `viewerWith(action)`（拿到一个被策略放行该动作的组）与 `viewerAllowedOnly(granted, withheld)`（拿到一个能做前者、不能做后者的组）。两者都按策略集的形状挑选，测试里不写死组名——`test/content-names.test.ts` 会扫出硬编码的 content 名字。
 
 使用 `content-shapes.ts` 而不是手写假数据的好处：如果 content 被修改导致假设不再成立，`test/deployment.test.ts` 会立即报错并说明需要什么形状。
 

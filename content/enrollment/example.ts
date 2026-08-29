@@ -1,31 +1,25 @@
-import type { GroupInput } from "@/lib/permissions/groups";
+import type { GroupInput } from "@/lib/authz/groups";
 import type {
   EnrollmentPolicyInput,
   EnrollmentRuleInput,
 } from "@/lib/enrollment/types";
 
 export const policy: EnrollmentPolicyInput = {
-  enabled: true,
-
   emailDomains: ["example.test"],
 };
 
+/**
+ * 用户组只是标签。「管理员」能做什么写在 content/policies/staff.ts 里，
+ * 这里声明的只是它的显示名与说明。
+ */
 export const groups: GroupInput[] = [
   {
     id: "管理员",
-    description: "完整权限：预览未公开题目、查看评测机与全部提交、管理凭据与账号。",
-    capabilities: [
-      "admin.access",
-      "problem.viewAll",
-      "contest.viewAll",
-      "standings.viewFrozen",
-      "submission.readAny",
-      "submission.rejudge",
-      "backend.inspect",
-      "account.read",
-      "credential.manage",
-      "account.moderate",
-    ],
+    description: "运维组：预览未公开题目、查看评测机与全部提交、管理凭据与账号。",
+  },
+  {
+    id: "监考",
+    description: "只看运行状况：运维台的配置漂移与评测队列，不含账号目录与邮箱。",
   },
 ];
 
@@ -46,5 +40,10 @@ export const rules: EnrollmentRuleInput[] = [
     label: "管理员",
     uids: [1],
     groups: ["管理员"],
+  },
+  {
+    label: "监考",
+    uids: [2],
+    groups: ["监考"],
   },
 ];

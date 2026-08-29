@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 import { ulid } from "ulid";
 import { getResolvedUser, getSessionUser } from "@/auth";
 import type { DbOrTx } from "@/lib/accounts/queries";
-import { viewerFor } from "@/lib/permissions/viewer";
+import { UNAUTHENTICATED } from "@/lib/authz/adapters";
+import { apiDeny } from "@/lib/authz/http";
+import { viewerFor } from "@/lib/authz/viewer";
 import { readJsonBody } from "@/lib/body-limit";
 import { releaseSha } from "@/lib/boot/deployment";
 import { db } from "@/lib/db";
@@ -24,7 +26,7 @@ import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest, tooManyRequests } from "@/lib/server/guard";
 import { ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { publish } from "@/lib/submissions/events";
-import { submitFor, type SubmitGate } from "@/lib/submissions/gate";
+import { submitFor } from "@/lib/submissions/gate";
 import { createSubmissionSchema } from "@/lib/submissions/types";
 import { submissionsFor } from "@/lib/submissions/access";
 import { findSubmissionByNonce, toView } from "@/lib/submissions/queries";
@@ -37,31 +39,12 @@ const FLOOD_CAP = ROUTE_LIMITS["POST /api/submissions"].also;
 
 const TOO_FAST = "提交过于频繁，请稍后再试";
 
-function refuse(reason: (SubmitGate & { ok: false })["reason"]): NextResponse {
-  switch (reason) {
-    case "no-problem":
-      return NextResponse.json({ error: "题目不存在" }, { status: 404 });
-    case "contest-mismatch":
-      return NextResponse.json(
-        { error: "该比赛未在进行中，或不包含这道题目" },
-        { status: 400 },
-      );
-    case "not-entered":
-      return NextResponse.json(
-        { error: "你不在这场比赛的参赛名单中" },
-        { status: 403 },
-      );
-  }
-}
-
 export async function POST(request: Request) {
   const gated = guardRequest(request, "POST /api/submissions");
   if (gated) return gated;
 
   const user = await getResolvedUser();
-  if (!user) {
-    return NextResponse.json({ error: "请先登录" }, { status: 401 });
-  }
+  if (!user) return apiDeny(UNAUTHENTICATED);
 
   const read = await readJsonBody(request, MAX_PAYLOAD_BYTES);
   if (!read.ok) {
@@ -96,9 +79,9 @@ export async function POST(request: Request) {
   const gate = submitFor(
     parsed.data.problemSlug,
     parsed.data.contestSlug,
-    user,
+    viewerFor(user),
   );
-  if (!gate.ok) return refuse(gate.reason);
+  if (!gate.ok) return apiDeny(gate.denial);
 
   const { problem, contest: running } = gate;
 
@@ -265,9 +248,7 @@ export async function GET(request: Request) {
   if (gated) return gated;
 
   const user = await getSessionUser();
-  if (!user) {
-    return NextResponse.json({ error: "请先登录" }, { status: 401 });
-  }
+  if (!user) return apiDeny(UNAUTHENTICATED);
 
   const rule = ROUTE_LIMITS["GET /api/submissions"];
   const limited = rateLimit(

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { audienceSchema } from "@/lib/permissions/audience";
+import { audienceSchema } from "@/lib/authz/audience";
 import { actionRateLimitSchema } from "@/lib/problems/types";
 import { SLUG_PATTERN } from "@/lib/utils";
 
@@ -141,6 +141,27 @@ export type ContestClock = Pick<
   ContestConfig,
   "startsAt" | "endsAt" | "freezeAt"
 >;
+
+export type Participants = ContestConfig["participants"];
+
+/**
+ * Whether someone falls inside the declared competitor set. This is the roster
+ * question only — whether they may actually compete is decided by the
+ * `contest.enter` policies that read it.
+ */
+export function matchesParticipants(
+  participants: Participants,
+  who: { uid: number | null; groups: readonly string[] },
+): boolean {
+  switch (participants.mode) {
+    case "open":
+      return true;
+    case "list":
+      return who.uid !== null && participants.uids.includes(who.uid);
+    case "group":
+      return who.groups.includes(participants.group);
+  }
+}
 
 export type ContestPhase = "upcoming" | "running" | "frozen" | "ended";
 

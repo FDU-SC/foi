@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
-import { viewerFor } from "@/lib/permissions/viewer";
+import { allows } from "@/lib/authz/engine";
+import { viewerFor } from "@/lib/authz/viewer";
 import { ProblemRef } from "@/components/problem/problem-ref";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
@@ -76,7 +77,7 @@ export default async function SubmissionPage({
         </p>
       ) : null}
 
-      {viewer.can("submission.rejudge") && isRejudgeable(row) ? (
+      {allows("submission.rejudge", row, viewer) && isRejudgeable(row) ? (
         <RejudgeForm id={row.id} />
       ) : null}
 

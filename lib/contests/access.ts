@@ -1,108 +1,96 @@
-import type { ResolvedUser } from "@/lib/accounts/types";
-import { inAudience, type Audience } from "@/lib/permissions/audience";
-import { viewerFor, type Viewer } from "@/lib/permissions/viewer";
+import { denied, type Denial } from "@/lib/authz/adapters";
+import { allows, authorize } from "@/lib/authz/engine";
+import type { Viewer } from "@/lib/authz/viewer";
 import { allContests, contestBySlug } from "./registry";
-import {
-  hasContestStarted,
-  isContestOpen,
-  type ContestClock,
-  type ContestConfig,
-  type ContestProblemConfig,
-} from "./types";
+import type { ContestConfig, ContestProblemConfig } from "./types";
 
-export type ContestVisibility =
-  | { visible: true }
-  | { visible: false; reason: "audience"; audience: Audience };
+/** The policy that reads `visibleTo`. Any other route in is a preview. */
+const AUDIENCE = "builtin:contest-audience";
 
 export interface ContestView {
   config: ContestConfig;
-  gate: ContestVisibility;
+
+  /** Reached through some policy other than the audience one. */
+  preview: boolean;
 }
 
-export function contestVisibility(
-  contest: ContestConfig,
+function viewOf(
+  config: ContestConfig,
   viewer: Viewer,
-): ContestVisibility {
-  return inAudience(contest.visibleTo, viewer)
-    ? { visible: true }
-    : { visible: false, reason: "audience", audience: contest.visibleTo };
+  now: Date,
+): ContestView | undefined {
+  const decision = authorize("contest.read", config, viewer, { now });
+  if (!decision.allow) return undefined;
+
+  return { config, preview: decision.via !== AUDIENCE };
 }
 
-export function contestsFor(viewer: Viewer): ContestView[] {
-  const override = viewer.can("contest.viewAll");
-  return allContests()
-    .map((config) => ({ config, gate: contestVisibility(config, viewer) }))
-    .filter((entry) => override || entry.gate.visible);
+export function contestsFor(viewer: Viewer, now = new Date()): ContestView[] {
+  return allContests().flatMap((config) => viewOf(config, viewer, now) ?? []);
 }
 
 export function contestFor(
   slug: string,
   viewer: Viewer,
+  now = new Date(),
 ): ContestView | undefined {
   const config = contestBySlug(slug);
-  if (!config) return undefined;
-
-  const gate = contestVisibility(config, viewer);
-  if (!gate.visible && !viewer.can("contest.viewAll")) return undefined;
-
-  return { config, gate };
+  return config ? viewOf(config, viewer, now) : undefined;
 }
 
 export function canEnterContest(
   contest: ContestConfig,
-  user: Pick<ResolvedUser, "uid" | "groups">,
-): boolean {
-  switch (contest.participants.mode) {
-    case "open":
-      return true;
-    case "list":
-      return contest.participants.uids.includes(user.uid);
-    case "group":
-      return user.groups.includes(contest.participants.group);
-  }
-}
-
-export function isContestProblemSetVisibleTo(
-  contest: ContestClock,
   viewer: Viewer,
   now = new Date(),
 ): boolean {
-  return hasContestStarted(contest, now) || viewer.can("problem.viewAll");
+  return allows("contest.enter", contest, viewer, { now });
+}
+
+export function isContestProblemSetVisibleTo(
+  contest: ContestConfig,
+  viewer: Viewer,
+  now = new Date(),
+): boolean {
+  return allows("contest.readProblemSet", contest, viewer, { now });
 }
 
 export type ContestEntry =
   | {
       ok: true;
       contest: ContestConfig;
-
       problemEntry: ContestProblemConfig;
     }
-  | { ok: false; reason: "contest-mismatch" | "not-entered" };
+  | { ok: false; denial: Denial };
 
+/**
+ * Whether the contest a client named can carry this problem for this viewer
+ * right now — the question behind every submission's contest attribution.
+ *
+ * A contest that does not exist, or does not hold this problem, is refused the
+ * same way one the viewer cannot compete in is: naming a contest never reveals
+ * anything about it.
+ */
 export function contestEntryFor(
   contestSlug: string,
   problemSlug: string,
-  user: Pick<ResolvedUser, "uid" | "groups"> | null,
+  viewer: Viewer,
   now = new Date(),
 ): ContestEntry {
-  const config = contestBySlug(contestSlug);
-  if (!config) return { ok: false, reason: "contest-mismatch" };
+  const mismatch = denied({
+    code: "contest-mismatch",
+    message: "这道题不属于这场比赛，或这场比赛现在不收题",
+  });
 
-  if (!inAudience(config.visibleTo, viewerFor(user))) {
-    return { ok: false, reason: "contest-mismatch" };
-  }
+  const contest = contestBySlug(contestSlug);
+  if (!contest) return { ok: false, denial: mismatch };
 
-  const problemEntry = config.problems.find(
+  const problemEntry = contest.problems.find(
     (candidate) => candidate.slug === problemSlug,
   );
+  if (!problemEntry) return { ok: false, denial: mismatch };
 
-  if (!problemEntry || !isContestOpen(config, now)) {
-    return { ok: false, reason: "contest-mismatch" };
-  }
+  const decision = authorize("contest.enter", contest, viewer, { now });
+  if (!decision.allow) return { ok: false, denial: decision };
 
-  if (!user || !canEnterContest(config, user)) {
-    return { ok: false, reason: "not-entered" };
-  }
-
-  return { ok: true, contest: config, problemEntry };
+  return { ok: true, contest, problemEntry };
 }

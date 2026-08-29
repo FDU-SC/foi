@@ -26,7 +26,7 @@ export default async function ContestsPage() {
         </p>
       ) : (
         <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
-          {all.map(({ config: contest, gate }) => {
+          {all.map(({ config: contest, preview }) => {
             const phase = contestPhase(contest);
             return (
               <li key={contest.slug}>
@@ -36,7 +36,7 @@ export default async function ContestsPage() {
                 >
                   <Badge tone={PHASE_TONE[phase]}>{PHASE_LABEL[phase]}</Badge>
                   <span className="text-fg font-medium">{contest.title}</span>
-                  {gate.visible ? null : <Badge tone="warn">未公开</Badge>}
+                  {preview ? <Badge tone="warn">未公开</Badge> : null}
                   <Badge>
                     {rulesetFor(contest.leaderboards[0].ruleset.id)?.name ??
                       "自定义赛制"}

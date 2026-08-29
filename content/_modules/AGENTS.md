@@ -15,7 +15,8 @@ The `import.meta.glob` calls themselves live one level up, in `content/_globs.ts
 | `contests.ts` | glob `./contests/*/contest.ts` | Contest configs | `lib/contests/registry.ts` |
 | `rulesets.ts` | glob `./rulesets/*.tsx` | Ruleset compute functions + renderers | `lib/standings/registry.ts` |
 | `backends.ts` | re-export `../backends` | External backend connections | `lib/backend/registry.ts` |
-| `enrollment.ts` | glob `./enrollment/*.ts` | Groups, policies, routing rules | `lib/enrollment/modules.ts` |
+| `enrollment.ts` | glob `./enrollment/*.ts` | Group labels, registration policy, routing rules | `lib/enrollment/modules.ts` |
+| `policies.ts` | glob `./policies/*.ts` | Authorization policies (permit / forbid) | `lib/authz/registry.ts` |
 | `emails.ts` | glob `./emails/index.ts` | Email templates | `lib/mail/registry.ts` |
 | `site.ts` | re-export `../site` | Site config (brand, locale, navigation) | `lib/site.ts` |
 
@@ -27,9 +28,9 @@ Glob patterns are shown relative to the content root, which is where they are wr
 - `_globs.ts` is `server-only`; `_view-globs.ts` is not. Keep them separate — merging them puts problem configs and inline judges in the browser bundle
 - Files re-exporting from `_globs.ts` are marked `server-only` (except `problem-views.ts`, which needs client-side rendering)
 - Parse slugs by anchoring on the directory name (`/problems\/([^/]+)\//`), never on a leading `./`, so key formatting stays a bundler detail
-- Glob-discovered modules must export a specific named constant (`problem`, `contest`, `ruleset`, `views`, etc.)
+- Glob-discovered modules must export a specific named constant (`problem`, `contest`, `ruleset`, `views`, `policies`, etc.)
 - The slug/id must match the directory or file name (enforced by the platform registry)
-- Validation errors throw at boot time, not at request time
+- Validation errors throw at boot time, not at request time. The policy registry is the one exception to *when* that happens: it builds on first use, because the builtin policies call back into the engine that reads it. `lib/boot/checks.ts` forces the build during boot, so the timing stays the same from the outside
 
 ## Adding a New Registry
 

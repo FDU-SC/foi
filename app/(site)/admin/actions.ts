@@ -2,12 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { ForbiddenError, requireCapability } from "@/auth";
+import { getViewer } from "@/auth";
 import { getPasswordFingerprint } from "@/lib/accounts/password";
 import { reinstateAccount, suspendAccount } from "@/lib/accounts/queries";
 import { resolveUser } from "@/lib/accounts/resolve";
-import { hasPrivilege } from "@/lib/permissions/groups";
-import type { Viewer } from "@/lib/permissions/viewer";
+import type { Denial } from "@/lib/authz/adapters";
+import { authorize } from "@/lib/authz/engine";
 import { sendPasswordReset } from "@/lib/mail/notify";
 import { rateLimit } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
@@ -17,13 +17,16 @@ export interface ActionState {
   message?: string;
 }
 
-function refused(error: unknown): ActionState {
-  if (error instanceof ForbiddenError) {
-    return {
-      error: `${error.message}——如果刚才还看得到这个按钮，多半是权限刚被收回，刷新页面即可。`,
-    };
-  }
-  throw error;
+/**
+ * A bare "forbidden" usually means the button outlived the permission behind
+ * it. Denials that name a specific rule speak for themselves.
+ */
+function refused(denial: Denial): ActionState {
+  const stale =
+    denial.reason.code === "forbidden"
+      ? "——如果刚才还看得到这个按钮，多半是权限刚被收回，刷新页面即可。"
+      : "";
+  return { error: `${denial.reason.message}${stale}` };
 }
 
 const issueSchema = z.object({
@@ -34,12 +37,7 @@ export async function resendPasswordResetAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  let actor: Viewer;
-  try {
-    actor = await requireCapability("credential.manage");
-  } catch (error) {
-    return refused(error);
-  }
+  const actor = await getViewer();
 
   const rule = ACTION_LIMITS.resendPasswordResetAction;
   const limited = rateLimit(
@@ -60,7 +58,9 @@ export async function resendPasswordResetAction(
 
   const user = await resolveUser(parsed.data.uid);
   if (!user) return { error: "没有这个账号" };
-  if (user.disabled) return { error: "该账号已封禁，无法发送重置邮件" };
+
+  const decision = authorize("account.sendPasswordReset", user, actor);
+  if (!decision.allow) return refused(decision);
 
   if (!user.email || !user.emailVerified) {
     return {
@@ -101,12 +101,7 @@ export async function suspendAccountAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  let actor: Viewer;
-  try {
-    actor = await requireCapability("account.moderate");
-  } catch (error) {
-    return refused(error);
-  }
+  const actor = await getViewer();
 
   const parsed = moderateSchema.safeParse({
     uid: formData.get("uid"),
@@ -119,16 +114,8 @@ export async function suspendAccountAction(
   const target = await resolveUser(parsed.data.uid);
   if (!target) return { error: "没有这个账号" };
 
-  if (actor.uid === target.uid) {
-    return { error: "不能封禁自己" };
-  }
-
-  if (hasPrivilege(target.groups)) {
-    return {
-      error:
-        "这个账号属于带权限的用户组，不能在这里封禁。收回权限请改 content/enrollment/ 里点名它的那条规则，那样改动会留在 git 历史里。",
-    };
-  }
+  const decision = authorize("account.suspend", target, actor);
+  if (!decision.allow) return refused(decision);
 
   await suspendAccount(
     target.uid,
@@ -144,12 +131,7 @@ export async function reinstateAccountAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  let actor: Viewer;
-  try {
-    actor = await requireCapability("account.moderate");
-  } catch (error) {
-    return refused(error);
-  }
+  const actor = await getViewer();
 
   const parsed = moderateSchema.safeParse({ uid: formData.get("uid") });
   if (!parsed.success) {
@@ -158,6 +140,9 @@ export async function reinstateAccountAction(
 
   const target = await resolveUser(parsed.data.uid);
   if (!target) return { error: "没有这个账号" };
+
+  const decision = authorize("account.suspend", target, actor);
+  if (!decision.allow) return refused(decision);
 
   if (target.status !== "suspended") {
     revalidatePath("/admin/accounts");

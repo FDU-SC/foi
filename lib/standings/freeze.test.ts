@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/test/auth-support";
-import { capabilitiesOf, listGroups } from "@/lib/permissions/groups";
-import { viewerFor } from "@/lib/permissions/viewer";
+import { allows } from "@/lib/authz/engine";
+import { viewerFor } from "@/lib/authz/viewer";
+import { allContests } from "@/lib/contests/registry";
 import { groupWith } from "@/test/content-shapes";
 import {
   at,
@@ -184,37 +185,26 @@ describe("封榜 pending 语义（赛制 Cell 含 pending 字段的）", () => {
 });
 
 describe("谁能看穿封榜", () => {
-  it("选手不能", () => {
+  const contest = allContests()[0];
+
+  it.skipIf(!contest)("选手不能", () => {
     expect(
-      viewerFor({ uid: 1, groups: [] }).can("standings.viewFrozen"),
+      allows("standings.readUnfrozen", contest!, viewerFor({ uid: 1, groups: [] })),
     ).toBe(false);
-    expect(AS_PLAYER.can("standings.viewFrozen")).toBe(false);
+    expect(allows("standings.readUnfrozen", contest!, AS_PLAYER)).toBe(false);
   });
 
-  it("持有这项能力的组能", () => {
-    const group = groupWith("standings.viewFrozen");
+  it.skipIf(!contest)("被策略点名的组能", () => {
+    const group = groupWith("standings.readUnfrozen");
     expect(
-      viewerFor({ uid: 2, groups: [group] }).can("standings.viewFrozen"),
+      allows("standings.readUnfrozen", contest!, viewerFor({ uid: 2, groups: [group] })),
     ).toBe(true);
   });
 
-  it("每个组是否能穿透，看它声明的能力加上蕴含出来的", () => {
-    for (const group of listGroups()) {
-      const viewer = viewerFor({ uid: 3, groups: [group.id] });
-      const declared = group.capabilities as readonly string[];
-      expect(viewer.can("standings.viewFrozen")).toBe(
-        declared.includes("standings.viewFrozen") ||
-          declared.includes("submission.readAny"),
-      );
-    }
-  });
+  it.skipIf(!contest)("能读他人提交的人也能看穿，否则他自己就能把分加出来", () => {
+    const group = groupWith("submission.read");
+    const viewer = viewerFor({ uid: 3, groups: [group] });
 
-  it("只有 submission.readAny 的组也能穿透，因为它本来就能把分加出来", () => {
-    expect(
-      capabilitiesOf([groupWith("submission.readAny")]).has(
-        "standings.viewFrozen",
-      ),
-    ).toBe(true);
-    expect(capabilitiesOf([]).has("standings.viewFrozen")).toBe(false);
+    expect(allows("standings.readUnfrozen", contest!, viewer)).toBe(true);
   });
 });

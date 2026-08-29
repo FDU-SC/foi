@@ -31,6 +31,7 @@ If you find yourself adding a platform-level `if` that checks the shape of any o
 app/            Next.js routes — consumes lib/ and components/, never imports content/
 components/     Platform UI primitives and slot components — never imports content/
 lib/            Platform core — defines contracts (types), registries, and mechanisms
+  lib/authz/          Action catalogue, policy engine, the single authorize() entry point
   lib/site.ts         Site config contract (SiteConfig type) — consumed from content
   lib/standings/      Ruleset contract, standings computation, freeze-as-permission
   lib/problems/       Problem registry, views interface (ProblemViews)
@@ -42,7 +43,27 @@ content/        All contest-specific code — see content/AGENTS.md
 
 ## Platform → Content Boundary
 
-The platform discovers content through eight entry points: the six registries under `content/_modules/`, plus `content/site.ts` and `content/backends.ts`. The `app/` and `components/` layers NEVER import from `content/` directly — only `lib/` does, and only through those eight.
+The platform discovers content through nine entry points: the seven registries under `content/_modules/`, plus `content/site.ts` and `content/backends.ts`. The `app/` and `components/` layers NEVER import from `content/` directly — only `lib/` does, and only through those nine.
+
+## Authorization
+
+Permission has exactly one entry point:
+
+```ts
+authorize(action, resource, viewer, context) → Decision
+```
+
+Default-deny. A request is refused unless some `permit` policy matches, and a matching `forbid` beats every `permit`.
+
+The split follows the same rule as everything else here:
+
+- **The platform owns the action catalogue** (`lib/authz/actions.ts`). It has to: the enforcement points are platform code, and they name these ids literally. Adding a gate means adding an action.
+- **Content owns the policies** (`content/policies/`). Who may do what is a deployment decision, and it belongs in a diff.
+- **Builtin policies** (`lib/authz/builtin.ts`) do two things only: give platform-declared resource attributes their meaning (`visibleTo`, `retired`, `participants`, the contest window), and enforce invariants content must not be able to grant around. They never hand power to a principal.
+
+A group is a label. It carries no permissions — what its members may do is whatever policies name it. "Privileged" is derived: a group some `permit` policy points at.
+
+Refusals are one shape (`Decision`) turned into each layer's expectation by the adapters in `lib/authz/adapters.ts` and `http.ts` — `undefined` for a read gate, a thrown `ForbiddenError` for a write, a status-carrying JSON body for a route. Never invent a new way to say no.
 
 ## Key Contracts
 
@@ -55,6 +76,7 @@ When writing content, you implement these platform-defined interfaces:
 | A ruleset | `Ruleset<Cell>` | `_modules/rulesets.ts` (glob) |
 | Problem views | `ProblemViews` | `_modules/problem-views.ts` (glob) |
 | Enrollment policy | `EnrollmentPolicyInput` | `_modules/enrollment.ts` (glob) |
+| Authorization policies | `policy({ ... })` from `lib/authz/types` | `_modules/policies.ts` (glob) |
 | Email templates | `EmailTemplates` | `_modules/emails.ts` (glob) |
 | Backend connections | `Record<string, ProblemBackend>` | `_modules/backends.ts` |
 | Site config | `SiteConfig` | `_modules/site.ts` |
@@ -67,3 +89,6 @@ When writing content, you implement these platform-defined interfaces:
 - Put `render` or `supportsFreeze` on the `Ruleset` interface — rulesets are pure compute functions
 - Assign `ruleset` directly on `ContestConfig` — leaderboards own their rulesets
 - Add dual-computation for freeze — freeze is permission-based result masking, not double-compute
+- Answer "may they" anywhere but `authorize()` — a hand-written `groups.includes(...)` outside `lib/authz/` fails a guard test
+- Grant anything to a group from `lib/` — builtin policies interpret attributes; grants live in `content/policies/`
+- Give a policy a `when` on a queryable action without a matching `filter` — the row would silently vanish from every list

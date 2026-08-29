@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
 import { AuthShell } from "@/components/auth/auth-shell";
+import { registrationOpen } from "@/lib/enrollment/register";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
 import { verifyToken } from "@/lib/tokens/stateless";
 import { RegisterForm } from "./register-form";
@@ -17,7 +18,7 @@ export default async function RegisterPage({
 }) {
   if (await getSessionUser()) redirect("/");
 
-  if (!enrollmentPolicy.enabled) {
+  if (!registrationOpen()) {
     return (
       <AuthShell
         footer={

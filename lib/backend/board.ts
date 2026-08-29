@@ -1,5 +1,6 @@
 import { and, asc, count, gte, inArray } from "drizzle-orm";
-import type { Viewer } from "@/lib/permissions/viewer";
+import { allows } from "@/lib/authz/engine";
+import type { Viewer } from "@/lib/authz/viewer";
 import { db } from "@/lib/db";
 import { judgingQueue, runners } from "@/lib/db/schema";
 import { RUNNER_ONLINE_MS } from "@/lib/runner/queue";
@@ -99,13 +100,14 @@ export async function judgeQueuesFor(
   viewer: Viewer,
 ): Promise<BackendQueueStatus[]> {
   const allowed = new Set(backendsFor(viewer));
-  const statuses = (await allBackendQueues()).filter((status) =>
-    allowed.has(status.id),
-  );
 
-  return viewer.can("backend.inspect")
-    ? statuses
-    : statuses.map(redactJudgeStatus);
+  return (await allBackendQueues())
+    .filter((status) => allowed.has(status.id))
+    .map((status) =>
+      allows("backend.inspect", { id: status.id }, viewer)
+        ? status
+        : redactJudgeStatus(status),
+    );
 }
 
 export function redactJudgeStatus(

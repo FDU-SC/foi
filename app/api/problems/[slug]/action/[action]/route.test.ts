@@ -20,12 +20,19 @@ const target = externallyJudged().find(
 
 let calls = 0;
 
-function post(slug: string, action: string): Promise<Response> {
+function post(
+  slug: string,
+  action: string,
+  options: { contestSlug?: string } = {},
+): Promise<Response> {
   session.user = { uid: ++calls, groups: ["一个普通分组"] };
 
+  const headers = options.contestSlug
+    ? { "x-foi-contest": options.contestSlug }
+    : undefined;
   const request = new Request(
     `http://localhost:3000/api/problems/${slug}/action/${action}`,
-    { method: "POST" },
+    { method: "POST", headers },
   );
 
   return POST(request, {
@@ -94,5 +101,27 @@ describe.skipIf(!target)("交互端点的配置错误不回传原文", () => {
       expect.stringContaining("题目后端配置错误"),
       expect.objectContaining({ message: expect.stringContaining("FOI_") }),
     );
+  });
+});
+
+describe.skipIf(!target)("交互端点的比赛归属", () => {
+  it("客户端指定不存在的比赛时拒绝，而不是降级为赛外操作", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch");
+    const action = Object.keys(target!.backend.actions)[0];
+
+    try {
+      const response = await post(target!.slug, action, {
+        contestSlug: "no-such-contest",
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        error: "这道题不属于这场比赛，或这场比赛现在不收题",
+        code: "contest-mismatch",
+      });
+      expect(fetch).not.toHaveBeenCalled();
+    } finally {
+      fetch.mockRestore();
+    }
   });
 });

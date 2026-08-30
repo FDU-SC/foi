@@ -21,11 +21,17 @@ const stub = require("./stub-runner.cjs") as {
 
 const SECRET = "9f2c1b7e4a6d8035fe1c2b3a4d5e6f70";
 
+// 题目 slug 与后端 id 在这里只是 job 结构里的占位：stub-runner 把 slug 打进日志就
+// 不再看它，判定只读 payload 与 config。填某套 content 里真实存在的名字，会让这份
+// 测试在那个名字被换掉之后指向一个不存在的东西。
+const SLUG = "a-problem";
+const BACKEND = "a-backend";
+
 function job(payload: unknown, config?: unknown) {
   return {
     id: "sub_1",
     user: { uid: 1, groups: [] },
-    problem: { slug: "maze-runner", config },
+    problem: { slug: SLUG, config },
     contestSlug: null,
     payload,
   };
@@ -36,7 +42,11 @@ describe("stub-runner 的签名", () => {
   // lib/backend/signature.ts。抄错的后果是每个请求都 401，而那只有部署之后才看得见。
   it("与平台的实现逐字一致", () => {
     const cases = [
-      { method: "POST", path: "/api/runner/jobs/request", body: '{"backendId":"traditional"}' },
+      {
+        method: "POST",
+        path: "/api/runner/jobs/request",
+        body: `{"backendId":"${BACKEND}"}`,
+      },
       { method: "GET", path: "/api/runner/jobs/abc?lease=lea_1", body: "" },
       { method: "PUT", path: "/api/runner/jobs/abc", body: '{"lease":"lea_1","state":"alive"}' },
     ];

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ActionId } from "@/lib/authz/actions";
 import { allows, authorize } from "@/lib/authz/engine";
 import { listGroups } from "@/lib/authz/groups";
-import { privilegedGroups } from "@/lib/authz/introspect";
+import { actionsWithoutPermit, privilegedGroups } from "@/lib/authz/introspect";
 import type { AccountRef } from "@/lib/authz/resources";
 import { groupsFor } from "@/lib/enrollment/registry";
 import { allContests, contestBySlug } from "@/lib/contests/registry";
@@ -10,68 +10,20 @@ import { mailSink } from "@/lib/mail/transport";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
 import { backends } from "@/lib/backend/registry";
 import { undeclaredBackends } from "@/lib/backend/access";
-import { isInlineBackend } from "@/lib/problems/types";
 import { viewsFor } from "@/lib/problems/views";
-import { problemsFor } from "@/lib/problems/access";
 import { viewerFor } from "@/lib/authz/viewer";
-import { viewerWith } from "./content-shapes";
+import { viewerWith } from "@/test/content-shapes";
 
-describe("内核测试需要的形状", () => {
-  it("有一场按 group 限制参赛、且第一道题覆盖了 rateLimit 的比赛", () => {
-    const round = allContests().find(
-      (contest) =>
-        contest.participants.mode === "group" &&
-        contest.problems[0]?.rateLimit !== undefined,
-    );
-    expect(round, "submitFor 与 contestEntryFor 的用例靠它区分三种拒绝").toBeDefined();
-  });
-
-  it("有一道 retired 的题目", () => {
-    const retired = allProblems().filter((problem) => problem.retired);
-    expect(retired.length, "「题面可读但不收提交」这条轴需要一个活体").toBeGreaterThan(0);
-  });
-
-  it("有一道在役的、由后端评测的题目", () => {
-    const external = externallyJudged().filter((problem) => !problem.retired);
-    expect(external.length, "runner 领活的整条链路靠它").toBeGreaterThan(0);
-  });
-
-  it("有一道内联判题的题目", () => {
-    const inline = allProblems().filter(
-      (problem) => !problem.retired && isInlineBackend(problem.backend),
-    );
-    expect(inline.length, "提交当次同步判完这条路径靠它").toBeGreaterThan(0);
-  });
-
-  it("有被策略点名的用户组", () => {
-    expect(
-      privilegedGroups().size,
-      "每一条按动作取 viewer 的用例都靠它",
-    ).toBeGreaterThan(0);
-  });
-
-  it("被点名的组都在 content/enrollment/ 里声明过", () => {
-    const declared = new Set(listGroups().map((group) => group.id));
-    for (const id of privilegedGroups()) {
-      expect(
-        declared.has(id),
-        `content/policies/ 把权限给了 "${id}"，但 content/enrollment/ 没有声明它`,
-      ).toBe(true);
-    }
-  });
-
-  it("有一道不属于任何比赛的公开题", () => {
-    const contest = allContests()[0];
-    if (!contest) return;
-    const listed = new Set(contest.problems.map((entry) => entry.slug));
-    const now = new Date(contest.startsAt.getTime() + 1);
-    const outside = problemsFor(viewerFor(null), now)
-      .map((view) => view.config)
-      .find((config) => !listed.has(config.slug));
-    expect(outside, "赛外提交路径需要一道不在赛里的公开题").toBeDefined();
-  });
-
-});
+/**
+ * Assertions about *this* deployment's content, kept out of the kernel suites.
+ *
+ * A fork owns this file the same way it owns the rest of `content/`: retire the
+ * demo contest, drop a group, and the expectations here are the ones to edit.
+ *
+ * Helpers from `test/` are fair game — they resolve by action, not by name. What
+ * no file under `lib/` or `test/` may do is spell these names out, which
+ * `content-names.test.ts` enforces.
+ */
 
 describe("这套 content 自身自洽", () => {
   it("每道外挂题指向的后端都登记过", () => {
@@ -79,7 +31,6 @@ describe("这套 content 自身自洽", () => {
   });
 
   it("登记的后端都有题目路由过来", () => {
-
     const routed = new Set(externallyJudged().map((p) => p.backend.id));
     for (const id of Object.keys(backends)) {
       expect(routed.has(id), `没有题目使用后端 ${id}`).toBe(true);
@@ -95,6 +46,29 @@ describe("这套 content 自身自洽", () => {
       (problem) => viewsFor(problem.slug).PayloadView !== undefined,
     );
     expect(declared.length, "没有一道题拿到渲染，八成是 glob 没扫到").toBeGreaterThan(0);
+  });
+});
+
+describe("这套 content 的策略集", () => {
+  it("每个动作都至少有一条放行", () => {
+    expect(
+      actionsWithoutPermit(),
+      "这些动作对所有人永远拒绝：要么忘了在 content/policies/ 里接上，要么最后一个放行它的策略被改掉了",
+    ).toEqual([]);
+  });
+
+  it("有用户组被策略点名，否则运维台无人可进", () => {
+    expect(privilegedGroups().size).toBeGreaterThan(0);
+  });
+
+  it("被点名的组都在 content/enrollment/ 里声明过", () => {
+    const declared = new Set(listGroups().map((group) => group.id));
+    for (const id of privilegedGroups()) {
+      expect(
+        declared.has(id),
+        `content/policies/ 把权限给了 "${id}"，但 content/enrollment/ 没有声明它`,
+      ).toBe(true);
+    }
   });
 });
 
@@ -121,6 +95,11 @@ describe("演示赛", () => {
 
   it("窗口在过去，seed 之后立刻有一张终榜可看", () => {
     expect(demo && demo.endsAt.getTime() < Date.now()).toBe(true);
+  });
+
+  it("题单不为空，否则排行榜没有列", () => {
+    expect(demo?.problems.length).toBeGreaterThan(0);
+    expect(allContests().length).toBeGreaterThan(0);
   });
 });
 

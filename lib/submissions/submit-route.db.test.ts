@@ -10,8 +10,8 @@ import {
 } from "@/lib/backend/types";
 import { problemsFor } from "@/lib/problems/access";
 import {
-  DEFAULT_SUBMIT_RATE_LIMIT,
   isInlineBackend,
+  submitRateLimit,
   type InlineBackend,
   type InlineJudge,
 } from "@/lib/problems/types";
@@ -99,7 +99,7 @@ describeDb("提交端点限流", () => {
   });
 
   it("窗口内的提交照常落地，超出上限的得到 429 且不留行", async () => {
-    const allowed = DEFAULT_SUBMIT_RATE_LIMIT.max;
+    const allowed = submitRateLimit(FIRST).max;
 
     for (let i = 0; i < allowed; i += 1) {
       const response = await postSubmission(FIRST.slug);

@@ -16,6 +16,38 @@ const serverOnly = {
   replacement: fileURLToPath(new URL("./test/server-only.ts", import.meta.url)),
 };
 
+function fixture(path: string): string {
+  return fileURLToPath(new URL(`./test/fixtures/content/${path}`, import.meta.url));
+}
+
+/**
+ * The nine entry points the platform discovers content through, pointed at a
+ * fixture the upstream owns.
+ *
+ * Kernel tests assert what the platform does, so they must not also assert that
+ * a deployment kept some particular group or contest around. Only the
+ * `deployment` project resolves these to `content/`.
+ */
+const FIXTURE_CONTENT = [
+  "site",
+  "backends",
+  "_modules/contests",
+  "_modules/emails",
+  "_modules/enrollment",
+  "_modules/policies",
+  "_modules/problem-views",
+  "_modules/problems",
+  "_modules/rulesets",
+].map((name) => ({
+  find: `@/content/${name}`,
+  replacement: fixture(`${name}.ts`),
+}));
+
+const againstFixture = {
+  tsconfigPaths: true,
+  alias: [serverOnly, ...FIXTURE_CONTENT],
+};
+
 export default defineConfig({
   resolve: {
     tsconfigPaths: true,
@@ -28,6 +60,7 @@ export default defineConfig({
     projects: [
       {
         extends: true,
+        resolve: againstFixture,
         test: {
           name: "unit",
           include: EVERYWHERE,
@@ -36,6 +69,7 @@ export default defineConfig({
       },
       {
         extends: true,
+        resolve: againstFixture,
         test: {
           name: "db",
           include: DB_ONLY,

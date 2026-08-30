@@ -21,9 +21,8 @@ const SKIP = new Set([
   "scripts",
 ]);
 
-const SKIP_FILES = new Set([
-  "test/deployment.test.ts",
-]);
+/** Another content set, judged by its own rules rather than as kernel source. */
+const SKIP_PATHS = new Set(["test/fixtures"]);
 
 const SOURCE = /\.(?:[cm]?[jt]sx?)$/;
 
@@ -36,6 +35,8 @@ function sourceFiles(dir: string, found: string[] = []): string[] {
     if (entry.name.startsWith(".") && entry.name !== ".github") continue;
 
     const path = join(dir, entry.name);
+    if (SKIP_PATHS.has(path.slice(ROOT.length))) continue;
+
     if (entry.name === "content") {
       const modulesDir = join(path, "_modules");
       try {
@@ -68,14 +69,17 @@ function contentNames(): Map<string, string> {
   return names;
 }
 
+/**
+ * Runs against the deployment's own content, so a fork gets the check that
+ * matters to it: nothing in `lib/`, `app/` or `components/` may hardcode a name
+ * this deployment chose.
+ */
 describe("内核不认识 content 的名字", () => {
   it("没有一份内核源码把某个 content 的名字写成字面量", () => {
     const names = contentNames();
     const offences: string[] = [];
 
     for (const path of sourceFiles(ROOT)) {
-      const rel = path.slice(ROOT.length);
-      if (SKIP_FILES.has(rel)) continue;
       const lines = readFileSync(path, "utf8").split("\n");
       for (const [index, line] of lines.entries()) {
         if (COMMENT.test(line)) continue;
@@ -97,7 +101,6 @@ describe("内核不认识 content 的名字", () => {
   });
 
   it("确实拿到了一批名字，否则上一条是空真", () => {
-
     expect(contentNames().size).toBeGreaterThan(0);
   });
 });

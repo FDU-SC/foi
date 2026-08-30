@@ -1,5 +1,5 @@
 import { backends } from "./registry";
-import { sharedSecret } from "./env";
+import { envFragment, sharedSecret } from "./env";
 import { type ProblemBackend } from "./types";
 
 const DEFAULT_REPLY_TIMEOUT_MS = 10_000;
@@ -20,7 +20,13 @@ export function resolveBackend(id: string): ResolvedBackend {
     throw new Error(`未知的题目后端 "${id}"，请检查 content/backends.ts`);
   }
 
-  const secret = effectiveSecret(id)!;
+  const secret = effectiveSecret(id);
+  if (!secret) {
+    throw new Error(
+      `题目后端 "${id}" 没有签名密钥，` +
+        `请设置 FOI_BACKEND_${envFragment(id)}_SECRET 或 FOI_BACKEND_SECRET`,
+    );
+  }
 
   return {
     ...entry,

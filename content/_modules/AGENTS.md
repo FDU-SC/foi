@@ -1,6 +1,6 @@
 # _modules/ — Registry Entries
 
-This directory is the **only interface** between the platform (`lib/`) and content. The platform never imports from `content/` except through these files.
+This directory, plus `content/site.ts` and `content/backends.ts`, is the **only interface** between the platform (`lib/`) and content. Those nine entry points are the whole surface; the platform never imports from `content/` anywhere else.
 
 Each file here re-exports one slice of content discovery. The platform's registries in `lib/` import from here and validate the shape.
 
@@ -14,13 +14,13 @@ The `import.meta.glob` calls themselves live one level up, in `content/_globs.ts
 | `problem-views.ts` | glob `./problems/*/views.tsx` | Per-problem PayloadView / VerdictDetail / verdicts | `lib/problems/views.ts` |
 | `contests.ts` | glob `./contests/*/contest.ts` | Contest configs | `lib/contests/registry.ts` |
 | `rulesets.ts` | glob `./rulesets/*.tsx` | Ruleset compute functions + renderers | `lib/standings/registry.ts` |
-| `backends.ts` | re-export `../backends` | External backend connections | `lib/backend/registry.ts` |
 | `enrollment.ts` | glob `./enrollment/*.ts` | Group labels, registration policy, routing rules | `lib/enrollment/modules.ts` |
 | `policies.ts` | glob `./policies/*.ts` | Authorization policies (permit / forbid) | `lib/authz/registry.ts` |
 | `emails.ts` | glob `./emails/index.ts` | Email templates | `lib/mail/registry.ts` |
-| `site.ts` | re-export `../site` | Site config (brand, locale, navigation) | `lib/site.ts` |
 
 Glob patterns are shown relative to the content root, which is where they are written.
+
+The remaining two entry points need no discovery, so they have no file here: `lib/site.ts` imports `@/content/site` and `lib/backend/registry.ts` imports `@/content/backends`, each a single declared object.
 
 ## Conventions
 

@@ -39,11 +39,14 @@ lib/            Platform core — defines contracts (types), registries, and mec
   lib/backend/        Verdict schema ({ result, detail }), runner protocol
   lib/db/             Drizzle schema — submissions have result + detail JSONB, nothing else
 content/        All contest-specific code — see content/AGENTS.md
+test/           Kernel test support: fixture content, shape helpers — see test/AGENTS.md
 ```
 
 ## Platform → Content Boundary
 
 The platform discovers content through nine entry points: the seven registries under `content/_modules/`, plus `content/site.ts` and `content/backends.ts`. The `app/` and `components/` layers NEVER import from `content/` directly — only `lib/` does, and only through those nine.
+
+Tests hold the same line. The `unit` and `db` vitest projects resolve all nine to `test/fixtures/content/`, so a kernel test asserts what the platform does and never what a deployment happens to contain. Only the `deployment` project (`content/**/*.test.ts`) sees the real `content/`. A fork may delete any group, problem or contest without turning the kernel suites red.
 
 ## Authorization
 
@@ -78,8 +81,8 @@ When writing content, you implement these platform-defined interfaces:
 | Enrollment policy | `EnrollmentPolicyInput` | `_modules/enrollment.ts` (glob) |
 | Authorization policies | `policy({ ... })` from `lib/authz/types` | `_modules/policies.ts` (glob) |
 | Email templates | `EmailTemplates` | `_modules/emails.ts` (glob) |
-| Backend connections | `Record<string, ProblemBackend>` | `_modules/backends.ts` |
-| Site config | `SiteConfig` | `_modules/site.ts` |
+| Backend connections | `Record<string, ProblemBackend>` | `content/backends.ts` |
+| Site config | `SiteConfig` | `content/site.ts` |
 
 ## Do NOT
 
@@ -92,3 +95,4 @@ When writing content, you implement these platform-defined interfaces:
 - Answer "may they" anywhere but `authorize()` — a hand-written `groups.includes(...)` outside `lib/authz/` fails a guard test
 - Grant anything to a group from `lib/` — builtin policies interpret attributes; grants live in `content/policies/`
 - Give a policy a `when` on a queryable action without a matching `filter` — the row would silently vanish from every list
+- Import `content/` from a kernel test, or assert a deployment's group / contest / problem there — ask `test/content-shapes.ts` for the shape instead

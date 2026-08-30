@@ -12,8 +12,10 @@ whole point of the split:
 |---|---|---|---|
 | `unit` | the rest | the platform | `test/fixtures/content/` |
 | `db` | `**/*.db.test.{ts,tsx}` | the platform, against Postgres | `test/fixtures/content/` |
-| `deployment` | `content/**/*.test.{ts,tsx}` | this deployment's content | `content/` |
+| `deployment` | the live content root | that content | whatever tsconfig resolves |
 | `tools` | `scripts/**/*.test.{ts,tsx}` | operator and demo-site tooling | not redirected — must not import it |
+
+"The live content root" is `content.local/` when a fork has filled that slot, otherwise `content/` — see `test/content-roots.ts`. Only one of them runs: assertions about the upstream sample do not describe a fork's content, so they step aside rather than fail against it.
 
 The redirect covers the nine entry points the platform discovers content
 through — the seven `_modules/` registries plus `site.ts` and `backends.ts`.

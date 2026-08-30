@@ -1,6 +1,7 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
+import { CONTENT_ROOTS } from "@/test/content-roots";
 import { ACTION_IDS, isQueryable } from "./actions";
 import { actionsWithoutPermit, privilegedGroups } from "./introspect";
 import { allPolicies } from "./registry";
@@ -14,7 +15,10 @@ const KERNEL = join("lib", "authz");
  * so a gate that grows back by hand fails here rather than in production.
  */
 
+/** Absent is fine: the fork's content slot does not exist upstream. */
 function walk(directory: string): string[] {
+  if (!existsSync(directory)) return [];
+
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
     if (entry.isDirectory()) return walk(path);
@@ -31,7 +35,9 @@ function withoutComments(source: string): string {
 }
 
 /** Policies are where authorization logic belongs; they are not a bypass. */
-const POLICIES = join("content", "policies");
+const POLICIES = CONTENT_ROOTS.map((root) => join(root, "policies"));
+
+const SCANNED = ["app", "components", "lib", ...CONTENT_ROOTS];
 
 function sources(...directories: string[]): string[] {
   return directories
@@ -40,7 +46,10 @@ function sources(...directories: string[]): string[] {
     .filter((file) => !/\.test\.tsx?$/.test(file))
     .filter((file) => {
       const path = relative(ROOT, file);
-      return !path.startsWith(KERNEL) && !path.startsWith(POLICIES);
+      return (
+        !path.startsWith(KERNEL) &&
+        !POLICIES.some((policies) => path.startsWith(policies))
+      );
     });
 }
 
@@ -64,7 +73,7 @@ const BYPASSES: { pattern: RegExp; what: string }[] = [
 ];
 
 function bypasses(): string[] {
-  return sources("app", "components", "lib", "content").flatMap((file) => {
+  return sources(...SCANNED).flatMap((file) => {
     const path = key(file);
     if (path in ATTRIBUTE_READERS) return [];
 
@@ -131,7 +140,7 @@ describe("没有绕过内核的判断", () => {
   });
 
   it("扫描确实找到了东西，而不是路径写错后空过", () => {
-    expect(sources("app", "components", "lib", "content").length).toBeGreaterThan(
+    expect(sources(...SCANNED).length).toBeGreaterThan(
       100,
     );
     expect(allPolicies().length).toBeGreaterThanOrEqual(ACTION_IDS.length / 2);

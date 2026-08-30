@@ -7,13 +7,13 @@ import { backends } from "@/lib/backend/registry";
 import { allContests } from "@/lib/contests/registry";
 import { allProblems } from "@/lib/problems/registry";
 import { listRulesets } from "@/lib/standings/registry";
+import { isContentRoot } from "@/test/content-roots";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 const SKIP = new Set([
   ".git",
   ".next",
-  "content",
   "coverage",
   "drizzle",
   "node_modules",
@@ -36,7 +36,9 @@ function sourceFiles(dir: string, found: string[] = []): string[] {
     const path = join(dir, entry.name);
     if (SKIP_PATHS.has(path.slice(ROOT.length))) continue;
 
-    if (entry.name === "content") {
+    // A content root contributes only its `_modules/` shim: that shim faces the
+    // platform, so it may not name what it re-exports.
+    if (isContentRoot(entry.name)) {
       const modulesDir = join(path, "_modules");
       try {
         for (const file of readdirSync(modulesDir)) {

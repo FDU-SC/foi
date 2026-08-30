@@ -46,6 +46,8 @@ test/           Kernel test support: fixture content, shape helpers — see test
 
 The platform discovers content through nine entry points: the seven registries under `content/_modules/`, plus `content/site.ts` and `content/backends.ts`. The `app/` and `components/` layers NEVER import from `content/` directly — only `lib/` does, and only through those nine.
 
+`content/` here is a sample. `tsconfig.json` resolves `@/content/*` to `content.local/` first and falls back per module, so a fork supplies its own content in that slot instead of editing files the upstream owns — the difference between a merge that conflicts every time and one that never does. The slot is absent in this repository; `test/content-roots.ts` names it, and the deployment test project follows whichever root is live.
+
 Tests hold the same line. The `unit` and `db` vitest projects resolve all nine to `test/fixtures/content/`, so a kernel test asserts what the platform does and never what a deployment happens to contain. Only the `deployment` project (`content/**/*.test.ts`) sees the real `content/`. A fork may delete any group, problem or contest without turning the kernel suites red.
 
 ## Authorization

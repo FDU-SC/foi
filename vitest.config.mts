@@ -1,13 +1,25 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defaultExclude, defineConfig } from "vitest/config";
+import { CONTENT_ROOTS, CONTENT_SLOT } from "./test/content-roots";
 
 if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 
 const EVERYWHERE = ["**/*.test.{ts,tsx}"];
 const DB_ONLY = ["**/*.db.test.{ts,tsx}"];
 
-const DEPLOYMENT = ["content/**/*.test.{ts,tsx}"];
+const tests = (root: string) => `${root}/**/*.test.{ts,tsx}`;
+
+/**
+ * The deployment suite belongs to whichever content is live. Fill the slot and
+ * the upstream sample stops being resolved — its assertions stop applying with
+ * it, so they stop running rather than failing against content they never
+ * described.
+ */
+const DEPLOYMENT = [tests(existsSync(CONTENT_SLOT) ? CONTENT_SLOT : "content")];
+
+/** Neither root's tests belong to the kernel projects, live or shadowed. */
+const ANY_CONTENT = CONTENT_ROOTS.map(tests);
 
 /** Operator and demo-site tooling: neither platform nor content. */
 const TOOLS = ["scripts/**/*.test.{ts,tsx}"];
@@ -67,7 +79,7 @@ export default defineConfig({
         test: {
           name: "unit",
           include: EVERYWHERE,
-          exclude: [...NOT_SOURCE, ...DB_ONLY, ...DEPLOYMENT, ...TOOLS],
+          exclude: [...NOT_SOURCE, ...DB_ONLY, ...ANY_CONTENT, ...TOOLS],
         },
       },
       {
@@ -76,7 +88,7 @@ export default defineConfig({
         test: {
           name: "db",
           include: DB_ONLY,
-          exclude: [...NOT_SOURCE, ...DEPLOYMENT, ...TOOLS],
+          exclude: [...NOT_SOURCE, ...ANY_CONTENT, ...TOOLS],
 
           fileParallelism: false,
         },

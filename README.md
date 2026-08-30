@@ -28,7 +28,7 @@ lib/         平台核心：类型契约、注册表、机制
 content/     赛事内容。题目、比赛、计分规则、报名、邮件、站点配置
 ```
 
-平台通过八个入口发现内容：`content/_modules/` 下的六个注册表，加上 `content/site.ts`
+平台通过九个入口发现内容：`content/_modules/` 下的七个注册表，加上 `content/site.ts`
 与 `content/backends.ts`。这是两层之间唯一的接口。
 
 ## 本地运行
@@ -65,6 +65,32 @@ glob 会自动发现它，不需要注册。
 
 加一套计分规则，建 `content/rulesets/<id>.tsx`，导出一个纯函数：收进提交，吐出名次。
 它不需要知道封榜，也不需要知道怎么渲染，那些是另外的事。
+
+## 派生一份自己的部署
+
+`content/` 里的题目、比赛与策略是**示例**。直接改它们，每次同步上游都会在同一批文件上
+撞车——上游也在演进这些示例。
+
+把自己的内容放进 `content.local/`，这个目录上游没有。`@/content/*` 会优先解析到它，
+逐模块回落：
+
+```
+content.local/
+  _globs.ts      必需——_modules/ 用相对路径 import 它
+  _modules/      必需
+  site.ts        覆盖站点配置
+  policies/      覆盖授权策略
+  problems/      你自己的题目
+```
+
+只放 `site.ts` 就只有站点配置被覆盖，其余照旧来自 `content/`；放全套就完全接管。
+`_shared/` 里的模板可以继续复用上游的，不必复制。
+
+这样 `content/`、`tsconfig.json`、`vitest.config.mts` 一个字都不用改，上游合并不再冲突。
+
+填了插槽之后，`deployment` 测试只跑 `content.local/**`——上游示例的断言（演示赛用
+acm 赛制之类）不再适用，也就不再运行。把自己的部署断言写在 `content.local/` 里，
+可以照 `content/deployment.test.ts` 的样子写。
 
 ## 评测机
 

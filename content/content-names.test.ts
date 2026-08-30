@@ -18,7 +18,6 @@ const SKIP = new Set([
   "drizzle",
   "node_modules",
   "public",
-  "scripts",
 ]);
 
 /** Another content set, judged by its own rules rather than as kernel source. */
@@ -46,6 +45,16 @@ function sourceFiles(dir: string, found: string[] = []): string[] {
       } catch {}
       continue;
     }
+
+    // Operator scripts run against a real deployment, so naming its problems and
+    // groups is their job. Their tests have no such excuse.
+    if (entry.name === "scripts") {
+      for (const file of readdirSync(path)) {
+        if (/\.test\.tsx?$/.test(file)) found.push(join(path, file));
+      }
+      continue;
+    }
+
     if (SKIP.has(entry.name)) continue;
 
     if (entry.isDirectory()) sourceFiles(path, found);

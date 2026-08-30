@@ -9,6 +9,9 @@ const DB_ONLY = ["**/*.db.test.{ts,tsx}"];
 
 const DEPLOYMENT = ["content/**/*.test.{ts,tsx}"];
 
+/** Operator and demo-site tooling: neither platform nor content. */
+const TOOLS = ["scripts/**/*.test.{ts,tsx}"];
+
 const NOT_SOURCE = [...defaultExclude, "**/.next/**"];
 
 const serverOnly = {
@@ -64,7 +67,7 @@ export default defineConfig({
         test: {
           name: "unit",
           include: EVERYWHERE,
-          exclude: [...NOT_SOURCE, ...DB_ONLY, ...DEPLOYMENT],
+          exclude: [...NOT_SOURCE, ...DB_ONLY, ...DEPLOYMENT, ...TOOLS],
         },
       },
       {
@@ -73,7 +76,7 @@ export default defineConfig({
         test: {
           name: "db",
           include: DB_ONLY,
-          exclude: [...NOT_SOURCE, ...DEPLOYMENT],
+          exclude: [...NOT_SOURCE, ...DEPLOYMENT, ...TOOLS],
 
           fileParallelism: false,
         },
@@ -87,6 +90,15 @@ export default defineConfig({
           exclude: NOT_SOURCE,
 
           fileParallelism: false,
+        },
+      },
+      {
+        extends: true,
+
+        test: {
+          name: "tools",
+          include: TOOLS,
+          exclude: NOT_SOURCE,
         },
       },
     ],

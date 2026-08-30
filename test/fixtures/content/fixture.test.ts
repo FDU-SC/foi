@@ -172,14 +172,23 @@ const REDIRECTED = new Set([
 
 const FIXTURE_DIR = join("test", "fixtures");
 
-function kernelTests(dir: string, found: string[] = []): string[] {
+/** Kernel suites: the nine specifiers land on the fixture, anything else is a leak. */
+const AGAINST_FIXTURE = ["app", "components", "lib", "test"];
+
+/**
+ * The `tools` project redirects nothing, so for tests under `scripts/` even the
+ * nine reach the real deployment. Tooling carries its own samples instead.
+ */
+const AGAINST_NOTHING = ["scripts"];
+
+function testsIn(dir: string, found: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
 
     const path = join(dir, entry.name);
     if (path.slice(ROOT.length).startsWith(FIXTURE_DIR)) continue;
 
-    if (entry.isDirectory()) kernelTests(path, found);
+    if (entry.isDirectory()) testsIn(path, found);
     else if (/\.test\.tsx?$/.test(entry.name)) found.push(path);
   }
   return found;
@@ -195,27 +204,33 @@ describe("内核测试跑在夹具上", () => {
     ).toBe("Fixture");
   });
 
-  it("没有一份内核测试绕过改道，直接伸进 content/", () => {
+  it("content/ 之外没有一份测试直接伸进 content/", () => {
     const offences: string[] = [];
 
-    for (const dir of ["app", "components", "lib", "test"]) {
-      for (const path of kernelTests(join(ROOT, dir))) {
+    const scan = (dir: string, redirected: boolean) => {
+      for (const path of testsIn(join(ROOT, dir))) {
         const source = readFileSync(path, "utf8");
         for (const [, specifier] of source.matchAll(IMPORT)) {
           const reachesContent =
             specifier!.startsWith("@/content/") ||
             /(^|\/)content\//.test(specifier!);
-          if (!reachesContent || REDIRECTED.has(specifier!)) continue;
+          if (!reachesContent) continue;
+          if (redirected && REDIRECTED.has(specifier!)) continue;
 
           offences.push(`${path.slice(ROOT.length)}: ${specifier}`);
         }
       }
-    }
+    };
+
+    for (const dir of AGAINST_FIXTURE) scan(dir, true);
+    for (const dir of AGAINST_NOTHING) scan(dir, false);
 
     expect(
       offences,
-      "内核测试要什么形状，就向 test/content-shapes.ts 要，" +
-        "由夹具供给；直接导入 content/ 会让这套部署删掉一个组就把内核测试弄红",
+      "只有 deployment project（content/**/*.test.ts）该读 content/。" +
+        "内核测试要什么形状就向 test/content-shapes.ts 要，由夹具供给；" +
+        "scripts/ 下的工具测试则该自带样例——直接导入 content/ 会让这套部署" +
+        "删掉一个组就把不相干的测试弄红",
     ).toEqual([]);
   });
 });

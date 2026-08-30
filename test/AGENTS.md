@@ -3,16 +3,17 @@
 Everything here belongs to the upstream platform. A fork should not need to edit
 this directory; its edits go in `content/`.
 
-## Three Projects, Two Content Sets
+## Four Projects, Two Content Sets
 
-`vitest.config.mts` declares three projects, and which content they see is the
+`vitest.config.mts` declares four projects, and which content they see is the
 whole point of the split:
 
-| Project | Includes | Resolves `@/content/*` to |
-|---|---|---|
-| `unit` | everything except `*.db.test` and `content/**` | `test/fixtures/content/` |
-| `db` | `**/*.db.test.{ts,tsx}` | `test/fixtures/content/` |
-| `deployment` | `content/**/*.test.{ts,tsx}` | `content/` |
+| Project | Includes | Subject | Resolves `@/content/*` to |
+|---|---|---|---|
+| `unit` | the rest | the platform | `test/fixtures/content/` |
+| `db` | `**/*.db.test.{ts,tsx}` | the platform, against Postgres | `test/fixtures/content/` |
+| `deployment` | `content/**/*.test.{ts,tsx}` | this deployment's content | `content/` |
+| `tools` | `scripts/**/*.test.{ts,tsx}` | operator and demo-site tooling | not redirected — must not import it |
 
 The redirect covers the nine entry points the platform discovers content
 through — the seven `_modules/` registries plus `site.ts` and `backends.ts`.
@@ -22,6 +23,12 @@ required this deployment to keep a particular group or contest around, then
 retiring either one downstream would fail tests that have nothing to do with the
 change. Deployment facts are asserted in `content/deployment.test.ts`, which a
 fork owns along with the rest of `content/`.
+
+`tools` exists for the same reason one step removed. `scripts/stub-runner.cjs`
+serves the nightly demo site, and `scripts/mock-runner.ts` stands in for a judge
+locally; neither is the platform, so their tests do not belong in a suite that
+gates it. They also must not name a real problem, backend or group — supply a
+placeholder, as `stub-runner.test.ts` does.
 
 ## Writing a Kernel Test
 
@@ -41,8 +48,8 @@ in the fixture reads as "the fixture lacks X" rather than as an unrelated
 assertion failure.
 
 Two guards in `test/fixtures/content/fixture.test.ts` keep this honest: one
-asserts the redirect is live, the other fails if any kernel test imports
-`content/` directly.
+asserts the redirect is live, the other fails if any test outside `content/` —
+including one under `scripts/` — imports `content/` directly.
 
 ## Changing the Fixture
 

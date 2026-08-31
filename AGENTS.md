@@ -55,7 +55,7 @@ and behaviour must not sit in a layer a deployment can replace.
 
 The platform discovers content through twelve entry points: the seven registries under `content/_modules/`, plus `content/site.ts`, `site-views.tsx`, `backends.ts`, `schema.ts` and `theme.css`. The `app/`, `views/` and `components/` layers NEVER import from `content/` directly — only `lib/` does, and only through those twelve. `test/slots.test.ts` enforces it.
 
-Tests hold the same line. The `unit` and `db` vitest projects resolve all twelve to `test/fixtures/content/`, so a kernel test asserts what the platform does and never what a deployment happens to contain. Only the `deployment` project sees the real `content/`. A fork may delete any group, problem or contest without turning the kernel suites red.
+Tests hold the same line. The `unit` and `db` vitest projects resolve all twelve to `test/fixtures/content/`, so a kernel test asserts what the platform does and never what a deployment happens to contain. Only the `deployment` project sees a deployment's own content — `content/` plus whatever a fork put in the slots. A fork may delete any group, problem or contest without turning the kernel suites red.
 
 ## Slots
 
@@ -124,7 +124,7 @@ When writing content, you implement these platform-defined interfaces:
 
 - Add score/maxScore/accepted/outcome columns to the DB — those are result-shape assumptions
 - Write `isAccepted()` or `verdictColumns()` in `lib/` — result interpretation is the ruleset's job
-- Hardcode brand names, locale, timezone, or navigation in `app/` or `lib/` — those come from `content/site.ts`
+- Hardcode brand names, locale, timezone, navigation or taglines anywhere in the platform — those come from `content/site.ts`
 - Put `render` or `supportsFreeze` on the `Ruleset` interface — rulesets are pure compute functions
 - Assign `ruleset` directly on `ContestConfig` — leaderboards own their rulesets
 - Add dual-computation for freeze — freeze is permission-based result masking, not double-compute

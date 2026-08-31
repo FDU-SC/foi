@@ -99,8 +99,9 @@ glob 会自动发现它，不需要注册。
 
 完整的变量表在 `app/globals.css` 开头。
 
-**二、换掉页面的一块。** `content/site-views.tsx` 导出 `SiteViews`，可以替换顶栏、页脚、
-品牌标识、首页导语区、认证页壳：
+**二、换掉页面的一块。** `content/site-views.tsx` 导出 `SiteViews`，五个插槽依次是
+`Header`（顶栏）、`Footer`（页脚）、`Brand`（品牌标识）、`HomeHero`（首页导语区）、
+`AuthShell`（认证页壳）：
 
 ```tsx
 // content.local/site-views.tsx
@@ -117,7 +118,18 @@ export const views: SiteViews = { Footer };
 的同名文件整个换掉。想重做整个题库页，就写一份 `views.local/problems/list.tsx`。
 代价明码标价：**被覆盖的那个文件从此不再跟随上游演进**。
 
-包一层上游原版时，必须用**相对路径**指过去，否则别名会解析回你自己这个文件：
+替换一个组件要把它导出的整套契约补齐——少一个 prop、少一个具名导出，`pnpm typecheck`
+就会指着调用方报错。想省事就复用上游的类型：
+
+```tsx
+// components.local/ui/badge.tsx
+import type { BadgeProps } from "../../components/ui/badge";
+
+export function Badge(props: BadgeProps) { /* ... */ }
+```
+
+注意这里用的是**相对路径**。包一层上游原版时也一样——写成别名的话会解析回你自己
+这个文件，成了自引用：
 
 ```tsx
 // components.local/site/header.tsx

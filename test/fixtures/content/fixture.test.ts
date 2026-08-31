@@ -199,7 +199,7 @@ function testsIn(dir: string, found: string[] = []): string[] {
 const IMPORT = /from\s+["']([^"']+)["']/g;
 
 describe("内核测试跑在夹具上", () => {
-  it("站点配置来自夹具，说明九个入口真的被改道了", () => {
+  it("站点配置来自夹具，说明入口真的被改道了", () => {
     expect(
       site.name,
       "解析回了 content/：alias 没生效，内核测试又绑上了这套部署",

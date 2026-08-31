@@ -7,7 +7,7 @@ import { backends } from "@/lib/backend/registry";
 import { allContests } from "@/lib/contests/registry";
 import { allProblems } from "@/lib/problems/registry";
 import { listRulesets } from "@/lib/standings/registry";
-import { isContentRoot } from "@/test/content-roots";
+import { isContentRoot } from "@/test/content-roots.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 

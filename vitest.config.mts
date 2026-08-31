@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defaultExclude, defineConfig } from "vitest/config";
-import { CONTENT_ROOTS, CONTENT_SLOT } from "./test/content-roots";
+import { CONTENT_ROOTS, CONTENT_SLOT } from "./test/content-roots.mjs";
 
 if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 

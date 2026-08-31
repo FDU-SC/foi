@@ -1,6 +1,6 @@
 # _modules/ — Registry Entries
 
-This directory, plus `content/site.ts` and `content/backends.ts`, is the **only interface** between the platform (`lib/`) and content. Those nine entry points are the whole surface; the platform never imports from `content/` anywhere else.
+This directory, plus `content/site.ts`, `site-views.tsx`, `backends.ts`, `schema.ts` and `theme.css`, is the **only interface** between the platform (`lib/`) and content. Those twelve entry points are the whole surface; the platform never imports from `content/` anywhere else.
 
 Each file here re-exports one slice of content discovery. The platform's registries in `lib/` import from here and validate the shape.
 
@@ -20,7 +20,17 @@ The `import.meta.glob` calls themselves live one level up, in `content/_globs.ts
 
 Glob patterns are shown relative to the content root, which is where they are written.
 
-The remaining two entry points need no discovery, so they have no file here: `lib/site.ts` imports `@/content/site` and `lib/backend/registry.ts` imports `@/content/backends`, each a single declared object.
+The remaining five entry points need no discovery, so they have no file here — each is a single declared file the platform imports directly:
+
+| File | Platform consumer | What it declares |
+|---|---|---|
+| `site.ts` | `lib/site.ts` | Brand, locale, navigation, footer |
+| `site-views.tsx` | `lib/site-views.ts` | Chrome slots (`SiteViews`) |
+| `backends.ts` | `lib/backend/registry.ts` | External backend connections |
+| `schema.ts` | `lib/db/index.ts` | Tables this deployment adds |
+| `theme.css` | `lib/theme.ts` | Colour tokens |
+
+`schema.ts` reaches the drizzle instance through `lib/db/index.ts`, not through `lib/db/schema.ts` — `drizzle.config.ts` reads that file, and upstream migrations must not pick up a deployment's tables.
 
 ## Conventions
 

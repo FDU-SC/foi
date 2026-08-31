@@ -149,12 +149,13 @@ jobs:
 
       - name: content/ 仅保留骨架
         run: |
-          # 平台通过 content/_modules/ 的注册表发现内容，从不直接 import content/。
-          # 把 content/ 删到只剩注册表骨架，平台仍然要能编译和启动。这个检查挂掉，
-          # 就说明有内容语义漏进了平台层。
+          # 平台通过 content/ 的入口发现内容，从不直接 import 别的。把 content/
+          # 删到只剩这些入口，平台仍然要能编译和启动。这个检查挂掉，就说明有内容
+          # 语义漏进了平台层。
           for entry in content/*; do
             case "$(basename "$entry")" in
-              _modules|_globs.ts|_view-globs.ts|site.ts|backends.ts) ;;
+              _modules|_globs.ts|_view-globs.ts) ;;
+              site.ts|site-views.tsx|backends.ts|schema.ts|theme.css) ;;
               *) rm -rf "$entry" ;;
             esac
           done

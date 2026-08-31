@@ -1,7 +1,7 @@
 # test/ — Kernel Test Support
 
 Everything here belongs to the upstream platform. A fork should not need to edit
-this directory; its edits go in `content/`.
+this directory; its edits go in the slots.
 
 ## Four Projects, Two Content Sets
 
@@ -12,17 +12,23 @@ whole point of the split:
 |---|---|---|---|
 | `unit` | the rest | the platform | `test/fixtures/content/` |
 | `db` | `**/*.db.test.{ts,tsx}` | the platform, against Postgres | `test/fixtures/content/` |
-| `deployment` | both content roots | that content | whatever tsconfig resolves |
+| `deployment` | `content/` and every `.local` root | that deployment | whatever tsconfig resolves |
 | `tools` | `scripts/**/*.test.{ts,tsx}` | operator and demo-site tooling | not redirected — must not import it |
 
-Both roots run. A fork that fills the slot still inherits most of `content/` by
-fallback — its rulesets, judges, mail templates — and the tests beside those
-files still describe what runs. `content/deployment.test.ts` is the one
-exception: it pins the upstream sample by name, so a filled slot excludes it and
-the fork writes its own. See `test/content-roots.mjs`.
+`deployment` covers the sample as well as the slots. A fork that fills the
+content slot still inherits most of `content/` by fallback — its rulesets,
+judges, mail templates — and the tests beside those files still describe what
+runs. `content/deployment.test.ts` is the one exception: it pins the upstream
+sample by name, so a filled slot excludes it and the fork writes its own.
 
-The redirect covers the nine entry points the platform discovers content
-through — the seven `_modules/` registries plus `site.ts` and `backends.ts`.
+Tests a fork writes beside its own overrides — under `content.local/`,
+`components.local/` or `views.local/` — land in `deployment` too. They describe
+one deployment against its real content, which is the opposite of what a kernel
+test does. `test/content-roots.mjs` is the single list of slots.
+
+The redirect covers the twelve entry points the platform discovers content
+through — the seven `_modules/` registries plus `site.ts`, `site-views.tsx`,
+`backends.ts`, `schema.ts` and `theme.css`.
 
 The reason: a kernel test asks whether the platform is correct. If it also
 required this deployment to keep a particular group or contest around, then
@@ -56,6 +62,10 @@ assertion failure.
 Two guards in `test/fixtures/content/fixture.test.ts` keep this honest: one
 asserts the redirect is live, the other fails if any test outside `content/` —
 including one under `scripts/` — imports `content/` directly.
+
+`test/slots.test.ts` guards the other boundary: that every slot's alias resolves
+local-first, that `app/` holds nothing but route shells, and that no file in
+`app/`, `views/` or `components/` reaches into `content/`.
 
 ## Changing the Fixture
 

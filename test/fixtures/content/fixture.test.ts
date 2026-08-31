@@ -157,10 +157,12 @@ describe("夹具自身自洽", () => {
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
-/** The nine specifiers `vitest.config.mts` redirects here. */
+/** The specifiers `vitest.config.mts` redirects here. */
 const REDIRECTED = new Set([
   "@/content/site",
+  "@/content/site-views",
   "@/content/backends",
+  "@/content/schema",
   "@/content/_modules/contests",
   "@/content/_modules/emails",
   "@/content/_modules/enrollment",
@@ -172,12 +174,12 @@ const REDIRECTED = new Set([
 
 const FIXTURE_DIR = join("test", "fixtures");
 
-/** Kernel suites: the nine specifiers land on the fixture, anything else is a leak. */
-const AGAINST_FIXTURE = ["app", "components", "lib", "test"];
+/** Kernel suites: those specifiers land on the fixture, anything else is a leak. */
+const AGAINST_FIXTURE = ["app", "components", "lib", "test", "views"];
 
 /**
  * The `tools` project redirects nothing, so for tests under `scripts/` even the
- * nine reach the real deployment. Tooling carries its own samples instead.
+ * entry points reach the real deployment. Tooling carries its own samples.
  */
 const AGAINST_NOTHING = ["scripts"];
 
@@ -197,7 +199,7 @@ function testsIn(dir: string, found: string[] = []): string[] {
 const IMPORT = /from\s+["']([^"']+)["']/g;
 
 describe("内核测试跑在夹具上", () => {
-  it("站点配置来自夹具，说明九个入口真的被改道了", () => {
+  it("站点配置来自夹具，说明入口真的被改道了", () => {
     expect(
       site.name,
       "解析回了 content/：alias 没生效，内核测试又绑上了这套部署",

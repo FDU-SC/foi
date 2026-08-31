@@ -18,6 +18,12 @@ export interface HomeEntry {
   description: string;
 }
 
+export interface FooterConfig {
+  /** Replaces the default `name · description` line. */
+  text?: string;
+  links?: NavItem[];
+}
+
 export interface SiteConfig {
   name: string;
   title: string;
@@ -25,8 +31,18 @@ export interface SiteConfig {
   lang: string;
   timezone: string;
   navigation: NavItem[];
+
+  /** The line under the name on the home page. Falls back to `description`. */
+  tagline?: string;
+
   homeEntries?: HomeEntry[];
   passwordMinLength?: number;
+
+  /**
+   * Wording and links in the footer. Anything structural — columns, a logo, a
+   * QR code — is a `Footer` slot in `content/site-views.tsx` instead.
+   */
+  footer?: FooterConfig;
 }
 
 export const site: SiteConfig = declared;

@@ -1,14 +1,15 @@
 # 测试指南
 
-## 三层测试架构
+## 四层测试架构
 
-`vitest.config.mts` 将测试分为三个 project，各有不同的执行模式与职责：
+`vitest.config.mts` 将测试分为四个 project，各有不同的执行模式与职责。
+划分的关键是**看见哪一套 content**：内核对着夹具，部署对着自己的东西。
 
 ### unit — 纯函数行为测试
 
-- **匹配**：`**/*.test.ts`（排除 `*.db.test.ts` 和 `content/`）
+- **匹配**：`**/*.test.ts`（排除 `*.db.test.ts`、部署测试与 `scripts/`）
 - **并行**：是
-- **依赖**：无数据库，无网络
+- **依赖**：无数据库，无网络；`@/content/*` 改道到 `test/fixtures/content/`
 - **职责**：验证内核模块的业务规则——给什么输入，得什么输出
 
 典型模式：构造入参 → 调用函数 → 断言返回值。
@@ -17,15 +18,20 @@
 
 - **匹配**：`**/*.db.test.ts`
 - **并行**：否（`fileParallelism: false`）
-- **依赖**：`DATABASE_URL`（若未设置则整组 `describe.skip`）
+- **依赖**：`DATABASE_URL`（若未设置则整组 `describe.skip`）；同样对着夹具
 - **职责**：验证事务语义、并发竞态、幂等行为
 
 ### deployment — 内容部署校验
 
-- **匹配**：`content/**/*.test.ts`
+- **匹配**：`content/**/*.test.ts`，以及每个 `.local` 插槽下的测试
 - **并行**：否
-- **依赖**：仓库里挂载的 `content/` 模块
-- **职责**：确认当前 content 满足内核的前提假设，且自身自洽
+- **依赖**：tsconfig 实际解析到的 content
+- **职责**：确认当前部署满足内核的前提假设，且自身自洽
+
+### tools — 运维与演示站脚本
+
+- **匹配**：`scripts/**/*.test.ts`
+- **依赖**：不改道；这些测试不得 import `@/content/`，要自带样例
 
 ---
 
@@ -53,7 +59,8 @@ it("比赛已结束时是 contest-mismatch", () => {
 - `lib/ratelimit/policy.test.ts` — 每个 route handler / Server Action 都在限流表里
 - `lib/server/guard.test.ts` — 每个 route.ts 都调了 `guardRequest`
 - `lib/authz/registry.test.ts` — 每个动作都有放行策略，内核之外没有人自己回答「他能不能」
-- `test/content-names.test.ts` — 内核不硬编码 content 名字
+- `content/content-names.test.ts` — 内核不硬编码 content 名字
+- `test/slots.test.ts` — 插槽别名逐一对得上，`app/` 只剩薄壳，UI 层不伸进 content
 
 守卫测试的最后一条通常是"扫描确实找到了东西"，防止路径写错导致空真。
 
@@ -71,13 +78,13 @@ it("比赛已结束时是 contest-mismatch", () => {
 
 | 文件 | 提供什么 |
 |------|----------|
-| `test/content-shapes.ts` | 从真实 content 中按形状取出测试所需的题目、比赛、分组、视角 |
+| `test/content-shapes.ts` | 按形状取出测试所需的题目、比赛、分组、视角 |
 | `test/standings-support.ts` | 构造排行榜计算所需的虚拟提交、选手、题目 |
 | `test/auth-support.ts` | `AS_PLAYER`：匿名视角 |
 
-取视角用 `viewerWith(action)`（拿到一个被策略放行该动作的组）与 `viewerAllowedOnly(granted, withheld)`（拿到一个能做前者、不能做后者的组）。两者都按策略集的形状挑选，测试里不写死组名——`test/content-names.test.ts` 会扫出硬编码的 content 名字。
+取视角用 `viewerWith(action)`（拿到一个被策略放行该动作的组）与 `viewerAllowedOnly(granted, withheld)`（拿到一个能做前者、不能做后者的组）。两者都按策略集的形状挑选，测试里不写死组名——`content/content-names.test.ts` 会扫出硬编码的 content 名字。
 
-使用 `content-shapes.ts` 而不是手写假数据的好处：如果 content 被修改导致假设不再成立，`test/deployment.test.ts` 会立即报错并说明需要什么形状。
+内核测试里这些形状来自 `test/fixtures/content/`，不是某套部署。按形状要而不是手写假数据，好处是形状缺失会被 `test/fixtures/content/fixture.test.ts` 当场指出来，而不是变成一堆不相干的断言失败。
 
 ---
 

@@ -4,22 +4,21 @@ import { allows } from "@/lib/authz/engine";
 import { groupName } from "@/lib/authz/groups";
 import { viewerFor } from "@/lib/authz/viewer";
 import { site } from "@/lib/site";
+import { siteViews } from "@/lib/site-views";
+import { Brand } from "@/components/site/brand";
 import { ThemeToggle } from "@/components/site/theme-toggle";
 import { UserMenu } from "@/components/site/user-menu";
 
-export async function Header() {
+export async function DefaultHeader() {
   const user = await getSessionUser();
   const viewer = viewerFor(user);
 
   return (
     <header className="border-border bg-bg/85 sticky top-0 z-40 border-b backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4">
-        <Link
-          href="/"
-          className="text-fg shrink-0 text-base font-bold tracking-tight"
-        >
-          {site.name}
-        </Link>
+        <div className="shrink-0 text-base">
+          <Brand />
+        </div>
 
         <nav className="flex items-center gap-1 text-sm">
           {site.navigation
@@ -57,4 +56,9 @@ export async function Header() {
       </div>
     </header>
   );
+}
+
+export function Header() {
+  const Slot = siteViews.Header;
+  return Slot ? <Slot /> : <DefaultHeader />;
 }

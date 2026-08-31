@@ -1,0 +1,13 @@
+/**
+ * Deployment theme overrides.
+ *
+ * Loaded after `app/globals.css`, so anything redeclared here wins. Override
+ * only the custom properties that differ — the rest keep the platform defaults.
+ *
+ *   :root { --primary: oklch(55% 0.2 25); }
+ *   .dark { --primary: oklch(72% 0.17 25); }
+ *
+ * The full token list is at the top of `app/globals.css`. A fork puts its own
+ * copy at `content.local/theme.css`; this file is the upstream fallback and is
+ * intentionally empty.
+ */

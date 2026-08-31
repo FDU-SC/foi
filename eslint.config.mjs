@@ -24,6 +24,14 @@ const eslintConfig = defineConfig([
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
 
+  {
+    // The root shell renders <html> and <head> because it is what the root
+    // layout returns. `next/head` is Pages Router API and cannot set a class on
+    // <html> before first paint, which is what the theme script is for.
+    files: ["views/root-shell.tsx", "views.local/root-shell.tsx"],
+    rules: { "@next/next/no-head-element": "off" },
+  },
+
   globalIgnores([
 
     ".next/**",

@@ -44,6 +44,10 @@ COPY --from=builder --chown=foi:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=foi:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=foi:nodejs /app/public ./public
 COPY --from=builder --chown=foi:nodejs /app/drizzle ./drizzle
+# A deployment's own migrations, if it wrote any. The bracket glob matches
+# nothing when drizzle.local/ is absent; package.json rides along only so the
+# COPY still has a source and does not fail on an empty match.
+COPY --from=builder --chown=foi:nodejs /app/package.json /app/drizzle.loca[l] ./drizzle.local/
 COPY --from=builder --chown=foi:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=foi:nodejs /app/lib/accounts/argon2-options.cjs ./lib/accounts/
 

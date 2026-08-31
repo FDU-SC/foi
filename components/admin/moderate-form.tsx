@@ -7,7 +7,7 @@ import {
   reinstateAccountAction,
   suspendAccountAction,
   type ActionState,
-} from "./actions";
+} from "@/app/(site)/admin/actions";
 
 export function ModerateForm({
   uid,

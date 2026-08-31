@@ -1,6 +1,6 @@
 import { escapeHtml } from "@/lib/mail/html";
 import type { MailBody } from "@/lib/mail/types";
-import { site } from "../site";
+import { site } from "@/lib/site";
 
 export type { MailBody };
 

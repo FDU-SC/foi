@@ -3,47 +3,29 @@
 import { useActionState } from "react";
 import { FormMessage, PendingSubmit } from "@/components/form";
 import { Field, Input } from "@/components/ui/field";
-import { updateUsernameAction, type SettingsState } from "./actions";
+import { updateNicknameAction, type SettingsState } from "@/app/(site)/settings/actions";
 
-export function UsernameForm({
-  current,
-  hint,
-}: {
-  current: string;
-  hint: string;
-}) {
+export function NicknameForm({ current }: { current: string }) {
   const [state, formAction] = useActionState<SettingsState, FormData>(
-    updateUsernameAction,
+    updateNicknameAction,
     {},
   );
 
   return (
     <form action={formAction} className="space-y-4">
-      <Field label="用户名" hint={hint}>
+      <Field label="昵称" hint="显示在排行榜和提交记录里，可以随时修改。">
         <Input
-          name="username"
+          name="nickname"
           defaultValue={current}
-          minLength={2}
-          maxLength={32}
-          pattern="[a-zA-Z0-9_\-]+"
+          maxLength={64}
           required
-          spellCheck={false}
-          autoComplete="username"
-          className="font-mono"
-        />
-      </Field>
-      <Field label="当前密码">
-        <Input
-          name="currentPassword"
-          type="password"
-          autoComplete="current-password"
-          required
+          autoComplete="nickname"
         />
       </Field>
       {state.error ? <FormMessage tone="err">{state.error}</FormMessage> : null}
       {state.message ? <FormMessage tone="ok">{state.message}</FormMessage> : null}
       <PendingSubmit variant="primary" pendingLabel="保存中…">
-        保存用户名
+        保存昵称
       </PendingSubmit>
     </form>
   );

@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { ActionResult, PendingSubmit } from "@/components/form";
-import { resendPasswordResetAction, type ActionState } from "./actions";
+import { resendPasswordResetAction, type ActionState } from "@/app/(site)/admin/actions";
 
 export function ResendResetForm({
   uid,

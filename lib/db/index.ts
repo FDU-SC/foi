@@ -1,10 +1,22 @@
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import * as schema from "./schema";
+import * as platform from "./schema";
+import * as deployment from "@/content/schema";
+
+/**
+ * The platform's tables plus whatever the deployment declared for itself.
+ *
+ * The merge happens here rather than in `schema.ts` because `drizzle.config.ts`
+ * points at that file alone: upstream migrations must not pick up a fork's
+ * tables, which keep their own folder and their own journal in `drizzle.local/`.
+ */
+const schema = { ...platform, ...deployment };
+
+type Schema = typeof schema;
 
 declare global {
   var __foiPool: Pool | undefined;
-  var __foiDb: NodePgDatabase<typeof schema> | undefined;
+  var __foiDb: NodePgDatabase<Schema> | undefined;
 }
 
 function createPool(): Pool {
@@ -33,7 +45,7 @@ function getPool(): Pool {
   return (poolSingleton ??= createPool());
 }
 
-function getDb(): NodePgDatabase<typeof schema> {
+function getDb(): NodePgDatabase<Schema> {
   if (process.env.NODE_ENV !== "production") {
     globalThis.__foiDb ??= drizzle(getPool(), { schema });
     return globalThis.__foiDb;
@@ -42,8 +54,9 @@ function getDb(): NodePgDatabase<typeof schema> {
 }
 
 let poolSingleton: Pool | undefined;
-let dbSingleton: NodePgDatabase<typeof schema> | undefined;
+let dbSingleton: NodePgDatabase<Schema> | undefined;
 
-export const db: NodePgDatabase<typeof schema> = lazy(getDb);
+export const db: NodePgDatabase<Schema> = lazy(getDb);
 export const pool: Pool = lazy(getPool);
 export * from "./schema";
+export * from "@/content/schema";

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { FormMessage, PendingSubmit } from "@/components/form";
 import { Field, Input } from "@/components/ui/field";
-import { requestPasswordReset, type ForgotState } from "./actions";
+import { requestPasswordReset, type ForgotState } from "@/app/forgot-password/actions";
 
 export function ForgotForm() {
   const [state, formAction] = useActionState<ForgotState, FormData>(

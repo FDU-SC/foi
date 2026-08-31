@@ -13,9 +13,18 @@ export async function register() {
   await assertBootConfiguration();
 
   if (process.env.FOI_AUTO_MIGRATE !== "false") {
+    const { existsSync } = await import("node:fs");
     const { migrate } = await import("drizzle-orm/node-postgres/migrator");
     const { db } = await import("@/lib/db");
+
     await migrate(db, { migrationsFolder: "drizzle" });
+
+    // A deployment's own tables migrate from their own folder, keeping their
+    // own journal, so its version numbers never contend with the upstream's.
+    if (existsSync("drizzle.local/meta/_journal.json")) {
+      await migrate(db, { migrationsFolder: "drizzle.local" });
+    }
+
     console.log("[foi] 数据库迁移已应用");
   }
 

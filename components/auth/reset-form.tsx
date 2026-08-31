@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { FormMessage, PendingSubmit } from "@/components/form";
 import { Field, Input } from "@/components/ui/field";
-import { resetPasswordAction, type ResetState } from "./actions";
+import { resetPasswordAction, type ResetState } from "@/app/reset-password/actions";
 
 export function ResetForm({ token }: { token: string }) {
   const [state, formAction] = useActionState<ResetState, FormData>(

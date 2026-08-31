@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { FormMessage, PendingSubmit } from "@/components/form";
 import { Field, Input } from "@/components/ui/field";
-import { requestEmailChangeAction, type EmailChangeState } from "./actions";
+import { requestEmailChangeAction, type EmailChangeState } from "@/app/(site)/settings/email/actions";
 
 export function EmailChangeForm() {
   const [state, formAction] = useActionState<EmailChangeState, FormData>(

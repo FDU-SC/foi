@@ -28,11 +28,13 @@ If you find yourself adding a platform-level `if` that checks the shape of any o
 ## Directory Structure
 
 ```
-app/            Next.js routes — consumes lib/ and components/, never imports content/
-components/     Platform UI primitives and slot components — never imports content/
+app/            Next.js contract surface — route shells, Server Actions, API handlers
+views/          Page bodies — everything a route renders
+components/     Platform UI primitives and slot components
 lib/            Platform core — defines contracts (types), registries, and mechanisms
   lib/authz/          Action catalogue, policy engine, the single authorize() entry point
   lib/site.ts         Site config contract (SiteConfig type) — consumed from content
+  lib/site-views.ts   Chrome slot contract (SiteViews) — consumed from content
   lib/standings/      Ruleset contract, standings computation, freeze-as-permission
   lib/problems/       Problem registry, views interface (ProblemViews)
   lib/presentation.ts Verdict translation (describeVerdict), BadgeTone/VerdictPreset types
@@ -42,13 +44,42 @@ content/        All contest-specific code — see content/AGENTS.md
 test/           Kernel test support: fixture content, shape helpers — see test/AGENTS.md
 ```
 
+`app/` holds what Next discovers from the filesystem and nothing else. A route
+file declares its segment config and forwards to `views/`; a page body that
+grows back into `app/` is somewhere a fork cannot override, so a guard test in
+`test/slots.test.ts` fails on it. Server Actions stay in `app/` too, and for a
+second reason: `lib/ratelimit/policy.test.ts` finds them by scanning that tree,
+and behaviour must not sit in a layer a deployment can replace.
+
 ## Platform → Content Boundary
 
-The platform discovers content through nine entry points: the seven registries under `content/_modules/`, plus `content/site.ts` and `content/backends.ts`. The `app/` and `components/` layers NEVER import from `content/` directly — only `lib/` does, and only through those nine.
+The platform discovers content through twelve entry points: the seven registries under `content/_modules/`, plus `content/site.ts`, `site-views.tsx`, `backends.ts`, `schema.ts` and `theme.css`. The `app/`, `views/` and `components/` layers NEVER import from `content/` directly — only `lib/` does, and only through those twelve. `test/slots.test.ts` enforces it.
 
-`content/` here is a sample. `tsconfig.json` resolves `@/content/*` to `content.local/` first and falls back per module, so a fork supplies its own content in that slot instead of editing files the upstream owns — the difference between a merge that conflicts every time and one that never does. The slot is absent in this repository; `test/content-roots.ts` names it, and the deployment test project follows whichever root is live.
+Tests hold the same line. The `unit` and `db` vitest projects resolve all twelve to `test/fixtures/content/`, so a kernel test asserts what the platform does and never what a deployment happens to contain. Only the `deployment` project sees a deployment's own content — `content/` plus whatever a fork put in the slots. A fork may delete any group, problem or contest without turning the kernel suites red.
 
-Tests hold the same line. The `unit` and `db` vitest projects resolve all nine to `test/fixtures/content/`, so a kernel test asserts what the platform does and never what a deployment happens to contain. Only the `deployment` project (`content/**/*.test.ts`) sees the real `content/`. A fork may delete any group, problem or contest without turning the kernel suites red.
+## Slots
+
+`content/`, `components/` and `views/` here are all samples of a kind. Each has a `.local` twin a fork fills, and `tsconfig.json` resolves the alias to that twin first, **falling back per file**:
+
+```json
+"@/content/*":    ["./content.local/*",    "./content/*"],
+"@/components/*": ["./components.local/*", "./components/*"],
+"@/views/*":      ["./views.local/*",      "./views/*"],
+```
+
+So a deployment overrides the handful of files it cares about and inherits the rest — the difference between a merge that conflicts every time and one that never does. `test/content-roots.mjs` is the single list of slots; no `.local` root exists in this repository, and resolution, the deployment test project and every source scanner tolerate their absence.
+
+Depth of customization, shallowest first — **prefer the shallowest that works**, because each step down gives up more of the upstream's future changes:
+
+1. **Data.** `content/site.ts` for brand, navigation, tagline, footer; `content/theme.css` for colour tokens, which load after `globals.css` so redeclaring one wins.
+2. **Chrome slots.** `SiteViews` in `content/site-views.tsx` replaces the Header, Footer, Brand, HomeHero or AuthShell. Every slot is optional and has a platform default, so `{}` is a complete implementation.
+3. **File override.** Any file under `components/` or `views/` can be replaced wholesale by a same-named file in its `.local` twin. This is how a whole page gets rewritten — and the overriding file stops tracking upstream changes to it, which is the price.
+
+An override that wants to wrap the upstream original must reach it by **relative path** (`../../components/site/header`), because the alias would resolve back to the override itself.
+
+New routes need no slot: a fork adds files under `app/` and nothing collides, since the upstream has no file there. Put them in the `app/(local)/` route group — a group does not affect URLs, and the upstream never places a file in it, so the two sides never contend for a path.
+
+New tables are the same shape one layer down. Declare them in `content.local/schema.ts`; `lib/db/index.ts` merges them into the drizzle instance. Their migrations live in `drizzle.local/` with their own journal, generated by `drizzle.local.config.ts`, and `instrumentation.ts` applies that folder after `drizzle/`. Upstream and downstream version numbers never collide.
 
 ## Authorization
 
@@ -85,12 +116,15 @@ When writing content, you implement these platform-defined interfaces:
 | Email templates | `EmailTemplates` | `_modules/emails.ts` (glob) |
 | Backend connections | `Record<string, ProblemBackend>` | `content/backends.ts` |
 | Site config | `SiteConfig` | `content/site.ts` |
+| Chrome slots | `SiteViews` | `content/site-views.tsx` |
+| Deployment tables | drizzle table objects | `content/schema.ts` |
+| Colour tokens | CSS custom properties | `content/theme.css` |
 
 ## Do NOT
 
 - Add score/maxScore/accepted/outcome columns to the DB — those are result-shape assumptions
 - Write `isAccepted()` or `verdictColumns()` in `lib/` — result interpretation is the ruleset's job
-- Hardcode brand names, locale, timezone, or navigation in `app/` or `lib/` — those come from `content/site.ts`
+- Hardcode brand names, locale, timezone, navigation or taglines anywhere in the platform — those come from `content/site.ts`
 - Put `render` or `supportsFreeze` on the `Ruleset` interface — rulesets are pure compute functions
 - Assign `ruleset` directly on `ContestConfig` — leaderboards own their rulesets
 - Add dual-computation for freeze — freeze is permission-based result masking, not double-compute
@@ -98,3 +132,6 @@ When writing content, you implement these platform-defined interfaces:
 - Grant anything to a group from `lib/` — builtin policies interpret attributes; grants live in `content/policies/`
 - Give a policy a `when` on a queryable action without a matching `filter` — the row would silently vanish from every list
 - Import `content/` from a kernel test, or assert a deployment's group / contest / problem there — ask `test/content-shapes.ts` for the shape instead
+- Write a page body in `app/` — route files declare and forward, page bodies live in `views/` where a fork can replace them
+- Put a Server Action in `views/` or `components/` — behaviour must not sit in a layer a deployment can override, and the rate-limit guard only scans `app/`
+- Re-export `@/content/schema` from `lib/db/schema.ts` — `drizzle.config.ts` reads that file, and upstream migrations must not see a fork's tables

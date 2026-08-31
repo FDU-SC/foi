@@ -1,12 +1,12 @@
 # content/ — Contest Content Layer
 
-Everything in this directory is deployment-specific. Swapping this directory produces a different contest site. The platform (`app/`, `lib/`, `components/`) never imports from `content/` directly—only through `content/_modules/`.
+Everything in this directory is deployment-specific. Swapping this directory produces a different contest site. Only `lib/` imports from `content/`, and only through the entry points below; `app/`, `views/` and `components/` never do.
 
 ## Three-Layer Structure
 
 ```
 content/
-  _modules/       Registry entries — the ONLY interface between platform and content
+  _modules/       Registry entries — seven of the entry points
   _shared/        Reusable template library — composable building blocks (see _shared/AGENTS.md)
   problems/       Problem instances (one directory per problem)
   contests/       Contest instances (one directory per contest)
@@ -18,7 +18,12 @@ content/
   _view-globs.ts  import.meta.glob discovery for per-problem views (client-visible)
   backends.ts     External backend connection registry
   site.ts         Site-wide configuration (brand, locale, navigation, password policy)
+  site-views.tsx  Chrome slots — Header, Footer, Brand, HomeHero, AuthShell
+  schema.ts       Tables this deployment adds for itself
+  theme.css       Colour tokens, loaded after globals.css
 ```
+
+The last three are entry points like the rest: the platform reads them without knowing what is in them. `site-views.tsx` returns components, `schema.ts` returns drizzle tables, `theme.css` is a stylesheet — and in every case the platform provides a default and asks no questions about what replaces it.
 
 ## Creating Content
 
@@ -159,10 +164,27 @@ A group named by a permit becomes privileged, which means `content/enrollment/` 
 
 ## Site Configuration
 
-`content/site.ts` defines deployment-wide settings: brand name, language, timezone, navigation, password policy. The platform reads these—it never hardcodes them.
+`content/site.ts` defines deployment-wide settings: brand name, language, timezone, navigation, tagline, footer, password policy. The platform reads these—it never hardcodes them.
 
 Navigation entries gate on the same action their destination enforces:
 
 ```typescript
 { href: "/admin", label: "管理", visibleWhen: "admin.enter" }
 ```
+
+## Changing How a Page Looks
+
+Three depths, and the shallowest that works is the right one.
+
+Wording and links that fit the existing layout are `site.ts`; colours are `theme.css`. Neither needs code.
+
+A region whose *structure* differs is a slot in `content/site-views.tsx`:
+
+```tsx
+import type { SiteViews } from "@/lib/site-views";
+export const views: SiteViews = { Footer: MyFooter };
+```
+
+Every slot is optional and backed by a platform default, so `{}` is complete. What the slot does not cover keeps following upstream — which is why this beats replacing a page.
+
+A page whose whole body needs rewriting is a file override: put a same-named file under `views.local/` and it replaces the upstream one. That file then stops tracking upstream changes, so reach for it last. See the README for the slot map.

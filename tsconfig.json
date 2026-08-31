@@ -20,6 +20,8 @@
     ],
     "paths": {
       "@/content/*": ["./content.local/*", "./content/*"],
+      "@/components/*": ["./components.local/*", "./components/*"],
+      "@/views/*": ["./views.local/*", "./views/*"],
       "@/*": ["./*"]
     }
   },

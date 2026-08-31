@@ -83,10 +83,35 @@ content.local/
   problems/      你自己的题目
 ```
 
-只放 `site.ts` 就只有站点配置被覆盖，其余照旧来自 `content/`；放全套就完全接管。
+这样 `content/`、`tsconfig.json`、`vitest.config.mts` 一个字都不用改，上游合并不再冲突。
 `_shared/` 里的模板可以继续复用上游的，不必复制。
 
-这样 `content/`、`tsconfig.json`、`vitest.config.mts` 一个字都不用改，上游合并不再冲突。
+### 接管的粒度是入口，不是文件
+
+九个入口分两类，行为不同。
+
+`site.ts` 与 `backends.ts` 各是一个对象：插槽里放一份就整个替换。
+
+其余七个是 glob 注册表。**一旦 `content.local/_modules/<类别>.ts` 存在，那个入口就完全
+归你，上游同类的内容会整个消失**——glob 只看得见自己目录下的东西。想换掉整套分流
+规则，这正合适；想改一道题却接管了 `problems`，上游十几道题会一起蒸发。
+
+要在保留上游的前提下增改，把两边的 glob 结果叠起来：
+
+```typescript
+// content.local/_modules/problems.ts
+import { problemConfigModules as upstream } from "../../content/_globs";
+import { problemConfigModules as local } from "../_globs";
+
+export const problemConfigModules = { ...upstream, ...local };
+```
+
+两边的键格式相同（`./problems/<slug>/problem.ts`），所以同名即覆盖：`content.local/`
+下放一份 `problem.ts` 就改写那一道，其余照旧，连 judge 与 views 都仍从上游取。带
+`views.tsx` 的题目还要照同样的写法接管 `problem-views` 入口，否则上游的 glob 扫不到
+它，这道题就没有渲染。
+
+反过来，接管整个入口是**删掉**上游内容的唯一办法——覆盖只能改写同名的，删不掉。
 
 填了插槽之后，`deployment` 测试仍然跑 `content/**`——回落过来的赛制、判题与邮件
 模版还在生效，它们旁边的测试也还算数。只有 `content/deployment.test.ts` 例外：它按

@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ActionId } from "@/lib/authz/actions";
 import { allows, authorize } from "@/lib/authz/engine";
-import { listGroups } from "@/lib/authz/groups";
 import { actionsWithoutPermit, privilegedGroups } from "@/lib/authz/introspect";
 import type { AccountRef } from "@/lib/authz/resources";
-import { groupsFor } from "@/lib/enrollment/registry";
+import { grantableGroups, groupsFor } from "@/lib/enrollment/registry";
 import { allContests, contestBySlug } from "@/lib/contests/registry";
 import { mailSink } from "@/lib/mail/transport";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
@@ -61,12 +60,13 @@ describe("这套 content 的策略集", () => {
     expect(privilegedGroups().size).toBeGreaterThan(0);
   });
 
-  it("被点名的组都在 content/enrollment/ 里声明过", () => {
-    const declared = new Set(listGroups().map((group) => group.id));
+  it("被点名的组都有 uid 规则授得出去", () => {
+    const grantable = grantableGroups();
     for (const id of privilegedGroups()) {
       expect(
-        declared.has(id),
-        `content/policies/ 把权限给了 "${id}"，但 content/enrollment/ 没有声明它`,
+        grantable.has(id),
+        `content/policies/ 把权限给了 "${id}"，但 content/enrollment/ 没有任何 uid 规则授予它。` +
+          `没有账号拿得到这个组，这条策略永远不会生效——组名拼错了，或者授予它的那条规则被删了。`,
       ).toBe(true);
     }
   });

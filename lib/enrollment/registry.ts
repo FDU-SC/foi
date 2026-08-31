@@ -198,6 +198,30 @@ export function tallyCohorts(
   return { counts, untagged };
 }
 
+/**
+ * The groups a uid rule hands out.
+ *
+ * Exhaustive where it matters: a privileged group may only be granted by uid
+ * (`enrollmentPrivilegeViolations` refuses boot otherwise), and a uid rule lists
+ * its groups literally. So a privileged group missing from this set is one no
+ * account can ever hold — the policy naming it is dead, whether that is a typo
+ * or a grant someone removed the other half of.
+ *
+ * `knownGroups` cannot answer this: it folds in `groups` declarations, which are
+ * optional display metadata, and it gives up on pattern rules that compute their
+ * groups.
+ */
+export function grantableGroups(): Set<string> {
+  const ids = new Set<string>();
+
+  for (const rule of registry.rules) {
+    if (!isUidsRule(rule)) continue;
+    for (const id of rule.groups) ids.add(id);
+  }
+
+  return ids;
+}
+
 export function knownGroups(): { groups: string[]; exhaustive: boolean } {
   const groups = new Set<string>(declaredGroupIds());
   let exhaustive = true;

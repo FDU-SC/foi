@@ -70,11 +70,12 @@ async function notify(
 
 /**
  * A Server Action returns without re-rendering unless something asks for it,
- * and the face on this page is also the one in the header. Both hang off the
- * settings route's layout, so revalidating it covers the pair.
+ * and a face changes in more places than the page that changed it: the header
+ * on every route, the settings card, the viewer's own profile, the standings.
+ * Every page here is dynamic, so the whole tree costs nothing to drop.
  */
 function repaintAvatar(): void {
-  revalidatePath("/settings", "layout");
+  revalidatePath("/", "layout");
 }
 
 const nicknameForm = z.object({ nickname: nicknameSchema });

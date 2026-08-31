@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getResolvedUser } from "@/auth";
+import { AvatarEditor } from "@/components/account/avatar-editor";
 import { FormMessage } from "@/components/form";
-import { AvatarForm } from "@/components/settings/avatar-form";
 import { EmailChangeForm } from "@/components/settings/email-change-form";
 import { NicknameForm } from "@/components/settings/nickname-form";
 import { PasswordForm } from "@/components/settings/password-form";
@@ -80,7 +80,7 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
         <CardHeader title="头像" />
         <CardBody>
           {avatarGate.allow ? (
-            <AvatarForm current={user} />
+            <AvatarEditor current={user} withControls />
           ) : (
             <Unavailable>{avatarGate.reason.message}</Unavailable>
           )}

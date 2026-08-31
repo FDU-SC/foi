@@ -1,0 +1,103 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { getSessionUser } from "@/auth";
+import { allows } from "@/lib/authz/engine";
+import { viewerFor } from "@/lib/authz/viewer";
+import { ProblemRef } from "@/components/problem/problem-ref";
+import { QueueBadge } from "@/components/problem/queue-position";
+import { VerdictBadge } from "@/components/problem/verdict-badge";
+import { PayloadBody, VerdictBody } from "@/components/opaque";
+import { RejudgeForm } from "@/components/submissions/rejudge-form";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { failureReason, isSettled, type SubmissionState } from "@/lib/backend/types";
+import { problemBySlug } from "@/lib/problems/registry";
+import { submissionFor } from "@/lib/submissions/access";
+import { locateOne } from "@/lib/submissions/queue-position";
+import { getQueueInfo } from "@/lib/submissions/queries";
+import { dateFormatter } from "@/lib/format";
+import { isRejudgeable } from "@/lib/submissions/rejudge";
+
+const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "medium" });
+
+export async function SubmissionDetailView({
+  params,
+}: PageProps<"/submissions/[id]">) {
+  const user = await getSessionUser();
+  const { id } = await params;
+  if (!user) redirect(`/login?next=/submissions/${id}`);
+
+  const viewer = viewerFor(user);
+
+  const row = await submissionFor(id, viewer);
+  if (!row) notFound();
+
+  const problem = problemBySlug(row.problemSlug);
+  const queueInfo = row.state === "pending" ? await getQueueInfo(row.id) : null;
+  const viewState: SubmissionState =
+    row.state !== "pending"
+      ? row.state
+      : queueInfo?.state === "claimed"
+        ? "judging"
+        : "queued";
+  const reason = failureReason({ state: viewState, error: row.error });
+  const settled = isSettled(viewState);
+  const queue = settled ? null : await locateOne(row.id);
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-5">
+      <nav className="text-fg-subtle flex items-center gap-1.5 text-xs">
+        <Link href="/submissions" className="hover:text-fg transition-colors">
+          提交记录
+        </Link>
+        <span>/</span>
+        <span className="font-mono">{row.id}</span>
+      </nav>
+
+      <header className="border-border flex flex-wrap items-center gap-3 border-b pb-4">
+        <h1 className="text-fg text-xl font-bold">
+          <ProblemRef
+            slug={row.problemSlug}
+            fallbackTitle={problem?.title ?? row.problemSlug}
+          />
+        </h1>
+        <VerdictBadge submission={{ problemSlug: row.problemSlug, state: viewState, result: row.result ?? null }} />
+        <QueueBadge queue={queue} showJudge />
+        <span className="text-fg-subtle ml-auto font-mono text-xs">
+          {formatter.format(row.createdAt)}
+        </span>
+      </header>
+
+      {reason ? (
+        <p className="text-warn bg-warn-subtle rounded-md px-3 py-2 text-sm">
+          {reason}
+        </p>
+      ) : null}
+
+      {allows("submission.rejudge", row, viewer) && isRejudgeable(row) ? (
+        <RejudgeForm id={row.id} />
+      ) : null}
+
+      {queueInfo?.runnerStatus && !settled ? (
+        <p className="text-fg-muted bg-surface-2 rounded-md px-3 py-2 font-mono text-xs">
+          {queueInfo.runnerStatus}
+        </p>
+      ) : null}
+
+      {row.detail ? (
+        <Card>
+          <CardHeader title="评测详情" />
+          <CardBody>
+            <VerdictBody problemSlug={row.problemSlug} detail={row.detail} />
+          </CardBody>
+        </Card>
+      ) : null}
+
+      <Card>
+        <CardHeader title="提交内容" />
+        <CardBody>
+          <PayloadBody problemSlug={row.problemSlug} payload={row.payload} />
+        </CardBody>
+      </Card>
+    </div>
+  );
+}

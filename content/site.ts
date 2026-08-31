@@ -7,6 +7,9 @@ export const site: SiteConfig = {
   lang: "zh-CN",
   timezone: "Asia/Shanghai",
 
+  tagline:
+    "一个可插拔的竞赛平台。题面、评测机与赛制计分都以代码形式存放在仓库中，可以像写组件一样定制每一道题的页面。",
+
   navigation: [
     { href: "/problems", label: "题库" },
     { href: "/contests", label: "比赛" },
@@ -16,6 +19,10 @@ export const site: SiteConfig = {
   ],
 
   passwordMinLength: 8,
+
+  footer: {
+    links: [{ href: "https://github.com/FDU-SC/foi", label: "源码" }],
+  },
 
   homeEntries: [
     {

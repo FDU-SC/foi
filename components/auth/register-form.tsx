@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { FormMessage, PendingSubmit } from "@/components/form";
 import { Field, Input } from "@/components/ui/field";
-import { registerAction, type RegisterState } from "./actions";
+import { registerAction, type RegisterState } from "@/app/register/actions";
 
 function NeedsLogin() {
   return (

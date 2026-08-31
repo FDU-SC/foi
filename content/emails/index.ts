@@ -5,7 +5,7 @@ import type {
   SecurityNoticeMail,
   VerificationLinkMail,
 } from "@/lib/mail/types";
-import { site } from "../site";
+import { site } from "@/lib/site";
 import { actionMail, formatMoment, noticeMail } from "./layout";
 
 export type { MailBody };

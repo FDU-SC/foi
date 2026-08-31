@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CONTENT_ROOTS } from "@/test/content-roots.mjs";
+import { CONTENT_ROOTS, SLOT_ROOTS } from "@/test/content-roots.mjs";
 import { ACTION_IDS, isQueryable } from "./actions";
 import { actionsWithoutPermit, privilegedGroups } from "./introspect";
 import { allPolicies } from "./registry";
@@ -15,7 +15,7 @@ const KERNEL = join("lib", "authz");
  * so a gate that grows back by hand fails here rather than in production.
  */
 
-/** Absent is fine: the fork's content slot does not exist upstream. */
+/** Absent is fine: none of the fork's slots exist upstream. */
 function walk(directory: string): string[] {
   if (!existsSync(directory)) return [];
 
@@ -37,7 +37,7 @@ function withoutComments(source: string): string {
 /** Policies are where authorization logic belongs; they are not a bypass. */
 const POLICIES = CONTENT_ROOTS.map((root) => join(root, "policies"));
 
-const SCANNED = ["app", "components", "lib", ...CONTENT_ROOTS];
+const SCANNED = ["app", "lib", ...SLOT_ROOTS];
 
 function sources(...directories: string[]): string[] {
   return directories

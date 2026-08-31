@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { ActionResult, PendingSubmit } from "@/components/form";
-import { rejudgeSubmissionAction, type ActionState } from "./actions";
+import { rejudgeSubmissionAction, type ActionState } from "@/app/(site)/submissions/[id]/actions";
 
 export function RejudgeForm({ id }: { id: string }) {
   const [state, formAction] = useActionState<ActionState, FormData>(

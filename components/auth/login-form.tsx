@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { FormMessage, PendingSubmit } from "@/components/form";
 import { Field, Input } from "@/components/ui/field";
-import { login, type LoginState } from "./actions";
+import { login, type LoginState } from "@/app/login/actions";
 
 export function LoginForm({ next }: { next: string }) {
   const [state, formAction] = useActionState<LoginState, FormData>(login, {});

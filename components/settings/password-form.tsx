@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { FormMessage, PendingSubmit } from "@/components/form";
 import { Field, Input } from "@/components/ui/field";
-import { changePasswordAction, type SettingsState } from "./actions";
+import { changePasswordAction, type SettingsState } from "@/app/(site)/settings/actions";
 
 export function PasswordForm({ minLength }: { minLength: number }) {
   const [state, formAction] = useActionState<SettingsState, FormData>(

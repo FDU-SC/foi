@@ -22,14 +22,15 @@ FOI 反过来：这些语义一概不进平台。
 ## 目录
 
 ```
-app/         Next.js 路由。消费 lib/ 与 components/，从不 import content/
-components/  平台 UI 原语与插槽组件，同样不 import content/
+app/         Next.js 的契约面：路由薄壳、Server Action、API handler
+views/       页面主体。路由渲染的一切都在这里
+components/  平台 UI 原语与插槽组件
 lib/         平台核心：类型契约、注册表、机制
 content/     赛事内容。题目、比赛、计分规则、报名、邮件、站点配置
 ```
 
-平台通过九个入口发现内容：`content/_modules/` 下的七个注册表，加上 `content/site.ts`
-与 `content/backends.ts`。这是两层之间唯一的接口。
+平台通过十二个入口发现内容：`content/_modules/` 下的七个注册表，加上 `content/` 里的
+`site.ts`、`site-views.tsx`、`backends.ts`、`schema.ts` 与 `theme.css`。这是两层之间唯一的接口。
 
 ## 本地运行
 
@@ -68,33 +69,99 @@ glob 会自动发现它，不需要注册。
 
 ## 派生一份自己的部署
 
-`content/` 里的题目、比赛与策略是**示例**。直接改它们，每次同步上游都会在同一批文件上
-撞车——上游也在演进这些示例。
+`content/` 里的题目与比赛、`components/` 里的组件、`views/` 里的页面，全都是**示例**。
+直接改它们，每次同步上游都会在同一批文件上撞车——上游也在演进这些文件。
 
-把自己的内容放进 `content.local/`，这个目录上游没有。`@/content/*` 会优先解析到它，
-逐模块回落：
+三者各有一个 `.local` 孪生目录，上游没有。`tsconfig.json` 把别名优先解析到那一半，
+**逐文件回落**：
+
+```json
+"@/content/*":    ["./content.local/*",    "./content/*"],
+"@/components/*": ["./components.local/*", "./components/*"],
+"@/views/*":      ["./views.local/*",      "./views/*"],
+```
+
+放一份同名文件就换掉那一个，其余照旧从上游取。`tsconfig.json`、`vitest.config.mts`
+一个字都不用改，上游合并不再冲突。
+
+### 按定制深度挑手段
+
+**优先用最浅的那个**——越往下走，放弃的上游演进越多。
+
+**一、改数据，不写代码。** 品牌、导航、首页导语、页脚文案与链接都在 `content/site.ts`；
+配色在 `content/theme.css`，它在 `globals.css` 之后加载，重新声明哪个变量就覆盖哪个：
+
+```css
+/* content.local/theme.css */
+:root { --primary: oklch(55% 0.2 25); }
+.dark { --primary: oklch(72% 0.17 25); }
+```
+
+完整的变量表在 `app/globals.css` 开头。
+
+**二、换掉页面的一块。** `content/site-views.tsx` 导出 `SiteViews`，可以替换顶栏、页脚、
+品牌标识、首页导语区、认证页壳：
+
+```tsx
+// content.local/site-views.tsx
+import type { SiteViews } from "@/lib/site-views";
+import { Footer } from "./ui/footer";
+
+export const views: SiteViews = { Footer };
+```
+
+每个插槽都是可选的，都有平台默认实现，所以 `{}` 就是一份完整实现。上游后续对页面
+其余部分的改进照常生效——这是它比整页覆盖划算的地方。
+
+**三、整文件替换。** `components/` 与 `views/` 下的任何文件，都能被 `.local` 孪生目录里
+的同名文件整个换掉。想重做整个题库页，就写一份 `views.local/problems/list.tsx`。
+代价明码标价：**被覆盖的那个文件从此不再跟随上游演进**。
+
+包一层上游原版时，必须用**相对路径**指过去，否则别名会解析回你自己这个文件：
+
+```tsx
+// components.local/site/header.tsx
+import { DefaultHeader } from "../../components/site/header";
+```
+
+`app/` 下的路由文件不在插槽里——Next 是扫文件系统发现路由的，别名管不着。所以那些
+文件只留段配置和一层转发，页面主体都在 `views/`，`test/slots.test.ts` 盯着这条线。
+
+### 新增页面与新增表
+
+新路由不需要插槽：上游在 `app/` 下没有同名文件，加什么都不冲突。放进 `app/(local)/`
+这个路由组——路由组不影响 URL，上游承诺永不往里放文件，两边就不会争同一个路径。
+
+要加自己的表，在 `content.local/schema.ts` 里声明，`lib/db/index.ts` 会把它们并进
+drizzle 实例，类型和 `db.query` 都能用。迁移走单独的目录和单独的 journal：
+
+```bash
+pnpm exec drizzle-kit generate --config drizzle.local.config.ts
+```
+
+生成到 `drizzle.local/`，`instrumentation.ts` 在 `drizzle/` 之后自动应用它。两边的版本号
+永不相撞。表名要带 `drizzle.local.config.ts` 里 `tablesFilter` 约定的前缀，这样即使你
+import 上游的表来挂外键，drizzle-kit 也不会试图重复创建它。
+
+### content 接管的粒度是入口，不是文件
+
+十二个入口分两类，行为不同。
+
+`site.ts`、`site-views.tsx`、`backends.ts`、`schema.ts`、`theme.css` 各是一个文件：插槽里
+放一份就整个替换。
+
+其余七个是 glob 注册表，接管它们要多两个文件：
 
 ```
 content.local/
   _globs.ts      必需——_modules/ 用相对路径 import 它
   _modules/      必需
-  site.ts        覆盖站点配置
-  policies/      覆盖授权策略
   problems/      你自己的题目
 ```
 
-这样 `content/`、`tsconfig.json`、`vitest.config.mts` 一个字都不用改，上游合并不再冲突。
-`_shared/` 里的模板可以继续复用上游的，不必复制。
-
-### 接管的粒度是入口，不是文件
-
-九个入口分两类，行为不同。
-
-`site.ts` 与 `backends.ts` 各是一个对象：插槽里放一份就整个替换。
-
-其余七个是 glob 注册表。**一旦 `content.local/_modules/<类别>.ts` 存在，那个入口就完全
-归你，上游同类的内容会整个消失**——glob 只看得见自己目录下的东西。想换掉整套分流
-规则，这正合适；想改一道题却接管了 `problems`，上游十几道题会一起蒸发。
+**一旦 `content.local/_modules/<类别>.ts` 存在，那个入口就完全归你，上游同类的内容会
+整个消失**——glob 只看得见自己目录下的东西。想换掉整套分流规则，这正合适；想改一道
+题却接管了 `problems`，上游十几道题会一起蒸发。
 
 要在保留上游的前提下增改，把两边的 glob 结果叠起来：
 
@@ -117,6 +184,9 @@ export const problemConfigModules = { ...upstream, ...local };
 模版还在生效，它们旁边的测试也还算数。只有 `content/deployment.test.ts` 例外：它按
 名字钉死上游示例（哪场比赛、多少罚时、哪个演示账号），插槽一填这些话就没了指向，
 于是它让位，由你在 `content.local/` 里写自己那份，可以照它的样子写。
+
+你写在 `content.local/`、`components.local/`、`views.local/` 里的测试也归 `deployment`
+跑——它们描述的是这套部署，用的是真实 content，而不是内核夹具。
 
 自己新增的题目也放 `content.local/problems/` 下——放进 `content/` 虽然也能跑，但那
 是上游的目录，下次同步就多一处要解的地方。

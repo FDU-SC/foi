@@ -157,10 +157,12 @@ describe("夹具自身自洽", () => {
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
-/** The nine specifiers `vitest.config.mts` redirects here. */
+/** The specifiers `vitest.config.mts` redirects here. */
 const REDIRECTED = new Set([
   "@/content/site",
+  "@/content/site-views",
   "@/content/backends",
+  "@/content/schema",
   "@/content/_modules/contests",
   "@/content/_modules/emails",
   "@/content/_modules/enrollment",
@@ -172,12 +174,12 @@ const REDIRECTED = new Set([
 
 const FIXTURE_DIR = join("test", "fixtures");
 
-/** Kernel suites: the nine specifiers land on the fixture, anything else is a leak. */
-const AGAINST_FIXTURE = ["app", "components", "lib", "test"];
+/** Kernel suites: those specifiers land on the fixture, anything else is a leak. */
+const AGAINST_FIXTURE = ["app", "components", "lib", "test", "views"];
 
 /**
  * The `tools` project redirects nothing, so for tests under `scripts/` even the
- * nine reach the real deployment. Tooling carries its own samples instead.
+ * entry points reach the real deployment. Tooling carries its own samples.
  */
 const AGAINST_NOTHING = ["scripts"];
 

@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { FormMessage } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
-import { sendVerificationLinkAction } from "./actions";
+import { sendVerificationLinkAction } from "@/app/register/actions";
 
 export function SendLinkForm({ invalidToken }: { invalidToken?: boolean }) {
   const [email, setEmail] = useState("");

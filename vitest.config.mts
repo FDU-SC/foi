@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defaultExclude, defineConfig } from "vitest/config";
-import { CONTENT_ROOTS, CONTENT_SLOT } from "./test/content-roots.mjs";
+import { CONTENT_SLOT, DEPLOYMENT_ROOTS } from "./test/content-roots.mjs";
 
 if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 
@@ -10,13 +10,17 @@ const DB_ONLY = ["**/*.db.test.{ts,tsx}"];
 
 const tests = (root: string) => `${root}/**/*.test.{ts,tsx}`;
 
-/** Neither root's tests belong to the kernel projects. */
-const ANY_CONTENT = CONTENT_ROOTS.map(tests);
+/**
+ * Tests that describe one deployment: the sample content, plus whatever a fork
+ * put in the slots. None of them belong to the kernel projects, which answer a
+ * different question against a fixture.
+ */
+const ANY_DEPLOYMENT = DEPLOYMENT_ROOTS.map(tests);
 
 /**
- * The deployment suite covers both roots. A fork that fills the slot still
- * inherits most of `content/` by fallback — its rulesets, judges and mail
- * templates — and the tests next to them still describe what runs.
+ * The deployment suite covers the sample too. A fork that fills the content
+ * slot still inherits most of `content/` by fallback — its rulesets, judges and
+ * mail templates — and the tests next to them still describe what runs.
  *
  * One file is the exception. `content/deployment.test.ts` pins the upstream
  * sample by name (which contest, which penalty, which demo account); once the
@@ -29,7 +33,7 @@ const SLOT_FILLED = existsSync(CONTENT_SLOT);
 
 const SUPERSEDED = SLOT_FILLED ? ["content/deployment.test.ts"] : [];
 
-const DEPLOYMENT = ANY_CONTENT;
+const DEPLOYMENT = ANY_DEPLOYMENT;
 
 /** Operator and demo-site tooling: neither platform nor content. */
 const TOOLS = ["scripts/**/*.test.{ts,tsx}"];
@@ -46,7 +50,7 @@ function fixture(path: string): string {
 }
 
 /**
- * The nine entry points the platform discovers content through, pointed at a
+ * The entry points the platform discovers content through, pointed at a
  * fixture the upstream owns.
  *
  * Kernel tests assert what the platform does, so they must not also assert that
@@ -55,7 +59,9 @@ function fixture(path: string): string {
  */
 const FIXTURE_CONTENT = [
   "site",
+  "site-views",
   "backends",
+  "schema",
   "_modules/contests",
   "_modules/emails",
   "_modules/enrollment",
@@ -89,7 +95,7 @@ export default defineConfig({
         test: {
           name: "unit",
           include: EVERYWHERE,
-          exclude: [...NOT_SOURCE, ...DB_ONLY, ...ANY_CONTENT, ...TOOLS],
+          exclude: [...NOT_SOURCE, ...DB_ONLY, ...ANY_DEPLOYMENT, ...TOOLS],
         },
       },
       {
@@ -98,7 +104,7 @@ export default defineConfig({
         test: {
           name: "db",
           include: DB_ONLY,
-          exclude: [...NOT_SOURCE, ...ANY_CONTENT, ...TOOLS],
+          exclude: [...NOT_SOURCE, ...ANY_DEPLOYMENT, ...TOOLS],
 
           fileParallelism: false,
         },

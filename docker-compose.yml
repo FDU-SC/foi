@@ -81,7 +81,7 @@ services:
   # 隧道走的是容器网络里的 app:3000。
   tunnel:
     profiles: [tunnel]
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:latest@sha256:51c9cefcb4569df44e1ad403ab1d3d8065aa8e84339bcfc6aee75502e1140339
     restart: unless-stopped
     command: tunnel --no-autoupdate run
     environment:

@@ -1,13 +1,17 @@
 "use server";
 
 import { AuthError } from "next-auth";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSelf, signIn } from "@/auth";
+import { avatarRejection } from "@/lib/accounts/avatar";
 import { setPassword, verifyPassword } from "@/lib/accounts/password";
 import {
+  clearAvatar,
   getAccount,
   getAccountByUsername,
+  setAvatar,
   updateNickname,
   updateUsername,
 } from "@/lib/accounts/queries";
@@ -64,6 +68,15 @@ async function notify(
   }
 }
 
+/**
+ * A Server Action returns without re-rendering unless something asks for it,
+ * and the face on this page is also the one in the header. Both hang off the
+ * settings route's layout, so revalidating it covers the pair.
+ */
+function repaintAvatar(): void {
+  revalidatePath("/settings", "layout");
+}
+
 const nicknameForm = z.object({ nickname: nicknameSchema });
 
 export async function updateNicknameAction(
@@ -90,6 +103,55 @@ export async function updateNicknameAction(
   if (!updated) return { error: "更新失败，请重试。" };
 
   return { message: `昵称已更新为 ${nickname}。` };
+}
+
+export async function updateAvatarAction(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const viewer = await requireSelf("account.changeAvatar");
+
+  const file = formData.get("avatar");
+  if (!(file instanceof File)) return { error: "请选择一张图片。" };
+
+  if (!within("settings:avatar", viewer.uid, ACTION_LIMITS.updateAvatarAction)) {
+    return { error: TOO_MANY };
+  }
+
+  // The browser re-encodes through a canvas before uploading, but nothing
+  // stops a client from posting something else, and these are the exact bytes
+  // that get served back from this origin.
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  const rejected = avatarRejection(bytes);
+  if (rejected) return { error: rejected };
+
+  if (!(await setAvatar(viewer.uid, bytes))) {
+    return { error: "更新失败，请重试。" };
+  }
+
+  repaintAvatar();
+  return { message: "头像已更新。" };
+}
+
+export async function removeAvatarAction(
+  _prev: SettingsState,
+  _formData: FormData,
+): Promise<SettingsState> {
+  const viewer = await requireSelf("account.changeAvatar");
+
+  if (!viewer.avatarUpdatedAt) return { error: "当前没有设置头像。" };
+
+  if (!within("settings:avatar", viewer.uid, ACTION_LIMITS.removeAvatarAction)) {
+    return { error: TOO_MANY };
+  }
+
+  if (!(await clearAvatar(viewer.uid))) {
+    return { error: "移除失败，请重试。" };
+  }
+
+  repaintAvatar();
+  return { message: "头像已移除。" };
 }
 
 const usernameForm = z.object({

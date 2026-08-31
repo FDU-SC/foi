@@ -108,6 +108,7 @@ describe("演示账号", () => {
 
   const FROZEN = [
     "account.changeNickname",
+    "account.changeAvatar",
     "account.changeUsername",
     "account.changeEmail",
     "account.changePassword",

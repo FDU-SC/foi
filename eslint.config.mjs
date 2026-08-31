@@ -32,6 +32,19 @@ const eslintConfig = defineConfig([
     rules: { "@next/next/no-head-element": "off" },
   },
 
+  {
+    // Avatars are same-origin bytes already encoded as a small square WebP, or
+    // a local object URL for the file just picked. The optimizer would add a
+    // hop and re-encode what the browser just produced.
+    files: [
+      "components/ui/avatar.tsx",
+      "components.local/ui/avatar.tsx",
+      "components/settings/avatar-form.tsx",
+      "components.local/settings/avatar-form.tsx",
+    ],
+    rules: { "@next/next/no-img-element": "off" },
+  },
+
   globalIgnores([
 
     ".next/**",

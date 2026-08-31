@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getResolvedUser } from "@/auth";
 import { FormMessage } from "@/components/form";
+import { AvatarForm } from "@/components/settings/avatar-form";
 import { EmailChangeForm } from "@/components/settings/email-change-form";
 import { NicknameForm } from "@/components/settings/nickname-form";
 import { PasswordForm } from "@/components/settings/password-form";
@@ -50,6 +51,7 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
   // error boundary instead of the reason the policy already carries.
   const viewer = viewerFor(user);
   const nicknameGate = authorize("account.changeNickname", user, viewer);
+  const avatarGate = authorize("account.changeAvatar", user, viewer);
   const usernameGate = authorize("account.changeUsername", user, viewer);
   const emailGate = authorize("account.changeEmail", user, viewer);
   const passwordGate = authorize("account.changePassword", user, viewer);
@@ -70,6 +72,17 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
             <NicknameForm current={user.nickname} />
           ) : (
             <Unavailable>{nicknameGate.reason.message}</Unavailable>
+          )}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title="头像" />
+        <CardBody>
+          {avatarGate.allow ? (
+            <AvatarForm current={user} />
+          ) : (
+            <Unavailable>{avatarGate.reason.message}</Unavailable>
           )}
         </CardBody>
       </Card>

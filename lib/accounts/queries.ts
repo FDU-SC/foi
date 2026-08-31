@@ -4,12 +4,14 @@ import type { PgDatabase } from "drizzle-orm/pg-core";
 import { ulid } from "ulid";
 import { db } from "@/lib/db";
 import {
+  accountAvatars,
   accountColumns,
   accounts,
   accountSuspensions,
 } from "@/lib/db/schema";
 import type * as schema from "@/lib/db/schema";
 import type {
+  AccountAvatarRow,
   AccountRow,
   AccountStatus,
   AccountSuspensionRow,
@@ -111,6 +113,74 @@ export async function updateNickname(
 
   if (row) invalidateAccounts();
   return row;
+}
+
+export async function getAvatar(
+  uid: number,
+): Promise<AccountAvatarRow | undefined> {
+  const [row] = await db
+    .select()
+    .from(accountAvatars)
+    .where(eq(accountAvatars.uid, uid))
+    .limit(1);
+  return row;
+}
+
+/**
+ * The bytes and the marker on the account move together: a viewer told an
+ * avatar exists at a given moment must find those exact bytes behind the URL
+ * that moment names.
+ *
+ * Both columns take `now()` rather than a timestamp carried between them,
+ * because within one transaction `now()` is a single instant, while a value
+ * routed through a JS `Date` loses everything below the millisecond.
+ */
+export async function setAvatar(
+  uid: number,
+  image: Uint8Array,
+): Promise<Date | undefined> {
+  const bytes = Buffer.from(image);
+
+  const updatedAt = await db.transaction(async (tx) => {
+    const [account] = await tx
+      .update(accounts)
+      .set({ avatarUpdatedAt: sql`now()`, updatedAt: sql`now()` })
+      .where(eq(accounts.uid, uid))
+      .returning({ avatarUpdatedAt: accounts.avatarUpdatedAt });
+
+    if (!account?.avatarUpdatedAt) return undefined;
+
+    await tx
+      .insert(accountAvatars)
+      .values({ uid, image: bytes, updatedAt: sql`now()` })
+      .onConflictDoUpdate({
+        target: accountAvatars.uid,
+        set: { image: bytes, updatedAt: sql`now()` },
+      });
+
+    return account.avatarUpdatedAt;
+  });
+
+  if (updatedAt) invalidateAccounts();
+  return updatedAt;
+}
+
+export async function clearAvatar(uid: number): Promise<boolean> {
+  const cleared = await db.transaction(async (tx) => {
+    const [account] = await tx
+      .update(accounts)
+      .set({ avatarUpdatedAt: null, updatedAt: sql`now()` })
+      .where(eq(accounts.uid, uid))
+      .returning({ uid: accounts.uid });
+
+    if (!account) return false;
+
+    await tx.delete(accountAvatars).where(eq(accountAvatars.uid, uid));
+    return true;
+  });
+
+  if (cleared) invalidateAccounts();
+  return cleared;
 }
 
 const UNIQUE_VIOLATION = "23505";

@@ -35,5 +35,6 @@ export interface SessionUser {
   uid: number;
   username: string;
   nickname: string;
+  avatarUpdatedAt: Date | null;
   groups: string[];
 }

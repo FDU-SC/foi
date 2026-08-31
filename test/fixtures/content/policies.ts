@@ -43,9 +43,10 @@ export const policies = [
   policy({
     id: "fixture:self-service",
     effect: "permit",
-    describe: "本人可以改自己的昵称、用户名、邮箱与密码",
+    describe: "本人可以改自己的昵称、头像、用户名、邮箱与密码",
     action: [
       "account.changeNickname",
+      "account.changeAvatar",
       "account.changeUsername",
       "account.changeEmail",
       "account.changePassword",
@@ -66,5 +67,12 @@ export const policies = [
     effect: "permit",
     describe: "任何人都可以注册，也可以凭找回链接重设密码",
     action: ["account.register", "account.resetPassword"],
+  }),
+
+  policy({
+    id: "fixture:public-profiles",
+    effect: "permit",
+    describe: "任何人都可以打开选手主页",
+    action: "account.viewProfile",
   }),
 ];

@@ -22,7 +22,16 @@ export type OriginGuard =
 
   | "framework";
 
-export type RouteRule = RateLimitRule & { guard: OriginGuard };
+export type RouteRule = RateLimitRule & {
+  guard: OriginGuard;
+
+  /**
+   * Replaces `SOURCE_GATE` for this route. The default bound assumes one call
+   * per page; a route a single page fetches many of needs its own number, and
+   * `why` is where that gets argued.
+   */
+  flood?: AlsoBound;
+};
 
 export const ROUTE_LIMITS = {
 
@@ -60,6 +69,19 @@ export const ROUTE_LIMITS = {
     max: 60,
     windowSeconds: 60,
     guard: "read-only",
+  },
+
+  "GET /api/avatars/[uid]": {
+    unlimited: true,
+    why: "公开的静态字节，没有账号可计数；URL 里的版本号让浏览器只取一次，量由 flood 兜住",
+    guard: "read-only",
+    flood: {
+      max: 1200,
+      windowSeconds: 60,
+      why:
+        "SOURCE_GATE 的 300 是按「一页打一次」定的。一页排行榜就是上百张头像，" +
+        "沿用那个数字会让第二次刷新变成 429——挡住的是正常阅读，不是滥用",
+    },
   },
 
   "POST /api/problems/[slug]/action/[action]": {
@@ -137,6 +159,14 @@ export const ACTION_LIMITS = {
     windowSeconds: 3600,
   },
   updateNicknameAction: {
+    max: 20,
+    windowSeconds: 3600,
+  },
+  updateAvatarAction: {
+    max: 20,
+    windowSeconds: 3600,
+  },
+  removeAvatarAction: {
     max: 20,
     windowSeconds: 3600,
   },

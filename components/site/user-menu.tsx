@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { logout } from "@/app/actions/auth";
+import { Avatar } from "@/components/ui/avatar";
 import type { SessionUser } from "@/lib/authz/viewer";
 
 export function UserMenu({
@@ -39,9 +40,7 @@ export function UserMenu({
         aria-expanded={open}
         className="hover:bg-surface-2 flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors"
       >
-        <span className="bg-primary-subtle text-primary flex size-6 items-center justify-center rounded-full text-xs font-semibold">
-          {user.nickname.slice(0, 1).toUpperCase()}
-        </span>
+        <Avatar of={user} />
         <span className="text-fg text-sm font-medium">{user.nickname}</span>
       </button>
 
@@ -53,6 +52,13 @@ export function UserMenu({
               {groupNames.join(" · ") || "选手"}
             </div>
           </div>
+          <Link
+            href={`/u/${user.username}`}
+            onClick={() => setOpen(false)}
+            className="text-fg-muted hover:bg-surface-2 hover:text-fg block px-3 py-2 text-sm transition-colors"
+          >
+            个人主页
+          </Link>
           <Link
             href="/submissions"
             onClick={() => setOpen(false)}

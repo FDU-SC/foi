@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getViewer } from "@/auth";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   contestFor,
@@ -25,6 +26,7 @@ function DefaultBoard({ board }: BoardProps) {
       {board.standings.rows.map((row) => (
         <li key={row.participant.uid} className="flex items-center gap-3 px-3 py-2">
           <span className="text-fg-muted font-mono text-xs tabular-nums w-8 text-right">{row.rank}</span>
+          <Avatar of={row.participant} />
           <span className="text-fg font-medium">{row.participant.nickname}</span>
           <span className="text-fg-muted ml-auto font-mono text-sm tabular-nums">{Math.round(row.total)}</span>
         </li>

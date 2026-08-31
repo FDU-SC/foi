@@ -94,6 +94,11 @@ export const ACTIONS = {
     denial: { code: "forbidden", message: "没有查看账号的权限" },
     queryable: true,
   },
+  "account.viewProfile": {
+    resource: "account",
+    describe: "打开一个账号的公开主页：头像、昵称、用户组",
+    denial: { code: "not-found", message: "页面不存在" },
+  },
   "account.changeEmail": {
     resource: "account",
     describe: "更换一个账号绑定的邮箱",
@@ -113,6 +118,11 @@ export const ACTIONS = {
     resource: "account",
     describe: "更改一个账号的昵称",
     denial: { code: "forbidden", message: "没有更改昵称的权限" },
+  },
+  "account.changeAvatar": {
+    resource: "account",
+    describe: "更换或移除一个账号的头像",
+    denial: { code: "forbidden", message: "没有更改头像的权限" },
   },
   "account.suspend": {
     resource: "account",

@@ -10,14 +10,22 @@ export const policies = [
   policy({
     id: "self-service",
     effect: "permit",
-    describe: "每个人都可以改自己的昵称、用户名、邮箱与密码",
+    describe: "每个人都可以改自己的昵称、头像、用户名、邮箱与密码",
     action: [
       "account.changeNickname",
+      "account.changeAvatar",
       "account.changeUsername",
       "account.changeEmail",
       "account.changePassword",
     ],
     principal: { self: true },
+  }),
+
+  policy({
+    id: "public-profiles",
+    effect: "permit",
+    describe: "任何人都可以打开选手主页；删掉这条，主页就只剩 404",
+    action: "account.viewProfile",
   }),
 
   policy({

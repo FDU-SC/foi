@@ -2,6 +2,7 @@ import { getTableColumns, sql } from "drizzle-orm";
 import {
   bigint,
   check,
+  customType,
   index,
   integer,
   jsonb,
@@ -12,6 +13,10 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+});
 
 export type AccountStatus = "active" | "suspended";
 
@@ -30,6 +35,12 @@ export const accounts = pgTable(
     username: text("username").notNull(),
     usernameChangedAt: timestamp("username_changed_at", { withTimezone: true }),
     nickname: text("nickname").notNull(),
+
+    /**
+     * Null means no uploaded avatar, so the UI draws an identicon and never
+     * asks for the image. Non-null doubles as the cache version in the URL.
+     */
+    avatarUpdatedAt: timestamp("avatar_updated_at", { withTimezone: true }),
 
     email: text("email"),
 
@@ -61,6 +72,22 @@ const { passwordHash: _passwordHash, ...accountColumnsWithoutHash } =
   getTableColumns(accounts);
 
 export const accountColumns = accountColumnsWithoutHash;
+
+/**
+ * Avatar bytes, kept out of `accounts` because that row is read on every
+ * request and scanned whole for the roster snapshot.
+ */
+export const accountAvatars = pgTable("account_avatars", {
+  uid: integer("uid")
+    .primaryKey()
+    .references(() => accounts.uid, { onDelete: "cascade" }),
+
+  image: bytea("image").notNull(),
+
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 export const accountSuspensions = pgTable(
   "account_suspensions",
@@ -256,6 +283,7 @@ export const runners = pgTable(
 );
 
 export type AccountRow = Omit<typeof accounts.$inferSelect, "passwordHash">;
+export type AccountAvatarRow = typeof accountAvatars.$inferSelect;
 export type AccountSuspensionRow = typeof accountSuspensions.$inferSelect;
 export type ProblemRow = typeof problems.$inferSelect;
 export type ContestRow = typeof contests.$inferSelect;

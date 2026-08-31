@@ -123,6 +123,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     uid: user.uid,
     username: user.username,
     nickname: user.nickname,
+    avatarUpdatedAt: user.avatarUpdatedAt,
     groups: user.groups,
   };
 }

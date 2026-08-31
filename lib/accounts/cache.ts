@@ -6,6 +6,7 @@ export interface AccountSummary {
   uid: number;
   username: string;
   nickname: string;
+  avatarUpdatedAt: Date | null;
   email: string | null;
   status: AccountStatus;
 }
@@ -31,6 +32,7 @@ async function load(): Promise<Snapshot> {
       uid: accounts.uid,
       username: accounts.username,
       nickname: accounts.nickname,
+      avatarUpdatedAt: accounts.avatarUpdatedAt,
       email: accounts.email,
       status: accounts.status,
     })

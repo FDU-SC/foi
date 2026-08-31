@@ -1,7 +1,12 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ACTION_LIMITS, ROUTE_LIMITS, type RateLimitRule } from "./policy";
+import {
+  ACTION_LIMITS,
+  ROUTE_LIMITS,
+  type RateLimitRule,
+  type RouteRule,
+} from "./policy";
 
 const ROOT = join(import.meta.dirname, "..", "..");
 
@@ -53,6 +58,8 @@ const ALL_RULES: [string, RateLimitRule][] = [
   ...Object.entries(ROUTE_LIMITS),
   ...Object.entries(ACTION_LIMITS),
 ];
+
+const ROUTE_RULES: [string, RouteRule][] = Object.entries(ROUTE_LIMITS);
 
 function declaredActions(): Handler[] {
   return walk(join(ROOT, "app"))
@@ -141,6 +148,24 @@ describe("限流入口表", () => {
     }
 
     expect(wrong, "第二重限流的声明有问题").toEqual([]);
+  });
+
+  it("改掉来源闸门的路由说清默认值为什么不合适", () => {
+    const wrong: string[] = [];
+
+    for (const [key, rule] of ROUTE_RULES) {
+      if (rule.flood === undefined) continue;
+      const flood = rule.flood;
+
+      if (flood.why.length === 0) {
+        wrong.push(`${key}：放宽了来源闸门却没有写默认值为什么不合适`);
+      }
+      if (flood.max <= 0 || flood.windowSeconds <= 0) {
+        wrong.push(`${key}：来源闸门的数值不是正的`);
+      }
+    }
+
+    expect(wrong, "来源闸门的覆盖声明有问题").toEqual([]);
   });
 
   it("会改状态的方法不能声明成 read-only", () => {

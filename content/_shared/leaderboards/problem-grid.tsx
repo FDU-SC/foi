@@ -1,3 +1,4 @@
+import { Avatar } from "@/components/ui/avatar";
 import type { BoardProps } from "@/lib/standings/types";
 
 function DefaultCell({ cell }: { cell: unknown }) {
@@ -62,9 +63,12 @@ export function ProblemGridBoard({ board, problems }: BoardProps) {
                 {row.rank}
               </td>
               <td className="px-3 py-2">
-                <span className="text-fg font-medium">
-                  {row.participant.nickname}
-                </span>
+                <div className="flex items-center gap-2">
+                  <Avatar of={row.participant} />
+                  <span className="text-fg font-medium">
+                    {row.participant.nickname}
+                  </span>
+                </div>
               </td>
               <td className="px-3 py-2 text-center">
                 <Total row={row} />

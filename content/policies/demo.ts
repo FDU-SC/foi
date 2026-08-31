@@ -17,9 +17,10 @@ export const policies = [
     id: "demo:frozen-credentials",
     effect: "forbid",
     describe:
-      "演示账号的昵称、用户名、邮箱与密码都不可改动，找回密码流程对它们同样关闭",
+      "演示账号的昵称、头像、用户名、邮箱与密码都不可改动，找回密码流程对它们同样关闭",
     action: [
       "account.changeNickname",
+      "account.changeAvatar",
       "account.changeUsername",
       "account.changeEmail",
       "account.changePassword",

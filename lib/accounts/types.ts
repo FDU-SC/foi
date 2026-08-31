@@ -45,6 +45,7 @@ export interface ResolvedUser {
   uid: number;
   username: string;
   nickname: string;
+  avatarUpdatedAt: Date | null;
   email: string | null;
   emailVerified: boolean;
   groups: string[];

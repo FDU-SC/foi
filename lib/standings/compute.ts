@@ -56,6 +56,7 @@ async function loadAndCompute(
       result: submissions.result,
       createdAt: submissions.createdAt,
       nickname: accounts.nickname,
+      avatarUpdatedAt: accounts.avatarUpdatedAt,
     })
     .from(submissions)
     .innerJoin(accounts, eq(accounts.uid, submissions.uid))
@@ -70,6 +71,7 @@ async function loadAndCompute(
       : declared.map((entrant) => ({
           uid: entrant.uid,
           nickname: entrant.nickname,
+          avatarUpdatedAt: entrant.avatarUpdatedAt,
         }));
 
   const phase = contestPhase(contest);
@@ -120,7 +122,7 @@ async function loadAndCompute(
 }
 
 function deriveParticipants(
-  rows: { uid: number; nickname: string }[],
+  rows: { uid: number; nickname: string; avatarUpdatedAt: Date | null }[],
 ): Participant[] {
   const seen = new Map<number, Participant>();
   for (const row of rows) {
@@ -128,6 +130,7 @@ function deriveParticipants(
     seen.set(row.uid, {
       uid: row.uid,
       nickname: row.nickname,
+      avatarUpdatedAt: row.avatarUpdatedAt,
     });
   }
   return [...seen.values()];

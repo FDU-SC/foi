@@ -15,6 +15,9 @@ export interface Participant {
 
   uid: number;
   nickname: string;
+
+  /** Optional so a ruleset's own fixtures need not know about avatars. */
+  avatarUpdatedAt?: Date | null;
 }
 
 export interface SubmissionRecord {

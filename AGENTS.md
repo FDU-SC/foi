@@ -55,6 +55,8 @@ and behaviour must not sit in a layer a deployment can replace.
 
 The platform discovers content through twelve entry points: the seven registries under `content/_modules/`, plus `content/site.ts`, `site-views.tsx`, `backends.ts`, `schema.ts` and `theme.css`. The `app/`, `views/` and `components/` layers NEVER import from `content/` directly — only `lib/` does, and only through those twelve. `test/slots.test.ts` enforces it.
 
+Those imports *are* the list. `scripts/strip-content.ts` derives from them what the content-free CI job keeps, following relative imports onward so the discovery files come along; adding an entry point needs no edit anywhere else.
+
 Tests hold the same line. The `unit` and `db` vitest projects resolve all twelve to `test/fixtures/content/`, so a kernel test asserts what the platform does and never what a deployment happens to contain. Only the `deployment` project sees a deployment's own content — `content/` plus whatever a fork put in the slots. A fork may delete any group, problem or contest without turning the kernel suites red.
 
 ## Slots

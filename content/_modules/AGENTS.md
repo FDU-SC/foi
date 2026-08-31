@@ -51,3 +51,8 @@ If you need a new category of content:
 3. Create `content/_modules/widgets.ts` re-exporting it
 4. Create `lib/widgets/registry.ts` that imports from `@/content/_modules/widgets`
 5. Define the contract type in `lib/widgets/types.ts`
+
+Step 4 is what makes it an entry point, and nothing else has to be told. The
+`@/content/...` imports under `lib/` are the list — `scripts/strip-content.ts`
+reads them to decide what the content-free CI job keeps, so there is no second
+copy anywhere to update or forget.

@@ -147,18 +147,10 @@ jobs:
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
 
-      - name: content/ 仅保留骨架
-        run: |
-          # 平台通过 content/ 的入口发现内容，从不直接 import 别的。把 content/
-          # 删到只剩这些入口，平台仍然要能编译和启动。这个检查挂掉，就说明有内容
-          # 语义漏进了平台层。
-          for entry in content/*; do
-            case "$(basename "$entry")" in
-              _modules|_globs.ts|_view-globs.ts) ;;
-              site.ts|site-views.tsx|backends.ts|schema.ts|theme.css) ;;
-              *) rm -rf "$entry" ;;
-            esac
-          done
+      - name: content 根仅保留入口
+        # 保留哪些由 lib/ 的 import 算出，不在这里列——列了就会在加入口时过期，
+        # 而每个自带一份副本的 fork 会过期两次。见 scripts/strip-content.ts。
+        run: node --import tsx scripts/strip-content.ts
 
       - name: 类型检查
         run: pnpm typecheck

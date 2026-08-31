@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CONTENT_ROOTS } from "@/test/content-roots";
+import { CONTENT_ROOTS } from "@/test/content-roots.mjs";
 import { ACTION_IDS, isQueryable } from "./actions";
 import { actionsWithoutPermit, privilegedGroups } from "./introspect";
 import { allPolicies } from "./registry";

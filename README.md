@@ -88,9 +88,13 @@ content.local/
 
 这样 `content/`、`tsconfig.json`、`vitest.config.mts` 一个字都不用改，上游合并不再冲突。
 
-填了插槽之后，`deployment` 测试只跑 `content.local/**`——上游示例的断言（演示赛用
-acm 赛制之类）不再适用，也就不再运行。把自己的部署断言写在 `content.local/` 里，
-可以照 `content/deployment.test.ts` 的样子写。
+填了插槽之后，`deployment` 测试仍然跑 `content/**`——回落过来的赛制、判题与邮件
+模版还在生效，它们旁边的测试也还算数。只有 `content/deployment.test.ts` 例外：它按
+名字钉死上游示例（哪场比赛、多少罚时、哪个演示账号），插槽一填这些话就没了指向，
+于是它让位，由你在 `content.local/` 里写自己那份，可以照它的样子写。
+
+自己新增的题目也放 `content.local/problems/` 下——放进 `content/` 虽然也能跑，但那
+是上游的目录，下次同步就多一处要解的地方。
 
 ## 评测机
 

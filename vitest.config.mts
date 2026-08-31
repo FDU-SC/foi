@@ -10,16 +10,26 @@ const DB_ONLY = ["**/*.db.test.{ts,tsx}"];
 
 const tests = (root: string) => `${root}/**/*.test.{ts,tsx}`;
 
-/**
- * The deployment suite belongs to whichever content is live. Fill the slot and
- * the upstream sample stops being resolved — its assertions stop applying with
- * it, so they stop running rather than failing against content they never
- * described.
- */
-const DEPLOYMENT = [tests(existsSync(CONTENT_SLOT) ? CONTENT_SLOT : "content")];
-
-/** Neither root's tests belong to the kernel projects, live or shadowed. */
+/** Neither root's tests belong to the kernel projects. */
 const ANY_CONTENT = CONTENT_ROOTS.map(tests);
+
+/**
+ * The deployment suite covers both roots. A fork that fills the slot still
+ * inherits most of `content/` by fallback — its rulesets, judges and mail
+ * templates — and the tests next to them still describe what runs.
+ *
+ * One file is the exception. `content/deployment.test.ts` pins the upstream
+ * sample by name (which contest, which penalty, which demo account); once the
+ * slot supplies its own content those sentences describe nothing, so the fork
+ * writes its own copy and this one steps aside. Anything else under `content/`
+ * keeps running — dropping the whole root would silently retire a fork's own
+ * tests along with it.
+ */
+const SLOT_FILLED = existsSync(CONTENT_SLOT);
+
+const SUPERSEDED = SLOT_FILLED ? ["content/deployment.test.ts"] : [];
+
+const DEPLOYMENT = ANY_CONTENT;
 
 /** Operator and demo-site tooling: neither platform nor content. */
 const TOOLS = ["scripts/**/*.test.{ts,tsx}"];
@@ -99,7 +109,7 @@ export default defineConfig({
         test: {
           name: "deployment",
           include: DEPLOYMENT,
-          exclude: NOT_SOURCE,
+          exclude: [...NOT_SOURCE, ...SUPERSEDED],
 
           fileParallelism: false,
         },

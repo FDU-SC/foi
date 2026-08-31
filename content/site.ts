@@ -14,6 +14,7 @@ export const site: SiteConfig = {
     { href: "/problems", label: "题库" },
     { href: "/contests", label: "比赛" },
     { href: "/submissions", label: "提交记录" },
+    { href: "/leaderboard", label: "排行榜", visibleWhen: "leaderboard.read" },
     { href: "/judges", label: "评测机", visibleWhen: "judge.readBoard" },
     { href: "/admin", label: "管理", visibleWhen: "admin.enter" },
   ],

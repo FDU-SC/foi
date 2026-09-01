@@ -72,11 +72,14 @@ const statementLoaders = new Map<string, () => Promise<unknown>>(
   }),
 );
 
+/**
+ * Every problem the deployment ships, in slug order.
+ *
+ * Not a catalogue: a problem is reachable only through a contest that carries
+ * it, so this is the raw inventory that boot checks and backend routing read.
+ */
 export function allProblems(): ProblemConfig[] {
-
-  return [...registry.values()].sort(
-    (a, b) => a.order - b.order || a.title.localeCompare(b.title),
-  );
+  return [...registry.values()].sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
 export function externallyJudged(): ExternallyJudged[] {

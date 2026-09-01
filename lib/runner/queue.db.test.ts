@@ -53,7 +53,7 @@ async function enqueue(
     payload: PAYLOAD,
     backendId: BACKEND,
     state: "pending",
-    contestSlug: overrides.contestSlug ?? null,
+    contestSlug: overrides.contestSlug ?? CONTEST,
     createdAt: overrides.createdAt ?? new Date(),
   });
   await db.insert(judgingQueue).values({

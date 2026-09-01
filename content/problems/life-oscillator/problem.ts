@@ -10,6 +10,4 @@ export const problem = {
     tags: ["提交答案", "Special Judge", "模拟", "趣味"],
     difficulty: "省选",
   } satisfies ProblemUi,
-  order: 10,
-  addedAt: "2026-05-30T10:00:00+08:00",
 };

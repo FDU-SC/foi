@@ -37,6 +37,7 @@ lib/            Platform core — defines contracts (types), registries, and mec
   lib/site-views.ts   Chrome slot contract (SiteViews) — consumed from content
   lib/standings/      Ruleset contract, standings computation, freeze-as-permission
   lib/problems/       Problem registry, views interface (ProblemViews)
+  lib/contests/       Contest registry, the (contest, problem) pairs every URL is built on
   lib/presentation.ts Verdict translation (describeVerdict), BadgeTone/VerdictPreset types
   lib/backend/        Verdict schema ({ result, detail }), runner protocol
   lib/db/             Drizzle schema — submissions have result + detail JSONB, nothing else
@@ -97,11 +98,31 @@ The split follows the same rule as everything else here:
 
 - **The platform owns the action catalogue** (`lib/authz/actions.ts`). It has to: the enforcement points are platform code, and they name these ids literally. Adding a gate means adding an action.
 - **Content owns the policies** (`content/policies/`). Who may do what is a deployment decision, and it belongs in a diff.
-- **Builtin policies** (`lib/authz/builtin.ts`) do two things only: give platform-declared resource attributes their meaning (`visibleTo`, `retired`, `participants`, the contest window), and enforce invariants content must not be able to grant around. They never hand power to a principal.
+- **Builtin policies** (`lib/authz/builtin.ts`) do two things only: give platform-declared resource attributes their meaning (`visibleTo`, `participants`, the contest window and what `afterEnd` leaves of it), and enforce invariants content must not be able to grant around. They never hand power to a principal.
 
 A group is a label. It carries no permissions — what its members may do is whatever policies name it. "Privileged" is derived: a group some `permit` policy points at.
 
 Refusals are one shape (`Decision`) turned into each layer's expectation by the adapters in `lib/authz/adapters.ts` and `http.ts` — `undefined` for a read gate, a thrown `ForbiddenError` for a write, a status-carrying JSON body for a route. Never invent a new way to say no.
+
+## A Problem Is a Belonging of a Contest
+
+There is no catalogue and no `/problems`. A problem is reachable at exactly one kind of URL, `/contests/[slug]/problems/[problem]`, and the resource behind `problem.read`, `problem.submit` and `problem.invoke` is the pair, not the problem:
+
+```ts
+interface ContestProblemRef { contest: ContestConfig; entry: ContestProblemConfig; problem: ProblemConfig }
+```
+
+Attribution is therefore structural rather than claimed. There is no way to ask about a problem without naming the contest it is being worked on as part of, so there is nothing to cross-check and no `context.contest`. `lib/contests/refs.ts` is where the pairs come from; a problem no contest lists has no URL, and a boot check says so.
+
+A problem config carries no visibility of its own. Who may open it is `contest.visibleTo`, when is the contest window, and what survives `endsAt` is the contest's `afterEnd`:
+
+| `afterEnd` | Statements | Submissions |
+|---|---|---|
+| omitted | readable | closed |
+| `{ submissions: true }` | readable | open, and outside every leaderboard's window |
+| `{ statements: false }` | sealed | closed |
+
+Long-running practice is a contest whose window is long. Retiring a problem is removing it from `contest.problems`.
 
 ## Key Contracts
 
@@ -125,6 +146,8 @@ When writing content, you implement these platform-defined interfaces:
 ## Do NOT
 
 - Add score/maxScore/accepted/outcome columns to the DB — those are result-shape assumptions
+- Give `ProblemConfig` a visibility, lifecycle or ordering field — a problem is reachable only through a contest, so the contest owns all three
+- Ask about a problem without a contest — `problem.*` takes a `ContestProblemRef`, and a submission's `contest_slug` is `NOT NULL`
 - Write `isAccepted()` or `verdictColumns()` in `lib/` — result interpretation is the ruleset's job
 - Hardcode brand names, locale, timezone, navigation or taglines anywhere in the platform — those come from `content/site.ts`
 - Put `render` or `supportsFreeze` on the `Ruleset` interface — rulesets are pure compute functions

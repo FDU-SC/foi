@@ -11,7 +11,6 @@ export const site: SiteConfig = {
     "一个可插拔的竞赛平台。题面、评测机与赛制计分都以代码形式存放在仓库中，可以像写组件一样定制每一道题的页面。",
 
   navigation: [
-    { href: "/problems", label: "题库" },
     { href: "/contests", label: "比赛" },
     { href: "/submissions", label: "提交记录" },
     { href: "/leaderboard", label: "排行榜", visibleWhen: "leaderboard.read" },
@@ -27,14 +26,9 @@ export const site: SiteConfig = {
 
   homeEntries: [
     {
-      href: "/problems",
-      title: "题库",
-      description: "浏览全部题目，随时提交练习。",
-    },
-    {
       href: "/contests",
       title: "比赛",
-      description: "查看进行中与已结束的比赛及其排行榜。",
+      description: "题目都在比赛里：进行中的、练习用的、已经结束的。",
     },
     {
       href: "/submissions",

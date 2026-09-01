@@ -35,17 +35,17 @@ interface ActionSpec {
 export const ACTIONS = {
   "problem.read": {
     resource: "problem",
-    describe: "打开一道题的题面",
+    describe: "打开一场比赛题单里某一道题的题面",
     denial: { code: "not-found", message: "题目不存在" },
   },
   "problem.submit": {
     resource: "problem",
-    describe: "向一道题提交答案",
+    describe: "向一场比赛题单里的某一道题提交答案",
     denial: { code: "not-open", message: "这道题现在不接受提交" },
   },
   "problem.invoke": {
     resource: "problem",
-    describe: "调用一道题的交互动作",
+    describe: "调用一场比赛题单里某一道题的交互动作",
     denial: { code: "not-open", message: "这道题现在不接受交互" },
   },
 
@@ -61,8 +61,8 @@ export const ACTIONS = {
   },
   "contest.readProblemSet": {
     resource: "contest",
-    describe: "开赛前看到题目清单：几道题、叫什么、各值多少分",
-    denial: { code: "not-started", message: "比赛尚未开始" },
+    describe: "看到题目清单：几道题、叫什么、各值多少分",
+    denial: { code: "not-available", message: "现在看不到这场比赛的题目" },
   },
 
   "standings.read": {

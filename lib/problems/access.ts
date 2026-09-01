@@ -1,104 +1,72 @@
 import { authorize } from "@/lib/authz/engine";
+import type { ContestProblemRef } from "@/lib/authz/resources";
 import type { Viewer } from "@/lib/authz/viewer";
-import { embargoOf, type Embargo } from "@/lib/contests/by-problem";
-import { allProblems, problemBySlug } from "./registry";
-import type { ProblemConfig } from "./types";
+import { contestProblemRef, contestProblemRefsIn } from "@/lib/contests/refs";
 
-/** The policy that reads `visibleTo`. Reaching a problem any other way is a
- * preview of something not yet public. */
-const AUDIENCE = "builtin:problem-audience";
+/** The policy that reads the contest's `visibleTo`. Reaching a problem any
+ * other way is a preview of something not yet public. */
+const AUDIENCE = "builtin:contest-problem-audience";
 
 export interface ProblemView {
-  config: ProblemConfig;
-
-  /** The contest holding this problem back, if it has not opened yet. */
-  embargo: Embargo | null;
+  ref: ContestProblemRef;
 
   /** Reached through some policy other than the audience one. */
   preview: boolean;
 }
 
 function viewOf(
-  config: ProblemConfig,
+  ref: ContestProblemRef,
   viewer: Viewer,
   now: Date,
 ): ProblemView | undefined {
-  const decision = authorize("problem.read", config, viewer, { now });
+  const decision = authorize("problem.read", ref, viewer, { now });
   if (!decision.allow) return undefined;
 
-  return {
-    config,
-    embargo: embargoOf(config.slug, now),
-    preview: decision.via !== AUDIENCE,
-  };
+  return { ref, preview: decision.via !== AUDIENCE };
 }
 
 /**
- * The problem catalogue.
+ * One contest's problem set, as this viewer may see it.
  *
- * Retired problems keep their permalink but drop out of the listing: appearing
- * in the catalogue is an invitation to work on a problem, and a retired one no
- * longer accepts work.
+ * A problem is a belonging of the contest that carries it, so this is the only
+ * listing there is: there is no catalogue above the contests to fall back to.
  */
-export function problemsFor(viewer: Viewer, now = new Date()): ProblemView[] {
-  return allProblems().flatMap((config) => {
-    if (config.retired) return [];
-    return viewOf(config, viewer, now) ?? [];
-  });
-}
-
-/**
- * Newest first.
- *
- * `addedAt` is optional, so this is a refinement of the catalogue rather than a
- * replacement for it: dated problems lead in reverse chronology, and the rest
- * follow in `order`. A catalogue that dates nothing therefore reads exactly as
- * `problemsFor` does.
- */
-export function recentProblemsFor(
+export function problemsFor(
+  contestSlug: string,
   viewer: Viewer,
-  limit: number,
   now = new Date(),
 ): ProblemView[] {
-  return [...problemsFor(viewer, now)]
-    .sort((a, b) => byRecency(a.config, b.config))
-    .slice(0, limit);
-}
-
-/** Undated last. Ties hold their catalogue order, since sort is stable. */
-export function byRecency(a: ProblemConfig, b: ProblemConfig): number {
-  const left = a.addedAt?.getTime();
-  const right = b.addedAt?.getTime();
-
-  if (left === undefined) return right === undefined ? 0 : 1;
-  if (right === undefined) return -1;
-  return right - left;
+  return contestProblemRefsIn(contestSlug).flatMap(
+    (ref) => viewOf(ref, viewer, now) ?? [],
+  );
 }
 
 export function problemFor(
-  slug: string,
+  contestSlug: string,
+  problemSlug: string,
   viewer: Viewer,
   now = new Date(),
 ): ProblemView | undefined {
-  const config = problemBySlug(slug);
-  return config ? viewOf(config, viewer, now) : undefined;
+  const ref = contestProblemRef(contestSlug, problemSlug);
+  return ref ? viewOf(ref, viewer, now) : undefined;
 }
 
 export type ProblemStatus =
   | { kind: "live"; title: string }
-  | { kind: "retired"; title: string }
   | { kind: "gone"; title: string };
 
+/**
+ * What to call a problem a submission points at. It is "gone" once the contest
+ * stops carrying it, which is the only way a problem leaves circulation.
+ */
 export function problemStatus(
-  slug: string,
+  contestSlug: string,
+  problemSlug: string,
   fallbackTitle: string,
 ): ProblemStatus {
-  const config = problemBySlug(slug);
-  if (!config) return { kind: "gone", title: fallbackTitle };
-  return {
-    kind: config.retired ? "retired" : "live",
-    title: config.title,
-  };
+  const ref = contestProblemRef(contestSlug, problemSlug);
+  if (!ref) return { kind: "gone", title: fallbackTitle };
+  return { kind: "live", title: ref.problem.title };
 }
 
 export { loadStatement } from "./registry";

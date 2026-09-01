@@ -10,6 +10,4 @@ export const problem = {
     tags: ["提交答案", "模拟", "趣味"],
     difficulty: "入门",
   } satisfies ProblemUi,
-  order: 8,
-  addedAt: "2025-12-20T10:00:00+08:00",
 };

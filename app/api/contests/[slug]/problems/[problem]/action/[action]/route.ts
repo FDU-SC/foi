@@ -9,7 +9,6 @@ import { resolveBackend } from "@/lib/backend/resolve";
 import { readJsonBody } from "@/lib/body-limit";
 import { contestEntryFor } from "@/lib/contests/access";
 import { declaredAction } from "@/lib/problems/actions";
-import { problemBySlug } from "@/lib/problems/registry";
 import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest, tooManyRequests } from "@/lib/server/guard";
 
@@ -17,46 +16,40 @@ export const runtime = "nodejs";
 
 const MAX_PAYLOAD_BYTES = 64 * 1024;
 
+const ROUTE = "POST /api/contests/[slug]/problems/[problem]/action/[action]";
+
 export async function POST(
   request: Request,
-  { params }: RouteContext<"/api/problems/[slug]/action/[action]">,
+  {
+    params,
+  }: RouteContext<"/api/contests/[slug]/problems/[problem]/action/[action]">,
 ) {
-  const gated = guardRequest(request, "POST /api/problems/[slug]/action/[action]");
+  const gated = guardRequest(request, ROUTE);
   if (gated) return gated;
 
   const user = await getResolvedUser();
   if (!user) return apiDeny(UNAUTHENTICATED);
   const viewer = viewerFor(user);
 
-  const { slug, action } = await params;
+  const { slug, problem: problemSlug, action } = await params;
 
-  const problem = problemBySlug(slug);
-  if (!problem) {
-    return NextResponse.json({ error: "题目不存在" }, { status: 404 });
-  }
+  const round = contestEntryFor(slug, problemSlug, viewer);
+  if (!round.ok) return apiDeny(round.denial);
 
-  // Naming a contest is a claim about attribution, and a claim that does not
-  // hold is refused rather than quietly dropped — otherwise an interaction the
-  // client believed counted for a round would run as practice.
-  const requested = request.headers.get("x-foi-contest");
-  const round = requested ? contestEntryFor(requested, slug, viewer) : null;
-  if (round && !round.ok) return apiDeny(round.denial);
+  const { ref } = round;
 
-  const contest = round?.contest ?? null;
-
-  const decision = authorize("problem.invoke", problem, viewer, {
-    contest,
+  const decision = authorize("problem.invoke", ref, viewer, {
     invocation: action,
   });
   if (!decision.allow) return apiDeny(decision);
 
-  const resolved = declaredAction(problem, action);
+  const resolved = declaredAction(ref.problem, action);
   if (!resolved) {
     return NextResponse.json({ error: "题目不存在" }, { status: 404 });
   }
 
   const verdict = rateLimit(
-    `action:${user.uid}:${slug}:${action}`,
+    `action:${user.uid}:${slug}:${problemSlug}:${action}`,
     resolved.rateLimit.max,
     resolved.rateLimit.windowSeconds * 1000,
   );
@@ -81,8 +74,8 @@ export async function POST(
     response = await callBackendAction(backend, {
       action,
       user: { uid: user.uid, groups: user.groups },
-      problem: { slug: problem.slug, config: problem.backend.config },
-      contestSlug: contest?.slug ?? null,
+      problem: { slug: ref.problem.slug, config: ref.problem.backend.config },
+      contestSlug: ref.contest.slug,
       payload,
     });
   } catch (error) {

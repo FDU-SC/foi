@@ -11,8 +11,10 @@ import { allProblems, externallyJudged } from "@/lib/problems/registry";
 import { backends } from "@/lib/backend/registry";
 import { undeclaredBackends } from "@/lib/backend/access";
 import { viewsFor } from "@/lib/problems/views";
+import { listRulesets } from "@/lib/standings/registry";
 import { viewerFor } from "@/lib/authz/viewer";
 import { viewerWith } from "@/test/content-shapes";
+import { ignoresLateSubmissions } from "@/test/standings-support";
 
 /**
  * Assertions about *this* deployment's content, kept out of the kernel suites.
@@ -41,15 +43,17 @@ describe("这套 content 自身自洽", () => {
     expect(mailSink()).toBe("console");
   });
 
-  it("在役的题都声明了上架日期", () => {
-    const undated = allProblems()
-      .filter((problem) => !problem.retired && !problem.addedAt)
-      .map((problem) => problem.slug);
+  it("每道题都被某场比赛带着，否则它没有任何 URL", () => {
+    const carried = new Set(
+      allContests().flatMap((contest) =>
+        contest.problems.map((entry) => entry.slug),
+      ),
+    );
+    const orphans = allProblems()
+      .map((problem) => problem.slug)
+      .filter((slug) => !carried.has(slug));
 
-    expect(
-      undated,
-      "没声明 addedAt 的题会沉到「最新题目」末尾，等于永远不在首页露面",
-    ).toEqual([]);
+    expect(orphans, "题目只能作为比赛的所属物被打开").toEqual([]);
   });
 
   it("per-problem views.tsx 真的被 glob 自动发现了", () => {
@@ -57,6 +61,20 @@ describe("这套 content 自身自洽", () => {
       (problem) => viewsFor(problem.slug).PayloadView !== undefined,
     );
     expect(declared.length, "没有一道题拿到渲染，八成是 glob 没扫到").toBeGreaterThan(0);
+  });
+});
+
+describe("这套 content 的赛制", () => {
+  it("每一套都无视比赛窗口之外的提交", () => {
+    expect(listRulesets().length).toBeGreaterThan(0);
+
+    for (const ruleset of listRulesets()) {
+      const { onTime, withLate } = ignoresLateSubmissions(ruleset);
+      expect(
+        withLate,
+        `${ruleset.id} 把赛后提交算进了名次：afterEnd.submissions 的比赛会被它污染终榜`,
+      ).toEqual(onTime);
+    }
   });
 });
 
@@ -111,6 +129,21 @@ describe("演示赛", () => {
   it("题单不为空，否则排行榜没有列", () => {
     expect(demo?.problems.length).toBeGreaterThan(0);
     expect(allContests().length).toBeGreaterThan(0);
+  });
+});
+
+describe("练习场", () => {
+  const practice = contestBySlug("practice");
+
+  it("存在，题目要长期开放就得有一场长期开着的比赛带着", () => {
+    expect(practice).toBeDefined();
+  });
+
+  it("窗口横跨当下，任何人随时都能提交", () => {
+    const now = Date.now();
+    expect(practice && practice.startsAt.getTime() < now).toBe(true);
+    expect(practice && practice.endsAt.getTime() > now).toBe(true);
+    expect(practice?.participants.mode).toBe("open");
   });
 });
 

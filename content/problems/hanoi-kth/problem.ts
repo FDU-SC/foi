@@ -23,6 +23,4 @@ export const problem = {
     tags: ["递归", "分治", "趣味"],
     difficulty: "普及",
   } satisfies ProblemUi,
-  order: 9,
-  addedAt: "2026-03-07T10:00:00+08:00",
 } satisfies ProblemConfigInput;

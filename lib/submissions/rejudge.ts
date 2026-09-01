@@ -120,7 +120,7 @@ export async function rejudgeSubmissions(
   const contests = new Set<string>();
   for (const row of requeued) {
     await publish(db, row.id, { state: "queued" });
-    if (row.contestSlug) contests.add(row.contestSlug);
+    contests.add(row.contestSlug);
   }
 
   for (const slug of contests) invalidateStandings(slug);
@@ -148,7 +148,7 @@ export async function submissionStateOf(id: string): Promise<
       id: string;
       uid: number;
       problemSlug: string;
-      contestSlug: string | null;
+      contestSlug: string;
       state: SubmissionRecordState;
       backendId: string;
     }

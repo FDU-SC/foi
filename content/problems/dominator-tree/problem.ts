@@ -23,6 +23,4 @@ export const problem = {
     tags: ["图论", "支配树", "Lengauer-Tarjan"],
     difficulty: "NOI",
   } satisfies ProblemUi,
-  order: 7,
-  addedAt: "2026-04-22T10:00:00+08:00",
 } satisfies ProblemConfigInput;

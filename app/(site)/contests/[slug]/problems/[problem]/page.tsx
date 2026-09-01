@@ -4,18 +4,19 @@ import {
   problemDetailParams,
 } from "@/views/problems/detail";
 
-export const dynamicParams = false;
+type Props = PageProps<"/contests/[slug]/problems/[problem]">;
 
+export const dynamicParams = false;
 export const dynamic = "force-dynamic";
 
 export function generateStaticParams() {
   return problemDetailParams();
 }
 
-export function generateMetadata(props: PageProps<"/problems/[slug]">) {
+export function generateMetadata(props: Props) {
   return problemDetailMetadata(props);
 }
 
-export default function Page(props: PageProps<"/problems/[slug]">) {
+export default function Page(props: Props) {
   return <ProblemDetailView {...props} />;
 }

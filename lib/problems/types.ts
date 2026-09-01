@@ -1,7 +1,5 @@
 import { z } from "zod";
-import { audienceSchema } from "@/lib/authz/audience";
 import { SLUG_PATTERN } from "@/lib/utils";
-import { zonedDateTime } from "@/lib/zoned-date-time";
 
 import type { BackendUser } from "@/lib/backend/types";
 
@@ -96,23 +94,6 @@ export const problemConfigSchema = z.object({
     .default({}),
 
   ui: z.unknown().optional(),
-
-  visibleTo: audienceSchema,
-
-  retired: z.boolean().default(false),
-
-  /**
-   * Where the problem sits in the catalogue. Curation, not chronology: the
-   * lowest number is whatever a visitor should meet first.
-   */
-  order: z.number().default(0),
-
-  /**
-   * When the problem joined the catalogue, which `order` deliberately does not
-   * say. Optional, because most of the catalogue never needs it; a problem
-   * without one is undated rather than old, and sorts after every dated one.
-   */
-  addedAt: zonedDateTime.optional(),
 });
 
 export type ProblemConfig = z.infer<typeof problemConfigSchema>;

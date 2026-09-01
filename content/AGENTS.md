@@ -33,6 +33,14 @@ The last three are entry points like the rest: the platform reads them without k
 2. Create `content/problems/<slug>/statement.mdx` — the problem statement, using MDX components
 3. Create `content/problems/<slug>/views.tsx` — export `views` satisfying `ProblemViews` (auto-discovered by glob)
 4. The problem is automatically registered via `_modules/problems.ts` glob
+5. Add it to some contest's `problems` — a problem is reachable only at
+   `/contests/<contest>/problems/<slug>`, so one no contest lists has no URL and
+   the boot check complains
+
+The problem config says nothing about who may open it or when. Its audience is
+the contest's `visibleTo`, its window is the contest's, and what survives the
+end is the contest's `afterEnd`. The same problem may sit in several contests
+and be open in one while sealed in another.
 
 In `statement.mdx`, import and compose the submission UI from templates:
 
@@ -54,22 +62,14 @@ import { CodePayloadView } from "@/content/_shared/views/code-payload";
 import { VerdictDetail } from "@/content/_shared/views/tests-table";
 import { verdicts } from "@/content/_shared/verdicts";
 import { ProblemBadges } from "@/content/_shared/ui/problem-badges";
-import { problemFacets } from "@/content/_shared/ui/problem-facets";
 
 export const views: ProblemViews = {
   PayloadView: CodePayloadView,
   VerdictDetail,
   verdicts,
   Badges: ProblemBadges,
-  facets: problemFacets,
 };
 ```
-
-`facets` is what puts a problem in reach of the catalogue's filter bar. It reads
-the same `ui` fields `Badges` renders and hands the platform a list of named
-dimensions; the platform collects the values and matches strings without
-learning that one of them means difficulty. A problem that omits it stays in the
-catalogue but drops out of every filtered view.
 
 For custom verdict labels, override the `verdicts` field:
 
@@ -82,7 +82,6 @@ export const views: ProblemViews = {
     optimal: { label: "最优解", short: "OPT", tone: "ok" },
   },
   Badges: ProblemBadges,
-  facets: problemFacets,
 };
 ```
 
@@ -103,6 +102,18 @@ export const contest = {
   // ...
 } satisfies ContestConfigInput;
 ```
+
+`problems` is the whole of a problem's reachability, and `afterEnd` is the whole
+of its afterlife:
+
+```typescript
+afterEnd: { statements: true, submissions: false }  // the default: readable, closed
+afterEnd: { statements: true, submissions: true }   // still collecting, outside every board's window
+afterEnd: { statements: false }                     // sealed; the round takes its problems with it
+```
+
+A practice area is a contest whose window is long. Taking a problem out of
+circulation is removing it from `problems`.
 
 ### Adding a Ruleset
 

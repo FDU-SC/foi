@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { backends } from "@/lib/backend/registry";
 import { AS_PLAYER } from "@/test/auth-support";
-import { viewerWith } from "@/test/content-shapes";
-import { allContests } from "@/lib/contests/registry";
+import { upcomingProblem, viewerWith } from "@/test/content-shapes";
+import { contestProblemRefs } from "@/lib/contests/refs";
 import { problemFor } from "@/lib/problems/access";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
 import { isInlineBackend } from "@/lib/problems/types";
@@ -16,10 +16,19 @@ import {
 const INSPECTOR = viewerWith("backend.inspect", 100);
 const SETTER = viewerWith("problem.read", 101);
 
-const demo = allContests()[0];
-
 function before(date: Date): Date {
   return new Date(date.getTime() - 60_000);
+}
+
+/** Whether any contest currently opens a problem this backend judges. */
+function reachable(backendId: string, now = new Date()): boolean {
+  const served = new Set(problemsServedBy(backendId));
+  return contestProblemRefs().some(
+    (ref) =>
+      served.has(ref.problem.slug) &&
+      problemFor(ref.contest.slug, ref.problem.slug, AS_PLAYER, now) !==
+        undefined,
+  );
 }
 
 describe("题目后端→题目 反向索引", () => {
@@ -68,10 +77,7 @@ describe("canSeeBackend", () => {
 
   it("选手只看得到承载了至少一道他能看到的题目的题目后端", () => {
     for (const id of Object.keys(backends)) {
-      const reachable = problemsServedBy(id).some(
-        (slug) => problemFor(slug, AS_PLAYER) !== undefined,
-      );
-      expect(canSeeBackend(id, AS_PLAYER)).toBe(reachable);
+      expect(canSeeBackend(id, AS_PLAYER)).toBe(reachable(id));
     }
   });
 
@@ -82,19 +88,14 @@ describe("canSeeBackend", () => {
   });
 
   it("只承载未开赛题目的题目后端，对选手隐藏、对出题人可见", () => {
-    if (!demo) return;
-    const slug = demo.problems[0].slug;
-    const backendId = externallyJudged().find((p) => p.slug === slug)?.backend
-      .id;
+    const upcoming = upcomingProblem();
+    const backendId = externallyJudged().find(
+      (p) => p.slug === upcoming.problem.slug,
+    )?.backend.id;
     if (!backendId) return;
 
-    const at = before(demo.startsAt);
-    const others = problemsServedBy(backendId).filter((s) => s !== slug);
-    const otherVisible = others.some(
-      (s) => problemFor(s, AS_PLAYER, at) !== undefined,
-    );
-
-    if (!otherVisible) {
+    const at = before(upcoming.contest.startsAt);
+    if (!reachable(backendId, at)) {
       expect(canSeeBackend(backendId, AS_PLAYER, at)).toBe(false);
     }
 

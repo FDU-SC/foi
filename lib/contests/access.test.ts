@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/test/auth-support";
 import { viewerFor, type Viewer } from "@/lib/authz/viewer";
-import {
-  contestWithGroupEntry,
-  publicProblemOutside,
-  viewerWith,
-} from "@/test/content-shapes";
+import { contestWithGroupEntry, viewerWith } from "@/test/content-shapes";
 import {
   contestEntryFor,
   contestFor,
@@ -18,7 +14,10 @@ import { contestConfigSchema, type ContestConfig } from "./types";
 const STAFF = viewerWith("contest.readProblemSet", 100);
 const PLAIN = viewerFor({ uid: 102, groups: [] });
 
-const anyContest = allContests()[0];
+/** Visible to everyone, so a plain player is the right subject for it. */
+const anyContest = allContests().find(
+  (candidate) => candidate.visibleTo === undefined,
+);
 
 function before(date: Date): Date {
   return new Date(date.getTime() - 60_000);
@@ -112,6 +111,20 @@ describe("isContestProblemSetVisibleTo", () => {
   it("只是登录了并不会提前看到题单", () => {
     expect(isContestProblemSetVisibleTo(round, PLAIN, beforeStart)).toBe(false);
   });
+
+  it("声明了赛后收起题面的轮次，结束之后又扣住", () => {
+    const sealing = contest({ afterEnd: { statements: false } });
+
+    expect(
+      isContestProblemSetVisibleTo(sealing, AS_PLAYER, sealing.startsAt),
+    ).toBe(true);
+    expect(
+      isContestProblemSetVisibleTo(sealing, AS_PLAYER, after(sealing.endsAt)),
+    ).toBe(false);
+    expect(
+      isContestProblemSetVisibleTo(sealing, STAFF, after(sealing.endsAt)),
+    ).toBe(true);
+  });
 });
 
 describe("contestEntryFor", () => {
@@ -127,8 +140,6 @@ describe("contestEntryFor", () => {
   const ENTRANT = user([GROUP]);
   const OUTSIDER = user([]);
 
-  const UNLISTED = publicProblemOutside(demo, DURING);
-
   function refusalOf(
     contestSlug: string,
     problemSlug: string,
@@ -139,16 +150,15 @@ describe("contestEntryFor", () => {
     return round.ok ? undefined : round.denial.reason.code;
   }
 
-  it("四个事实都成立时给出比赛与它的题目条目", () => {
+  it("四个事实都成立时给出这道题在这场比赛里的那份引用", () => {
     const round = contestEntryFor(demo.slug, ENTRY.slug, ENTRANT, DURING);
 
     expect(round.ok).toBe(true);
     if (!round.ok) return;
 
-    expect(round.contest.slug).toBe(demo.slug);
-
-    expect(round.problemEntry.slug).toBe(ENTRY.slug);
-    expect(round.problemEntry.label).toBe(ENTRY.label);
+    expect(round.ref.contest.slug).toBe(demo.slug);
+    expect(round.ref.problem.slug).toBe(ENTRY.slug);
+    expect(round.ref.entry.label).toBe(ENTRY.label);
   });
 
   it("比赛已结束是 contest-closed", () => {
@@ -158,7 +168,12 @@ describe("contestEntryFor", () => {
   });
 
   it("比赛不包含这道题是 contest-mismatch", () => {
-    expect(refusalOf(demo.slug, UNLISTED.slug, ENTRANT, DURING)).toBe(
+    const unlisted = allContests()
+      .flatMap((candidate) => candidate.problems.map((entry) => entry.slug))
+      .find((slug) => !demo.problems.some((entry) => entry.slug === slug));
+    if (!unlisted) return;
+
+    expect(refusalOf(demo.slug, unlisted, ENTRANT, DURING)).toBe(
       "contest-mismatch",
     );
   });

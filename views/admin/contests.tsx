@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { adminContestsFor } from "@/lib/admin/access";
 import { describeAudience } from "@/lib/authz/audience";
-import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
+import { contestStatus } from "@/lib/contests/types";
 import { dateFormatter } from "@/lib/format";
 import { rulesetFor } from "@/lib/standings/registry";
 
@@ -65,7 +65,7 @@ export async function AdminContestsView() {
         </p>
       ) : (
         all.map((contest) => {
-          const phase = contestPhase(contest);
+          const status = contestStatus(contest);
           const ruleset = rulesetFor(contest.leaderboards[0].ruleset.id);
 
           return (
@@ -79,7 +79,7 @@ export async function AdminContestsView() {
                     >
                       {contest.title}
                     </Link>
-                    <Badge tone={PHASE_TONE[phase]}>{PHASE_LABEL[phase]}</Badge>
+                    <Badge tone={status.tone}>{status.label}</Badge>
                     <Badge>{ruleset?.name ?? "自定义赛制"}</Badge>
                     {contest.leaderboards.length > 1 ? (
                       <Badge tone="info">

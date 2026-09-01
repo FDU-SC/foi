@@ -15,7 +15,7 @@ export async function AdminOverviewView() {
 
   const stats = [
     { label: "账号", value: overview.accountCount, href: "/admin/accounts" },
-    { label: "题目", value: overview.problemCount, href: "/problems" },
+    { label: "题目", value: overview.problemCount, href: "/admin/contests" },
     { label: "比赛", value: overview.contestCount, href: "/admin/contests" },
     { label: "提交", value: overview.submissionCount, href: null },
   ];

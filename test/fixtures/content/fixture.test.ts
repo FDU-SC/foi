@@ -5,12 +5,16 @@ import { describe, expect, it } from "vitest";
 import { site } from "@/lib/site";
 import { listGroups } from "@/lib/authz/groups";
 import { privilegedGroups } from "@/lib/authz/introspect";
-import { viewerFor } from "@/lib/authz/viewer";
+import { contestProblemRefs } from "@/lib/contests/refs";
 import { allContests } from "@/lib/contests/registry";
+import {
+  acceptsSubmissions,
+  hasContestEnded,
+  hasContestStarted,
+  showsStatements,
+} from "@/lib/contests/types";
 import { backends } from "@/lib/backend/registry";
 import { undeclaredBackends } from "@/lib/backend/access";
-import { problemsFor } from "@/lib/problems/access";
-import { collectFacets, facetsOf } from "@/lib/problems/facets";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
 import { isInlineBackend } from "@/lib/problems/types";
 import { listRulesets } from "@/lib/standings/registry";
@@ -49,149 +53,123 @@ describe("夹具供给了内核测试要的形状", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("一道下架的题", () => {
-    expect(
-      allProblems().filter((problem) => problem.retired).length,
-      "「题面可读但不收提交」这条轴需要一个活体",
-    ).toBeGreaterThan(0);
-  });
-
-  it("一道在役的、由后端评测的题", () => {
-    expect(
-      externallyJudged().filter((problem) => !problem.retired).length,
-      "runner 领活的整条链路靠它",
-    ).toBeGreaterThan(0);
-  });
-
-  it("一道内联判题的题", () => {
-    expect(
-      allProblems().filter(
-        (problem) => !problem.retired && isInlineBackend(problem.backend),
-      ).length,
-      "提交当次同步判完这条路径靠它",
-    ).toBeGreaterThan(0);
-  });
-
-  it("一道限定受众的题", () => {
-    expect(
-      allProblems().filter((problem) => problem.visibleTo?.length).length,
-      "受众不通过的用例需要一道真的会拒绝人的题",
-    ).toBeGreaterThan(0);
-  });
-
-  it("上架日期与目录序互相矛盾的题目", () => {
-    const catalogue = allProblems();
-    const dated = catalogue.filter((problem) => problem.addedAt);
-
-    expect(dated.length, "按上架日期排序需要不止一个日期可比").toBeGreaterThan(1);
-    expect(
-      catalogue.some((problem) => !problem.addedAt),
-      "没有一道未声明日期的题，「未声明的排在最后」就没被验证",
-    ).toBe(true);
-
-    const byDate = [...dated].sort(
-      (a, b) => b.addedAt!.getTime() - a.addedAt!.getTime(),
+  it("一场此刻正在收题、且谁都能参加的比赛", () => {
+    const now = new Date();
+    const open = allContests().filter(
+      (contest) =>
+        contest.visibleTo === undefined &&
+        contest.participants.mode === "open" &&
+        acceptsSubmissions(contest, now),
     );
     expect(
-      byDate.map((problem) => problem.slug),
-      "日期与 order 同序时，倒序取题和直接截取目录头部无法区分",
-    ).not.toEqual(dated.map((problem) => problem.slug));
-  });
-
-  it("两个分面维度，一个声明了取值顺序，一个没有", () => {
-    const catalogue = allProblems();
-    const groups = collectFacets(catalogue);
-
-    const orderOf = (key: string) =>
-      catalogue
-        .flatMap((problem) => facetsOf(problem))
-        .find((facet) => facet.key === key && facet.order)?.order;
-
-    const appearanceIn = (key: string) => [
-      ...new Set(
-        catalogue.flatMap((problem) =>
-          facetsOf(problem).flatMap((facet) =>
-            facet.key === key ? facet.values : [],
-          ),
-        ),
-      ),
-    ];
-
-    expect(
-      groups.length,
-      "只有一个维度，维度之间取 AND 就没被验证",
-    ).toBeGreaterThan(1);
-    expect(
-      groups.filter((group) => !orderOf(group.key)).length,
-      "没有未声明顺序的维度，按频次排与并列时的 localeCompare 都没被验证",
-    ).toBeGreaterThan(0);
-
-    const declared = groups.find((group) => orderOf(group.key));
-    expect(declared, "没有声明顺序的维度，order 有没有被读无法区分").toBeDefined();
-
-    const appearance = appearanceIn(declared!.key);
-    expect(
-      declared!.values,
-      "声明的顺序与题目交出取值的先后一致时，照不照 order 排看不出来",
-    ).not.toEqual(appearance);
-    expect(
-      orderOf(declared!.key)!.filter((value) => !appearance.includes(value))
-        .length,
-      "声明里的每一档都有题占着，「空的那一档不列出来」就没被验证",
+      open.length,
+      "路由用例读的是真实时钟，需要一场任何时刻都到得了的比赛",
     ).toBeGreaterThan(0);
   });
 
-  it("一个谁都没有取值的分面维度", () => {
-    const catalogue = allProblems();
-    const offered = new Set(collectFacets(catalogue).map((group) => group.key));
-    const declared = new Set(
-      catalogue.flatMap((problem) => facetsOf(problem).map((facet) => facet.key)),
+  it("一场尚未开始、且对某个受众可见的比赛", () => {
+    const now = new Date();
+    const upcoming = allContests().filter(
+      (contest) =>
+        contest.visibleTo?.length !== 0 && !hasContestStarted(contest, now),
+    );
+    expect(
+      upcoming.length,
+      "「受众内也要等开赛」与「不在受众内」是两条不同的拒绝",
+    ).toBeGreaterThan(0);
+  });
+
+  it("三种收场方式各有一场比赛", () => {
+    const now = new Date();
+    const ended = allContests().filter((contest) =>
+      hasContestEnded(contest, now),
     );
 
+    const archived = ended.filter(
+      (contest) =>
+        showsStatements(contest, now) && !acceptsSubmissions(contest, now),
+    );
+    const upsolve = ended.filter((contest) => acceptsSubmissions(contest, now));
+    const sealed = ended.filter((contest) => !showsStatements(contest, now));
+
+    expect(archived.length, "默认收场：题面留着、门关上").toBeGreaterThan(0);
+    expect(upsolve.length, "afterEnd.submissions 为真的那条路").toBeGreaterThan(0);
+    expect(sealed.length, "afterEnd.statements 为假的那条路").toBeGreaterThan(0);
+  });
+
+  it("同一道题被三场收场方式不同的比赛带着", () => {
+    const now = new Date();
+    const byProblem = new Map<string, number>();
+
+    for (const ref of contestProblemRefs()) {
+      if (!hasContestEnded(ref.contest, now)) continue;
+      byProblem.set(
+        ref.problem.slug,
+        (byProblem.get(ref.problem.slug) ?? 0) + 1,
+      );
+    }
+
     expect(
-      [...declared].filter((key) => !offered.has(key)).length,
-      "「一个字段全部题目都没填时那一行不出现」这条没有活体",
+      [...byProblem.values()].filter((count) => count > 2).length,
+      "一题多赛时各场的去向互不影响，这条没有活体",
     ).toBeGreaterThan(0);
   });
 
-  it("一道没有登记分面的题", () => {
-    expect(
-      allProblems().filter((problem) => facetsOf(problem).length === 0).length,
-      "「没登记分面的题在任何取值被选中时落选」这条没有活体",
-    ).toBeGreaterThan(0);
+  it("一道由后端评测的题，在一场正在收题的比赛里", () => {
+    const now = new Date();
+    const live = contestProblemRefs().filter(
+      (ref) =>
+        acceptsSubmissions(ref.contest, now) &&
+        !isInlineBackend(ref.problem.backend),
+    );
+    expect(live.length, "runner 领活的整条链路靠它").toBeGreaterThan(0);
   });
 
-  it("一道不属于任何比赛的公开题", () => {
-    const contest = allContests()[0];
-    expect(contest).toBeDefined();
-
-    const listed = new Set(contest!.problems.map((entry) => entry.slug));
-    const outside = problemsFor(
-      viewerFor(null),
-      new Date(contest!.startsAt.getTime() + 1),
-    )
-      .map((view) => view.config)
-      .find((config) => !listed.has(config.slug));
-
-    expect(outside, "赛外提交路径需要一道不在赛里的公开题").toBeDefined();
+  it("一道内联判题的题，在一场正在收题的比赛里", () => {
+    const now = new Date();
+    const live = contestProblemRefs().filter(
+      (ref) =>
+        acceptsSubmissions(ref.contest, now) &&
+        isInlineBackend(ref.problem.backend),
+    );
+    expect(live.length, "提交当次同步判完这条路径靠它").toBeGreaterThan(0);
   });
 
-  it("一个在役题目上声明过的、带自有配额的交互 action", () => {
-    const own = externallyJudged()
-      .filter((problem) => !problem.retired)
-      .flatMap((problem) =>
-        Object.values(problem.backend.actions).filter((spec) => spec.rateLimit),
+  it("每道题都至少属于一场比赛", () => {
+    const carried = new Set(contestProblemRefs().map((ref) => ref.problem.slug));
+    for (const problem of allProblems()) {
+      expect(carried.has(problem.slug), `${problem.slug} 没有任何 URL`).toBe(
+        true,
+      );
+    }
+  });
+
+  it("一个带自有配额的交互 action，在一场正在收题的比赛里", () => {
+    const now = new Date();
+    const own = contestProblemRefs()
+      .filter((ref) => acceptsSubmissions(ref.contest, now))
+      .flatMap((ref) =>
+        isInlineBackend(ref.problem.backend)
+          ? []
+          : Object.values(ref.problem.backend.actions).filter(
+              (spec) => spec.rateLimit,
+            ),
       );
     expect(own.length, "配额来自声明还是来自默认值，靠它区分").toBeGreaterThan(0);
   });
 
-  it("一个下架题目上声明过的交互 action", () => {
-    const retired = externallyJudged()
-      .filter((problem) => problem.retired)
-      .flatMap((problem) => Object.keys(problem.backend.actions));
+  it("一个交互 action，在一场已经收场的比赛里", () => {
+    const now = new Date();
+    const closed = contestProblemRefs()
+      .filter((ref) => !acceptsSubmissions(ref.contest, now))
+      .flatMap((ref) =>
+        isInlineBackend(ref.problem.backend)
+          ? []
+          : Object.keys(ref.problem.backend.actions),
+      );
     expect(
-      retired.length,
-      "下架挡的是 submit 也是 invoke，没有它后半句没被验证",
+      closed.length,
+      "收题窗口挡的是 submit 也是 invoke，没有它后半句没被验证",
     ).toBeGreaterThan(0);
   });
 

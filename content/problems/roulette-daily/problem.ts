@@ -12,6 +12,4 @@ export const problem = {
   submit: {
     rateLimit: { max: 1, windowSeconds: 86400 },
   },
-  order: 6,
-  addedAt: "2026-07-09T10:00:00+08:00",
 };

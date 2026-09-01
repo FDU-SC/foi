@@ -21,7 +21,6 @@ async function loadChecks(): Promise<Check[]> {
     mailTemplates,
     enrollment,
     contests,
-    problems,
     policies,
     authz,
   ] = await Promise.all([
@@ -31,7 +30,6 @@ async function loadChecks(): Promise<Check[]> {
     import("@/lib/mail/registry"),
     import("@/lib/enrollment/registry"),
     import("@/lib/contests/warnings"),
-    import("@/lib/problems/warnings"),
     import("@/lib/authz/registry"),
     import("@/lib/authz/introspect"),
   ]);
@@ -52,9 +50,10 @@ async function loadChecks(): Promise<Check[]> {
 
     { complaints: backend.backendsMissingActionUrl, fatalIn: ONLY_PROD },
 
+    { complaints: contests.orphanedProblemComplaints, fatalIn: ONLY_PROD },
+
     { complaints: enrollment.enrollmentWarnings, fatalIn: NEVER },
     { complaints: contests.contestWarnings, fatalIn: NEVER },
-    { complaints: problems.problemGateWarnings, fatalIn: NEVER },
     { complaints: authz.policyWarnings, fatalIn: NEVER },
     {
       complaints: () =>

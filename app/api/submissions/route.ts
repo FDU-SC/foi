@@ -77,26 +77,23 @@ export async function POST(request: Request) {
   }
 
   const gate = submitFor(
-    parsed.data.problemSlug,
     parsed.data.contestSlug,
+    parsed.data.problemSlug,
     viewerFor(user),
   );
   if (!gate.ok) return apiDeny(gate.denial);
 
-  const { problem, contest: running } = gate;
+  const { contest, problem } = gate.ref;
+  const contestSlug = contest.slug;
 
   const limited = rateLimit(
-    `submit:${user.uid}:${running?.slug ?? "-"}:${problem.slug}`,
+    `submit:${user.uid}:${contestSlug}:${problem.slug}`,
     gate.rateLimit.max,
     gate.rateLimit.windowSeconds * 1000,
   );
   if (!limited.ok) return tooManyRequests(limited.retryAfterMs, TOO_FAST);
 
-  let contestSlug: string | null = null;
-  if (running) {
-    await ensureContest(running);
-    contestSlug = running.slug;
-  }
+  await ensureContest(contest);
 
   let judging:
     | { kind: "inline"; backend: InlineBackend }
@@ -208,7 +205,7 @@ export async function POST(request: Request) {
 
     if (result.created.state !== "pending") {
       await publish(db, id, { state: result.created.state });
-      if (contestSlug && result.created.state === "completed") {
+      if (result.created.state === "completed") {
         invalidateStandings(contestSlug);
       }
     }
@@ -224,7 +221,7 @@ export async function POST(request: Request) {
     await tx.insert(judgingQueue).values({
       submissionId: id,
       backendId: judging.backend.id,
-      priority: contestSlug ? 1 : 0,
+      priority: 1,
       state: "waiting",
       queuedAt: new Date(),
     });

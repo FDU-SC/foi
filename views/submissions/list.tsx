@@ -63,6 +63,7 @@ export async function SubmissionListView() {
                   </td>
                   <td className="px-4 py-2.5">
                     <ProblemRef
+                      contestSlug={row.contestSlug}
                       slug={row.problemSlug}
                       fallbackTitle={row.problemTitle}
                       className="text-fg font-medium"

@@ -56,6 +56,7 @@ export async function SubmissionDetailView({
       <header className="border-border flex flex-wrap items-center gap-3 border-b pb-4">
         <h1 className="text-fg text-xl font-bold">
           <ProblemRef
+            contestSlug={row.contestSlug}
             slug={row.problemSlug}
             fallbackTitle={problem?.title ?? row.problemSlug}
           />

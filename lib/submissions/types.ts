@@ -5,7 +5,7 @@ import type { QueuePosition } from "./queue-position";
 export interface SubmissionView {
   id: string;
   problemSlug: string;
-  contestSlug: string | null;
+  contestSlug: string;
   state: SubmissionState;
 
   result: Record<string, unknown> | null;
@@ -22,8 +22,8 @@ export interface SubmissionView {
 }
 
 export const createSubmissionSchema = z.object({
+  contestSlug: z.string().min(1),
   problemSlug: z.string().min(1),
-  contestSlug: z.string().nullable().optional(),
 
   payload: z.unknown(),
 

@@ -7,9 +7,9 @@ import {
   contestFor,
   isContestProblemSetVisibleTo,
 } from "@/lib/contests/access";
-import { resolveContestProblems } from "@/lib/contests/resolve";
-import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
+import { contestPhase, contestStatus } from "@/lib/contests/types";
 import { dateFormatter } from "@/lib/format";
+import { problemsFor } from "@/lib/problems/access";
 import { rulesetFor } from "@/lib/standings/registry";
 import type { LeaderboardConfig } from "@/lib/contests/types";
 
@@ -38,14 +38,18 @@ export async function ContestDetailView({
 
   const now = new Date();
   const phase = contestPhase(contest, now);
+  const status = contestStatus(contest, now);
   const problemSetVisible = isContestProblemSetVisibleTo(contest, viewer, now);
-  const problems = problemSetVisible ? resolveContestProblems(contest) : [];
+
+  // Listed through the same gate the problem page enforces, so a link here
+  // never leads to a refusal.
+  const problems = problemsFor(contest.slug, viewer, now).map(({ ref }) => ref);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <header className="border-border border-b pb-5">
         <div className="mb-2 flex items-center gap-2">
-          <Badge tone={PHASE_TONE[phase]}>{PHASE_LABEL[phase]}</Badge>
+          <Badge tone={status.tone}>{status.label}</Badge>
           <Badge>{ruleset?.name ?? primaryLb.ruleset.id}</Badge>
         </div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">
@@ -82,7 +86,9 @@ export async function ContestDetailView({
 
       {!problemSetVisible ? (
         <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
-          题目将在 {formatter.format(contest.startsAt)} 开赛时公开。
+          {phase === "ended"
+            ? "这场比赛已经结束，它的题目不再公开。"
+            : `题目将在 ${formatter.format(contest.startsAt)} 开赛时公开。`}
         </p>
       ) : problems.length === 0 ? (
         <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
@@ -96,20 +102,20 @@ export async function ContestDetailView({
         </p>
       ) : (
         <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
-          {problems.map((problem) => (
+          {problems.map(({ entry, problem }) => (
             <li key={problem.slug}>
               <Link
-                href={`/problems/${problem.slug}?contest=${contest.slug}`}
+                href={`/contests/${contest.slug}/problems/${problem.slug}`}
                 className="hover:bg-surface-2 flex items-center gap-3 px-4 py-3 transition-colors"
               >
                 <span className="bg-surface-3 text-fg flex size-6 shrink-0 items-center justify-center rounded font-mono text-xs font-semibold">
-                  {problem.label}
+                  {entry.label}
                 </span>
                 <span className="text-fg flex-1 truncate font-medium">
                   {problem.title}
                 </span>
                 <span className="text-fg-subtle font-mono text-xs tabular-nums">
-                  {problem.points ?? problem.maxScore}
+                  {entry.points ?? problem.maxScore}
                 </span>
               </Link>
             </li>

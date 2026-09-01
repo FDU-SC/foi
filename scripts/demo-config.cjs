@@ -15,6 +15,7 @@ const { join } = require("node:path");
 const ROOT = join(__dirname, "..");
 
 const SITE = "content/site.ts";
+const ENROLLMENT = "content/enrollment/example.ts";
 const LEAKY_BUCKET = "content/problems/leaky-bucket/problem.ts";
 
 function fail(message) {
@@ -104,9 +105,19 @@ function patchLeakyBucket(source, what) {
   );
 }
 
+function patchEnrollment(source, what) {
+  const pattern =
+    '^  \\{\\n    label: "[^"\\n]+",\\n    uids: \\[[^\\]\\n]+\\],\\n' +
+    "    groups: \\[[^\\]\\n]+\\],\\n  \\},\\n?";
+  const matches = source.match(new RegExp(pattern, "gm"));
+  if (!matches) fail(`在 ${what} 里找不到按 uid 分配的用户组`);
+  return source.replace(new RegExp(pattern, "gm"), "");
+}
+
 function main() {
   console.log("套用 demo 配置补丁：");
   edit(SITE, patchSite);
+  edit(ENROLLMENT, patchEnrollment);
   edit(LEAKY_BUCKET, patchLeakyBucket);
   console.log("完成。");
 }

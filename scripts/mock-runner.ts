@@ -234,7 +234,12 @@ interface RunResult {
 function run(
   file: string,
   args: string[],
-  options: { input?: string; timeout?: number; maxBuffer?: number } = {},
+  options: {
+    input?: string;
+    timeout?: number;
+    maxBuffer?: number;
+    env?: Record<string, string | undefined>;
+  } = {},
 ): Promise<RunResult> {
   return new Promise((resolve) => {
     const child = execFile(
@@ -244,6 +249,7 @@ function run(
         timeout: options.timeout,
         maxBuffer: options.maxBuffer ?? 8 * 1024 * 1024,
         encoding: "buffer",
+        env: options.env ? { ...process.env, ...options.env } : process.env,
       },
       (error, stdout, stderr) => {
         const failed = error as (Error & { code?: number; killed?: boolean }) | null;
@@ -731,6 +737,256 @@ async function judgePerformance(
   }
 }
 
+// ---------------------------------------------------------------------------
+// 高性能计算判题：OpenMP / MPI / Ring Allreduce
+//
+// 这三类共用同一个骨架：编译基线（内置参考实现）与选手代码，喂同一份输入，
+// 容差比对输出，按「基线耗时 / 选手耗时」给分。OpenMP 与 MPI 的区别只在编译
+// 命令与运行方式；Ring Allreduce 的「进程」由评测机在单进程内用线程模拟。
+// ---------------------------------------------------------------------------
+
+interface ParallelPerfConfig {
+  mode?: string;
+  n?: number;
+  np?: number;
+  timeLimitMs?: number;
+  tolerance?: number;
+  timedRuns?: number;
+  /** "speedup"：按相对基线的加速比给分；"correctness"：只判正确性，对即满分。 */
+  scoring?: "speedup" | "correctness";
+  /** "float"：浮点容差比对；"exact"：逐字节比对。 */
+  compare?: "float" | "exact";
+  /** 覆盖默认输入（String(n)）。实现题的程序可能不需要 stdin 输入。 */
+  input?: string;
+}
+
+/** π 的矩形法数值积分（串行参考），OpenMP / MPI 两道题共用。 */
+const PI_INTEGRAL_SOURCE = `#include <bits/stdc++.h>
+using namespace std;
+int main() {
+  long long n;
+  if (!(cin >> n)) return 0;
+  double h = 1.0 / n, sum = 0.0;
+  for (long long i = 0; i < n; i++) {
+    double x = (i + 0.5) * h;
+    sum += 4.0 / (1.0 + x * x);
+  }
+  cout << fixed << setprecision(10) << sum * h << endl;
+  return 0;
+}`;
+
+/** 浮点结果容差比对：|a - b| <= tol * max(1, |b|)。 */
+function floatClose(a: string, b: string, tolerance: number): boolean {
+  const x = Number(a.trim());
+  const y = Number(b.trim());
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+  return Math.abs(x - y) <= tolerance * Math.max(1, Math.abs(y));
+}
+
+async function judgeOpenmp(
+  config: unknown,
+  payload: unknown,
+  say: Say,
+): Promise<Verdict> {
+  const cfg = (config ?? {}) as ParallelPerfConfig;
+  const n = cfg.n ?? 1_000_000_000;
+  const timeLimitMs = cfg.timeLimitMs ?? 30_000;
+  const tolerance = cfg.tolerance ?? 1e-6;
+  const source = String((payload as { source?: unknown })?.source ?? "");
+  const input = String(n) + "\n";
+  const dir = mkdtempSync(join(tmpdir(), "foi-omp-"));
+
+  try {
+    const baseline = join(dir, "baseline");
+    writeFileSync(join(dir, "baseline.cpp"), PI_INTEGRAL_SOURCE);
+    const bc = await run("g++", ["-O2", "-std=c++17", "-o", baseline, join(dir, "baseline.cpp")], { timeout: 30_000 });
+    if (bc.code !== 0) throw new Error(`基线编译失败: ${bc.stderr.toString().slice(0, 500)}`);
+
+    const binary = join(dir, "prog");
+    writeFileSync(join(dir, "prog.cpp"), source);
+    say("编译提交（-fopenmp）");
+    const compiled = await run("g++", ["-O2", "-std=c++17", "-fopenmp", "-o", binary, join(dir, "prog.cpp")], { timeout: 30_000 });
+    if (compiled.code !== 0) {
+      return {
+        result: { status: "compile_error", score: 0, maxScore: 100, accepted: false },
+        detail: { message: (compiled.stderr.toString() || "编译失败").slice(0, 2000) },
+      };
+    }
+
+    say("测量基线耗时（串行）");
+    const baselineRun = await runTimed(baseline, input, timeLimitMs);
+    if (baselineRun.killed) throw new Error("基线评测超时");
+    const baselineMs = Math.max(1, baselineRun.timeMs);
+
+    const runs: number[] = [];
+    let best: { stdout: Buffer; timeMs: number } | null = null;
+    let killed = false;
+    for (let i = 0; i < (cfg.timedRuns ?? 3); i++) {
+      say(`计时运行 ${i + 1}/${cfg.timedRuns ?? 3}`);
+      const result = await runTimed(binary, input, timeLimitMs);
+      runs.push(Math.round(result.timeMs));
+      if (result.killed) { killed = true; break; }
+      if (!best || result.timeMs < best.timeMs) best = { stdout: result.stdout, timeMs: result.timeMs };
+    }
+
+    if (killed) {
+      return {
+        result: { status: "time_limit_exceeded", score: 0, maxScore: 100, accepted: false },
+        detail: { message: `超出时间限制（${timeLimitMs}ms）` },
+      };
+    }
+    if (!best) {
+      return {
+        result: { status: "runtime_error", score: 0, maxScore: 100, accepted: false },
+        detail: { message: "程序没有产出任何输出" },
+      };
+    }
+
+    const expected = baselineRun.stdout.toString();
+    const got = best.stdout.toString();
+    if (!floatClose(got, expected, tolerance)) {
+      return {
+        result: { status: "wrong_answer", score: 0, maxScore: 100, accepted: false },
+        detail: { message: `输出与参考不一致（|差| 超过容差 ${tolerance}）` },
+      };
+    }
+
+    const timeMs = Math.max(1, best.timeMs);
+    const score = Math.min(100, Math.floor((50 * baselineMs) / timeMs));
+    return {
+      result: { status: score >= 100 ? "accepted" : score > 0 ? "partial" : "wrong_answer", score, maxScore: 100, accepted: score >= 100 },
+      detail: {
+        message: `耗时 ${Math.round(timeMs)}ms，串行基线 ${Math.round(baselineMs)}ms，加速比 ${(baselineMs / timeMs).toFixed(2)}x`,
+        timeMs: Math.round(timeMs),
+        baselineMs: Math.round(baselineMs),
+        speedup: Number((baselineMs / timeMs).toFixed(2)),
+        runs,
+      },
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+async function judgeMpi(
+  config: unknown,
+  payload: unknown,
+  say: Say,
+): Promise<Verdict> {
+  const cfg = (config ?? {}) as ParallelPerfConfig;
+  const n = cfg.n ?? 200_000_000;
+  const np = cfg.np ?? 4;
+  const timeLimitMs = cfg.timeLimitMs ?? 30_000;
+  const tolerance = cfg.tolerance ?? 1e-5;
+  const source = String((payload as { source?: unknown })?.source ?? "");
+  // 评分基线：默认串行参考；题目可提供自己的基线源码（如「祖传低效 MPI 版」），
+  // 这时对比的是优化前后，而不是 MPI 对串行。
+  const baselineSource =
+    (config as { baseline?: string })?.baseline ?? PI_INTEGRAL_SOURCE;
+  const input = cfg.input ?? String(n) + "\n";
+  const dir = mkdtempSync(join(tmpdir(), "foi-mpi-"));
+
+  const compiler = process.env.MPI_CXX ?? "mpicxx";
+  const launcher = process.env.MPI_LAUNCHER ?? "mpirun";
+  // OpenMPI 的库在系统目录；当 PATH 里先出现 conda/其他工具链的 ld 时，链接会
+  // 找不到 libopen-pal 等。通过 LD_LIBRARY_PATH 同时照顾编译期与运行期。
+  const mpiEnv = {
+    LD_LIBRARY_PATH:
+      process.env.MPI_LD_LIBRARY_PATH ??
+      "/usr/lib/x86_64-linux-gnu/openmpi:/usr/lib/x86_64-linux-gnu",
+  };
+
+  try {
+    const baseline = join(dir, "baseline");
+    writeFileSync(join(dir, "baseline.cpp"), baselineSource);
+    const bc = await run(compiler, ["-O2", "-o", baseline, join(dir, "baseline.cpp")], { timeout: 30_000, env: mpiEnv });
+    if (bc.code !== 0) throw new Error(`基线编译失败: ${bc.stderr.toString().slice(0, 500)}`);
+
+    const binary = join(dir, "prog");
+    writeFileSync(join(dir, "prog.cpp"), source);
+    say(`编译提交（${compiler}）`);
+    const compiled = await run(compiler, ["-O2", "-o", binary, join(dir, "prog.cpp")], { timeout: 30_000, env: mpiEnv });
+    if (compiled.code !== 0) {
+      return {
+        result: { status: "compile_error", score: 0, maxScore: 100, accepted: false },
+        detail: { message: (compiled.stderr.toString() || "编译失败").slice(0, 2000) },
+      };
+    }
+
+    const runMpi = (exe: string) =>
+      run(launcher, ["-np", String(np), exe], { input, timeout: timeLimitMs, maxBuffer: 16 * 1024 * 1024, env: mpiEnv });
+
+    say("测量基线耗时（mpirun -np " + String(np) + "）");
+    const baselineStart = process.hrtime.bigint();
+    const baselineRun = await runMpi(baseline);
+    const baselineMs = Math.max(1, Number(process.hrtime.bigint() - baselineStart) / 1e6);
+    if (baselineRun.killed) throw new Error("基线评测超时");
+
+    const runs: number[] = [];
+    let best: { stdout: Buffer; timeMs: number } | null = null;
+    let killed = false;
+    for (let i = 0; i < (cfg.timedRuns ?? 3); i++) {
+      say(`计时运行 ${i + 1}/${cfg.timedRuns ?? 3}（mpirun -np ${np}）`);
+      const start = process.hrtime.bigint();
+      const result = await runMpi(binary);
+      const timeMs = Number(process.hrtime.bigint() - start) / 1e6;
+      runs.push(Math.round(timeMs));
+      if (result.killed) { killed = true; break; }
+      if (!best || timeMs < best.timeMs) best = { stdout: result.stdout, timeMs };
+    }
+
+    if (killed) {
+      return {
+        result: { status: "time_limit_exceeded", score: 0, maxScore: 100, accepted: false },
+        detail: { message: `超出时间限制（${timeLimitMs}ms）` },
+      };
+    }
+    if (!best) {
+      return {
+        result: { status: "runtime_error", score: 0, maxScore: 100, accepted: false },
+        detail: { message: "程序没有产出任何输出" },
+      };
+    }
+
+    const expected = baselineRun.stdout.toString();
+    const got = best.stdout.toString();
+    const correct =
+      cfg.compare === "exact"
+        ? got.trim() === expected.trim()
+        : floatClose(got, expected, tolerance);
+    if (!correct) {
+      return {
+        result: { status: "wrong_answer", score: 0, maxScore: 100, accepted: false },
+        detail: {
+          message:
+            cfg.compare === "exact"
+              ? "输出与参考不一致"
+              : `输出与参考不一致（|差| 超过容差 ${tolerance}）`,
+        },
+      };
+    }
+
+    const timeMs = Math.max(1, best.timeMs);
+    const score =
+      cfg.scoring === "correctness"
+        ? 100
+        : Math.min(100, Math.floor((50 * baselineMs) / timeMs));
+    return {
+      result: { status: score >= 100 ? "accepted" : score > 0 ? "partial" : "wrong_answer", score, maxScore: 100, accepted: score >= 100 },
+      detail: {
+        message: `耗时 ${Math.round(timeMs)}ms，基线 ${Math.round(baselineMs)}ms，加速比 ${(baselineMs / timeMs).toFixed(2)}x`,
+        timeMs: Math.round(timeMs),
+        baselineMs: Math.round(baselineMs),
+        speedup: Number((baselineMs / timeMs).toFixed(2)),
+        runs,
+      },
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+
 async function evaluate(job: JobDetails, say: Say): Promise<Verdict> {
   const config = (job.problem.config ?? {}) as Record<string, unknown>;
 
@@ -742,6 +998,12 @@ async function evaluate(job: JobDetails, say: Say): Promise<Verdict> {
   }
   if (config.mode === "performance") {
     return judgePerformance(job.problem.config, job.payload, say);
+  }
+  if (config.mode === "openmp") {
+    return judgeOpenmp(job.problem.config, job.payload, say);
+  }
+  if (config.mode === "mpi") {
+    return judgeMpi(job.problem.config, job.payload, say);
   }
   return judgeCode(job.problem.config, job.payload, say);
 }

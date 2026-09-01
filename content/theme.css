@@ -108,20 +108,41 @@ body::before {
   animation-delay: -5s;
 }
 
+/* Phase of the `.foi-display` gradient, in whole colour cycles. Registration is
+   what makes it interpolate rather than flip; the plain declaration on the
+   class covers browsers without `@property`, where an unresolvable var() would
+   drop `background-image` and leave the title as transparent text. */
+@property --foi-pan {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
 .foi-display {
+  /* Length of one colour cycle along the 115° axis, not a horizontal distance.
+     A three-letter name spans a little over half of it; a longer one shows
+     correspondingly more of the cycle, so this is the knob for colour density. */
+  --foi-cycle: 3.5em;
+  --foi-pan: 0;
+
   color: var(--primary);
-  background-image: linear-gradient(
+
+  /* Repeating, because a diagonal gradient cannot meet itself: wherever the
+     pattern wraps, the two sides sample points a constant distance apart on
+     the gradient axis, and the colour steps along a vertical line. A periodic
+     pattern has no wrap to show, and animating its phase — rather than sliding
+     a finite image — keeps that true at every frame. */
+  background-image: repeating-linear-gradient(
     115deg,
-    var(--fg) 0%,
-    var(--primary) 42%,
-    oklch(72% 0.14 220) 68%,
-    var(--fg) 100%
+    var(--fg) calc(var(--foi-pan) * var(--foi-cycle)),
+    var(--primary) calc((var(--foi-pan) + 0.42) * var(--foi-cycle)),
+    oklch(72% 0.14 220) calc((var(--foi-pan) + 0.68) * var(--foi-cycle)),
+    var(--fg) calc((var(--foi-pan) + 1) * var(--foi-cycle))
   );
-  background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: gradient-pan 9s ease-in-out infinite;
+  animation: foi-display-pan 9s linear infinite;
 
   /* The gradient is painted inside the element box and then clipped to the
      glyphs, so anything hanging outside that box simply is not drawn. Display
@@ -131,6 +152,18 @@ body::before {
      off the margin so the text below does not move. */
   padding-bottom: 0.16em;
   margin-bottom: -0.16em;
+}
+
+/* Exactly one cycle per iteration maps the pattern onto itself, so the drift
+   runs in one direction and still repeats without a step. `linear` matters for
+   the same reason: easing would stall the drift once per iteration. */
+@keyframes foi-display-pan {
+  from {
+    --foi-pan: 1;
+  }
+  to {
+    --foi-pan: 0;
+  }
 }
 
 .foi-mark {
@@ -159,6 +192,6 @@ body::before {
   }
 
   .foi-display {
-    background-position: 40% center;
+    --foi-pan: 0.85;
   }
 }

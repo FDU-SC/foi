@@ -12,4 +12,5 @@ export const problem = {
     difficulty: "入门",
   } satisfies ProblemUi,
   order: 99,
+  addedAt: "2025-09-01T10:00:00+08:00",
 };

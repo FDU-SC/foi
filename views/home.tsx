@@ -4,15 +4,18 @@ import { ProblemBadgesSlot } from "@/components/problem/badges-slot";
 import { HomeHero } from "@/components/site/home-hero";
 import { Badge } from "@/components/ui/badge";
 import { revealClass, revealDelay } from "@/components/ui/reveal";
-import { problemsFor } from "@/lib/problems/access";
+import { recentProblemsFor } from "@/lib/problems/access";
 import { site } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 /** Lines the hero reveals before the page hands off to the entry cards. */
 const HERO_LINES = 3;
 
+/** How much of the catalogue the home page teases. */
+const RECENT_COUNT = 5;
+
 export async function HomeView() {
-  const problems = problemsFor(await getViewer());
+  const problems = recentProblemsFor(await getViewer(), RECENT_COUNT);
 
   return (
     <div className="space-y-12">
@@ -59,7 +62,7 @@ export async function HomeView() {
           </Link>
         </div>
         <ul className="border-border divide-border bg-surface/70 divide-y overflow-hidden rounded-xl border backdrop-blur-sm">
-          {problems.slice(0, 5).map(({ config: problem, preview }, index) => (
+          {problems.map(({ config: problem, preview }, index) => (
             <li
               key={problem.slug}
               style={revealDelay(index)}

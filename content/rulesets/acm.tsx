@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { formatDuration } from "@/lib/utils";
 import {
   assignRanks,
@@ -56,12 +57,14 @@ export function AcmCellView({ cell }: { cell: AcmCell | undefined }) {
 export function AcmTotalView({ row }: { row: StandingsRow<AcmCell> }) {
   return (
     <span className="inline-flex flex-col items-center leading-tight">
-      <span className="text-fg font-mono font-semibold tabular-nums">
-        {row.total}
-      </span>
-      <span className="text-fg-subtle font-mono text-[10px] tabular-nums">
-        {row.tiebreak}
-      </span>
+      <AnimatedNumber
+        value={row.total}
+        className="text-fg font-mono font-semibold tabular-nums"
+      />
+      <AnimatedNumber
+        value={row.tiebreak}
+        className="text-fg-subtle font-mono text-[10px] tabular-nums"
+      />
     </span>
   );
 }

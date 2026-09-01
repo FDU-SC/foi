@@ -2,13 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getViewer } from "@/auth";
+import { StandingsLiveRefresh } from "@/components/standings/live-refresh";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   contestFor,
   isContestProblemSetVisibleTo,
 } from "@/lib/contests/access";
-import type { ContestConfig } from "@/lib/contests/types";
+import {
+  contestPhase,
+  type ContestConfig,
+  type ContestPhase,
+} from "@/lib/contests/types";
 import { standingsFor } from "@/lib/standings/compute";
 import { dateFormatter } from "@/lib/format";
 import type { BoardProps } from "@/lib/standings/types";
@@ -36,6 +41,9 @@ function DefaultBoard({ board }: BoardProps) {
 }
 
 const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
+
+/** Phases where new submissions can still change the board, so polling earns its keep. */
+const MOVING_PHASES: ContestPhase[] = ["running", "frozen"];
 
 export async function standingsMetadata({
   params,
@@ -92,6 +100,7 @@ export async function StandingsView({
   if (!data) notFound();
 
   const totalRows = data.boards[0]?.standings.rows.length ?? 0;
+  const phase = contestPhase(contest);
 
   return (
     <div className="space-y-5">
@@ -114,6 +123,7 @@ export async function StandingsView({
         <span className="text-fg-subtle ml-auto text-xs">
           共 {totalRows} 人
         </span>
+        <StandingsLiveRefresh defaultOn={MOVING_PHASES.includes(phase)} />
       </div>
 
       {data.boards.map((board) => (

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import {
   assignRanks,
   hasResult,
@@ -47,9 +48,10 @@ export function OiCellView({ cell }: { cell: OiCell | undefined }) {
 
 export function OiTotalView({ row }: { row: StandingsRow<OiCell> }) {
   return (
-    <span className="text-fg font-mono font-semibold tabular-nums">
-      {Math.round(row.total)}
-    </span>
+    <AnimatedNumber
+      value={Math.round(row.total)}
+      className="text-fg font-mono font-semibold tabular-nums"
+    />
   );
 }
 

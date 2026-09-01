@@ -3,8 +3,10 @@ import { getViewer } from "@/auth";
 import { ProblemBadgesSlot } from "@/components/problem/badges-slot";
 import { HomeHero } from "@/components/site/home-hero";
 import { Badge } from "@/components/ui/badge";
+import { revealClass, revealDelay } from "@/components/ui/reveal";
 import { problemsFor } from "@/lib/problems/access";
 import { site } from "@/lib/site";
+import { cn } from "@/lib/utils";
 
 export async function HomeView() {
   const problems = problemsFor(await getViewer());
@@ -14,11 +16,17 @@ export async function HomeView() {
       <HomeHero />
 
       <section className="grid gap-3 sm:grid-cols-3">
-        {(site.homeEntries ?? []).map((entry) => (
+        {(site.homeEntries ?? []).map((entry, index) => (
           <Link
             key={entry.href}
             href={entry.href}
-            className="border-border bg-surface hover:border-primary/50 hover:bg-surface-2 group rounded-lg border p-4 transition-colors"
+            style={revealDelay(index)}
+            className={cn(
+              "border-border bg-surface hover:border-primary/50 hover:bg-surface-2 group rounded-lg border p-4",
+              "transition-[color,background-color,border-color,box-shadow,transform] duration-200 ease-out",
+              "motion-safe:hover:-translate-y-0.5 hover:shadow-md",
+              revealClass,
+            )}
           >
             <div className="text-fg group-hover:text-primary font-semibold transition-colors">
               {entry.title}
@@ -41,8 +49,12 @@ export async function HomeView() {
           </Link>
         </div>
         <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
-          {problems.slice(0, 5).map(({ config: problem, preview }) => (
-            <li key={problem.slug}>
+          {problems.slice(0, 5).map(({ config: problem, preview }, index) => (
+            <li
+              key={problem.slug}
+              style={revealDelay(index)}
+              className={revealClass}
+            >
               <Link
                 href={`/problems/${problem.slug}`}
                 className="hover:bg-surface-2 flex items-center gap-3 px-4 py-3 transition-colors"

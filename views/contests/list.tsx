@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
+import { revealClass, revealDelay } from "@/components/ui/reveal";
 import { contestsFor } from "@/lib/contests/access";
 import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
 import { dateFormatter } from "@/lib/format";
@@ -22,10 +23,14 @@ export async function ContestListView() {
         </p>
       ) : (
         <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
-          {all.map(({ config: contest, preview }) => {
+          {all.map(({ config: contest, preview }, index) => {
             const phase = contestPhase(contest);
             return (
-              <li key={contest.slug}>
+              <li
+                key={contest.slug}
+                style={revealDelay(index)}
+                className={revealClass}
+              >
                 <Link
                   href={`/contests/${contest.slug}`}
                   className="hover:bg-surface-2 flex flex-wrap items-center gap-3 px-4 py-3.5 transition-colors"

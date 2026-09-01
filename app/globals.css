@@ -98,6 +98,18 @@
   --color-partial-subtle: var(--partial-subtle);
   --color-info: var(--info);
   --color-info-subtle: var(--info-subtle);
+
+  --color-ring: var(--ring);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-pulse-ring: pulse-ring 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  /* `backwards`, not `both`: the element holds the "before" frame through its
+     stagger delay, then hands control back so hover transforms still apply. */
+  --animate-fade-up: fade-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  --animate-shake: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
 
 @layer base {
@@ -119,6 +131,72 @@
 
   ::selection {
     background-color: var(--primary-subtle);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+/* Expands outward from a dot that stays put, so the dot itself reads as the
+   status and the ring as "still running". */
+@keyframes pulse-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  to {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shake {
+  20% {
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(3px);
+  }
+  60% {
+    transform: translateX(-2px);
+  }
+  80% {
+    transform: translateX(1px);
+  }
+}
+
+@layer components {
+  /* Placeholder block for loading.tsx skeletons. The gradient is wider than the
+     box so the highlight travels across it rather than fading in place. */
+  .skeleton {
+    border-radius: 0.375rem;
+    background-color: var(--surface-2);
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--surface-3) 35%,
+      var(--surface-3) 45%,
+      transparent 80%
+    );
+    background-size: 250% 100%;
+    animation: shimmer 1.6s linear infinite;
   }
 }
 
@@ -161,4 +239,17 @@
   overflow-x: auto;
   overflow-y: hidden;
   padding: 0.25rem 0;
+}
+
+/* Covers CSS animation only. Motion drives inline styles from JavaScript and
+   never sees this, which is what `MotionConfig reducedMotion="user"` is for. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

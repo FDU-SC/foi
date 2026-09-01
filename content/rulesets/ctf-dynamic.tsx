@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import {
   assignRanks,
   hasResult,
@@ -69,9 +70,10 @@ export function CtfCellView({ cell }: { cell: CtfCell | undefined }) {
 
 export function CtfTotalView({ row }: { row: StandingsRow<CtfCell> }) {
   return (
-    <span className="text-fg font-mono font-semibold tabular-nums">
-      {Math.round(row.total)}
-    </span>
+    <AnimatedNumber
+      value={Math.round(row.total)}
+      className="text-fg font-mono font-semibold tabular-nums"
+    />
   );
 }
 

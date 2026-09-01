@@ -2,11 +2,13 @@ import Link from "next/link";
 import { getSessionUser, getViewer } from "@/auth";
 import { ProblemBadgesSlot } from "@/components/problem/badges-slot";
 import { Badge } from "@/components/ui/badge";
+import { revealClass, revealDelay } from "@/components/ui/reveal";
+import { viewerFor } from "@/lib/authz/viewer";
 import { describeVerdict } from "@/lib/presentation";
 import { problemsFor } from "@/lib/problems/access";
 import { computeProblemStatuses, type ProblemStatus } from "@/lib/stats";
 import { submissionsFor } from "@/lib/submissions/access";
-import { viewerFor } from "@/lib/authz/viewer";
+import { cn } from "@/lib/utils";
 
 export async function ProblemListView() {
   const [viewer, user] = await Promise.all([getViewer(), getSessionUser()]);
@@ -43,14 +45,18 @@ export async function ProblemListView() {
             </tr>
           </thead>
           <tbody className="divide-border divide-y">
-            {problems.map(({ config: problem, preview }) => {
+            {problems.map(({ config: problem, preview }, index) => {
               const mine = statuses?.get(problem.slug);
               const preset = mine
                 ? describeVerdict(problem.slug, { status: mine.status })
                 : null;
 
               return (
-                <tr key={problem.slug} className="hover:bg-surface-2/60">
+                <tr
+                  key={problem.slug}
+                  style={revealDelay(index)}
+                  className={cn("hover:bg-surface-2/60", revealClass)}
+                >
                   <td className="text-fg-subtle px-4 py-2.5 font-mono text-xs">
                     {problem.slug}
                   </td>

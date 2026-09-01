@@ -2,11 +2,15 @@
 
 import type { ReactNode } from "react";
 import { VerdictBody } from "@/components/opaque";
+import { JudgeProgress } from "@/components/problem/judge-progress";
 import { useProblem } from "@/components/problem/problem-context";
 import { QueueBadge } from "@/components/problem/queue-position";
-import { VerdictBadge } from "@/components/problem/verdict-badge";
+import { VerdictReveal } from "@/components/problem/verdict-reveal";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { revealClass } from "@/components/ui/reveal";
+import { isSettled } from "@/lib/backend/types";
 import { useSubmit } from "@/lib/submissions/use-submit";
+import { cn } from "@/lib/utils";
 import { SubmitProvider } from "./submit-context";
 
 export function SubmitPanel({ children }: { children: ReactNode }) {
@@ -21,7 +25,7 @@ export function SubmitPanel({ children }: { children: ReactNode }) {
           submission ? (
             <span className="flex items-center gap-2">
               <QueueBadge queue={submission.queue} />
-              <VerdictBadge submission={submission} />
+              <VerdictReveal submission={submission} />
             </span>
           ) : null
         }
@@ -50,16 +54,34 @@ export function SubmitPanel({ children }: { children: ReactNode }) {
           </SubmitProvider>
         )}
 
-        {error ? <p className="text-err text-sm">{error}</p> : null}
+        {error ? (
+          <p className={cn("text-err text-sm", revealClass)}>{error}</p>
+        ) : null}
+
+        {submission && !isSettled(submission.state) ? (
+          <div className="border-border mt-4 border-t pt-4">
+            <JudgeProgress
+              state={submission.state}
+              status={submission.runnerStatus}
+            />
+          </div>
+        ) : null}
 
         {submission?.reason ? (
-          <p className="text-err bg-err-subtle mt-4 rounded-md px-3 py-2 text-sm">
+          <p
+            className={cn(
+              "text-err bg-err-subtle mt-4 rounded-md px-3 py-2 text-sm",
+              revealClass,
+            )}
+          >
             {submission.reason}
           </p>
         ) : null}
 
         {submission?.detail ? (
-          <div className="border-border mt-4 border-t pt-4">
+          <div
+            className={cn("border-border mt-4 border-t pt-4", revealClass)}
+          >
             <VerdictBody problemSlug={config.slug} detail={submission.detail} />
           </div>
         ) : null}

@@ -10,6 +10,7 @@ import { allContests } from "@/lib/contests/registry";
 import { backends } from "@/lib/backend/registry";
 import { undeclaredBackends } from "@/lib/backend/access";
 import { problemsFor } from "@/lib/problems/access";
+import { collectFacets, facetsOf } from "@/lib/problems/facets";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
 import { isInlineBackend } from "@/lib/problems/types";
 import { listRulesets } from "@/lib/standings/registry";
@@ -95,6 +96,69 @@ describe("夹具供给了内核测试要的形状", () => {
       byDate.map((problem) => problem.slug),
       "日期与 order 同序时，倒序取题和直接截取目录头部无法区分",
     ).not.toEqual(dated.map((problem) => problem.slug));
+  });
+
+  it("两个分面维度，一个声明了取值顺序，一个没有", () => {
+    const catalogue = allProblems();
+    const groups = collectFacets(catalogue);
+
+    const orderOf = (key: string) =>
+      catalogue
+        .flatMap((problem) => facetsOf(problem))
+        .find((facet) => facet.key === key && facet.order)?.order;
+
+    const appearanceIn = (key: string) => [
+      ...new Set(
+        catalogue.flatMap((problem) =>
+          facetsOf(problem).flatMap((facet) =>
+            facet.key === key ? facet.values : [],
+          ),
+        ),
+      ),
+    ];
+
+    expect(
+      groups.length,
+      "只有一个维度，维度之间取 AND 就没被验证",
+    ).toBeGreaterThan(1);
+    expect(
+      groups.filter((group) => !orderOf(group.key)).length,
+      "没有未声明顺序的维度，按频次排与并列时的 localeCompare 都没被验证",
+    ).toBeGreaterThan(0);
+
+    const declared = groups.find((group) => orderOf(group.key));
+    expect(declared, "没有声明顺序的维度，order 有没有被读无法区分").toBeDefined();
+
+    const appearance = appearanceIn(declared!.key);
+    expect(
+      declared!.values,
+      "声明的顺序与题目交出取值的先后一致时，照不照 order 排看不出来",
+    ).not.toEqual(appearance);
+    expect(
+      orderOf(declared!.key)!.filter((value) => !appearance.includes(value))
+        .length,
+      "声明里的每一档都有题占着，「空的那一档不列出来」就没被验证",
+    ).toBeGreaterThan(0);
+  });
+
+  it("一个谁都没有取值的分面维度", () => {
+    const catalogue = allProblems();
+    const offered = new Set(collectFacets(catalogue).map((group) => group.key));
+    const declared = new Set(
+      catalogue.flatMap((problem) => facetsOf(problem).map((facet) => facet.key)),
+    );
+
+    expect(
+      [...declared].filter((key) => !offered.has(key)).length,
+      "「一个字段全部题目都没填时那一行不出现」这条没有活体",
+    ).toBeGreaterThan(0);
+  });
+
+  it("一道没有登记分面的题", () => {
+    expect(
+      allProblems().filter((problem) => facetsOf(problem).length === 0).length,
+      "「没登记分面的题在任何取值被选中时落选」这条没有活体",
+    ).toBeGreaterThan(0);
   });
 
   it("一道不属于任何比赛的公开题", () => {

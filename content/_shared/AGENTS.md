@@ -16,6 +16,7 @@ _shared/
     text-input.tsx      Template — multi-line textarea → { text }
     ui-config.tsx       ProblemUi schema (difficulty, tags, languages, placeholder)
     problem-badges.tsx  Problem list badges (difficulty + tags + max score)
+    problem-facets.ts   Which ui fields the catalogue filter bar offers (difficulty, tags)
   views/           Submission detail view templates
     code-payload.tsx    Renders { language, source } payloads
     flag-payload.tsx    Renders { flag } payloads
@@ -69,6 +70,7 @@ Each problem's `views.tsx` picks view templates for displaying submissions:
 - `VerdictDetail` — how to render evaluation details (test cases, messages)
 - `verdicts` — verdict label overrides (typically import from `_shared/verdicts`)
 - `Badges` — problem list badge component (typically import `ProblemBadges` from `_shared/ui/problem-badges`)
+- `facets` — which dimensions the catalogue may filter this problem by (typically import `problemFacets` from `_shared/ui/problem-facets`)
 
 ## Adding New Templates
 

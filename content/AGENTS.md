@@ -54,8 +54,22 @@ import { CodePayloadView } from "@/content/_shared/views/code-payload";
 import { VerdictDetail } from "@/content/_shared/views/tests-table";
 import { verdicts } from "@/content/_shared/verdicts";
 import { ProblemBadges } from "@/content/_shared/ui/problem-badges";
-export const views: ProblemViews = { PayloadView: CodePayloadView, VerdictDetail, verdicts, Badges: ProblemBadges };
+import { problemFacets } from "@/content/_shared/ui/problem-facets";
+
+export const views: ProblemViews = {
+  PayloadView: CodePayloadView,
+  VerdictDetail,
+  verdicts,
+  Badges: ProblemBadges,
+  facets: problemFacets,
+};
 ```
+
+`facets` is what puts a problem in reach of the catalogue's filter bar. It reads
+the same `ui` fields `Badges` renders and hands the platform a list of named
+dimensions; the platform collects the values and matches strings without
+learning that one of them means difficulty. A problem that omits it stays in the
+catalogue but drops out of every filtered view.
 
 For custom verdict labels, override the `verdicts` field:
 
@@ -68,6 +82,7 @@ export const views: ProblemViews = {
     optimal: { label: "最优解", short: "OPT", tone: "ok" },
   },
   Badges: ProblemBadges,
+  facets: problemFacets,
 };
 ```
 

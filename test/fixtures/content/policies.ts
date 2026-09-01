@@ -26,6 +26,7 @@ export const policies = [
       "account.sendPasswordReset",
       "admin.enter",
       "judge.readBoard",
+      "leaderboard.read",
       "backend.read",
       "backend.inspect",
     ],

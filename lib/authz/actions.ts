@@ -155,6 +155,11 @@ export const ACTIONS = {
     describe: "查看评测机与评测队列",
     denial: { code: "not-found", message: "页面不存在" },
   },
+  "leaderboard.read": {
+    resource: "site",
+    describe: "查看全局排行榜（解题数、提交数、首杀数）",
+    denial: { code: "not-found", message: "页面不存在" },
+  },
 
   "backend.read": {
     resource: "backend",

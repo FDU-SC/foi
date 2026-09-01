@@ -66,7 +66,7 @@ export function recentProblemsFor(
 }
 
 /** Undated last. Ties hold their catalogue order, since sort is stable. */
-function byRecency(a: ProblemConfig, b: ProblemConfig): number {
+export function byRecency(a: ProblemConfig, b: ProblemConfig): number {
   const left = a.addedAt?.getTime();
   const right = b.addedAt?.getTime();
 

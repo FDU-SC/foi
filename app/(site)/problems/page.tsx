@@ -5,6 +5,6 @@ export const metadata: Metadata = { title: "题库" };
 
 export const dynamic = "force-dynamic";
 
-export default function Page() {
-  return <ProblemListView />;
+export default function Page(props: PageProps<"/problems">) {
+  return <ProblemListView {...props} />;
 }

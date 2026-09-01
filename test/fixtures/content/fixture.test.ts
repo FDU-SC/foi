@@ -78,6 +78,25 @@ describe("夹具供给了内核测试要的形状", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("上架日期与目录序互相矛盾的题目", () => {
+    const catalogue = allProblems();
+    const dated = catalogue.filter((problem) => problem.addedAt);
+
+    expect(dated.length, "按上架日期排序需要不止一个日期可比").toBeGreaterThan(1);
+    expect(
+      catalogue.some((problem) => !problem.addedAt),
+      "没有一道未声明日期的题，「未声明的排在最后」就没被验证",
+    ).toBe(true);
+
+    const byDate = [...dated].sort(
+      (a, b) => b.addedAt!.getTime() - a.addedAt!.getTime(),
+    );
+    expect(
+      byDate.map((problem) => problem.slug),
+      "日期与 order 同序时，倒序取题和直接截取目录头部无法区分",
+    ).not.toEqual(dated.map((problem) => problem.slug));
+  });
+
   it("一道不属于任何比赛的公开题", () => {
     const contest = allContests()[0];
     expect(contest).toBeDefined();

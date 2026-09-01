@@ -47,6 +47,34 @@ export function problemsFor(viewer: Viewer, now = new Date()): ProblemView[] {
   });
 }
 
+/**
+ * Newest first.
+ *
+ * `addedAt` is optional, so this is a refinement of the catalogue rather than a
+ * replacement for it: dated problems lead in reverse chronology, and the rest
+ * follow in `order`. A catalogue that dates nothing therefore reads exactly as
+ * `problemsFor` does.
+ */
+export function recentProblemsFor(
+  viewer: Viewer,
+  limit: number,
+  now = new Date(),
+): ProblemView[] {
+  return [...problemsFor(viewer, now)]
+    .sort((a, b) => byRecency(a.config, b.config))
+    .slice(0, limit);
+}
+
+/** Undated last. Ties hold their catalogue order, since sort is stable. */
+function byRecency(a: ProblemConfig, b: ProblemConfig): number {
+  const left = a.addedAt?.getTime();
+  const right = b.addedAt?.getTime();
+
+  if (left === undefined) return right === undefined ? 0 : 1;
+  if (right === undefined) return -1;
+  return right - left;
+}
+
 export function problemFor(
   slug: string,
   viewer: Viewer,

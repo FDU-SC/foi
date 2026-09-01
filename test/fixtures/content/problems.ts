@@ -15,6 +15,9 @@ const accept: InlineJudge = ({ payload }) => {
  * submit throttle differs from both the platform default and the contest
  * entry's, so a test that confuses the three fails instead of passing by
  * coincidence.
+ *
+ * Undated on purpose: it leads the catalogue, so anything sorting by `addedAt`
+ * has to move it to the back.
  */
 export const external = {
   slug: "fixture-external",
@@ -37,15 +40,21 @@ export const inline = {
   title: "内联评测的题",
   backend: { kind: "inline" as const, judge: accept },
   order: 2,
+  addedAt: "2026-01-10T09:00:00+08:00",
 } satisfies ProblemConfigInput;
 
-/** Restricted to one group, so audience checks have something to refuse. */
+/**
+ * Restricted to one group, so audience checks have something to refuse. Also
+ * the newest of the dated ones while sitting last in `order`, which is what
+ * makes reverse chronology distinguishable from the catalogue.
+ */
 export const gated = {
   slug: "fixture-gated",
   title: "限定受众的题",
   backend: { kind: "inline" as const, judge: accept },
   visibleTo: [AUDIENCE],
   order: 3,
+  addedAt: "2026-05-20T09:00:00+08:00",
 } satisfies ProblemConfigInput;
 
 /**

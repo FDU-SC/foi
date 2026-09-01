@@ -41,6 +41,17 @@ describe("这套 content 自身自洽", () => {
     expect(mailSink()).toBe("console");
   });
 
+  it("在役的题都声明了上架日期", () => {
+    const undated = allProblems()
+      .filter((problem) => !problem.retired && !problem.addedAt)
+      .map((problem) => problem.slug);
+
+    expect(
+      undated,
+      "没声明 addedAt 的题会沉到「最新题目」末尾，等于永远不在首页露面",
+    ).toEqual([]);
+  });
+
   it("per-problem views.tsx 真的被 glob 自动发现了", () => {
     const declared = allProblems().filter(
       (problem) => viewsFor(problem.slug).PayloadView !== undefined,

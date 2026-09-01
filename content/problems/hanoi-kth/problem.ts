@@ -24,4 +24,5 @@ export const problem = {
     difficulty: "普及",
   } satisfies ProblemUi,
   order: 9,
+  addedAt: "2026-03-07T10:00:00+08:00",
 } satisfies ProblemConfigInput;

@@ -8,7 +8,12 @@ import { contestsUsing, embargoOf } from "@/lib/contests/by-problem";
 import { allContests } from "@/lib/contests/registry";
 import { hasContestStarted } from "@/lib/contests/types";
 import { allProblems } from "./registry";
-import { problemFor, problemStatus, problemsFor } from "./access";
+import {
+  problemFor,
+  problemStatus,
+  problemsFor,
+  recentProblemsFor,
+} from "./access";
 
 const contests = allContests();
 const demo = contests[0];
@@ -137,6 +142,74 @@ describe("problemsFor", () => {
 
       expect(visible.has(problem.slug), problem.slug).toBe(expected);
     }
+  });
+});
+
+describe("recentProblemsFor", () => {
+  // Past every contest window, so nothing here is measuring an embargo.
+  const AT = new Date("2100-01-01");
+
+  const VIEWERS: [string, Viewer][] = [
+    ["选手", AS_PLAYER],
+    ["预览者", PREVIEW],
+  ];
+
+  it("先按上架日期倒序，没声明日期的排在最后", () => {
+    const listed = recentProblemsFor(PREVIEW, Infinity, AT).map(
+      (view) => view.config,
+    );
+
+    const dated = listed.filter((config) => config.addedAt);
+    const undated = listed.filter((config) => !config.addedAt);
+
+    expect(dated.length).toBeGreaterThan(1);
+    expect(undated.length).toBeGreaterThan(0);
+    expect(listed, "没声明日期的题插到了有日期的之间").toEqual([
+      ...dated,
+      ...undated,
+    ]);
+
+    const times = dated.map((config) => config.addedAt!.getTime());
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+  });
+
+  it("没声明日期的题之间保持目录序", () => {
+    const catalogue = problemsFor(PREVIEW, AT).map((view) => view.config.slug);
+    const undated = recentProblemsFor(PREVIEW, Infinity, AT)
+      .filter((view) => !view.config.addedAt)
+      .map((view) => view.config.slug);
+
+    expect(undated).toEqual(catalogue.filter((slug) => undated.includes(slug)));
+  });
+
+  it.each(VIEWERS)(
+    "%s 看到的仍是 problemsFor 那一批，只是换了个顺序",
+    (_, viewer) => {
+      const catalogue = problemsFor(viewer, AT).map((view) => view.config.slug);
+      const recent = recentProblemsFor(viewer, Infinity, AT).map(
+        (view) => view.config.slug,
+      );
+
+      expect(
+        [...recent].sort(),
+        "重排不该放进受众挡下的、被扣住的或已下架的题",
+      ).toEqual([...catalogue].sort());
+    },
+  );
+
+  it("排出来的顺序不等于目录序，否则等于没排", () => {
+    const catalogue = problemsFor(PREVIEW, AT).map((view) => view.config.slug);
+    const recent = recentProblemsFor(PREVIEW, Infinity, AT).map(
+      (view) => view.config.slug,
+    );
+
+    expect(recent).not.toEqual(catalogue);
+  });
+
+  it("limit 截的是重排之后的队首", () => {
+    const all = recentProblemsFor(PREVIEW, Infinity, AT);
+    expect(all.length).toBeGreaterThan(1);
+    expect(recentProblemsFor(PREVIEW, 1, AT)).toEqual(all.slice(0, 1));
   });
 });
 

@@ -24,4 +24,5 @@ export const problem = {
     difficulty: "入门",
   } satisfies ProblemUi,
   order: 4,
+  addedAt: "2026-01-18T10:00:00+08:00",
 } satisfies ProblemConfigInput;

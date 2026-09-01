@@ -4,11 +4,13 @@ import { getSessionUser } from "@/auth";
 import { ProblemRef } from "@/components/problem/problem-ref";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
+import { revealClass, revealDelay } from "@/components/ui/reveal";
 import { viewerFor } from "@/lib/authz/viewer";
 import { isSettled } from "@/lib/backend/types";
 import { dateFormatter } from "@/lib/format";
 import { submissionsFor } from "@/lib/submissions/access";
 import { locateInQueues } from "@/lib/submissions/queue-position";
+import { cn } from "@/lib/utils";
 
 const formatter = dateFormatter({ dateStyle: "short", timeStyle: "medium" });
 
@@ -31,7 +33,7 @@ export async function SubmissionListView() {
           还没有提交记录。
         </p>
       ) : (
-        <div className="border-border overflow-x-auto rounded-lg border">
+        <div className="border-border bg-surface/70 overflow-x-auto rounded-xl border backdrop-blur-sm">
           <table className="w-full text-sm">
             <thead className="bg-surface-2">
               <tr className="text-fg-muted text-xs">
@@ -50,8 +52,12 @@ export async function SubmissionListView() {
               </tr>
             </thead>
             <tbody className="divide-border divide-y">
-              {rows.map((row) => (
-                <tr key={row.id} className="hover:bg-surface-2/60">
+              {rows.map((row, index) => (
+                <tr
+                  key={row.id}
+                  style={revealDelay(index)}
+                  className={cn("hover:bg-surface-2/60", revealClass)}
+                >
                   <td className="text-fg-subtle px-4 py-2.5 font-mono text-xs whitespace-nowrap">
                     {formatter.format(new Date(row.createdAt))}
                   </td>

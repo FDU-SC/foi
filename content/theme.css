@@ -1,13 +1,155 @@
 /**
- * Deployment theme overrides.
+ * FOI deployment tokens.
  *
- * Loaded after `app/globals.css`, so anything redeclared here wins. Override
- * only the custom properties that differ — the rest keep the platform defaults.
- *
- *   :root { --primary: oklch(55% 0.2 25); }
- *   .dark { --primary: oklch(72% 0.17 25); }
- *
- * The full token list is at the top of `app/globals.css`. A fork puts its own
- * copy at `content.local/theme.css`; this file is the upstream fallback and is
- * intentionally empty.
+ * Loaded after `app/globals.css`. Redeclared custom properties win; the rest
+ * keep the platform defaults.
  */
+
+:root {
+  --bg: oklch(98.6% 0.01 275);
+  --surface: oklch(100% 0 0);
+  --surface-2: oklch(96.8% 0.012 275);
+  --surface-3: oklch(93.8% 0.016 275);
+
+  --fg: oklch(22% 0.04 275);
+  --fg-muted: oklch(46% 0.03 275);
+  --fg-subtle: oklch(60% 0.02 275);
+
+  --border: oklch(90% 0.016 275);
+  --border-strong: oklch(82% 0.022 275);
+
+  --primary: oklch(50% 0.22 280);
+  --primary-hover: oklch(44% 0.22 280);
+  --primary-fg: oklch(100% 0 0);
+  --primary-subtle: oklch(95% 0.035 280);
+
+  --ok: oklch(54% 0.15 155);
+  --ok-subtle: oklch(95.5% 0.04 155);
+  --info: oklch(56% 0.14 230);
+  --info-subtle: oklch(95.5% 0.03 230);
+
+  --ring: oklch(50% 0.22 280 / 0.45);
+
+  --aurora-a: oklch(72% 0.16 280 / 0.18);
+  --aurora-b: oklch(78% 0.12 220 / 0.14);
+}
+
+.dark {
+  --bg: oklch(13.5% 0.028 275);
+  --surface: oklch(17.8% 0.03 275);
+  --surface-2: oklch(21.5% 0.032 275);
+  --surface-3: oklch(26% 0.034 275);
+
+  --fg: oklch(96% 0.012 275);
+  --fg-muted: oklch(74% 0.024 275);
+  --fg-subtle: oklch(58% 0.026 275);
+
+  --border: oklch(28% 0.032 275);
+  --border-strong: oklch(36% 0.036 275);
+
+  --primary: oklch(76% 0.17 280);
+  --primary-hover: oklch(82% 0.15 280);
+  --primary-fg: oklch(16% 0.04 275);
+  --primary-subtle: oklch(28% 0.07 280);
+
+  --ok: oklch(74% 0.16 155);
+  --ok-subtle: oklch(28% 0.06 155);
+  --info: oklch(74% 0.13 230);
+  --info-subtle: oklch(27% 0.055 230);
+
+  --ring: oklch(76% 0.17 280 / 0.5);
+
+  --aurora-a: oklch(68% 0.2 280 / 0.28);
+  --aurora-b: oklch(72% 0.16 220 / 0.2);
+}
+
+body {
+  background-image:
+    radial-gradient(780px at 12% -8%, var(--aurora-a), transparent 52%),
+    radial-gradient(640px at 92% 6%, var(--aurora-b), transparent 48%);
+  background-attachment: fixed;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% -10%, black 10%, transparent 70%);
+  opacity: 0.45;
+}
+
+.foi-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(48px);
+  animation: aurora-drift 14s ease-in-out infinite;
+}
+
+.foi-orb-a {
+  width: 22rem;
+  height: 14rem;
+  left: -3rem;
+  top: -1rem;
+  background: var(--aurora-a);
+}
+
+.foi-orb-b {
+  width: 18rem;
+  height: 12rem;
+  right: 8%;
+  top: 1.5rem;
+  background: var(--aurora-b);
+  animation-delay: -5s;
+}
+
+.foi-display {
+  color: var(--primary);
+  background-image: linear-gradient(
+    115deg,
+    var(--fg) 0%,
+    var(--primary) 42%,
+    oklch(72% 0.14 220) 68%,
+    var(--fg) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-pan 9s ease-in-out infinite;
+}
+
+.foi-mark {
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 0.4rem;
+  background: linear-gradient(160deg, var(--primary), oklch(65% 0.16 230));
+  box-shadow: 0 0 16px -4px var(--primary);
+  color: var(--primary-fg);
+}
+
+.foi-auth {
+  box-shadow:
+    0 0 0 1px oklch(100% 0 0 / 0.04),
+    0 24px 80px -28px oklch(30% 0.08 280 / 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foi-display,
+  .foi-orb,
+  .foi-orb-a,
+  .foi-orb-b {
+    animation: none;
+  }
+
+  .foi-display {
+    background-position: 40% center;
+  }
+}

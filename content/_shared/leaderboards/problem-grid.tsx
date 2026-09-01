@@ -1,4 +1,6 @@
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Avatar } from "@/components/ui/avatar";
+import { MotionTr } from "@/components/ui/motion";
 import type { BoardProps } from "@/lib/standings/types";
 
 function DefaultCell({ cell }: { cell: unknown }) {
@@ -12,9 +14,10 @@ function DefaultCell({ cell }: { cell: unknown }) {
 
 function DefaultTotal({ row }: { row: { total: number } }) {
   return (
-    <span className="text-fg font-mono font-semibold tabular-nums">
-      {Math.round(row.total)}
-    </span>
+    <AnimatedNumber
+      value={Math.round(row.total)}
+      className="text-fg font-mono font-semibold tabular-nums"
+    />
   );
 }
 
@@ -58,9 +61,14 @@ export function ProblemGridBoard({ board, problems }: BoardProps) {
         </thead>
         <tbody className="divide-border divide-y">
           {standings.rows.map((row) => (
-            <tr key={row.participant.uid} className="hover:bg-surface-2/60">
+            // Keyed by competitor, so a refresh that reorders the board moves
+            // each row to its new place instead of rewriting the cells in it.
+            <MotionTr
+              key={row.participant.uid}
+              className="hover:bg-surface-2/60"
+            >
               <td className="text-fg-muted px-3 py-2 text-right font-mono text-xs tabular-nums">
-                {row.rank}
+                <AnimatedNumber value={row.rank} />
               </td>
               <td className="px-3 py-2">
                 <div className="flex items-center gap-2">
@@ -78,7 +86,7 @@ export function ProblemGridBoard({ board, problems }: BoardProps) {
                   <Cell cell={row.cells[problem.slug]} problem={problem} />
                 </td>
               ))}
-            </tr>
+            </MotionTr>
           ))}
         </tbody>
       </table>

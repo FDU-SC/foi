@@ -3,6 +3,8 @@
 import type { ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { Button, type ButtonProps } from "@/components/ui/button";
+import { revealClass } from "@/components/ui/reveal";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 export function PendingSubmit({
@@ -14,7 +16,14 @@ export function PendingSubmit({
   const { pending } = useFormStatus();
   return (
     <Button type="submit" disabled={pending || disabled} {...props}>
-      {pending ? pendingLabel : children}
+      {pending ? (
+        <>
+          <Spinner />
+          {pendingLabel}
+        </>
+      ) : (
+        children
+      )}
     </Button>
   );
 }
@@ -32,7 +41,13 @@ export function FormMessage({
   children: ReactNode;
 }) {
   return (
-    <p className={cn("rounded-md px-3 py-2 text-sm leading-6", TONES[tone])}>
+    <p
+      className={cn(
+        "rounded-md px-3 py-2 text-sm leading-6",
+        revealClass,
+        TONES[tone],
+      )}
+    >
       {children}
     </p>
   );
@@ -48,10 +63,12 @@ export function ActionResult({
   return (
     <>
       {state.error ? (
-        <span className={cn("text-err text-xs", className)}>{state.error}</span>
+        <span className={cn("text-err text-xs", revealClass, className)}>
+          {state.error}
+        </span>
       ) : null}
       {state.message ? (
-        <span className={cn("text-ok text-xs", className)}>
+        <span className={cn("text-ok text-xs", revealClass, className)}>
           {state.message}
         </span>
       ) : null}

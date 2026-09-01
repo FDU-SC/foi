@@ -120,9 +120,12 @@ body::before {
 
 .foi-display {
   /* Length of one colour cycle along the 115° axis, not a horizontal distance.
-     A three-letter name spans a little over half of it; a longer one shows
-     correspondingly more of the cycle, so this is the knob for colour density. */
-  --foi-cycle: 3.5em;
+     The two ramps that touch `--fg` — 0 → 0.3 and 0.7 → 1 below, so 0.6 cycles
+     or 1.56em — have to stay shorter than the span the name covers on that axis
+     (~1.9em for three letters). Otherwise the visible window fits entirely
+     inside the achromatic part of the cycle and the title washes out to bare
+     `--fg`, which the dark theme renders near-white. */
+  --foi-cycle: 2.6em;
   --foi-pan: 0;
 
   color: var(--primary);
@@ -135,8 +138,8 @@ body::before {
   background-image: repeating-linear-gradient(
     115deg,
     var(--fg) calc(var(--foi-pan) * var(--foi-cycle)),
-    var(--primary) calc((var(--foi-pan) + 0.42) * var(--foi-cycle)),
-    oklch(72% 0.14 220) calc((var(--foi-pan) + 0.68) * var(--foi-cycle)),
+    var(--primary) calc((var(--foi-pan) + 0.3) * var(--foi-cycle)),
+    oklch(72% 0.14 220) calc((var(--foi-pan) + 0.7) * var(--foi-cycle)),
     var(--fg) calc((var(--foi-pan) + 1) * var(--foi-cycle))
   );
   -webkit-background-clip: text;

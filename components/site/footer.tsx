@@ -16,7 +16,7 @@ export async function DefaultFooter() {
   );
 
   return (
-    <footer className="border-border text-fg-subtle border-t px-4 py-6 text-center text-xs">
+    <footer className="border-border/80 text-fg-subtle relative z-10 border-t px-4 py-8 text-center text-xs">
       <p>{site.footer?.text ?? `${site.name} · ${site.description}`}</p>
       {visible.length > 0 ? (
         <p className="mt-2 flex flex-wrap justify-center gap-4">

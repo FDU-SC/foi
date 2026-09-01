@@ -33,7 +33,7 @@ export async function SubmissionListView() {
           还没有提交记录。
         </p>
       ) : (
-        <div className="border-border overflow-x-auto rounded-lg border">
+        <div className="border-border bg-surface/70 overflow-x-auto rounded-xl border backdrop-blur-sm">
           <table className="w-full text-sm">
             <thead className="bg-surface-2">
               <tr className="text-fg-muted text-xs">

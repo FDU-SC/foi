@@ -21,7 +21,7 @@ export function ThemeToggle() {
       type="button"
       onClick={toggle}
       aria-label="切换主题"
-      className="text-fg-subtle hover:text-fg hover:bg-surface-2 grid size-7 place-items-center rounded-md transition-colors"
+      className="text-fg-subtle hover:text-fg hover:bg-surface-2 grid size-7 place-items-center rounded-md transition-[color,background-color,transform] duration-200 motion-safe:hover:rotate-12"
     >
       <svg
         viewBox="0 0 24 24"

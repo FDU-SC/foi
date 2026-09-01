@@ -8,6 +8,9 @@ import { problemsFor } from "@/lib/problems/access";
 import { site } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
+/** Lines the hero reveals before the page hands off to the entry cards. */
+const HERO_LINES = 3;
+
 export async function HomeView() {
   const problems = problemsFor(await getViewer());
 
@@ -20,16 +23,23 @@ export async function HomeView() {
           <Link
             key={entry.href}
             href={entry.href}
-            style={revealDelay(index)}
+            // Picks up where the hero's three lines left off, so the page
+            // arrives as one cascade rather than two overlapping ones.
+            style={revealDelay(index + HERO_LINES)}
             className={cn(
-              "border-border bg-surface hover:border-primary/50 hover:bg-surface-2 group rounded-lg border p-4",
-              "transition-[color,background-color,border-color,box-shadow,transform] duration-200 ease-out",
-              "motion-safe:hover:-translate-y-0.5 hover:shadow-md",
+              "ui-lift border-border bg-surface/80 hover:border-primary/40 hover:bg-surface group rounded-xl border p-5",
+              "shadow-[0_1px_0_oklch(100%_0_0/0.04)] hover:shadow-[0_16px_40px_-24px_var(--primary)]",
               revealClass,
             )}
           >
-            <div className="text-fg group-hover:text-primary font-semibold transition-colors">
+            <div className="text-fg group-hover:text-primary flex items-center gap-1.5 font-semibold transition-colors">
               {entry.title}
+              <span
+                aria-hidden
+                className="text-primary -translate-x-1 opacity-0 transition-[transform,opacity] duration-300 ease-out group-hover:translate-x-0 group-hover:opacity-100"
+              >
+                →
+              </span>
             </div>
             <p className="text-fg-muted mt-1.5 text-sm leading-6">
               {entry.description}
@@ -48,7 +58,7 @@ export async function HomeView() {
             查看全部
           </Link>
         </div>
-        <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
+        <ul className="border-border divide-border bg-surface/70 divide-y overflow-hidden rounded-xl border backdrop-blur-sm">
           {problems.slice(0, 5).map(({ config: problem, preview }, index) => (
             <li
               key={problem.slug}
@@ -57,7 +67,7 @@ export async function HomeView() {
             >
               <Link
                 href={`/problems/${problem.slug}`}
-                className="hover:bg-surface-2 flex items-center gap-3 px-4 py-3 transition-colors"
+                className="hover:bg-surface-2/80 flex items-center gap-3 px-4 py-3 shadow-[inset_3px_0_0_0_transparent] transition-[background-color,box-shadow] duration-200 hover:shadow-[inset_3px_0_0_0_var(--primary)]"
               >
                 <span className="text-fg-subtle w-32 shrink-0 truncate font-mono text-xs">
                   {problem.slug}

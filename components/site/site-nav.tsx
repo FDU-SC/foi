@@ -26,7 +26,7 @@ export function SiteNav({ items }: { items: NavLink[] }) {
   const pathname = usePathname();
 
   return (
-    <nav className="flex items-center gap-1 text-sm">
+    <nav className="flex items-center gap-1 overflow-x-auto text-sm">
       {items.map((item) => {
         const active =
           pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -37,7 +37,9 @@ export function SiteNav({ items }: { items: NavLink[] }) {
             href={item.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative rounded-md px-2.5 py-1.5 transition-colors",
+              // Narrow viewports scroll the strip rather than wrapping it,
+              // which would push the header off its 56px row.
+              "relative shrink-0 rounded-md px-2.5 py-1.5 whitespace-nowrap transition-colors",
               active
                 ? "text-fg font-medium"
                 : "text-fg-muted hover:text-fg hover:bg-surface-2/60",

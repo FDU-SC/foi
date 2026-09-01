@@ -73,7 +73,7 @@ export function UserMenu({
             exit={{ opacity: 0, scale: 0.96, y: -4 }}
             transition={QUICK}
             // Grows from the button it hangs off, rather than from its middle.
-            className="border-border bg-surface absolute right-0 z-50 mt-1.5 w-44 origin-top-right overflow-hidden rounded-lg border shadow-lg"
+            className="border-border bg-surface/95 absolute right-0 z-50 mt-1.5 w-44 origin-top-right overflow-hidden rounded-xl border shadow-[0_16px_40px_-20px_oklch(20%_0.04_265/0.55)] backdrop-blur-xl"
           >
             <div className="border-border border-b px-3 py-2">
               <div className="text-fg font-mono text-xs">{user.username}</div>

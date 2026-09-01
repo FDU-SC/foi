@@ -17,12 +17,12 @@ export async function ContestListView() {
       <h1 className="text-fg text-2xl font-bold tracking-tight">比赛</h1>
 
       {all.length === 0 ? (
-        <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
+        <p className="text-fg-subtle border-border bg-surface/70 rounded-xl border py-16 text-center text-sm backdrop-blur-sm">
           还没有比赛。在 <code className="font-mono">content/contests/</code>{" "}
           下新建一个目录即可。
         </p>
       ) : (
-        <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
+        <ul className="border-border divide-border bg-surface/70 divide-y overflow-hidden rounded-xl border backdrop-blur-sm">
           {all.map(({ config: contest, preview }, index) => {
             const phase = contestPhase(contest);
             return (
@@ -33,7 +33,7 @@ export async function ContestListView() {
               >
                 <Link
                   href={`/contests/${contest.slug}`}
-                  className="hover:bg-surface-2 flex flex-wrap items-center gap-3 px-4 py-3.5 transition-colors"
+                  className="hover:bg-surface-2/80 flex flex-wrap items-center gap-3 px-4 py-3.5 shadow-[inset_3px_0_0_0_transparent] transition-[background-color,box-shadow] duration-200 hover:shadow-[inset_3px_0_0_0_var(--primary)]"
                 >
                   <Badge tone={PHASE_TONE[phase]}>{PHASE_LABEL[phase]}</Badge>
                   <span className="text-fg font-medium">{contest.title}</span>

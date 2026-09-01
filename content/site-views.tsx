@@ -1,10 +1,15 @@
 import type { SiteViews } from "@/lib/site-views";
+import { FoiAuthShell } from "./chrome/auth-shell";
+import { FoiBrand } from "./chrome/brand";
+import { FoiHomeHero } from "./chrome/home-hero";
 
 /**
- * Replacements for the chrome around every page.
- *
- * Every slot has a platform default, so declaring none — as here — renders the
- * stock site. Fill one to replace that region's structure; see `SiteViews` for
- * what each covers and `content/site.ts` for the wording that needs no code.
+ * FOI chrome: the wordmark, the home introduction, and the auth frame.
+ * Header and Footer keep the platform structure and pick up atmosphere from
+ * the theme stylesheet.
  */
-export const views: SiteViews = {};
+export const views: SiteViews = {
+  Brand: FoiBrand,
+  HomeHero: FoiHomeHero,
+  AuthShell: FoiAuthShell,
+};

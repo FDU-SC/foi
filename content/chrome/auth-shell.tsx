@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
 import { Brand } from "@/components/site/brand";
-import { siteViews } from "@/lib/site-views";
 
-export function DefaultAuthShell({
+export function FoiAuthShell({
   children,
   footer,
 }: {
@@ -11,7 +10,11 @@ export function DefaultAuthShell({
 }) {
   return (
     <div className="relative z-10 flex flex-1 items-center justify-center px-4 py-16">
-      <div className="border-border bg-surface/80 w-full max-w-xs rounded-2xl border px-6 py-8 shadow-[0_24px_80px_-32px_oklch(20%_0.04_265/0.45)] backdrop-blur-xl">
+      <div className="pointer-events-none absolute inset-0" aria-hidden>
+        <div className="foi-orb foi-orb-a top-1/4 left-1/2 -translate-x-1/2" />
+        <div className="foi-orb foi-orb-b top-1/3 right-1/4" />
+      </div>
+      <div className="foi-auth border-border bg-surface/70 w-full max-w-sm rounded-2xl border px-6 py-8 backdrop-blur-xl">
         <div className="mb-8 text-center text-2xl">
           <Brand />
         </div>
@@ -24,12 +27,4 @@ export function DefaultAuthShell({
       </div>
     </div>
   );
-}
-
-export function AuthShell(props: {
-  children: ReactNode;
-  footer?: ReactNode;
-}) {
-  const Slot = siteViews.AuthShell;
-  return Slot ? <Slot {...props} /> : <DefaultAuthShell {...props} />;
 }

@@ -752,6 +752,12 @@ interface ParallelPerfConfig {
   timeLimitMs?: number;
   tolerance?: number;
   timedRuns?: number;
+  /** "speedup"：按相对基线的加速比给分；"correctness"：只判正确性，对即满分。 */
+  scoring?: "speedup" | "correctness";
+  /** "float"：浮点容差比对；"exact"：逐字节比对。 */
+  compare?: "float" | "exact";
+  /** 覆盖默认输入（String(n)）。实现题的程序可能不需要 stdin 输入。 */
+  input?: string;
 }
 
 /** π 的矩形法数值积分（串行参考），OpenMP / MPI 两道题共用。 */
@@ -877,7 +883,7 @@ async function judgeMpi(
   // 这时对比的是优化前后，而不是 MPI 对串行。
   const baselineSource =
     (config as { baseline?: string })?.baseline ?? PI_INTEGRAL_SOURCE;
-  const input = String(n) + "\n";
+  const input = cfg.input ?? String(n) + "\n";
   const dir = mkdtempSync(join(tmpdir(), "foi-mpi-"));
 
   const compiler = process.env.MPI_CXX ?? "mpicxx";
@@ -944,15 +950,27 @@ async function judgeMpi(
 
     const expected = baselineRun.stdout.toString();
     const got = best.stdout.toString();
-    if (!floatClose(got, expected, tolerance)) {
+    const correct =
+      cfg.compare === "exact"
+        ? got.trim() === expected.trim()
+        : floatClose(got, expected, tolerance);
+    if (!correct) {
       return {
         result: { status: "wrong_answer", score: 0, maxScore: 100, accepted: false },
-        detail: { message: `输出与参考不一致（|差| 超过容差 ${tolerance}）` },
+        detail: {
+          message:
+            cfg.compare === "exact"
+              ? "输出与参考不一致"
+              : `输出与参考不一致（|差| 超过容差 ${tolerance}）`,
+        },
       };
     }
 
     const timeMs = Math.max(1, best.timeMs);
-    const score = Math.min(100, Math.floor((50 * baselineMs) / timeMs));
+    const score =
+      cfg.scoring === "correctness"
+        ? 100
+        : Math.min(100, Math.floor((50 * baselineMs) / timeMs));
     return {
       result: { status: score >= 100 ? "accepted" : score > 0 ? "partial" : "wrong_answer", score, maxScore: 100, accepted: score >= 100 },
       detail: {
@@ -968,195 +986,6 @@ async function judgeMpi(
   }
 }
 
-interface RingAllreduceConfig {
-  mode?: string;
-  p?: number;
-  n?: number;
-  timeLimitMs?: number;
-}
-
-const RING_HARNESS_HEADER = `#ifndef FOI_RING_MOCK_H
-#define FOI_RING_MOCK_H
-// 由评测机提供：ring 拓扑上的阻塞通信
-int ring_rank();
-int ring_size();
-void ring_send(int dst, const float* buf, int n);
-void ring_recv(int src, float* buf, int n);
-#endif
-`;
-
-function ringHarnessSource(config: RingAllreduceConfig, player: string): string {
-  const P = config.p ?? 4;
-  const N = config.n ?? 1 << 16;
-  const BYTES = N * 4;
-  return `#include <bits/stdc++.h>
-#include <atomic>
-#include <pthread.h>
-#include "ring.h"
-
-using namespace std;
-
-// ---- mock ring 网络（评测机侧）----
-static const int P = ${P};
-static const int N = ${N};
-
-struct Channel {
-  std::deque<std::vector<float>> q;
-  pthread_mutex_t mu;
-  pthread_cond_t cv;
-};
-static Channel chan[P][P];
-static std::atomic<long> comm_calls[P];
-
-static int my_size = P;
-static thread_local int my_rank = 0;
-int ring_rank() { return my_rank; }
-int ring_size() { return my_size; }
-
-// send 立即入队返回（对应 MPI 的 eager/缓冲语义）；recv 阻塞直到队列非空。
-void ring_send(int dst, const float* buf, int n) {
-  comm_calls[my_rank]++;
-  pthread_mutex_lock(&chan[my_rank][dst].mu);
-  chan[my_rank][dst].q.emplace_back(buf, buf + n);
-  pthread_cond_signal(&chan[my_rank][dst].cv);
-  pthread_mutex_unlock(&chan[my_rank][dst].mu);
-}
-
-void ring_recv(int src, float* buf, int n) {
-  comm_calls[my_rank]++;
-  pthread_mutex_lock(&chan[src][my_rank].mu);
-  while (chan[src][my_rank].q.empty())
-    pthread_cond_wait(&chan[src][my_rank].cv, &chan[src][my_rank].mu);
-  const auto& msg = chan[src][my_rank].q.front();
-  memcpy(buf, msg.data(), (size_t)n * 4);
-  chan[src][my_rank].q.pop_front();
-  pthread_mutex_unlock(&chan[src][my_rank].mu);
-}
-
-// ---- 选手实现 ----
-${player}
-
-// ---- 进程主函数 ----
-struct Worker { int rank; float* data; };
-
-void* worker_main(void* arg) {
-  Worker* w = (Worker*)arg;
-  my_rank = w->rank;
-  my_size = P;
-  ring_allreduce(w->data, N);
-  return nullptr;
-}
-
-int main() {
-  for (int s = 0; s < P; s++) {
-    for (int d = 0; d < P; d++) {
-      comm_calls[s] = 0;
-      pthread_mutex_init(&chan[s][d].mu, nullptr);
-      pthread_cond_init(&chan[s][d].cv, nullptr);
-    }
-  }
-
-  pthread_t threads[P];
-  float* data[P];
-  for (int r = 0; r < P; r++) {
-    data[r] = (float*)malloc(${BYTES});
-    for (int i = 0; i < N; i++) data[r][i] = (float)(r + 1);
-  }
-  Worker workers[P];
-  for (int r = 0; r < P; r++) {
-    workers[r] = { r, data[r] };
-    pthread_create(&threads[r], nullptr, worker_main, &workers[r]);
-  }
-  for (int r = 0; r < P; r++) pthread_join(threads[r], nullptr);
-
-  const float expected = (float)(P * (P + 1) / 2);
-  bool ok = true;
-  for (int r = 0; r < P && ok; r++) {
-    for (int i = 0; i < N; i++) {
-      if (fabs(data[r][i] - expected) > 1e-4f) { ok = false; break; }
-    }
-  }
-
-  long total_calls = 0;
-  for (int r = 0; r < P; r++) total_calls += comm_calls[r];
-  printf("RESULT %s\\n", ok ? "ok" : "wrong");
-  printf("CALLS %ld\\n", total_calls);
-  return 0;
-}
-`;
-}
-
-/**
- * Ring Allreduce 判题：评测机在单进程内用线程模拟 P 个进程的 ring 拓扑，
- * 选手实现 ring_allreduce(data, n)。校验所有进程都拿到全归约（求和）结果；
- * 通信调用越接近最优（4(P-1) 次）分越高。
- */
-async function judgeRingAllreduce(
-  config: unknown,
-  payload: unknown,
-  say: Say,
-): Promise<Verdict> {
-  const cfg = (config ?? {}) as RingAllreduceConfig;
-  const P = cfg.p ?? 4;
-  const timeLimitMs = cfg.timeLimitMs ?? 15_000;
-  const source = String((payload as { source?: unknown })?.source ?? "");
-  const dir = mkdtempSync(join(tmpdir(), "foi-ring-"));
-
-  try {
-    writeFileSync(join(dir, "ring.h"), RING_HARNESS_HEADER);
-    writeFileSync(join(dir, "harness.cpp"), ringHarnessSource(cfg, source));
-    say("编译（-pthread）");
-    const binary = join(dir, "prog");
-    const compiled = await run(
-      "g++",
-      ["-O2", "-std=c++17", "-pthread", "-o", binary, join(dir, "harness.cpp")],
-      { timeout: 30_000 },
-    );
-    if (compiled.code !== 0) {
-      return {
-        result: { status: "compile_error", score: 0, maxScore: 100, accepted: false },
-        detail: { message: (compiled.stderr.toString() || "编译失败").slice(0, 2000) },
-      };
-    }
-
-    say("运行（P 进程 ring 模拟）");
-    const result = await run(binary, [], { timeout: timeLimitMs, maxBuffer: 4 * 1024 * 1024 });
-    if (result.killed) {
-      return {
-        result: { status: "time_limit_exceeded", score: 0, maxScore: 100, accepted: false },
-        detail: { message: `超出时间限制（${timeLimitMs}ms）` },
-      };
-    }
-    const out = result.stdout.toString();
-    const ok = /RESULT ok/.test(out);
-    const calls = Number(out.match(/CALLS (\d+)/)?.[1] ?? 0);
-
-    if (!ok) {
-      return {
-        result: { status: "wrong_answer", score: 0, maxScore: 100, accepted: false },
-        detail: { message: "归约结果错误：并非所有进程都拿到全量求和（检查 send/recv 的字节数与累加逻辑）" },
-      };
-    }
-
-    // 最优 ring allreduce：scatter-reduce (P-1) 轮 + allgather (P-1) 轮，
-    // 每轮每进程一次 send + 一次 recv → 每进程 4(P-1) 次，P 个进程合计 4P(P-1)。
-    const optimal = 4 * P * (P - 1);
-    let score = 100;
-    if (calls > optimal) {
-      score = Math.max(10, Math.floor((100 * optimal) / calls));
-    }
-    return {
-      result: { status: score >= 100 ? "accepted" : "partial", score, maxScore: 100, accepted: score >= 100 },
-      detail: {
-        message: `结果正确；总通信调用 ${calls} 次（${P} 进程 ring 的最优为 ${optimal} 次）`,
-        calls,
-        optimal,
-      },
-    };
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
 
 async function evaluate(job: JobDetails, say: Say): Promise<Verdict> {
   const config = (job.problem.config ?? {}) as Record<string, unknown>;
@@ -1175,9 +1004,6 @@ async function evaluate(job: JobDetails, say: Say): Promise<Verdict> {
   }
   if (config.mode === "mpi") {
     return judgeMpi(job.problem.config, job.payload, say);
-  }
-  if (config.mode === "ring-allreduce") {
-    return judgeRingAllreduce(job.problem.config, job.payload, say);
   }
   return judgeCode(job.problem.config, job.payload, say);
 }

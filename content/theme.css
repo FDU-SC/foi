@@ -122,6 +122,15 @@ body::before {
   background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: gradient-pan 9s ease-in-out infinite;
+
+  /* The gradient is painted inside the element box and then clipped to the
+     glyphs, so anything hanging outside that box simply is not drawn. Display
+     type sets `line-height` near 1, which is shorter than the font's own em box
+     (Geist: 1.29em), leaving descenders below the edge — a name like "Staging"
+     loses the tail of its "g". Grow the box downward, then take the same amount
+     off the margin so the text below does not move. */
+  padding-bottom: 0.16em;
+  margin-bottom: -0.16em;
 }
 
 .foi-mark {

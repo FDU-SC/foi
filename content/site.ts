@@ -19,7 +19,15 @@ export const site: SiteConfig = {
     "data-structures",
     "divide-and-conquer",
     "kernel",
+    "comm",
+    "framework",
+    "inference",
+    "cluster",
     "ctf",
+    "pwn",
+    "reverse",
+    "crypto",
+    "misc",
   ],
 
   navigation: [

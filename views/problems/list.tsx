@@ -294,7 +294,7 @@ export async function ProblemListView({ params, searchParams }: Props) {
       {problems.length === 0 ? (
         <p className="text-fg-subtle border-border rounded-xl border py-12 text-center text-sm">
           {catalogue.length === 0 ? (
-            `这个分区还没有题目。在 content/contests/${contest.slug}/contest.ts 的 problems 中登记。`
+            "这个方向还在筹备，题目随后会挂上来。"
           ) : (
             <>
               没有符合条件的题目。

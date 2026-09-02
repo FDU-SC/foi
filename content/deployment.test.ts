@@ -156,8 +156,23 @@ describe("题库", () => {
     }
   });
 
-  it("每个分区都带着题，一张空卡片没有意义", () => {
+  it("已经开张的分区带着题；空分区是预留的方向", () => {
+    const reserved = [
+      "comm",
+      "framework",
+      "inference",
+      "cluster",
+      "pwn",
+      "reverse",
+      "crypto",
+      "misc",
+    ];
+
     for (const contest of sections) {
+      if (reserved.includes(contest.slug)) {
+        expect(contest.problems, contest.slug).toEqual([]);
+        continue;
+      }
       expect(contest.problems.length, contest.slug).toBeGreaterThan(0);
     }
   });

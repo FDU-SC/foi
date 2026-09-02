@@ -56,6 +56,11 @@ const SORTS = [
 
 const LISTED = SORTS[0].value;
 
+const LIFT = [
+  "ui-lift border-border bg-surface/80 hover:border-primary/40 hover:bg-surface rounded-xl border",
+  "shadow-[0_1px_0_oklch(100%_0_0/0.04)] hover:shadow-[0_16px_40px_-24px_var(--primary)]",
+].join(" ");
+
 function pick(
   asked: string | undefined,
   from: { value: string }[],
@@ -109,8 +114,8 @@ export async function problemListMetadata({
  * One catalogued contest's problem set, listed by problem rather than by the
  * round it belongs to.
  *
- * It asks the same `problem.read` gate the detail page does, so a row here
- * never leads to a refusal — and the status column counts only work done in
+ * It asks the same `problem.read` gate the detail page does, so a card here
+ * never leads to a refusal — and the status badge counts only work done in
  * this contest, the way its own leaderboard does.
  */
 export async function ProblemListView({ params, searchParams }: Props) {
@@ -216,6 +221,10 @@ export async function ProblemListView({ params, searchParams }: Props) {
   });
 
   const narrowed = problems.length !== catalogue.length;
+  const solved = statuses
+    ? catalogue.filter(({ ref }) => statuses.get(ref.problem.slug)?.accepted)
+        .length
+    : null;
 
   // A catalogue section's normal state is open, and saying so on every visit is
   // noise. Anything else changes what a visitor can do here, so it gets a badge.
@@ -254,6 +263,22 @@ export async function ProblemListView({ params, searchParams }: Props) {
         <p className="text-fg-muted leading-7">{contest.description}</p>
       ) : null}
 
+      {solved !== null && catalogue.length > 0 ? (
+        <div className="flex max-w-xs items-center gap-2">
+          <div className="bg-primary-subtle h-1.5 min-w-0 flex-1 overflow-hidden rounded-full">
+            <div
+              className="bg-primary h-full rounded-full"
+              style={{
+                width: `${Math.round((solved / catalogue.length) * 100)}%`,
+              }}
+            />
+          </div>
+          <span className="text-fg-subtle font-mono text-xs tabular-nums">
+            {solved} / {catalogue.length} 题
+          </span>
+        </div>
+      ) : null}
+
       {catalogue.length > 0 ? (
         <ProblemFilters
           path={path}
@@ -266,93 +291,69 @@ export async function ProblemListView({ params, searchParams }: Props) {
         />
       ) : null}
 
-      <div className="border-border bg-surface/70 overflow-hidden rounded-xl border backdrop-blur-sm">
-        <table className="w-full text-sm">
-          <thead className="bg-surface-2/80">
-            <tr className="text-fg-muted text-xs">
-              <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
-                编号
-              </th>
-              <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
-                题目
-              </th>
-              <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
-                我的状态
-              </th>
-              <th className="border-border border-b px-4 py-2.5 text-left font-semibold" />
-            </tr>
-          </thead>
-          <tbody className="divide-border divide-y">
-            {problems.map(({ ref: { problem }, preview }, index) => {
-              const mine = statuses?.get(problem.slug);
-              const preset = mine
-                ? describeVerdict(problem.slug, { status: mine.status })
-                : null;
+      {problems.length === 0 ? (
+        <p className="text-fg-subtle border-border rounded-xl border py-12 text-center text-sm">
+          {catalogue.length === 0 ? (
+            `这个分区还没有题目。在 content/contests/${contest.slug}/contest.ts 的 problems 中登记。`
+          ) : (
+            <>
+              没有符合条件的题目。
+              <Link
+                href={path}
+                className="hover:text-fg ml-1.5 underline underline-offset-2 transition-colors"
+              >
+                清除筛选
+              </Link>
+            </>
+          )}
+        </p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {problems.map(({ ref: { problem, entry }, preview }, index) => {
+            const mine = statuses?.get(problem.slug);
+            const preset = mine
+              ? describeVerdict(problem.slug, { status: mine.status })
+              : null;
+            const accepted = mine?.accepted === true;
 
-              return (
-                <tr
-                  key={problem.slug}
-                  style={revealDelay(index)}
-                  className={cn(
-                    "hover:bg-surface-2/70 shadow-[inset_3px_0_0_0_transparent]",
-                    "transition-[background-color,box-shadow] duration-200 hover:shadow-[inset_3px_0_0_0_var(--primary)]",
-                    revealClass,
-                  )}
-                >
-                  <td className="text-fg-subtle px-4 py-2.5 font-mono text-xs">
-                    {problem.slug}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <Link
-                      href={problemHref(contest.slug, problem.slug)}
-                      className="text-fg hover:text-primary font-medium transition-colors"
-                    >
-                      {problem.title}
-                    </Link>
-                    {preview ? (
-                      <Badge tone="warn" className="ml-2">
-                        未公开
-                      </Badge>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-2.5">
+            return (
+              <Link
+                key={problem.slug}
+                href={problemHref(contest.slug, problem.slug)}
+                style={revealDelay(index)}
+                className={cn(
+                  "group flex flex-col gap-3 p-4",
+                  LIFT,
+                  accepted && "border-ok/30 bg-ok-subtle/20",
+                  revealClass,
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="bg-surface-3 text-fg flex size-8 shrink-0 items-center justify-center rounded font-mono text-xs font-semibold">
+                    {entry.label}
+                  </span>
+                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    {preview ? <Badge tone="warn">未公开</Badge> : null}
                     {mine && preset ? (
                       <Badge tone={preset.tone} mono title={preset.label}>
                         {preset.short}
                       </Badge>
-                    ) : (
-                      <span className="text-fg-muted text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <ProblemBadgesSlot config={problem} offered={offered} />
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                    ) : null}
+                  </div>
+                </div>
 
-        {problems.length === 0 ? (
-          <p className="text-fg-subtle px-4 py-12 text-center text-sm">
-            {catalogue.length === 0 ? (
-              `这个分区还没有题目。在 content/contests/${contest.slug}/contest.ts 的 problems 中登记。`
-            ) : (
-              <>
-                没有符合条件的题目。
-                <Link
-                  href={path}
-                  className="hover:text-fg underline underline-offset-2 transition-colors"
-                >
-                  清除筛选
-                </Link>
-              </>
-            )}
-          </p>
-        ) : null}
-      </div>
+                <h2 className="text-fg group-hover:text-primary font-semibold transition-colors">
+                  {problem.title}
+                </h2>
+
+                <div className="mt-auto flex flex-wrap items-center gap-1.5">
+                  <ProblemBadgesSlot config={problem} offered={offered} />
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

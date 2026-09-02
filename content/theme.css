@@ -108,6 +108,16 @@ body::before {
   animation-delay: -5s;
 }
 
+/* Phase of the `.foi-display` gradient, in whole colour cycles. Registration is
+   what makes it interpolate rather than flip; the plain declaration on the
+   class covers browsers without `@property`, where an unresolvable var() would
+   drop `background-image` and leave the title as transparent text. */
+@property --foi-pan {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
 .foi-display {
   /* Length of one colour cycle along the 115° axis, not a horizontal distance.
      The two ramps that touch `--fg` — 0 → 0.3 and 0.7 → 1 below, so 0.6 cycles
@@ -116,25 +126,27 @@ body::before {
      inside the achromatic part of the cycle and the title washes out to bare
      `--fg`, which the dark theme renders near-white. */
   --foi-cycle: 2.6em;
+  --foi-pan: 0;
 
   color: var(--primary);
 
-  /* Repeating, because a diagonal gradient cannot meet itself: wherever the
-     pattern wraps, the two sides sample points a constant distance apart on
-     the gradient axis, and the colour steps along a vertical line. Stops stay
-     pinned at 0 so every engine paints the pattern across the box. Phase is
-     `background-position` along 115° — one cycle per iteration, so the drift
-     maps onto itself. The image is larger than the box plus that travel, and
-     does not tile, so the shift never exposes an edge. */
+  /* Phase is the stop list. Stops run from `--foi-pan - 2` to `--foi-pan + 1`
+     so the first stays strictly before 0 and the last past the glyph box at
+     every phase. Firefox fills everything ahead of the first stop with that
+     stop's colour rather than repeating the pattern backwards. */
   background-image: repeating-linear-gradient(
     115deg,
-    var(--fg) 0,
-    var(--primary) calc(0.3 * var(--foi-cycle)),
-    oklch(72% 0.14 220) calc(0.7 * var(--foi-cycle)),
-    var(--fg) var(--foi-cycle)
+    var(--fg) calc((var(--foi-pan) - 2) * var(--foi-cycle)),
+    var(--primary) calc((var(--foi-pan) - 1.7) * var(--foi-cycle)),
+    oklch(72% 0.14 220) calc((var(--foi-pan) - 1.3) * var(--foi-cycle)),
+    var(--fg) calc((var(--foi-pan) - 1) * var(--foi-cycle)),
+    var(--primary) calc((var(--foi-pan) - 0.7) * var(--foi-cycle)),
+    oklch(72% 0.14 220) calc((var(--foi-pan) - 0.3) * var(--foi-cycle)),
+    var(--fg) calc(var(--foi-pan) * var(--foi-cycle)),
+    var(--primary) calc((var(--foi-pan) + 0.3) * var(--foi-cycle)),
+    oklch(72% 0.14 220) calc((var(--foi-pan) + 0.7) * var(--foi-cycle)),
+    var(--fg) calc((var(--foi-pan) + 1) * var(--foi-cycle))
   );
-  background-size: 400% 400%;
-  background-repeat: no-repeat;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -154,9 +166,11 @@ body::before {
    runs in one direction and still repeats without a step. `linear` matters for
    the same reason: easing would stall the drift once per iteration. */
 @keyframes foi-display-pan {
+  from {
+    --foi-pan: 1;
+  }
   to {
-    background-position: calc(sin(115deg) * var(--foi-cycle))
-      calc(-1 * cos(115deg) * var(--foi-cycle));
+    --foi-pan: 0;
   }
 }
 
@@ -317,8 +331,7 @@ article:has(> a[href="/problems/puzzles"]) {
   }
 
   .foi-display {
-    background-position: calc(sin(115deg) * 0.4 * var(--foi-cycle))
-      calc(-1 * cos(115deg) * 0.4 * var(--foi-cycle));
+    --foi-pan: 0.85;
   }
 
   /* Stopped, but stopped somewhere with colour in it rather than at the start

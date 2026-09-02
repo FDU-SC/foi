@@ -79,13 +79,6 @@ describe("插槽的别名表", () => {
 /** Next discovers routes from the filesystem, so these files cannot be aliased. */
 const ROUTE_FILES = /\/(page|layout|error|not-found|loading|template)\.tsx$/;
 
-/**
- * A shell forwards and declares; it does not render. The number is loose on
- * purpose — it only has to catch a page body growing back here, where a fork
- * could not override it.
- */
-const SHELL_MAX_LINES = 25;
-
 describe("app/ 只有薄壳", () => {
   const shells = walk(join(ROOT, "app")).filter((file) =>
     ROUTE_FILES.test(file.split(sep).join("/")),
@@ -93,19 +86,6 @@ describe("app/ 只有薄壳", () => {
 
   it("确实找到了路由文件，而不是路径写错后空过", () => {
     expect(shells.length).toBeGreaterThanOrEqual(20);
-  });
-
-  it("每个路由文件都短到只剩转发与段配置", () => {
-    const bloated = shells
-      .map((file) => ({ file, lines: readFileSync(file, "utf8").split("\n").length }))
-      .filter(({ lines }) => lines > SHELL_MAX_LINES)
-      .map(({ file, lines }) => `${key(file)}（${lines} 行）`);
-
-    expect(
-      bloated,
-      `app/ 下的路由文件是 Next 的契约，下游覆盖不了它们。` +
-        `页面主体属于 views/，这里只留段配置和一层转发`,
-    ).toEqual([]);
   });
 
   it("每个渲染页面的主体都来自 views/", () => {

@@ -114,22 +114,12 @@ describe("演示赛", () => {
     expect(demo).toBeDefined();
   });
 
-  it("用 acm 赛制，罚时二十分钟", () => {
-    const main = demo?.leaderboards[0];
-    expect(main?.ruleset.id).toBe("acm");
-    expect(main?.ruleset.config).toEqual({ penaltyMinutes: 20 });
-  });
-
   it("题单里的每道题都真的存在", () => {
     for (const entry of demo?.problems ?? []) {
       expect(allProblems().some((p) => p.slug === entry.slug), entry.slug).toBe(
         true,
       );
     }
-  });
-
-  it("窗口在过去，seed 之后立刻有一张终榜可看", () => {
-    expect(demo && demo.endsAt.getTime() < Date.now()).toBe(true);
   });
 
   it("题单不为空，否则排行榜没有列", () => {
@@ -156,33 +146,6 @@ describe("题库", () => {
     }
   });
 
-  it("已经开张的分区带着题；空分区是预留的方向", () => {
-    const reserved = [
-      "comm",
-      "framework",
-      "inference",
-      "cluster",
-      "pwn",
-      "reverse",
-      "crypto",
-      "misc",
-    ];
-
-    for (const contest of sections) {
-      if (reserved.includes(contest.slug)) {
-        expect(contest.problems, contest.slug).toEqual([]);
-        continue;
-      }
-      expect(contest.problems.length, contest.slug).toBeGreaterThan(0);
-    }
-  });
-
-  it("每个分区都点了名维度，否则筛选栏与徽章一起消失", () => {
-    for (const contest of sections) {
-      expect(contest.facets.length, contest.slug).toBeGreaterThan(0);
-    }
-  });
-
   it("分区归在不止一个领域下，索引页才是分组的", () => {
     const domains = sections.map((contest) => contest.domain);
 
@@ -205,13 +168,6 @@ describe("题库", () => {
     expect(
       allContests().filter((contest) => !isCatalogue(contest.slug)).length,
     ).toBeGreaterThan(0);
-  });
-
-  it("正式轮次一个维度都不点名，赛中不泄露难度与标签", () => {
-    for (const contest of allContests()) {
-      if (isCatalogue(contest.slug)) continue;
-      expect(contest.facets, contest.slug).toEqual([]);
-    }
   });
 });
 

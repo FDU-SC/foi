@@ -54,19 +54,13 @@ export async function AdminContestsView() {
       <div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">比赛</h1>
         <p className="text-fg-muted mt-2 text-sm leading-6">
-          比赛定义在{" "}
-          <code className="font-mono">content/contests/&lt;slug&gt;/contest.ts</code>
-          ：时间、赛制、题单、参赛范围都在那一个文件里。新建一场比赛就是新建一个目录，改时间就是改一行——两者都会经过 code
-          review，也都能回滚。
+          所有比赛及其配置概览。修改在仓库中完成。
         </p>
       </div>
 
       {all.length === 0 ? (
         <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
-          还没有比赛。在{" "}
-          <code className="font-mono">content/contests/</code>{" "}
-          下新建一个目录，写一份{" "}
-          <code className="font-mono">contest.ts</code> 即可。
+          还没有比赛。
         </p>
       ) : (
         all.map((contest) => {
@@ -145,12 +139,6 @@ export async function AdminContestsView() {
                   </ul>
                 )}
 
-                <p className="text-fg-subtle border-border border-t pt-3 text-xs leading-5">
-                  编辑{" "}
-                  <code className="font-mono">
-                    content/contests/{contest.slug}/contest.ts
-                  </code>
-                </p>
               </CardBody>
             </Card>
           );

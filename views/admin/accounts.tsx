@@ -104,14 +104,11 @@ export async function AdminAccountsView({
       <div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">账号</h1>
         <p className="text-fg-muted mt-2 text-sm leading-6">
-          账号由注册产生，这里列出的是数据库里的真实记录。
-          <strong className="text-fg font-medium">用户组不在这张表里</strong>
-          ：它们由{" "}
-          <code className="font-mono">content/enrollment/</code> 的{" "}
+          注册用户列表。用户组由{" "}
           <Link href="/admin/enrollment" className="hover:text-fg underline">
           分流规则
-        </Link>{" "}
-        现算，一部分按邮箱匹配，一部分按用户名点名。要给谁提权或改分组，提 PR 改那个文件，部署后下一个请求就生效。
+        </Link>
+          自动分配。
         </p>
       </div>
 

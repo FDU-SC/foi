@@ -115,7 +115,7 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
           ) : user.email ? (
             <>
               <p className="text-fg-muted text-sm leading-6">
-                验证链接会发到新邮箱，确认后才会生效。修改邮箱后，你的用户组归属会根据新邮箱重新计算。
+                验证链接会发到新邮箱，确认后生效。
               </p>
               <EmailChangeForm />
             </>

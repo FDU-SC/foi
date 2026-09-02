@@ -94,12 +94,6 @@ export async function ContestDetailView({
       ) : problems.length === 0 ? (
         <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
           这场比赛还没有添加题目。
-          <br />
-          在{" "}
-          <code className="font-mono">
-            content/contests/{contest.slug}/contest.ts
-          </code>{" "}
-          的 problems 中登记。
         </p>
       ) : (
         <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">

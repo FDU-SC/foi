@@ -7,8 +7,7 @@ export const site: SiteConfig = {
   lang: "zh-CN",
   timezone: "Asia/Shanghai",
 
-  tagline:
-    "一个可插拔的竞赛平台。题面、评测机与赛制计分都以代码形式存放在仓库中，可以像写组件一样定制每一道题的页面。",
+  tagline: "练手、比赛、看排名，都在这里。",
 
   // 题库就是这几场比赛：窗口长期开着，因此它们的题目挂在 /problems 而不是
   // /contests 下。顺序即卡片顺序，分组标题取自各自的 domain。
@@ -54,12 +53,12 @@ export const site: SiteConfig = {
     {
       href: "/contests",
       title: "比赛",
-      description: "有窗口的轮次：进行中的、未开始的、已经结束的。",
+      description: "进行中的、即将开始的、已经结束的比赛。",
     },
     {
       href: "/submissions",
       title: "提交记录",
-      description: "追踪自己的评测结果与得分明细。",
+      description: "查看自己的提交与评测结果。",
     },
   ],
 };

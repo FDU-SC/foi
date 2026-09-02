@@ -75,14 +75,14 @@ export async function rejudgeSubmissionAction(
   if (result.skippedInline > 0) {
     return {
       error:
-        "这道题由内核自己判定，没有评测机会来领取——重新提交一次即可，重判对它没有意义。",
+        "这道题不经过评测机判定，请直接重新提交。",
     };
   }
 
   if (result.skippedNotDispatched > 0) {
     return {
       error:
-        "仓库里这道题已经不再交给评测机了——改成了内核内联判题，或是整道题已经删掉。放回队列只会让评测机白领三次再中断一次，请让选手重新提交。",
+        "这道题的评测方式已变更，无法重判。请让选手重新提交。",
     };
   }
 

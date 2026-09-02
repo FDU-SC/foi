@@ -25,8 +25,7 @@ export async function AdminOverviewView() {
       <div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">管理</h1>
         <p className="text-fg-muted mt-2 text-sm leading-6">
-          这个页面不改配置。分流规则、权限、比赛与题目的真源都在仓库里，改动走
-          pull request；这里核对仓库与数据库是否一致。唯二的写操作是给某个账号补发一封找回密码邮件和封禁账号——前者的链接直达本人邮箱、不经管理员的手，后者则不该为了封一个垃圾注册号去走一次 code review。
+          查看平台运行概况。配置变更在仓库中完成，这里可以补发重置密码邮件和管理账号状态。
         </p>
       </div>
 
@@ -65,7 +64,7 @@ export async function AdminOverviewView() {
 
           {overview.findings.length === 0 ? (
             <p className="text-fg-muted text-sm leading-6">
-              没有发现偏差：邮件通道已配置，有邮箱的在用账号都能匹配到分流规则，规则点名的用户名都已有人注册，每台题目后端都持有各自的签名密钥、都有题目指向、生产环境下地址也都没有指向本机，镜像表里也没有仓库中已删除的条目。
+              一切正常，未发现配置问题。
             </p>
           ) : (
             <ul className="space-y-3">
@@ -96,13 +95,13 @@ export async function AdminOverviewView() {
 
           <div className="border-border border-t pt-3">
             <p className="text-fg-subtle text-xs leading-5">
-              镜像表只是外键锚点，行在第一次有人提交时写入：数据库里有{" "}
+              数据库中有{" "}
               <span className="font-mono">{overview.mirroredProblems}</span>{" "}
               道题、<span className="font-mono">{overview.mirroredContests}</span>{" "}
-              场比赛被提交过，仓库里共{" "}
+              场比赛的提交记录，仓库共{" "}
               <span className="font-mono">{overview.problemCount}</span> 道题、
               <span className="font-mono">{overview.contestCount}</span>{" "}
-              场比赛。差额是还没有人交过的那些。
+              场比赛。差额是尚无人提交的。
             </p>
           </div>
         </CardBody>
@@ -112,10 +111,7 @@ export async function AdminOverviewView() {
         <CardHeader title="用户组" />
         <CardBody className="space-y-3">
           <p className="text-fg-muted text-sm leading-6">
-            用户组不存在数据库里，也不携带任何权限——它只是一个标签。谁属于哪个组由{" "}
-            <code className="font-mono">content/enrollment/</code>{" "}
-            的分流规则每次请求现算，组能做什么由下面那张策略表决定。
-            这里只列出显式声明过的组；纯分组不需要声明，出现在规则、受众或参赛范围里即可使用。
+            用户组由分流规则自动分配，组能做什么由下方的授权策略决定。
           </p>
           <ul className="space-y-2">
             {listGroups().map((group) => (
@@ -141,14 +137,7 @@ export async function AdminOverviewView() {
         <CardHeader title="授权策略" />
         <CardBody className="space-y-3">
           <p className="text-fg-muted text-sm leading-6">
-            平台默认拒绝：没有被任何一条 <strong className="text-fg font-medium">放行</strong>{" "}
-            命中的请求就是不允许，而任何一条{" "}
-            <strong className="text-fg font-medium">禁止</strong>{" "}
-            命中都压过全部放行。带{" "}
-            <code className="font-mono">builtin:</code>{" "}
-            前缀的来自内核，其余来自{" "}
-            <code className="font-mono">content/policies/</code>——改权限就是改那个目录，变更会出现在
-            diff 里。「有条件」表示这条策略还要看资源本身，具体条件写在代码里。
+            未被放行的操作一律拒绝，<strong className="text-fg font-medium">禁止</strong>规则优先于<strong className="text-fg font-medium">放行</strong>规则。「有条件」表示该策略还取决于资源本身的属性。
           </p>
           <div className="border-border overflow-hidden rounded-md border">
             <table className="w-full text-sm">
@@ -235,12 +224,7 @@ export async function AdminOverviewView() {
             </div>
           ))}
           <p className="text-fg-subtle border-border border-t pt-3 text-xs leading-5">
-            新增赛制：在 <code className="font-mono">content/rulesets/</code>{" "}
-            下新建一个模块，导出名为{" "}
-            <code className="font-mono">ruleset</code> 的常量即可，不需要登记。
-            只给一场比赛用的赛制放在{" "}
-            <code className="font-mono">content/contests/&lt;slug&gt;/ruleset.tsx</code>
-            ，那样它会和这场比赛一起冻结，不随共享模板演进——排行榜每次打开都重算，改共享模板会改动历史比赛的名次。
+            赛制在仓库中定义，修改后重新部署即可生效。
           </p>
         </CardBody>
       </Card>

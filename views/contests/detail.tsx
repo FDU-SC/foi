@@ -109,9 +109,11 @@ export async function ContestDetailView({
                 href={problemHref(contest.slug, problem.slug)}
                 className="hover:bg-surface-2 flex items-center gap-3 px-4 py-3 transition-colors"
               >
-                <span className="bg-surface-3 text-fg flex size-6 shrink-0 items-center justify-center rounded font-mono text-xs font-semibold">
-                  {entry.label}
-                </span>
+                {entry.label ? (
+                  <span className="bg-surface-3 text-fg flex size-6 shrink-0 items-center justify-center rounded font-mono text-xs font-semibold">
+                    {entry.label}
+                  </span>
+                ) : null}
                 <span className="text-fg flex-1 truncate font-medium">
                   {problem.title}
                 </span>

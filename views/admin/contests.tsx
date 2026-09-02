@@ -135,7 +135,9 @@ export async function AdminContestsView() {
                     {contest.problems.map((problem) => (
                       <li key={problem.slug}>
                         <Badge tone="primary" mono>
-                          {problem.label}. {problem.slug}
+                          {problem.label
+                            ? `${problem.label}. ${problem.slug}`
+                            : problem.slug}
                           {problem.points ? ` (${problem.points})` : ""}
                         </Badge>
                       </li>

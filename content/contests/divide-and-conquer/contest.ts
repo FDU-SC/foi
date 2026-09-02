@@ -24,8 +24,8 @@ export const contest = {
   endsAt: "2099-12-31T23:59:59+08:00",
 
   problems: [
-    { slug: "hanoi-kth", label: "A" },
-    { slug: "inversions", label: "B" },
+    { slug: "hanoi-kth" },
+    { slug: "inversions" },
   ],
 
   participants: { mode: "open" },

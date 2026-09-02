@@ -54,7 +54,7 @@ export function catalogueIndexMetadata(): Metadata {
 }
 
 interface ListedProblem {
-  label: string;
+  slug: string;
   title: string;
 }
 
@@ -167,10 +167,13 @@ async function cardFor(
     contest: view.config,
     total: problems.length,
     preview: view.preview,
-    listed: problems.slice(0, PREVIEW).map(({ ref }) => ({
-      label: ref.entry.label,
-      title: ref.problem.title,
-    })),
+    listed: problems
+      .slice(-PREVIEW)
+      .toReversed()
+      .map(({ ref }) => ({
+        slug: ref.problem.slug,
+        title: ref.problem.title,
+      })),
     chips: values.slice(0, CHIP_CAP),
     extraChips: Math.max(0, values.length - CHIP_CAP),
     solved: null,
@@ -384,7 +387,7 @@ function SectionTile({
           </div>
 
           {contest.description ? (
-            <p className="text-fg-muted line-clamp-2 text-sm leading-6">
+            <p className="text-fg-muted text-sm leading-6">
               {contest.description}
             </p>
           ) : null}
@@ -395,25 +398,24 @@ function SectionTile({
             {listed.length > 0 ? (
               <ul
                 className={cn(
-                  "grid grid-cols-1 gap-x-4 gap-y-1",
+                  "bg-surface-2/90 border-border/70 grid grid-cols-1 gap-x-4 gap-y-2 rounded-lg border px-3 py-2.5",
                   wide && listed.length >= 3 && "sm:grid-cols-2",
                 )}
               >
                 {listed.map((problem) => (
-                  <li
-                    key={problem.label}
-                    className="flex min-w-0 items-baseline gap-2 text-sm"
-                  >
-                    <span className="text-fg-subtle shrink-0 font-mono text-xs">
-                      {problem.label}
-                    </span>
-                    <span className="text-fg-muted truncate">
+                  <li key={problem.slug} className="min-w-0">
+                    <span className="text-fg block truncate text-sm font-medium">
                       {problem.title}
+                    </span>
+                    <span className="text-fg-subtle block truncate font-mono text-[11px]">
+                      {problem.slug}
                     </span>
                   </li>
                 ))}
                 {remaining > 0 ? (
-                  <li className="text-fg-subtle text-xs">还有 {remaining} 题</li>
+                  <li className="text-fg-subtle self-end text-xs">
+                    还有 {remaining} 题
+                  </li>
                 ) : null}
               </ul>
             ) : null}

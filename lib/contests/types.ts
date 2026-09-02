@@ -7,7 +7,8 @@ import { zonedDateTime } from "@/lib/zoned-date-time";
 const contestProblemSchema = z.object({
   slug: z.string().min(1),
 
-  label: z.string().min(1).max(8),
+  /** Contest letter when the round numbers its problems. Omit on a catalogue section. */
+  label: z.string().min(1).max(8).optional(),
 
   points: z.number().positive().optional(),
 
@@ -156,7 +157,7 @@ export const contestConfigSchema = z
           message: `题目 "${problem.slug}" 重复`,
         });
       }
-      if (labels.has(problem.label)) {
+      if (problem.label !== undefined && labels.has(problem.label)) {
         ctx.addIssue({
           code: "custom",
           path: ["problems", index, "label"],
@@ -164,7 +165,7 @@ export const contestConfigSchema = z
         });
       }
       slugs.add(problem.slug);
-      labels.add(problem.label);
+      if (problem.label !== undefined) labels.add(problem.label);
     });
   });
 

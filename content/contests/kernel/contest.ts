@@ -26,7 +26,7 @@ export const contest = {
   startsAt: "2025-01-01T00:00:00+08:00",
   endsAt: "2099-12-31T23:59:59+08:00",
 
-  problems: [{ slug: "perf-optimize", label: "A" }],
+  problems: [{ slug: "perf-optimize" }],
 
   participants: { mode: "open" },
 } satisfies ContestConfigInput;

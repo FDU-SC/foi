@@ -33,9 +33,9 @@ export const contest = {
   endsAt: "2099-12-31T23:59:59+08:00",
 
   problems: [
-    { slug: "maze-runner", label: "A" },
-    { slug: "shortest-path", label: "B" },
-    { slug: "dominator-tree", label: "C" },
+    { slug: "maze-runner" },
+    { slug: "shortest-path" },
+    { slug: "dominator-tree" },
   ],
 
   participants: { mode: "open" },

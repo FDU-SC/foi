@@ -50,11 +50,12 @@ const STATUSES = [
 ];
 
 const SORTS = [
+  { value: "newest", label: "最新" },
   { value: "listed", label: "题单序" },
   { value: "score", label: "分值" },
 ];
 
-const LISTED = SORTS[0].value;
+const NEWEST = SORTS[0].value;
 
 const LIFT = [
   "ui-lift border-border bg-surface/80 hover:border-primary/40 hover:bg-surface rounded-xl border",
@@ -92,6 +93,7 @@ function worth({ ref }: ProblemView): number {
 
 function sorted(views: ProblemView[], sort: string): ProblemView[] {
   if (sort === "score") return [...views].sort((a, b) => worth(b) - worth(a));
+  if (sort === "newest") return views.toReversed();
   return views;
 }
 
@@ -157,7 +159,7 @@ export async function ProblemListView({ params, searchParams }: Props) {
 
   const text = readOne(query, SEARCH)?.trim().toLowerCase() ?? "";
   const status = statuses ? pick(readOne(query, STATUS), STATUSES) : undefined;
-  const sort = pick(readOne(query, SORT), SORTS) ?? LISTED;
+  const sort = pick(readOne(query, SORT), SORTS) ?? NEWEST;
 
   // Counts answer "how many would this choice leave", so each dimension is
   // measured against every criterion except its own.
@@ -216,7 +218,7 @@ export async function ProblemListView({ params, searchParams }: Props) {
     key: SORT,
     label: "排序",
     selected: [sort],
-    fallback: LISTED,
+    fallback: NEWEST,
     choices: SORTS,
   });
 
@@ -286,8 +288,8 @@ export async function ProblemListView({ params, searchParams }: Props) {
           rows={rows}
           searchKey={SEARCH}
           searchValue={readOne(query, SEARCH) ?? ""}
-          searchPlaceholder="按题目名或编号搜索"
-          filtered={narrowed || text.length > 0 || sort !== LISTED}
+          searchPlaceholder="按题目名或标识搜索"
+          filtered={narrowed || text.length > 0 || sort !== NEWEST}
         />
       ) : null}
 
@@ -315,6 +317,17 @@ export async function ProblemListView({ params, searchParams }: Props) {
               ? describeVerdict(problem.slug, { status: mine.status })
               : null;
             const accepted = mine?.accepted === true;
+            const chips =
+              preview || (mine && preset) ? (
+                <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+                  {preview ? <Badge tone="warn">未公开</Badge> : null}
+                  {mine && preset ? (
+                    <Badge tone={preset.tone} mono title={preset.label}>
+                      {preset.short}
+                    </Badge>
+                  ) : null}
+                </div>
+              ) : null;
 
             return (
               <Link
@@ -328,19 +341,16 @@ export async function ProblemListView({ params, searchParams }: Props) {
                   revealClass,
                 )}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="bg-surface-3 text-fg flex size-8 shrink-0 items-center justify-center rounded font-mono text-xs font-semibold">
-                    {entry.label}
-                  </span>
-                  <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    {preview ? <Badge tone="warn">未公开</Badge> : null}
-                    {mine && preset ? (
-                      <Badge tone={preset.tone} mono title={preset.label}>
-                        {preset.short}
-                      </Badge>
+                {entry.label || chips ? (
+                  <div className="flex items-start justify-between gap-2">
+                    {entry.label ? (
+                      <span className="bg-surface-3 text-fg flex size-8 shrink-0 items-center justify-center rounded font-mono text-xs font-semibold">
+                        {entry.label}
+                      </span>
                     ) : null}
+                    {chips}
                   </div>
-                </div>
+                ) : null}
 
                 <h2 className="text-fg group-hover:text-primary font-semibold transition-colors">
                   {problem.title}

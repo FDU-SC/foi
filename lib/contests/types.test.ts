@@ -144,3 +144,47 @@ describe("freezeAt 的加载期校验", () => {
     expect(issues(STARTS)).toEqual([]);
   });
 });
+
+describe("题单条目的 label", () => {
+  const base = {
+    slug: "test",
+    title: "Test",
+    leaderboards: [{ id: "main", title: "排行榜", ruleset: { id: "some-ruleset" } }],
+    startsAt: STARTS,
+    endsAt: ENDS,
+  };
+
+  it("可以不写 label", () => {
+    const parsed = contestConfigSchema.safeParse({
+      ...base,
+      problems: [{ slug: "one" }, { slug: "two" }],
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("两个相同的 label 被拒", () => {
+    const parsed = contestConfigSchema.safeParse({
+      ...base,
+      problems: [
+        { slug: "one", label: "A" },
+        { slug: "two", label: "A" },
+      ],
+    });
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    expect(parsed.error.issues.map((issue) => issue.path.join("."))).toEqual([
+      "problems.1.label",
+    ]);
+  });
+
+  it("两道题都没有 label 可以通过", () => {
+    const parsed = contestConfigSchema.parse({
+      ...base,
+      problems: [{ slug: "one" }, { slug: "two" }],
+    });
+    expect(parsed.problems.map((problem) => problem.label)).toEqual([
+      undefined,
+      undefined,
+    ]);
+  });
+});

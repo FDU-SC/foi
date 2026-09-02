@@ -24,8 +24,8 @@ export const contest = {
   endsAt: "2099-12-31T23:59:59+08:00",
 
   problems: [
-    { slug: "lis", label: "A" },
-    { slug: "knapsack", label: "B" },
+    { slug: "lis" },
+    { slug: "knapsack" },
   ],
 
   participants: { mode: "open" },

@@ -119,6 +119,10 @@ export const contest = {
 } satisfies ContestConfigInput;
 ```
 
+`label` is the contest letter a round numbers its problems with. A catalogue
+section omits it: the index and the section list treat the array tail as the
+newest problem, and a new one is appended.
+
 `problems` is the whole of a problem's reachability, and `afterEnd` is the whole
 of its afterlife:
 

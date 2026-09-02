@@ -24,9 +24,9 @@ export const contest = {
   endsAt: "2099-12-31T23:59:59+08:00",
 
   problems: [
-    { slug: "disjoint-set", label: "A" },
-    { slug: "range-sum", label: "B" },
-    { slug: "largest-rectangle", label: "C" },
+    { slug: "disjoint-set" },
+    { slug: "range-sum" },
+    { slug: "largest-rectangle" },
   ],
 
   participants: { mode: "open" },

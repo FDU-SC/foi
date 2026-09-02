@@ -28,10 +28,10 @@ export const contest = {
   endsAt: "2099-12-31T23:59:59+08:00",
 
   problems: [
-    { slug: "game-of-life", label: "A" },
-    { slug: "life-oscillator", label: "B" },
-    { slug: "interactive-binary-search", label: "C" },
-    { slug: "roulette-daily", label: "D" },
+    { slug: "game-of-life" },
+    { slug: "life-oscillator" },
+    { slug: "interactive-binary-search" },
+    { slug: "roulette-daily" },
   ],
 
   participants: { mode: "open" },

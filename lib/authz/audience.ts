@@ -2,8 +2,8 @@ import { z } from "zod";
 import type { Viewer } from "./viewer";
 
 /**
- * `visibleTo` on a problem or contest. A resource attribute, not a permission:
- * policies read it, nobody is granted it.
+ * `visibleTo` on a contest. A resource attribute, not a permission: policies
+ * read it, nobody is granted it.
  *
  * - omitted   — everyone
  * - `[]`      — nobody (staging)
@@ -22,11 +22,4 @@ export function describeAudience(audience: Audience): string {
   if (audience === undefined) return "所有人";
   if (audience.length === 0) return "无人（暂存）";
   return audience.join("、");
-}
-
-/** Whether everyone in `narrower` is also in `wider`. */
-export function audienceCovers(wider: Audience, narrower: Audience): boolean {
-  if (wider === undefined) return true;
-  if (narrower === undefined) return false;
-  return narrower.every((group) => wider.includes(group));
 }

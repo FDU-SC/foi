@@ -61,8 +61,23 @@ FOI_STUB_RUNNER=yes-fake-verdicts node scripts/stub-runner.cjs
 配置与判题函数，`statement.mdx` 写题面，`views.tsx` 决定提交内容和判定详情怎么显示。
 glob 会自动发现它，不需要注册。
 
+题目只能作为比赛的所属物被打开，所以新题还要写进某场比赛的 `problems`——不属于任何
+比赛的题目没有 URL，启动检查会点名它。谁能打开、什么时候能打开、比赛结束之后还剩
+什么，全部由那场比赛说了算。
+
 加一个比赛，建 `content/contests/<slug>/contest.ts`。比赛持有自己的排行榜，每个排行榜
-引用一套计分规则。
+引用一套计分规则。想让一批题长期开放，就让这场比赛的窗口足够长。
+
+题库是一组这样的比赛：`content/site.ts` 的 `catalogue` 指名哪几场，它们就答在
+`/problems` 下——比赛在 `/problems/<比赛>`，题目在 `/problems/<比赛>/<题目>`，排行榜在
+`/problems/<比赛>/standings`，并且不再出现在 `/contests` 列表里。除了地址，它们和别的
+比赛没有任何区别，各自有窗口、受众与排行榜。`/problems` 是它们的索引页，一场比赛一张
+卡片，按各自的 `domain` 分组。其余比赛照旧是 `/contests/<比赛>/problems/<题目>`，
+一对「比赛 + 题目」始终只有一个 URL。`content/contests/basics/` 是现成的例子。
+
+难度与标签写在题目的 `ui` 里，平台不读它。让它们变成可筛的维度靠 `views.tsx` 的
+`facets`，而露不露则由比赛的 `facets` 决定——不写就什么都不露，所以正式轮次默认不会
+在赛中泄露标签。
 
 加一套计分规则，建 `content/rulesets/<id>.tsx`，导出一个纯函数：收进提交，吐出名次。
 它不需要知道封榜，也不需要知道怎么渲染，那些是另外的事。
@@ -115,7 +130,7 @@ export const views: SiteViews = { Footer };
 其余部分的改进照常生效——这是它比整页覆盖划算的地方。
 
 **三、整文件替换。** `components/` 与 `views/` 下的任何文件，都能被 `.local` 孪生目录里
-的同名文件整个换掉。想重做整个题库页，就写一份 `views.local/problems/list.tsx`。
+的同名文件整个换掉。想重做整个题目页，就写一份 `views.local/problems/detail.tsx`。
 代价明码标价：**被覆盖的那个文件从此不再跟随上游演进**。
 
 替换一个组件要把它导出的整套契约补齐——少一个 prop、少一个具名导出，`pnpm typecheck`

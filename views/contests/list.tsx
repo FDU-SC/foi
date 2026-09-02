@@ -3,14 +3,19 @@ import { getViewer } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { revealClass, revealDelay } from "@/components/ui/reveal";
 import { contestsFor } from "@/lib/contests/access";
-import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
+import { contestHref, isCatalogue } from "@/lib/contests/catalogue";
+import { contestStatus } from "@/lib/contests/types";
 import { dateFormatter } from "@/lib/format";
 import { rulesetFor } from "@/lib/standings/registry";
 
 const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
 export async function ContestListView() {
-  const all = contestsFor(await getViewer());
+  // A catalogue section is a contest, but it is reached under `/problems` and
+  // listing it here would give it a second front door.
+  const all = contestsFor(await getViewer()).filter(
+    ({ config }) => !isCatalogue(config.slug),
+  );
 
   return (
     <div className="space-y-5">
@@ -24,7 +29,7 @@ export async function ContestListView() {
       ) : (
         <ul className="border-border divide-border bg-surface/70 divide-y overflow-hidden rounded-xl border backdrop-blur-sm">
           {all.map(({ config: contest, preview }, index) => {
-            const phase = contestPhase(contest);
+            const status = contestStatus(contest);
             return (
               <li
                 key={contest.slug}
@@ -32,10 +37,10 @@ export async function ContestListView() {
                 className={revealClass}
               >
                 <Link
-                  href={`/contests/${contest.slug}`}
+                  href={contestHref(contest.slug)}
                   className="hover:bg-surface-2/80 flex flex-wrap items-center gap-3 px-4 py-3.5 shadow-[inset_3px_0_0_0_transparent] transition-[background-color,box-shadow] duration-200 hover:shadow-[inset_3px_0_0_0_var(--primary)]"
                 >
-                  <Badge tone={PHASE_TONE[phase]}>{PHASE_LABEL[phase]}</Badge>
+                  <Badge tone={status.tone}>{status.label}</Badge>
                   <span className="text-fg font-medium">{contest.title}</span>
                   {preview ? <Badge tone="warn">未公开</Badge> : null}
                   <Badge>

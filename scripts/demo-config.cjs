@@ -15,7 +15,7 @@ const { join } = require("node:path");
 const ROOT = join(__dirname, "..");
 
 const SITE = "content/site.ts";
-const LEAKY_BUCKET = "content/problems/leaky-bucket/problem.ts";
+const CTF_ROUND = "content/contests/demo-ctf/contest.ts";
 
 function fail(message) {
   console.error(`demo 配置补丁打不上：${message}`);
@@ -94,12 +94,13 @@ function patchSite(source, what) {
   return next;
 }
 
-function patchLeakyBucket(source, what) {
-  // 这道题要选手打一台真靶机才能拿到 flag，demo 上没有靶机编排器，流程走不完。
+function patchCtfRound(source, what) {
+  // 这场比赛的题要选手打一台真靶机才能拿到 flag，demo 上没有靶机编排器，流程走不完。
+  // 题目只经比赛可达，所以把这一场封存起来就够了。
   return replaceOnce(
     source,
-    "^(  maxScore: \\d+,)$",
-    "$1\n  retired: true,",
+    "^  afterEnd: \\{ statements: true, submissions: true \\},$",
+    "  afterEnd: { statements: false, submissions: false },",
     what,
   );
 }
@@ -107,7 +108,7 @@ function patchLeakyBucket(source, what) {
 function main() {
   console.log("套用 demo 配置补丁：");
   edit(SITE, patchSite);
-  edit(LEAKY_BUCKET, patchLeakyBucket);
+  edit(CTF_ROUND, patchCtfRound);
   console.log("完成。");
 }
 

@@ -33,6 +33,22 @@ The last three are entry points like the rest: the platform reads them without k
 2. Create `content/problems/<slug>/statement.mdx` — the problem statement, using MDX components
 3. Create `content/problems/<slug>/views.tsx` — export `views` satisfying `ProblemViews` (auto-discovered by glob)
 4. The problem is automatically registered via `_modules/problems.ts` glob
+5. Add it to some contest's `problems` — a problem is reachable only as part of
+   a contest, so one no contest lists has no URL and the boot check complains
+
+The problem config says nothing about who may open it or when. Its audience is
+the contest's `visibleTo`, its window is the contest's, and what survives the
+end is the contest's `afterEnd`. The same problem may sit in several contests
+and be open in one while sealed in another.
+
+Where it answers depends on which contest you added it to: a contest
+`site.catalogue` names serves its problems at `/problems/<contest>/<slug>`,
+every other contest at `/contests/<contest>/problems/<slug>`. Either way it is
+one address.
+
+`ui` carries the presentation metadata — `difficulty`, `tags`, `languages`,
+`placeholder`. Declare whichever apply; the platform stores it without reading
+it, and whether difficulty and tags are shown at all is each contest's call.
 
 In `statement.mdx`, import and compose the submission UI from templates:
 
@@ -65,11 +81,11 @@ export const views: ProblemViews = {
 };
 ```
 
-`facets` is what puts a problem in reach of the catalogue's filter bar. It reads
-the same `ui` fields `Badges` renders and hands the platform a list of named
-dimensions; the platform collects the values and matches strings without
-learning that one of them means difficulty. A problem that omits it stays in the
-catalogue but drops out of every filtered view.
+`facets` is what turns `ui` fields into dimensions a contest can filter by.
+`problemFacets` maps `difficulty` and `tags` onto two of them; the platform
+matches the values as strings and never learns what a key means. Leave it out
+and the problem sits nowhere along any dimension — it survives every filter bar
+untouched, and shows no badges.
 
 For custom verdict labels, override the `verdicts` field:
 
@@ -82,7 +98,6 @@ export const views: ProblemViews = {
     optimal: { label: "最优解", short: "OPT", tone: "ok" },
   },
   Badges: ProblemBadges,
-  facets: problemFacets,
 };
 ```
 
@@ -103,6 +118,58 @@ export const contest = {
   // ...
 } satisfies ContestConfigInput;
 ```
+
+`problems` is the whole of a problem's reachability, and `afterEnd` is the whole
+of its afterlife:
+
+```typescript
+afterEnd: { statements: true, submissions: false }  // the default: readable, closed
+afterEnd: { statements: true, submissions: true }   // still collecting, outside every board's window
+afterEnd: { statements: false }                     // sealed; the round takes its problems with it
+```
+
+A practice area is a contest whose window is long. Taking a problem out of
+circulation is removing it from `problems`.
+
+`facets` names which of a problem's dimensions this contest's pages offer, as
+both filter chips and badges:
+
+```typescript
+facets: ["difficulty", "tags"],   // the keys `problemFacets` hands back
+```
+
+The default is empty, which draws neither. That is the right default for a
+round: nothing gives away a problem's difficulty or tags while it is being
+solved. A catalogue section names what it wants browsable.
+
+### Mounting Contests as the Catalogue
+
+`site.catalogue` in `content/site.ts` names contests, and each answers at
+`/problems/<slug>` instead of `/contests/<slug>` — its problems at
+`/problems/<slug>/<problem>`, its leaderboard at `/problems/<slug>/standings`,
+and it drops out of the `/contests` list. Everything else about it is
+unchanged: the window, the `participants`, the `visibleTo`, and the fact that
+its submissions carry its slug.
+
+```typescript
+catalogue: ["basics", "puzzles", "kernel", "ctf"],
+```
+
+`/problems` is the index those cards sit on, grouped by each contest's `domain`:
+
+```typescript
+domain: "Infra",
+```
+
+Headings appear in the order their first contest appears in `catalogue`, and a
+contest without one lands in an unlabelled group at the end. A heading is a
+heading, not a page — there is no `/problems/<domain>`.
+
+The boot check refuses a catalogued contest carrying a problem named
+`standings`: the leaderboard page shadows it, so it would have no address at
+all. A slug no contest matches is a warning instead — that card is missing and
+its own addresses answer 404, while the rest of the site is unaffected. Omit
+the field and every contest stays under `/contests`.
 
 ### Adding a Ruleset
 

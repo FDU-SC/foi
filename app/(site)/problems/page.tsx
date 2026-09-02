@@ -1,10 +1,14 @@
-import type { Metadata } from "next";
-import { ProblemListView } from "@/views/problems/list";
-
-export const metadata: Metadata = { title: "题库" };
+import {
+  CatalogueIndexView,
+  catalogueIndexMetadata,
+} from "@/views/problems/catalogue";
 
 export const dynamic = "force-dynamic";
 
-export default function Page(props: PageProps<"/problems">) {
-  return <ProblemListView {...props} />;
+export function generateMetadata() {
+  return catalogueIndexMetadata();
+}
+
+export default function Page() {
+  return <CatalogueIndexView />;
 }

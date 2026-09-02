@@ -20,9 +20,7 @@ export const problem = {
   ui: {
     languages: ["cpp"],
     placeholder: "粘贴你的优化代码（完整程序，读入矩阵并输出乘积）",
-    tags: ["性能优化", "HPC", "示例"],
-    difficulty: "省选",
+    tags: ["访存", "性能"],
+    difficulty: "进阶",
   } satisfies ProblemUi,
-  order: 5,
-  addedAt: "2026-06-14T10:00:00+08:00",
 } satisfies ProblemConfigInput;

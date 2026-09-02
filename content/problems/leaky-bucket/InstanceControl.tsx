@@ -25,10 +25,10 @@ export function InstanceControl() {
   const pulling = view?.status === "pulling";
 
   const call = async (action: string): Promise<InstanceView | null> => {
-    const res = await fetch(`/api/problems/${config.slug}/action/${action}`, {
-      method: "POST",
-      headers: contestSlug ? { "x-foi-contest": contestSlug } : undefined,
-    });
+    const res = await fetch(
+      `/api/contests/${contestSlug}/problems/${config.slug}/action/${action}`,
+      { method: "POST" },
+    );
 
     const body = await res.json().catch(() => null);
     if (!res.ok) {

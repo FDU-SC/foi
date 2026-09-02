@@ -2,7 +2,7 @@ import { site } from "@/lib/site";
 import { toPublicConfig, type ProblemConfig } from "./types";
 import { viewsFor, type ProblemFacet } from "./views";
 
-/** A dimension as the whole catalogue presents it, values already ordered. */
+/** A dimension as a whole problem set presents it, values already ordered. */
 export interface FacetGroup {
   key: string;
   label: string;
@@ -14,9 +14,9 @@ export type FacetSelection = Record<string, string[]>;
 
 interface Accumulator {
   label: string;
-  /** How many problems carry each value. Insertion order is catalogue order. */
+  /** How many problems carry each value. Insertion order is problem-set order. */
   counts: Map<string, number>;
-  /** Declared orders merged in the order the catalogue offered them. */
+  /** Declared orders merged in the order the problem set offered them. */
   declared: string[];
 }
 
@@ -26,7 +26,7 @@ interface Accumulator {
  */
 const cache = new Map<string, ProblemFacet[]>();
 
-export function facetsOf(config: ProblemConfig): ProblemFacet[] {
+function declaredFacets(config: ProblemConfig): ProblemFacet[] {
   const hit = cache.get(config.slug);
   if (hit) return hit;
 
@@ -36,8 +36,29 @@ export function facetsOf(config: ProblemConfig): ProblemFacet[] {
 }
 
 /**
+ * The dimensions a contest offers, for one problem, in the order the contest
+ * named them.
+ *
+ * A problem sitting nowhere along a dimension drops out rather than arriving
+ * empty, so a caller rendering badges can render every element it is handed.
+ */
+export function facetsFor(
+  config: ProblemConfig,
+  offered: readonly string[],
+): ProblemFacet[] {
+  if (offered.length === 0) return [];
+
+  const held = new Map(declaredFacets(config).map((one) => [one.key, one]));
+
+  return offered.flatMap((key) => {
+    const facet = held.get(key);
+    return facet && facet.values.length > 0 ? facet : [];
+  });
+}
+
+/**
  * A value nothing carries is a dead filter, so declared order is intersected
- * with what the catalogue actually holds rather than offered whole.
+ * with what the problem set actually holds rather than offered whole.
  */
 function orderValues({ counts, declared }: Accumulator): string[] {
   const known = declared.filter((value) => counts.has(value));
@@ -50,12 +71,17 @@ function orderValues({ counts, declared }: Accumulator): string[] {
   return [...known, ...rest];
 }
 
-/** Every dimension the given problems offer, in the order they first appear. */
-export function collectFacets(configs: ProblemConfig[]): FacetGroup[] {
+/** The offered dimensions these problems actually populate, in offered order. */
+export function collectFacets(
+  configs: ProblemConfig[],
+  offered: readonly string[],
+): FacetGroup[] {
+  if (offered.length === 0) return [];
+
   const groups = new Map<string, Accumulator>();
 
   for (const config of configs) {
-    for (const facet of facetsOf(config)) {
+    for (const facet of facetsFor(config, offered)) {
       let group = groups.get(facet.key);
       if (!group) {
         group = { label: facet.label, counts: new Map(), declared: [] };
@@ -71,17 +97,16 @@ export function collectFacets(configs: ProblemConfig[]): FacetGroup[] {
     }
   }
 
-  return [...groups]
-    .filter(([, group]) => group.counts.size > 0)
-    .map(([key, group]) => ({
-      key,
-      label: group.label,
-      values: orderValues(group),
-    }));
+  return offered.flatMap((key) => {
+    const group = groups.get(key);
+    if (!group || group.counts.size === 0) return [];
+    return { key, label: group.label, values: orderValues(group) };
+  });
 }
 
 export function matchesFacets(
   config: ProblemConfig,
+  offered: readonly string[],
   selection: FacetSelection,
 ): boolean {
   const asked = Object.entries(selection).filter(
@@ -90,7 +115,7 @@ export function matchesFacets(
   if (asked.length === 0) return true;
 
   const held = new Map(
-    facetsOf(config).map((facet) => [facet.key, facet.values]),
+    facetsFor(config, offered).map((facet) => [facet.key, facet.values]),
   );
 
   return asked.every(([key, values]) => {
@@ -109,6 +134,7 @@ export function matchesFacets(
  */
 export function facetCounts(
   configs: ProblemConfig[],
+  offered: readonly string[],
   groups: FacetGroup[],
   selection: FacetSelection,
 ): Map<string, Map<string, number>> {
@@ -119,9 +145,9 @@ export function facetCounts(
     const perValue = new Map(group.values.map((value) => [value, 0]));
 
     for (const config of configs) {
-      if (!matchesFacets(config, elsewhere)) continue;
+      if (!matchesFacets(config, offered, elsewhere)) continue;
 
-      for (const facet of facetsOf(config)) {
+      for (const facet of facetsFor(config, offered)) {
         if (facet.key !== group.key) continue;
         for (const value of facet.values) {
           const seen = perValue.get(value);

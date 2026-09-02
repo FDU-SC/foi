@@ -84,7 +84,7 @@ export const ROUTE_LIMITS = {
     },
   },
 
-  "POST /api/problems/[slug]/action/[action]": {
+  "POST /api/contests/[slug]/problems/[problem]/action/[action]": {
     content: true,
     declaredIn: "content/problems/*/problem.ts",
     guard: "same-origin",

@@ -20,9 +20,7 @@ export const problem = {
   ui: {
     languages: ["cpp"],
     placeholder: "实现 void solve()，可调用 query() 与 answer()",
-    tags: ["交互", "二分", "示例"],
+    tags: ["交互", "二分"],
     difficulty: "入门",
   } satisfies ProblemUi,
-  order: 4,
-  addedAt: "2026-01-18T10:00:00+08:00",
 } satisfies ProblemConfigInput;

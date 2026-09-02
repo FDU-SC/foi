@@ -1,8 +1,10 @@
 import { denied, type Denial } from "@/lib/authz/adapters";
 import { allows, authorize } from "@/lib/authz/engine";
+import type { ContestProblemRef } from "@/lib/authz/resources";
 import type { Viewer } from "@/lib/authz/viewer";
+import { contestProblemRef } from "./refs";
 import { allContests, contestBySlug } from "./registry";
-import type { ContestConfig, ContestProblemConfig } from "./types";
+import type { ContestConfig } from "./types";
 
 /** The policy that reads `visibleTo`. Any other route in is a preview. */
 const AUDIENCE = "builtin:contest-audience";
@@ -55,16 +57,12 @@ export function isContestProblemSetVisibleTo(
 }
 
 export type ContestEntry =
-  | {
-      ok: true;
-      contest: ContestConfig;
-      problemEntry: ContestProblemConfig;
-    }
+  | { ok: true; ref: ContestProblemRef }
   | { ok: false; denial: Denial };
 
 /**
- * Whether the contest a client named can carry this problem for this viewer
- * right now — the question behind every submission's contest attribution.
+ * Whether this viewer may compete on this problem, as part of the contest that
+ * carries it, right now.
  *
  * A contest that does not exist, or does not hold this problem, is refused the
  * same way one the viewer cannot compete in is: naming a contest never reveals
@@ -76,21 +74,19 @@ export function contestEntryFor(
   viewer: Viewer,
   now = new Date(),
 ): ContestEntry {
-  const mismatch = denied({
-    code: "contest-mismatch",
-    message: "这道题不属于这场比赛，或这场比赛现在不收题",
-  });
+  const ref = contestProblemRef(contestSlug, problemSlug);
+  if (!ref) {
+    return {
+      ok: false,
+      denial: denied({
+        code: "contest-mismatch",
+        message: "这道题不属于这场比赛",
+      }),
+    };
+  }
 
-  const contest = contestBySlug(contestSlug);
-  if (!contest) return { ok: false, denial: mismatch };
-
-  const problemEntry = contest.problems.find(
-    (candidate) => candidate.slug === problemSlug,
-  );
-  if (!problemEntry) return { ok: false, denial: mismatch };
-
-  const decision = authorize("contest.enter", contest, viewer, { now });
+  const decision = authorize("contest.enter", ref.contest, viewer, { now });
   if (!decision.allow) return { ok: false, denial: decision };
 
-  return { ok: true, contest, problemEntry };
+  return { ok: true, ref };
 }

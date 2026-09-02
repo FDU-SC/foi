@@ -1,5 +1,5 @@
-import { ProblemListSkeleton } from "@/views/skeletons/problem-list";
+import { CatalogueIndexSkeleton } from "@/views/skeletons/catalogue-index";
 
 export default function Loading() {
-  return <ProblemListSkeleton />;
+  return <CatalogueIndexSkeleton />;
 }

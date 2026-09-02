@@ -1,11 +1,10 @@
-import { embargoOf } from "@/lib/contests/by-problem";
+import { contestProblemRefs } from "@/lib/contests/refs";
 import {
-  hasContestStarted,
-  isContestOpen,
+  acceptsSubmissions,
   matchesParticipants,
+  showsStatements,
 } from "@/lib/contests/types";
 import { problemsServedBy } from "@/lib/backend/served";
-import { problemBySlug } from "@/lib/problems/registry";
 import { inAudience } from "./audience";
 import { allows } from "./engine";
 import { policy, type CompiledPolicy } from "./types";
@@ -22,7 +21,8 @@ import { policy, type CompiledPolicy } from "./types";
  *
  * - `forbid` — invariants content must not be able to grant around. Because a
  *   forbid beats every permit, no policy in `content/policies/` can hand out
- *   submissions to a retired problem or a seat in a closed contest.
+ *   submissions outside a contest's collecting window or a seat in a closed
+ *   contest.
  *
  * Nothing here grants power to a principal. Every "who may do what" decision
  * lives in `content/policies/`, where a deployment can see and change it.
@@ -30,14 +30,14 @@ import { policy, type CompiledPolicy } from "./types";
 export function builtinPolicies(): CompiledPolicy[] {
   return [
     policy({
-      id: "builtin:problem-audience",
+      id: "builtin:contest-problem-audience",
       effect: "permit",
       describe:
-        "题目的 visibleTo 覆盖到这个人，且它没有被尚未开赛的比赛扣住时，这道题对他开放",
+        "比赛的 visibleTo 覆盖到这个人，且它正在展示题目时，题单里的每一道题都对他开放",
       action: ["problem.read", "problem.submit", "problem.invoke"],
       when: ({ resource, viewer, now }) =>
-        inAudience(resource.visibleTo, viewer) &&
-        embargoOf(resource.slug, now) === null,
+        inAudience(resource.contest.visibleTo, viewer) &&
+        showsStatements(resource.contest, now),
     }),
 
     policy({
@@ -51,11 +51,12 @@ export function builtinPolicies(): CompiledPolicy[] {
     policy({
       id: "builtin:contest-problem-set",
       effect: "permit",
-      describe: "比赛开始之后，看得到这场比赛的人也就看得到它的题目清单",
+      describe:
+        "比赛开始之后，看得到这场比赛的人也就看得到它的题目清单，直到它自己收回",
       action: "contest.readProblemSet",
       when: ({ resource, viewer, now }) =>
         inAudience(resource.visibleTo, viewer) &&
-        hasContestStarted(resource, now),
+        showsStatements(resource, now),
     }),
 
     policy({
@@ -64,11 +65,14 @@ export function builtinPolicies(): CompiledPolicy[] {
       describe:
         "一台后端至少评测一道这个人打得开的题时，他可以知道这台后端存在",
       action: "backend.read",
-      when: ({ resource, viewer, now }) =>
-        problemsServedBy(resource.id).some((slug) => {
-          const problem = problemBySlug(slug);
-          return problem !== undefined && allows("problem.read", problem, viewer, { now });
-        }),
+      when: ({ resource, viewer, now }) => {
+        const served = new Set(problemsServedBy(resource.id));
+        return contestProblemRefs().some(
+          (ref) =>
+            served.has(ref.problem.slug) &&
+            allows("problem.read", ref, viewer, { now }),
+        );
+      },
     }),
 
     policy({
@@ -81,36 +85,24 @@ export function builtinPolicies(): CompiledPolicy[] {
     }),
 
     policy({
-      id: "builtin:retired-problem",
+      id: "builtin:problem-not-collecting",
       effect: "forbid",
-      describe: "下架的题目题面仍然可读，但不再接受任何提交与交互",
+      describe: "一道题只在它所属的那场比赛收题时，才接受提交与交互",
       action: ["problem.submit", "problem.invoke"],
-      when: ({ resource }) => resource.retired,
-      reason: { code: "retired", message: "这道题已下架，不再接受提交" },
-    }),
-
-    policy({
-      id: "builtin:contest-attribution",
-      effect: "forbid",
-      describe:
-        "指名了一场比赛时，这道题必须在它的题单里，且它必须正处于收题的时间窗内",
-      action: ["problem.submit", "problem.invoke"],
-      when: ({ resource, contest, now }) =>
-        contest !== null &&
-        (!contest.problems.some((entry) => entry.slug === resource.slug) ||
-          !isContestOpen(contest, now)),
+      when: ({ resource, now }) => !acceptsSubmissions(resource.contest, now),
       reason: {
-        code: "contest-mismatch",
-        message: "这道题不属于这场比赛，或这场比赛现在不收题",
+        code: "contest-closed",
+        message: "这场比赛现在不接受提交",
       },
     }),
 
     policy({
       id: "builtin:contest-window",
       effect: "forbid",
-      describe: "比赛只在开始与结束之间收题，赛前赛后谁都不能作为参赛者动作",
+      describe:
+        "比赛只在自己声明的收题窗口内接受参赛者动作：赛前不行，赛后除非它自己留了门",
       action: "contest.enter",
-      when: ({ resource, now }) => !isContestOpen(resource, now),
+      when: ({ resource, now }) => !acceptsSubmissions(resource, now),
       reason: {
         code: "contest-closed",
         message: "这场比赛现在不接受提交",

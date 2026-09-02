@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProblemBackend } from "@/lib/backend/types";
 import { backends } from "@/lib/backend/registry";
-import { externallyJudged } from "@/lib/problems/registry";
+import { openExternalProblem } from "@/test/content-shapes";
 
 const session = vi.hoisted(() => ({
   user: null as { uid: number; groups: string[] } | null,
@@ -13,30 +13,29 @@ vi.mock("@/auth", () => ({
 
 const { POST } = await import("./route");
 
-const target = externallyJudged().find(
-  (problem) =>
-    !problem.retired && Object.keys(problem.backend.actions).length > 0,
-);
+const target = openExternalProblem();
 
 let calls = 0;
 
-function post(slug: string, action: string): Promise<Response> {
-  session.user = { uid: ++calls, groups: ["一个普通分组"] };
+function post(action: string): Promise<Response> {
+  session.user = { uid: ++calls, groups: [] };
+
+  const slug = target.contest.slug;
+  const problem = target.problem.slug;
 
   const request = new Request(
-    `http://localhost:3000/api/problems/${slug}/action/${action}`,
+    `http://localhost:3000/api/contests/${slug}/problems/${problem}/action/${action}`,
     { method: "POST" },
   );
 
   return POST(request, {
-    params: Promise.resolve({ slug, action }),
-  } as RouteContext<"/api/problems/[slug]/action/[action]">);
+    params: Promise.resolve({ slug, problem, action }),
+  } as RouteContext<"/api/contests/[slug]/problems/[problem]/action/[action]">);
 }
 
-describe.skipIf(!target)("交互端点的配置错误不回传原文", () => {
-  const slug = target!.slug;
-  const action = Object.keys(target!.backend.actions)[0];
-  const backendId = target!.backend.id;
+describe("交互端点的配置错误不回传原文", () => {
+  const action = Object.keys(target.problem.backend.actions)[0];
+  const backendId = target.problem.backend.id;
 
   const saved = new Map<string, ProblemBackend | undefined>();
 
@@ -65,7 +64,7 @@ describe.skipIf(!target)("交互端点的配置错误不回传原文", () => {
   it("缺少签名密钥时不把环境变量名写进 500 响应", async () => {
     patch({ secret: undefined });
 
-    const response = await post(slug, action);
+    const response = await post(action);
     const body = await response.text();
 
     expect(response.status).toBe(500);
@@ -76,7 +75,7 @@ describe.skipIf(!target)("交互端点的配置错误不回传原文", () => {
   it("后端条目根本不存在时也不点名 content/backends.ts", async () => {
     patch(undefined);
 
-    const response = await post(slug, action);
+    const response = await post(action);
     const body = await response.text();
 
     expect(response.status).toBe(500);
@@ -88,7 +87,7 @@ describe.skipIf(!target)("交互端点的配置错误不回传原文", () => {
   it("原文进日志，运维还是拿得到能动手的那句", async () => {
     patch({ secret: undefined });
 
-    await post(slug, action);
+    await post(action);
 
     expect(console.error).toHaveBeenCalledWith(
       expect.stringContaining("题目后端配置错误"),

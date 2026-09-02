@@ -11,14 +11,7 @@ import {
 } from "vitest";
 import type { Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
-import {
-  accounts,
-  judgingAttempts,
-  judgingQueue,
-  problems,
-  runners,
-  submissions,
-} from "@/lib/db/schema";
+import { accounts, contests, judgingAttempts, judgingQueue, problems, runners, submissions } from "@/lib/db/schema";
 import { externallyJudged } from "@/lib/problems/registry";
 import { rejudgeSubmissions } from "@/lib/submissions/rejudge";
 import {
@@ -41,6 +34,8 @@ const PROBLEM = externallyJudged()[0]!;
 const VERDICT: Verdict = { result: { status: "accepted", score: 100, maxScore: 100 } };
 const VERSION = "runner-reaper-fixture/1.0.0";
 
+const CONTEST = "runner-reaper-round";
+
 const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
 
 async function enqueue(
@@ -54,6 +49,7 @@ async function enqueue(
     id,
     uid: ACCOUNT_UID,
     problemSlug: PROBLEM.slug,
+    contestSlug: CONTEST,
     payload: {},
     backendId: BACKEND,
     state: "pending",
@@ -109,6 +105,10 @@ describeDb("失联回收", () => {
     await db
       .insert(problems)
       .values({ slug: PROBLEM.slug, title: PROBLEM.title })
+      .onConflictDoNothing();
+    await db
+      .insert(contests)
+      .values({ slug: CONTEST, title: "Reaper Fixture" })
       .onConflictDoNothing();
     const [acct] = await db
       .insert(accounts)

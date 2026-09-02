@@ -11,7 +11,7 @@ import {
 } from "vitest";
 import { INLINE_BACKEND_ID, type Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
-import { accounts, judgingQueue, problems, submissions } from "@/lib/db/schema";
+import { accounts, contests, judgingQueue, problems, submissions } from "@/lib/db/schema";
 import { externallyJudged } from "@/lib/problems/registry";
 import { claimJob, reportDone } from "@/lib/runner/queue";
 import { rejudgeSubmissions } from "./rejudge";
@@ -28,6 +28,8 @@ const RETIRED = "rejudge-retired-fixture";
 const PAYLOAD = { language: "cpp", source: "int main() { return 0; }" };
 const VERSION = "rejudge-fixture/1.0.0";
 
+const CONTEST = "rejudge-round";
+
 const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
 
 async function settled(
@@ -38,6 +40,7 @@ async function settled(
     id,
     uid: ACCOUNT_UID,
     problemSlug: PROBLEM.slug,
+    contestSlug: CONTEST,
     payload: PAYLOAD,
     backendId: BACKEND,
     state: "completed",
@@ -68,6 +71,10 @@ describeDb("重判", () => {
       .values({ slug: PROBLEM.slug, title: PROBLEM.title })
       .onConflictDoNothing();
     await db
+      .insert(contests)
+      .values({ slug: CONTEST, title: "Rejudge Fixture" })
+      .onConflictDoNothing();
+    await db
       .insert(problems)
       .values({ slug: RETIRED, title: "已从 content/ 删掉的题" })
       .onConflictDoNothing();
@@ -86,6 +93,7 @@ describeDb("重判", () => {
     await db.delete(submissions).where(eq(submissions.uid, ACCOUNT_UID));
     await db.delete(accounts).where(eq(accounts.uid, ACCOUNT_UID));
     await db.delete(problems).where(eq(problems.slug, RETIRED));
+    await db.delete(contests).where(eq(contests.slug, CONTEST));
   });
 
   describe("重判清空判定结果", () => {

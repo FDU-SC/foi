@@ -138,9 +138,9 @@ export const submissions = pgTable(
     problemSlug: text("problem_slug")
       .notNull()
       .references(() => problems.slug, { onDelete: "restrict" }),
-    contestSlug: text("contest_slug").references(() => contests.slug, {
-      onDelete: "set null",
-    }),
+    contestSlug: text("contest_slug")
+      .notNull()
+      .references(() => contests.slug, { onDelete: "restrict" }),
 
     payload: jsonb("payload").$type<unknown>().notNull(),
 

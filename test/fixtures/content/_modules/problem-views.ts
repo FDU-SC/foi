@@ -1,9 +1,9 @@
 import type { ProblemViews } from "@/lib/problems/views";
 
 /**
- * A declared value order that agrees with neither the catalogue order the
- * problems below hand it in, nor the frequency each value ends up with. Its
- * last rung is one no problem occupies, so it must not reach the filter bar.
+ * A declared value order that agrees with neither the order the problems below
+ * hand it in, nor the frequency each value ends up with. Its last rung is one
+ * no problem occupies, so it must not reach the filter bar.
  */
 const LADDER = ["低", "中", "高", "极"];
 
@@ -14,6 +14,9 @@ const LADDER = ["低", "中", "高", "极"];
  * Two dimensions with values, because filtering ORs inside one and ANDs across
  * them; one dimension nothing ever carries, which is what a deployment whose
  * problems all skip a field looks like; and one problem with no facets at all.
+ *
+ * The keys are deliberately not `difficulty` and `tags`: a kernel test must not
+ * know which dimensions a deployment happens to offer.
  */
 export const problemViews: Record<string, ProblemViews> = {
   "fixture-external": {

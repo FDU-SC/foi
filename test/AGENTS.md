@@ -47,12 +47,18 @@ placeholder, as `stub-runner.test.ts` does.
 Ask for a **shape**, never a name:
 
 ```ts
-import { viewerWith, viewerAllowedOnly, retiredProblem } from "@/test/content-shapes";
+import { viewerWith, viewerAllowedOnly, archivedProblem } from "@/test/content-shapes";
 
 const admin = viewerWith("admin.enter");                       // some group with this action
 const partial = viewerAllowedOnly("admin.enter", "account.read"); // in, but not all the way
-const gone = retiredProblem();
+const closed = archivedProblem();                              // readable, taking no more work
 ```
+
+A problem is reachable only through a contest, so the problem helpers hand back
+a `ContestProblemRef` — the `{ contest, entry, problem }` triple every gate takes
+— rather than a bare config. Which one you ask for names the situation you are
+testing: `openContestProblem`, `upcomingProblem`, `stagedProblem`,
+`archivedProblem`, `upsolveProblem`, `sealedProblem`.
 
 `test/content-shapes.ts` derives these from the policy set and the registries at
 runtime. Every helper throws a named error when the shape is missing, so a gap
@@ -69,14 +75,27 @@ local-first, that `app/` holds nothing but route shells, and that no file in
 
 ## Changing the Fixture
 
-`test/fixtures/content/` is a complete, minimal content set: four problems, two
-contests, one ruleset, one policy file, four groups.
+`test/fixtures/content/` is a complete, minimal content set: four problems,
+seven contests, one ruleset, one policy file, four groups.
 
-Its shapes are load-bearing — the contest limits entry to a group and overrides
-a rate limit, one problem is retired, one is externally judged, one is inline,
-one is audience-gated, and the ruleset implements the freeze contract. Add a
+Its shapes are load-bearing. The contests cover every situation a problem can be
+in — one limits entry to a group and overrides a rate limit, one runs whatever
+the clock says so route tests can reach it, one is visible to nobody, one has
+not started, and three have ended one way each: readable and closed, readable
+and still collecting, sealed. One problem is externally judged with a declared
+action, one is inline, and the ruleset implements the freeze contract. Add a
 shape when a new kernel test needs one, and add the matching assertion to
 `fixture.test.ts` so the next editor learns why it exists.
+
+Three of those contests are catalogued, across two `domain` headings, so both a
+heading holding one card and a heading holding two are covered — and two of them
+carry the same problem, which is where "one problem, two catalogue URLs" comes
+from. Only one names any `facets`, in an order that is not the order the
+problems declare them and including a dimension nothing here populates; the
+other two name none, which is the shape behind "a contest that offers nothing
+draws no filter bar and no badges". The facet keys are deliberately not
+`difficulty` and `tags`: a kernel test must not know which dimensions a
+deployment happens to offer.
 
 The `_modules/` files declare their module tables by hand, keyed the way
 `import.meta.glob` would key them, because the registries parse slugs and

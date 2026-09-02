@@ -1,21 +1,30 @@
 import { Constraints } from "@/content/_shared/mdx/constraints";
+import { SubmitPanel } from "@/content/_shared/ui/submit-panel";
+import { TextInput } from "@/content/_shared/ui/text-input";
 
-<Constraints extra={{ 分类: "提交答案", 场景: "2", 状态: "已下架" }} />
+<Constraints extra={{ 分类: "提交答案", 场景: "2" }} />
 
 ## 题目描述
 
 给定一个十进制整数，输出它的二进制表示中 `1` 的个数。
 
-这道题是 2025 年热身赛用过的，现在已经下架——题面留在这里，是为了当时交过它的
-人还能回看自己的提交。提交入口已经关闭。
+这道题属于 2025 年的热身赛。那场比赛早已结束，题面留在这里，是因为它在
+`contest.ts` 里写着 `afterEnd: { statements: true }`。
 
 ## 关于这个示例
 
-它演示的是「下架」而不是「删除」。题目目录留在 `content/problems/` 里，
-`problem.ts` 中写着 `retired: true`：
+它演示的是一道题在比赛结束之后的去向。题目只能作为比赛的所属物被打开，所以
+一场比赛怎么收场，就决定了它带走什么：
 
-- 题面照常可读，可见性完全由 `visibleTo` 决定，跟下架无关
-- 不再接受提交，题库列表里也不再出现
-- slug 被目录占着，不会被后来的题目复用，历史提交因此不会认错题目
+- `afterEnd.statements` 为真：题面照常可读，交过它的人回看得到自己的提交
+- `afterEnd.submissions` 为假：提交入口关闭，这场比赛不再收题
+- 两者都为假：连题面一起收起来，这道题随比赛一同下线
 
-如果目标是连题面一起收起来，那要的是 `visibleTo: []`，两者是不同的轴。
+下面的提交面板照常写在题面里。它拒绝收题不是因为这里少写了什么，而是因为平台
+问过这场比赛，得到的答复是不收——把这道题编进一场正在进行的比赛，同一个面板就
+会照常工作。
+
+要让一道题彻底退出流通，把它从比赛的 `problems` 里移除即可——没有任何比赛
+带着它，它就没有 URL。
+
+<SubmitPanel><TextInput /></SubmitPanel>

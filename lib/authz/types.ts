@@ -1,6 +1,5 @@
 import type { SQL } from "drizzle-orm";
 import { z } from "zod";
-import type { ContestConfig } from "@/lib/contests/types";
 import {
   ACTION_IDS,
   isActionId,
@@ -32,9 +31,6 @@ export interface EvalInputFor<A extends ActionId> {
   action: A;
   resource: ResourceOf<A>;
   now: Date;
-
-  /** The contest the caller claims this action belongs to, if any. */
-  contest: ContestConfig | null;
 
   /** Which interactive action on a problem is being invoked. */
   invocation: string | null;

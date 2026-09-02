@@ -22,6 +22,8 @@ export const contest = {
       label: "A",
       rateLimit: { max: 30, windowSeconds: 60 },
     },
+    { slug: "hanoi-kth", label: "B" },
+    { slug: "dominator-tree", label: "C" },
   ],
 
   participants: { mode: "group", group: "demo" },

@@ -20,9 +20,7 @@ export const problem = {
   },
   ui: {
     languages: ["cpp", "python"],
-    tags: ["图论", "支配树", "Lengauer-Tarjan"],
-    difficulty: "NOI",
+    tags: ["图论"],
+    difficulty: "挑战",
   } satisfies ProblemUi,
-  order: 7,
-  addedAt: "2026-04-22T10:00:00+08:00",
 } satisfies ProblemConfigInput;

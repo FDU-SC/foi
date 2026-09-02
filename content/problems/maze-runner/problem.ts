@@ -20,9 +20,7 @@ export const problem = {
   },
   ui: {
     languages: ["cpp", "python", "java"],
-    tags: ["BFS", "图论", "最短路"],
-    difficulty: "普及",
+    tags: ["图论", "搜索"],
+    difficulty: "入门",
   } satisfies ProblemUi,
-  order: 1,
-  addedAt: "2025-10-12T10:00:00+08:00",
 } satisfies ProblemConfigInput;

@@ -12,14 +12,22 @@ import {
 } from "@/lib/backend/signature";
 import type { Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
-import { accounts, judgingQueue, problems, submissions } from "@/lib/db/schema";
-import { externalProblem } from "@/test/content-shapes";
+import {
+  accounts,
+  contests,
+  judgingQueue,
+  problems,
+  submissions,
+} from "@/lib/db/schema";
+import { openExternalProblem } from "@/test/content-shapes";
 import { jobPath } from "./auth";
 
 const USERNAME = "runner-route-alice";
 let ACCOUNT_UID = 0;
 
-const PROBLEM = externalProblem();
+const REF = openExternalProblem();
+const PROBLEM = REF.problem;
+const CONTEST = REF.contest.slug;
 const BACKEND = PROBLEM.backend.id;
 
 const PAYLOAD = { language: "cpp", source: "int main() { return 0; }" };
@@ -38,6 +46,7 @@ async function holding(id: string, lease: string): Promise<string> {
     id,
     uid: ACCOUNT_UID,
     problemSlug: PROBLEM.slug,
+    contestSlug: CONTEST,
     payload: PAYLOAD,
     backendId: BACKEND,
     state: "pending",
@@ -157,6 +166,10 @@ describeDb("评测机作业接口", () => {
     await db
       .insert(problems)
       .values({ slug: PROBLEM.slug, title: PROBLEM.title })
+      .onConflictDoNothing();
+    await db
+      .insert(contests)
+      .values({ slug: CONTEST, title: REF.contest.title })
       .onConflictDoNothing();
     const [acct] = await db
       .insert(accounts)

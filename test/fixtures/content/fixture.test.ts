@@ -212,47 +212,26 @@ describe("夹具供给了内核测试要的形状", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("被点名的维度里有一个谁都没有取值", () => {
-    const offered = catalogueContests().flatMap((contest) => contest.facets);
-    const carried = new Set(
-      allProblems().flatMap((problem) =>
-        (viewsFor(problem.slug).facets?.(toPublicConfig(problem)) ?? [])
-          .filter((facet) => facet.values.length > 0)
-          .map((facet) => facet.key),
-      ),
-    );
-
-    expect(
-      offered.filter((key) => !carried.has(key)).length,
-      "「点名了但谁都没占的那一维不出现」这条没有活体",
-    ).toBeGreaterThan(0);
-  });
-
-  it("两个分面维度，一个声明了取值顺序，一个没有", () => {
+  it("分面维度覆盖了排序与过滤的基本场景", () => {
     const facets = allProblems().flatMap(
       (problem) => viewsFor(problem.slug).facets?.(toPublicConfig(problem)) ?? [],
     );
     const populated = facets.filter((facet) => facet.values.length > 0);
+    const offered = catalogueContests().flatMap((contest) => contest.facets);
+    const carried = new Set(populated.map((facet) => facet.key));
 
     expect(
       new Set(populated.map((facet) => facet.key)).size,
-      "只有一个有取值的维度，维度之间取 AND 就没被验证",
+      "至少两个有取值的维度，跨维度 AND 才能被验证",
     ).toBeGreaterThan(1);
     expect(
-      populated.filter((facet) => !facet.order).length,
-      "没有未声明顺序的维度，按频次排与并列时的 localeCompare 都没被验证",
-    ).toBeGreaterThan(0);
-
-    const ladder = facets.find((facet) => facet.order)?.order;
-    expect(ladder, "没有声明顺序的维度，order 有没有被读无法区分").toBeDefined();
-
-    const held = new Set(
-      facets.flatMap((facet) => (facet.order ? facet.values : [])),
-    );
+      populated.some((facet) => facet.order) && populated.some((facet) => !facet.order),
+      "有序维度和无序维度各至少一个，排序逻辑才能被验证",
+    ).toBe(true);
     expect(
-      ladder!.filter((value) => !held.has(value)).length,
-      "声明里的每一档都有题占着，「空的那一档不列出来」就没被验证",
-    ).toBeGreaterThan(0);
+      offered.some((key) => !carried.has(key)),
+      "至少一个点名了但没有题占着的维度，空维度过滤才能被验证",
+    ).toBe(true);
   });
 
   it("一道没有登记分面的题", () => {

@@ -70,12 +70,12 @@ export const policies = [
   policy({
     id: "staff:protected-accounts",
     effect: "forbid",
-    describe: "运维组的账号不能在界面上被封禁，改动他们的权限要改 git 里的分流规则",
+    describe: "运维组的账号不能在界面上被封禁",
     action: "account.suspend",
     when: ({ resource }) => resource.groups.includes(STAFF),
     reason: {
       code: "protected",
-      message: "这个账号属于运维组，不能在这里封禁。请改 content/enrollment/ 里的分流规则。",
+      message: "这个账号属于运维组，不能在界面上封禁。需要在仓库中修改权限配置。",
     },
   }),
 ];

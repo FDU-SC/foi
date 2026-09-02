@@ -37,13 +37,13 @@ export const policies = [
   policy({
     id: "demo:no-suspend",
     effect: "forbid",
-    describe: "演示账号不能被封禁，也不能被解封，它的状态由每夜重建维护",
+    describe: "演示账号不能被封禁或解封，状态每晚自动重置",
     action: "account.suspend",
     when: ({ resource }) => resource.groups.includes(DEMO),
     reason: {
       code: "demo-account",
       message:
-        "这是公开的演示账号，不能封禁或解封。它的状态由每夜重建维护，scripts/demo-seed.cjs 会把它重置回可用。",
+        "这是公开的演示账号，不能封禁或解封。账号状态每晚自动重置。",
     },
   }),
 ];

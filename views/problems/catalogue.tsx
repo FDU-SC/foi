@@ -129,13 +129,13 @@ export async function CatalogueIndexView() {
             revealClass,
           )}
         >
-          每个分区是一份长期开放的题单，各有各的排行榜。
+          每个分区独立计分，随时可以提交。
         </p>
       </header>
 
       {groups.length === 0 ? (
         <p className="text-fg-subtle border-border rounded-xl border py-16 text-center text-sm">
-          题库还没有分区。在 content/site.ts 的 catalogue 里点名几场比赛。
+          题库还没有分区。
         </p>
       ) : null}
 

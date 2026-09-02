@@ -5,7 +5,6 @@ import { getResolvedUser } from "@/auth";
 import { ProblemBadgesSlot } from "@/components/problem/badges-slot";
 import { ProblemProvider } from "@/components/problem/problem-context";
 import { Badge } from "@/components/ui/badge";
-import { describeAudience } from "@/lib/authz/audience";
 import { authorize } from "@/lib/authz/engine";
 import { viewerFor } from "@/lib/authz/viewer";
 import {
@@ -117,7 +116,7 @@ async function ProblemDetail({
     ? `将在比赛「${contest.title}」于 ${gateFormatter.format(contest.startsAt)} 开始时自动公开，无需重新部署。`
     : !showsStatements(contest)
       ? `比赛「${contest.title}」已经结束，并且不再公开它的题面。`
-      : `比赛的 visibleTo 是 ${describeAudience(contest.visibleTo)}，你不在其中。`;
+      : "你不在这场比赛的参赛范围内。";
 
   return (
     <ProblemProvider
@@ -146,7 +145,7 @@ async function ProblemDetail({
               {why}
               {canAct
                 ? null
-                : "目前只有能预览未公开内容的人看得到本页，提交也已停用。"}
+                : "仅管理员可预览，提交暂未开放。"}
             </p>
           </div>
         ) : null}

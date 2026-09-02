@@ -26,7 +26,7 @@ export function AppErrorView({ error, retry }: AppErrorProps) {
           <code className="bg-surface-2 rounded px-1.5 py-0.5 font-mono">
             {error.digest}
           </code>
-          ，服务器日志里能按它找到这一次。
+          ，联系管理员时请附上。
         </p>
       ) : null}
 

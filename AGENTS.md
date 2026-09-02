@@ -170,6 +170,18 @@ When writing content, you implement these platform-defined interfaces:
 | Deployment tables | drizzle table objects | `content/schema.ts` |
 | Colour tokens | CSS custom properties | `content/theme.css` |
 
+## Copywriting
+
+User-facing copy lives in `content/`, `views/`, `components/` and Server Actions in `app/`. Follow these principles when writing or reviewing it.
+
+1. **Write for the reader, not the author.** Admin pages address operators; contestant pages address contestants. A piece of copy includes only what its reader needs to act on.
+2. **No code paths in the UI.** File paths, config keys and script names belong in source comments and documentation, not on screen. Users cannot open a repository path from the browser.
+3. **State the outcome, not the mechanism.** Describe what the user sees or can do, not how the system arrives there internally.
+4. **No how-to guides in the interface.** Step-by-step instructions for repository operations belong in documentation files, not in page descriptions or empty states.
+5. **Empty states describe the current situation.** They do not teach the reader what to do next—especially when the next step requires repository access that most readers lack.
+6. **Replace system jargon with user language.** If a term appears only in source code, it does not appear in the UI. Use the word the reader would use.
+7. **Keep it short.** One sentence that can be scanned is better than a paragraph that must be read. Admin descriptions in particular should be minimal—operators come to check data, not to read prose.
+
 ## Do NOT
 
 - Add score/maxScore/accepted/outcome columns to the DB — those are result-shape assumptions

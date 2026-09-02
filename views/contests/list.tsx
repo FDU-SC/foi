@@ -23,8 +23,7 @@ export async function ContestListView() {
 
       {all.length === 0 ? (
         <p className="text-fg-subtle border-border bg-surface/70 rounded-xl border py-16 text-center text-sm backdrop-blur-sm">
-          还没有比赛。在 <code className="font-mono">content/contests/</code>{" "}
-          下新建一个目录即可。
+          还没有比赛。
         </p>
       ) : (
         <ul className="border-border divide-border bg-surface/70 divide-y overflow-hidden rounded-xl border backdrop-blur-sm">

@@ -65,7 +65,7 @@ export async function resendPasswordResetAction(
   if (!user.email || !user.emailVerified) {
     return {
       error:
-        "该账号没有已验证的邮箱，无法发送。请在服务器上用 scripts/set-password.cjs 直接设置密码。",
+        "该账号没有已验证的邮箱，无法发送重置邮件。请在服务器上直接设置密码。",
     };
   }
 

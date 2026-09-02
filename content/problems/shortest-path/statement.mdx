@@ -1,0 +1,99 @@
+import { Callout } from "@/content/_shared/mdx/callout";
+import { Constraints } from "@/content/_shared/mdx/constraints";
+import { Sample } from "@/content/_shared/mdx/sample";
+import { SubmitPanel } from "@/content/_shared/ui/submit-panel";
+import { CodeInput } from "@/content/_shared/ui/code-input";
+
+<Constraints time="1 s" memory="256 MB" extra={{ 子任务: "3" }} />
+
+## 题目描述
+
+给定一张 $n$ 个点、$m$ 条边的**有向图**（点编号 $1 \dots n$），每条边带一个
+**非负**边权，再给定一个起点 $s$。
+
+请求出从 $s$ 出发到每个点的最短路径长度。若某个点无法从 $s$ 到达，输出 `-1`。
+
+## 输入格式
+
+第一行三个整数 $n, m, s$。
+
+接下来 $m$ 行，每行三个整数 $u, v, w$，表示一条从 $u$ 指向 $v$、权值为 $w$ 的有向边。
+
+## 输出格式
+
+$n$ 行，第 $i$ 行一个整数，表示 $s$ 到点 $i$ 的最短路径长度；不可达则输出 `-1`。
+
+<Sample
+  n={1}
+  input={`4 5 1
+1 2 2
+1 3 5
+2 3 1
+3 4 3
+2 4 7`}
+  output={`0
+2
+3
+6`}
+  note="到 3 走 1→2→3 得 3，比直接走 1→3 的 5 更短；到 4 同理走 1→2→3→4 得 6。"
+/>
+
+<Sample
+  n={2}
+  input={`3 1 1
+2 3 4`}
+  output={`0
+-1
+-1`}
+  note="起点是孤立的，除自己以外都不可达。"
+/>
+
+## 数据范围
+
+对于全部数据，保证 $1 \le n \le 10^5$，$0 \le m \le 2 \times 10^5$，
+$1 \le s \le n$，$0 \le w \le 10^9$。图中可能存在重边与自环。
+
+| 子任务 | 分值 | 限制 |
+| --- | --- | --- |
+| 1 | 30 | $n \le 10^3$，$m \le 10^4$ |
+| 2 | 30 | $w \le 10^3$ |
+| 3 | 40 | 无特殊限制 |
+
+<Callout kind="tip" title="解题提示">
+
+边权非负，用堆优化的 Dijkstra 即可，复杂度 $O((n + m) \log m)$。
+
+每次从优先队列里取出当前距离最小的点，用它去松弛所有出边。一个点第一次被取出时，
+它的距离就已经确定，之后再遇到同一个点的过期记录直接跳过。
+
+</Callout>
+
+## 参考实现片段
+
+```cpp title="dijkstra.cpp" showLineNumbers
+priority_queue<pair<long long, int>, vector<pair<long long, int>>, greater<>> pq;
+dist[s] = 0;
+pq.push({0, s});
+
+while (!pq.empty()) {
+    auto [d, u] = pq.top();
+    pq.pop();
+    if (d > dist[u]) continue;
+    for (auto [v, w] : g[u]) {
+        if (dist[u] + w < dist[v]) {
+            dist[v] = dist[u] + w;
+            pq.push({dist[v], v});
+        }
+    }
+}
+```
+
+<Callout kind="warning">
+
+$n$ 与 $w$ 都取到上界时，最短路长度可以达到 $10^{14}$ 量级，用 32 位整数会溢出。
+
+另外，本题的大数据会卡掉最坏情况退化成 $O(nm)$ 的 SPFA，请不要用它。
+
+</Callout>
+
+<SubmitPanel><CodeInput /></SubmitPanel>

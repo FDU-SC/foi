@@ -152,7 +152,15 @@ unchanged: the window, the `participants`, the `visibleTo`, and the fact that
 its submissions carry its slug.
 
 ```typescript
-catalogue: ["basics", "puzzles", "kernel", "ctf"],
+catalogue: [
+  "graphs",
+  "dynamic-programming",
+  "data-structures",
+  "divide-and-conquer",
+  "puzzles",
+  "kernel",
+  "ctf",
+],
 ```
 
 `/problems` is the index those cards sit on, grouped by each contest's `domain`:

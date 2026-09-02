@@ -78,13 +78,13 @@
       "labels": ["dependencies", "需要人工核对"]
     },
     {
-      "description": "postgres:17-alpine 出现在多处、分属两个 manager：docker-compose.example.yml 和 check.yml 的 CI service。不同组的话 CI 用的和生产跑的会漂移，而那种漂移只会在迁移行为不一致时才被发现。",
+      "description": "postgres 镜像出现在多处、分属两个 manager：docker-compose.yml 和 ci.yml 的 CI service。不同组的话 CI 用的和生产跑的会漂移，而那种漂移只会在迁移行为不一致时才被发现。",
       "groupName": "postgres",
       "matchPackageNames": ["postgres"],
       "automerge": false
     },
     {
-      "description": "Postgres 的大版本升级不是升级，是迁移。PG17 拒绝在 PG16 的数据目录上启动，要跑 pg_upgrade；而一个把 16-alpine 换成 17-alpine 的 PR 长得和其它依赖 PR 一模一样，只靠人记得别点。不是禁掉——那样就再也听不到新版本了——而是要求先在 Dependency Dashboard 上勾选批准，PR 才会被创建。想知道的时候看得见，不想要的时候不会有东西躺在那里等人误合。",
+      "description": "Postgres 的大版本升级不是升级，是迁移。PG19 会拒绝在 PG18 的数据目录上启动，要跑 pg_upgrade；而一个把 18 换成 19 的 PR 长得和其它依赖 PR 一模一样，只靠人记得别点。不是禁掉——那样就再也听不到新版本了——而是要求先在 Dependency Dashboard 上勾选批准，PR 才会被创建。想知道的时候看得见，不想要的时候不会有东西躺在那里等人误合。",
       "matchPackageNames": ["postgres"],
       "matchUpdateTypes": ["major"],
       "dependencyDashboardApproval": true,

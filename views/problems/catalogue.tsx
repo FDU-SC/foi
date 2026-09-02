@@ -27,6 +27,9 @@ const STATUS_DEPTH = 5000;
 /** Problem titles shown on a section card before the remainder is counted. */
 const PREVIEW = 6;
 
+/** Short lists pad to this many slots so the chips below stay put. */
+const PREVIEW_FLOOR = 3;
+
 /** Facet values a card will render; the rest collapse into "+N". */
 const CHIP_CAP = 6;
 
@@ -399,7 +402,7 @@ function SectionTile({
               <ul
                 className={cn(
                   "bg-surface-2/90 border-border/70 grid grid-cols-1 gap-x-4 gap-y-2 rounded-lg border px-3 py-2.5",
-                  wide && listed.length >= 3 && "sm:grid-cols-2",
+                  wide && listed.length >= PREVIEW_FLOOR && "sm:grid-cols-2",
                 )}
               >
                 {listed.map((problem) => (
@@ -412,6 +415,25 @@ function SectionTile({
                     </span>
                   </li>
                 ))}
+                {listed.length < PREVIEW_FLOOR
+                  ? Array.from(
+                      { length: PREVIEW_FLOOR - listed.length },
+                      (_, index) => (
+                        <li
+                          key={`pad-${index}`}
+                          aria-hidden
+                          className="invisible min-w-0"
+                        >
+                          <span className="block truncate text-sm font-medium">
+                            &nbsp;
+                          </span>
+                          <span className="block truncate font-mono text-[11px]">
+                            &nbsp;
+                          </span>
+                        </li>
+                      ),
+                    )
+                  : null}
                 {remaining > 0 ? (
                   <li className="text-fg-subtle self-end text-xs">
                     还有 {remaining} 题

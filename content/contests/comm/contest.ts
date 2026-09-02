@@ -1,7 +1,7 @@
 import type { ContestConfigInput } from "@/lib/contests/types";
 
 /**
- * The Infra section whose work is moving data between processes:
+ * The HPC & AI Infra section whose work is moving data between processes:
  * collective communication, parallel plans, compute/communication overlap.
  */
 export const contest = {
@@ -10,7 +10,7 @@ export const contest = {
   description:
     "集合通信、并行切分、计算与通信 overlap——多进程之间怎么把数据搬走。",
 
-  domain: "Infra",
+  domain: "HPC & AI Infra",
   facets: ["difficulty", "tags"],
 
   leaderboards: [

@@ -1,7 +1,7 @@
 import type { ContestConfigInput } from "@/lib/contests/types";
 
 /**
- * The Infra section for serving a model: throughput, latency, and how
+ * The HPC & AI Infra section for serving a model: throughput, latency, and how
  * memory is paged once the work is a service rather than a kernel.
  */
 export const contest = {
@@ -9,7 +9,7 @@ export const contest = {
   title: "推理与服务",
   description: "吞吐、延迟、显存分页——把模型做成服务之后怎么稳、怎么快。",
 
-  domain: "Infra",
+  domain: "HPC & AI Infra",
   facets: ["difficulty", "tags"],
 
   leaderboards: [

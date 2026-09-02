@@ -160,15 +160,15 @@ its submissions carry its slug.
 ```typescript
 catalogue: [
   "puzzles",
-  "graphs",
-  "dynamic-programming",
-  "data-structures",
-  "divide-and-conquer",
   "kernel",
   "comm",
   "framework",
   "inference",
   "cluster",
+  "graphs",
+  "dynamic-programming",
+  "data-structures",
+  "divide-and-conquer",
   "ctf",
   "pwn",
   "reverse",
@@ -180,7 +180,7 @@ catalogue: [
 `/problems` is the index those cards sit on, grouped by each contest's `domain`:
 
 ```typescript
-domain: "Infra",
+domain: "HPC & AI Infra",
 ```
 
 Headings appear in the order their first contest appears in `catalogue`, and a

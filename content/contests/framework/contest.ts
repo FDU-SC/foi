@@ -1,7 +1,7 @@
 import type { ContestConfigInput } from "@/lib/contests/types";
 
 /**
- * The Infra section for the layer above kernels: dispatch, compilation,
+ * The HPC & AI Infra section for the layer above kernels: dispatch, compilation,
  * and how a framework schedules work onto devices.
  */
 export const contest = {
@@ -10,7 +10,7 @@ export const contest = {
   description:
     "dispatcher、编译、显存分配——框架在算子之上替你调度的那一层。",
 
-  domain: "Infra",
+  domain: "HPC & AI Infra",
   facets: ["difficulty", "tags"],
 
   leaderboards: [

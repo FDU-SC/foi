@@ -1,7 +1,7 @@
 import type { ContestConfigInput } from "@/lib/contests/types";
 
 /**
- * The Infra section for a whole environment: scheduling, elasticity,
+ * The HPC & AI Infra section for a whole environment: scheduling, elasticity,
  * and the configuration a real cluster asks for.
  */
 export const contest = {
@@ -9,7 +9,7 @@ export const contest = {
   title: "集群与平台",
   description: "调度、弹性、故障——一套真环境上的配置与答案。",
 
-  domain: "Infra",
+  domain: "HPC & AI Infra",
   facets: ["difficulty", "tags"],
 
   leaderboards: [

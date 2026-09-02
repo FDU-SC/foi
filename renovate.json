@@ -11,7 +11,7 @@
   "prConcurrentLimit": 5,
   "labels": ["dependencies"],
   "description": [
-    "pnpm 11 的 minimumReleaseAge 默认为 1440 分钟，而 pnpm install --frozen-lockfile 会拿这条策略把整份 lockfile 重新校验一遍：只要有一个条目的发布时间不足一天，CI 在安装依赖这一步就以 ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION 失败。Renovate 取同一个阈值，未满一天的版本连分支都不建，PR 里因此不会出现 CI 装不上的 lockfile。被压住的更新在 Dependency Dashboard 上看得到。"
+    "pnpm 11 的 minimumReleaseAge 默认为 1440 分钟，而 pnpm install --frozen-lockfile 会拿这条策略把整份 lockfile 重新校验一遍：只要有一个条目的发布时间不足一天，CI 在安装依赖这一步就以 ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION 失败。Renovate 取同一个阈值，internalChecksFilter=strict 把未达龄的版本从候选里滤掉，PR 的目标因此永远是最新的达龄版本，交到 CI 手里的 lockfile 装得上。候选全部未达龄时不建分支，被压住的更新在 Dependency Dashboard 上看得到。"
   ],
   "minimumReleaseAge": "1 day",
   "internalChecksFilter": "strict",
@@ -21,7 +21,7 @@
   },
   "packageRules": [
     {
-      "description": "Renovate 只能给带发布时间戳的更新算年龄，这几类拿不到时间戳。默认的 minimumReleaseAgeBehaviour=timestamp-required 会把算不出年龄的更新无限期压住，其中 lockfileUpdate 正是 vulnerabilityAlerts 修复 in-range 依赖时走的类型——压住它等于把安全修复一并关掉。这里放行，改由 pnpm 自己把关：按版本范围解析时它只会选满一天的版本，所以 lockFileMaintenance 的月度刷新拿到的 lockfile 是干净的。缺口只有 lockfileUpdate，Renovate 指名要某个确切版本，而 minimumReleaseAgeStrict 在没有显式配置 minimumReleaseAge 时是 false，pnpm 会退让着把它写进 lockfile；这类 PR 若在版本满一天前撞上 CI，等过了一天重跑即可。",
+      "description": "Renovate 只能给带发布时间戳的更新算年龄，这几类拿不到时间戳。默认的 minimumReleaseAgeBehaviour=timestamp-required 会把算不出年龄的更新无限期压住，其中 lockfileUpdate 正是 vulnerabilityAlerts 修复 in-range 依赖时走的类型——压住它等于把安全修复一并关掉。这里豁免的只是「没有时间戳就压住」这一条：候选版本仍然经过 internalChecksFilter=strict 过滤，未达龄的版本不会成为更新目标。lockFileMaintenance 另有 pnpm 把关，按版本范围解析时它只会选满一天的版本。",
       "matchUpdateTypes": [
         "lockFileMaintenance",
         "lockfileUpdate",

@@ -59,7 +59,7 @@
       "labels": ["dependencies", "需要人工核对"]
     },
     {
-      "description": "base image 的 digest 会随每次安全刷新变动，单独一组以免和 npm 升级混在一起。不自动合并：PR 上的 verify 并不构建镜像，所以 Dockerfile 的改动在 PR 阶段没有任何东西验证过。",
+      "description": "base image 的 tag 只指到大版本线，Node 的小版本与 Debian 的安全刷新都以 digest 变动的形式到达——digest 钉住的就是这两者，镜像内容因此完全确定。单独一组以免和 npm 升级混在一起。不自动合并：PR 上的 verify 并不构建镜像，所以 Dockerfile 的改动在 PR 阶段没有任何东西验证过。",
       "matchManagers": ["dockerfile"],
       "groupName": "docker base image",
       "automerge": false
@@ -70,7 +70,7 @@
       "automerge": false
     },
     {
-      "description": "Node 的大版本散在多个 manager 里：Dockerfile 的 node:22-alpine（dockerfile）、CI workflow 的容器镜像（github-actions）、以及 @types/node（npm）。升大版本时这几处必须一起动，否则运行时、CI 与类型会各走各的。只对 major 分组，好让 @types/node 的 patch/minor 仍然走上面的自动合并，也让 base image 的 digest 刷新仍然独立成 PR。",
+      "description": "Node 的大版本散在多个 manager 里：Dockerfile 的 node:24-slim（dockerfile）、CI workflow 的 setup-node（github-actions）、以及 @types/node（npm）。升大版本时这几处必须一起动，否则运行时、CI 与类型会各走各的。只对 major 分组，好让 @types/node 的 patch/minor 仍然走上面的自动合并，也让 base image 的 digest 刷新仍然独立成 PR。",
       "groupName": "node",
       "matchPackageNames": ["node", "@types/node"],
       "matchUpdateTypes": ["major"],

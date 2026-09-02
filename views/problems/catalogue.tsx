@@ -229,19 +229,21 @@ function offsetBefore(groups: Group[], index: number): number {
 
 function tileGridClass(count: number): string {
   if (count === 3) return "grid grid-cols-1 gap-px sm:grid-cols-3";
-  if (count === 6 || count === 9) {
+  // Nine tiles fill a 3×3 on large screens; six stay two-wide so each card
+  // keeps room for the title, description and problem preview.
+  if (count === 9) {
     return "grid grid-cols-1 gap-px sm:grid-cols-2 lg:grid-cols-3";
   }
   return "grid grid-cols-1 gap-px sm:grid-cols-2";
 }
 
 function tileColumns(count: number): number {
-  return count === 3 || count === 6 || count === 9 ? 3 : 2;
+  return count === 3 || count === 9 ? 3 : 2;
 }
 
 /** The leftover cell in a paneled grid stretches rather than leaving a hole. */
 function spanRestClass(count: number): string {
-  if (count === 6 || count === 9) return "sm:col-span-2 lg:col-span-3";
+  if (count === 9) return "sm:col-span-2 lg:col-span-3";
   if (tileColumns(count) === 3) return "sm:col-span-3";
   return "sm:col-span-2";
 }

@@ -153,11 +153,11 @@ its submissions carry its slug.
 
 ```typescript
 catalogue: [
+  "puzzles",
   "graphs",
   "dynamic-programming",
   "data-structures",
   "divide-and-conquer",
-  "puzzles",
   "kernel",
   "ctf",
 ],

@@ -144,7 +144,9 @@ facets: ["difficulty", "tags"],   // the keys `problemFacets` hands back
 
 The default is empty, which draws neither. That is the right default for a
 round: nothing gives away a problem's difficulty or tags while it is being
-solved. A catalogue section names what it wants browsable.
+solved. A catalogue section names what it wants browsable. The catalogue
+index card chips only the dimensions that did not declare an `order` — a
+ladder stays on the section page as filters and badges.
 
 ### Mounting Contests as the Catalogue
 

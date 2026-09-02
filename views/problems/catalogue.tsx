@@ -16,7 +16,7 @@ import {
   type ContestConfig,
 } from "@/lib/contests/types";
 import { problemsFor } from "@/lib/problems/access";
-import { collectFacets } from "@/lib/problems/facets";
+import { chipValues, collectFacets } from "@/lib/problems/facets";
 import { computeProblemStatuses } from "@/lib/stats";
 import { submissionsFor } from "@/lib/submissions/access";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,7 @@ const PREVIEW = 6;
 /** Short lists pad to this many slots so the chips below stay put. */
 const PREVIEW_FLOOR = 3;
 
-/** Facet values a card will render; the rest collapse into "+N". */
+/** Free-form facet values a card will render; the rest collapse into "+N". */
 const CHIP_CAP = 6;
 
 /** Lines the header reveals before the page hands off to the section cards. */
@@ -161,10 +161,14 @@ async function cardFor(
   if (!view) return undefined;
 
   const problems = problemsFor(slug, viewer);
-  const values = collectFacets(
-    problems.map(({ ref }) => ref.problem),
-    view.config.facets,
-  ).flatMap((group) => group.values);
+  // Unordered dimensions only: a ladder stays on the section page, so the
+  // unlabeled chip row does not mix it with free-form labels.
+  const values = chipValues(
+    collectFacets(
+      problems.map(({ ref }) => ref.problem),
+      view.config.facets,
+    ),
+  );
 
   const card: SectionCard = {
     contest: view.config,

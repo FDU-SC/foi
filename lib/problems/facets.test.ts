@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { site } from "@/lib/site";
 import {
+  chipValues,
   collectFacets,
   facetCounts,
   facetsFor,
@@ -188,6 +189,34 @@ describe("collectFacets", () => {
         "夹具交出并列的取值时本来就是语言序，排没排看不出来",
       ).not.toEqual(appearance.filter((value) => run.includes(value)));
     }
+  });
+
+  it("声明过顺序的维度标成 ordered", () => {
+    const ordered = groups.filter((group) => declaredOrder(group.key));
+    const free = groups.filter((group) => !declaredOrder(group.key));
+
+    expect(ordered.length, "夹具里没有声明过顺序的维度").toBeGreaterThan(0);
+    expect(free.length, "夹具里没有未声明顺序的维度").toBeGreaterThan(0);
+
+    for (const group of ordered) expect(group.ordered, group.key).toBe(true);
+    for (const group of free) expect(group.ordered, group.key).toBe(false);
+  });
+});
+
+describe("chipValues", () => {
+  it("只取未声明顺序的维度，阶梯不进卡片 chips", () => {
+    const chips = chipValues(groups);
+    const free = groups
+      .filter((group) => !group.ordered)
+      .flatMap((group) => group.values);
+    const ladder = groups
+      .filter((group) => group.ordered)
+      .flatMap((group) => group.values);
+
+    expect(free.length, "夹具里没有未声明顺序的取值").toBeGreaterThan(0);
+    expect(ladder.length, "夹具里没有阶梯取值").toBeGreaterThan(0);
+    expect(chips).toEqual(free);
+    for (const value of ladder) expect(chips).not.toContain(value);
   });
 });
 

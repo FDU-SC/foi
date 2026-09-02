@@ -52,7 +52,7 @@ jobs:
 
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
-          node-version: 22
+          node-version: 24
           # 这一步默认会为 packageManager 声明的包管理器配缓存，而 pnpm 要等下一步
           # corepack 才存在。开着它会直接报 "Unable to locate executable file: pnpm"。
           package-manager-cache: false
@@ -131,7 +131,7 @@ jobs:
 
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
-          node-version: 22
+          node-version: 24
           # 这一步默认会为 packageManager 声明的包管理器配缓存，而 pnpm 要等下一步
           # corepack 才存在。开着它会直接报 "Unable to locate executable file: pnpm"。
           package-manager-cache: false

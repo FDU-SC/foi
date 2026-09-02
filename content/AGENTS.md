@@ -33,14 +33,17 @@ The last three are entry points like the rest: the platform reads them without k
 2. Create `content/problems/<slug>/statement.mdx` — the problem statement, using MDX components
 3. Create `content/problems/<slug>/views.tsx` — export `views` satisfying `ProblemViews` (auto-discovered by glob)
 4. The problem is automatically registered via `_modules/problems.ts` glob
-5. Add it to some contest's `problems` — a problem is reachable only at
-   `/contests/<contest>/problems/<slug>`, so one no contest lists has no URL and
-   the boot check complains
+5. Add it to some contest's `problems` — a problem is reachable only as part of
+   a contest, so one no contest lists has no URL and the boot check complains
 
 The problem config says nothing about who may open it or when. Its audience is
 the contest's `visibleTo`, its window is the contest's, and what survives the
 end is the contest's `afterEnd`. The same problem may sit in several contests
 and be open in one while sealed in another.
+
+Where it answers depends on which contest you added it to: the one
+`site.catalogue` names serves its problems at `/problems/<slug>`, every other
+contest at `/contests/<contest>/problems/<slug>`. Either way it is one address.
 
 In `statement.mdx`, import and compose the submission UI from templates:
 
@@ -114,6 +117,25 @@ afterEnd: { statements: false }                     // sealed; the round takes i
 
 A practice area is a contest whose window is long. Taking a problem out of
 circulation is removing it from `problems`.
+
+### Mounting One as the Catalogue
+
+`site.catalogue` in `content/site.ts` names a contest, and that contest answers
+at `/problems` instead of `/contests/<slug>` — its problems at
+`/problems/<slug>`, its leaderboard at `/problems/standings`, and it drops out
+of the `/contests` list. Everything else about it is unchanged: the window, the
+`participants`, the `visibleTo`, and the fact that its submissions carry its
+slug.
+
+```typescript
+catalogue: "practice",
+```
+
+The boot check refuses a catalogue carrying a problem named `standings`: the
+leaderboard page shadows it, so it would have no address at all. A slug no
+contest matches is a warning instead — `/problems` answers 404 and the rest of
+the site is unaffected. Omit the field and every contest stays under
+`/contests`.
 
 ### Adding a Ruleset
 

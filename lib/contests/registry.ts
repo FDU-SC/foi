@@ -2,6 +2,7 @@ import { contestModules } from "@/content/_modules/contests";
 import { problemBySlug } from "@/lib/problems/registry";
 import { slugFromGlobPath } from "@/lib/slug-from-path";
 import { rulesetFor } from "@/lib/standings/registry";
+import { catalogueSlug } from "./catalogue";
 import { contestConfigSchema, type ContestConfig } from "./types";
 
 function buildRegistry(): Map<string, ContestConfig> {
@@ -64,4 +65,10 @@ export function allContests(): ContestConfig[] {
 
 export function contestBySlug(slug: string): ContestConfig | undefined {
   return registry.get(slug);
+}
+
+/** The contest `site.catalogue` names, if this deployment names one and has it. */
+export function catalogueContest(): ContestConfig | undefined {
+  const named = catalogueSlug();
+  return named === undefined ? undefined : registry.get(named);
 }

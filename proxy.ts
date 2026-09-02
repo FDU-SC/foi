@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "./auth.config";
+import { catalogueRedirect } from "@/lib/contests/catalogue";
 import { isResolvedSource, sourceFrom } from "@/lib/server/source";
 import { createFixedWindow } from "@/lib/ratelimit/window";
 
@@ -30,6 +31,15 @@ export default auth((req) => {
         },
       });
     }
+  }
+
+  // The catalogue keeps no address under `/contests`. It has to be said here:
+  // a page body can only answer once its layout has streamed, which turns a
+  // redirect into a 200 carrying a meta refresh. Temporary, because which
+  // contest is the catalogue is a deployment's to change.
+  const moved = catalogueRedirect(path);
+  if (moved) {
+    return NextResponse.redirect(new URL(moved + nextUrl.search, nextUrl), 307);
   }
 
   // A convenience redirect, not a boundary: the JWT alone says nothing about

@@ -32,6 +32,16 @@ export interface SiteConfig {
   timezone: string;
   navigation: NavItem[];
 
+  /**
+   * The contest this deployment presents as a catalogue, named by its slug.
+   *
+   * A problem is reachable only as part of a contest, and this moves where one
+   * contest's pairs are reachable: `/problems/<problem>` rather than
+   * `/contests/<contest>/problems/<problem>`. Each pair still has exactly one
+   * URL. Omit it and every contest stays under `/contests`.
+   */
+  catalogue?: string;
+
   /** The line under the name on the home page. Falls back to `description`. */
   tagline?: string;
 

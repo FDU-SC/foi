@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { problemHref } from "@/lib/contests/catalogue";
 import { problemStatus } from "@/lib/problems/access";
 
 export function ProblemRef({
@@ -22,7 +23,7 @@ export function ProblemRef({
         <span className={className}>{status.title}</span>
       ) : (
         <Link
-          href={`/contests/${contestSlug}/problems/${slug}`}
+          href={problemHref(contestSlug, slug)}
           className={`hover:text-primary transition-colors ${className ?? ""}`}
         >
           {status.title}

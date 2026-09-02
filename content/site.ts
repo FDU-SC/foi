@@ -10,7 +10,11 @@ export const site: SiteConfig = {
   tagline:
     "一个可插拔的竞赛平台。题面、评测机与赛制计分都以代码形式存放在仓库中，可以像写组件一样定制每一道题的页面。",
 
+  // 题库就是这场比赛：窗口长期开着，因此它的题目挂在 /problems 而不是 /contests 下。
+  catalogue: "practice",
+
   navigation: [
+    { href: "/problems", label: "题库" },
     { href: "/contests", label: "比赛" },
     { href: "/submissions", label: "提交记录" },
     { href: "/leaderboard", label: "排行榜", visibleWhen: "leaderboard.read" },
@@ -26,9 +30,14 @@ export const site: SiteConfig = {
 
   homeEntries: [
     {
+      href: "/problems",
+      title: "题库",
+      description: "长期开放的题目，随时提交、随时上榜。",
+    },
+    {
       href: "/contests",
       title: "比赛",
-      description: "题目都在比赛里：进行中的、练习用的、已经结束的。",
+      description: "有窗口的轮次：进行中的、未开始的、已经结束的。",
     },
     {
       href: "/submissions",

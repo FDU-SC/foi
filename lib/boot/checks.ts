@@ -50,9 +50,12 @@ async function loadChecks(): Promise<Check[]> {
 
     { complaints: backend.backendsMissingActionUrl, fatalIn: ONLY_PROD },
 
+    { complaints: contests.catalogueComplaints, fatalIn: ALWAYS },
+
     { complaints: contests.orphanedProblemComplaints, fatalIn: ONLY_PROD },
 
     { complaints: enrollment.enrollmentWarnings, fatalIn: NEVER },
+    { complaints: contests.catalogueWarnings, fatalIn: NEVER },
     { complaints: contests.contestWarnings, fatalIn: NEVER },
     { complaints: authz.policyWarnings, fatalIn: NEVER },
     {

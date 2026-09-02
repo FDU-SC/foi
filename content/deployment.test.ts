@@ -5,8 +5,14 @@ import { listGroups } from "@/lib/authz/groups";
 import { actionsWithoutPermit, privilegedGroups } from "@/lib/authz/introspect";
 import type { AccountRef } from "@/lib/authz/resources";
 import { groupsFor } from "@/lib/enrollment/registry";
-import { allContests, contestBySlug } from "@/lib/contests/registry";
+import { isCatalogue } from "@/lib/contests/catalogue";
+import {
+  allContests,
+  catalogueContest,
+  contestBySlug,
+} from "@/lib/contests/registry";
 import { mailSink } from "@/lib/mail/transport";
+import { site } from "@/lib/site";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
 import { backends } from "@/lib/backend/registry";
 import { undeclaredBackends } from "@/lib/backend/access";
@@ -132,18 +138,29 @@ describe("演示赛", () => {
   });
 });
 
-describe("练习场", () => {
-  const practice = contestBySlug("practice");
+describe("题库", () => {
+  const catalogue = catalogueContest();
 
-  it("存在，题目要长期开放就得有一场长期开着的比赛带着", () => {
-    expect(practice).toBeDefined();
+  it("site.catalogue 指名的比赛存在，/problems 才有东西可挂", () => {
+    expect(site.catalogue).toBeDefined();
+    expect(catalogue).toBeDefined();
   });
 
   it("窗口横跨当下，任何人随时都能提交", () => {
     const now = Date.now();
-    expect(practice && practice.startsAt.getTime() < now).toBe(true);
-    expect(practice && practice.endsAt.getTime() > now).toBe(true);
-    expect(practice?.participants.mode).toBe("open");
+    expect(catalogue && catalogue.startsAt.getTime() < now).toBe(true);
+    expect(catalogue && catalogue.endsAt.getTime() > now).toBe(true);
+    expect(catalogue?.participants.mode).toBe("open");
+  });
+
+  it("带着题，否则题库是空的", () => {
+    expect(catalogue?.problems.length).toBeGreaterThan(0);
+  });
+
+  it("题库之外还有别的比赛，/contests 才不是空页", () => {
+    expect(
+      allContests().filter((contest) => !isCatalogue(contest.slug)).length,
+    ).toBeGreaterThan(0);
   });
 });
 

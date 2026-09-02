@@ -8,7 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { describeAudience } from "@/lib/authz/audience";
 import { authorize } from "@/lib/authz/engine";
 import { viewerFor } from "@/lib/authz/viewer";
-import { contestProblemRefs } from "@/lib/contests/refs";
+import {
+  catalogueSlug,
+  contestHref,
+  isCatalogue,
+} from "@/lib/contests/catalogue";
+import { contestProblemRefs, contestProblemRefsIn } from "@/lib/contests/refs";
 import {
   contestStatus,
   hasContestStarted,
@@ -21,28 +26,81 @@ import { toPublicConfig } from "@/lib/problems/types";
 const gateFormatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
 type Props = PageProps<"/contests/[slug]/problems/[problem]">;
+type CatalogueProps = PageProps<"/problems/[slug]">;
 
+/**
+ * Every pair except the catalogue's. Those answer under `/problems`, and the
+ * route has `dynamicParams = false`, so leaving them out is what keeps a pair
+ * from having two URLs.
+ */
 export function problemDetailParams() {
-  return contestProblemRefs().map((ref) => ({
-    slug: ref.contest.slug,
-    problem: ref.problem.slug,
+  return contestProblemRefs()
+    .filter((ref) => !isCatalogue(ref.contest.slug))
+    .map((ref) => ({ slug: ref.contest.slug, problem: ref.problem.slug }));
+}
+
+/** The catalogue's pairs, addressed by the problem alone. */
+export function cataloguedProblemParams() {
+  const mounted = catalogueSlug();
+  if (mounted === undefined) return [];
+
+  return contestProblemRefsIn(mounted).map((ref) => ({
+    slug: ref.problem.slug,
   }));
+}
+
+async function titleOf(
+  contestSlug: string | undefined,
+  problemSlug: string,
+): Promise<Metadata> {
+  if (contestSlug === undefined) return { title: "题目" };
+
+  const view = problemFor(
+    contestSlug,
+    problemSlug,
+    viewerFor(await getResolvedUser()),
+  );
+  return { title: view?.ref.problem.title ?? "题目" };
 }
 
 export async function problemDetailMetadata({
   params,
 }: Props): Promise<Metadata> {
   const { slug, problem } = await params;
+  return titleOf(slug, problem);
+}
 
-  const view = problemFor(slug, problem, viewerFor(await getResolvedUser()));
-  return { title: view?.ref.problem.title ?? "题目" };
+export async function cataloguedProblemMetadata({
+  params,
+}: CatalogueProps): Promise<Metadata> {
+  const { slug } = await params;
+  return titleOf(catalogueSlug(), slug);
 }
 
 export async function ProblemDetailView({ params }: Props) {
-  const { slug, problem: problemSlug } = await params;
+  const { slug, problem } = await params;
+  return <ProblemDetail contestSlug={slug} problemSlug={problem} />;
+}
+
+export async function CataloguedProblemView({ params }: CatalogueProps) {
+  const { slug } = await params;
+
+  const mounted = catalogueSlug();
+  if (mounted === undefined) notFound();
+
+  return <ProblemDetail contestSlug={mounted} problemSlug={slug} />;
+}
+
+async function ProblemDetail({
+  contestSlug,
+  problemSlug,
+}: {
+  contestSlug: string;
+  problemSlug: string;
+}) {
   const viewer = viewerFor(await getResolvedUser());
 
-  const view = problemFor(slug, problemSlug, viewer);
+  const view = problemFor(contestSlug, problemSlug, viewer);
   if (!view) notFound();
 
   const { contest, entry, problem } = view.ref;
@@ -99,7 +157,7 @@ export async function ProblemDetailView({ params }: Props) {
 
         <nav className="text-fg-subtle mb-4 flex items-center gap-1.5 text-xs">
           <Link
-            href={`/contests/${contest.slug}`}
+            href={contestHref(contest.slug)}
             className="hover:text-fg transition-colors"
           >
             {contest.title}

@@ -106,13 +106,13 @@ Refusals are one shape (`Decision`) turned into each layer's expectation by the 
 
 ## A Problem Is a Belonging of a Contest
 
-There is no catalogue and no `/problems`. A problem is reachable at exactly one kind of URL, `/contests/[slug]/problems/[problem]`, and the resource behind `problem.read`, `problem.submit` and `problem.invoke` is the pair, not the problem:
+A problem has exactly one URL, and it is not addressable without the contest it is being worked on as part of. The resource behind `problem.read`, `problem.submit` and `problem.invoke` is the pair, not the problem:
 
 ```ts
 interface ContestProblemRef { contest: ContestConfig; entry: ContestProblemConfig; problem: ProblemConfig }
 ```
 
-Attribution is therefore structural rather than claimed. There is no way to ask about a problem without naming the contest it is being worked on as part of, so there is nothing to cross-check and no `context.contest`. `lib/contests/refs.ts` is where the pairs come from; a problem no contest lists has no URL, and a boot check says so.
+Attribution is therefore structural rather than claimed. There is nothing to cross-check and no `context.contest`. `lib/contests/refs.ts` is where the pairs come from; a problem no contest lists has no URL, and a boot check says so.
 
 A problem config carries no visibility of its own. Who may open it is `contest.visibleTo`, when is the contest window, and what survives `endsAt` is the contest's `afterEnd`:
 
@@ -122,7 +122,25 @@ A problem config carries no visibility of its own. Who may open it is `contest.v
 | `{ submissions: true }` | readable | open, and outside every leaderboard's window |
 | `{ statements: false }` | sealed | closed |
 
-Long-running practice is a contest whose window is long. Retiring a problem is removing it from `contest.problems`.
+Retiring a problem is removing it from `contest.problems`.
+
+### The Catalogue Is One of Those Contests
+
+`site.catalogue` names one contest, and that contest's pages move rather than multiply:
+
+| | Catalogue | Every other contest |
+|---|---|---|
+| Contest | `/problems` | `/contests/[slug]` |
+| Problem | `/problems/[problem]` | `/contests/[slug]/problems/[problem]` |
+| Standings | `/problems/standings` | `/contests/[slug]/standings` |
+
+Long-running practice is a contest whose window is long; mounting it here is what makes it read as a catalogue instead of a round. It keeps its window, its leaderboard, its `participants` and its `visibleTo` — nothing about authorization or submission changes, and a submission still carries its slug in `contest_slug`. The API is untouched too: `/api/contests/[slug]/problems/[problem]/action/[action]` serves both.
+
+`lib/contests/catalogue.ts` builds every such link and is the only place that reads `site.catalogue`. Never write a contest or problem path by hand — `problemHref`, `contestHref` and `standingsHref` are what keep the two namespaces from both claiming a pair.
+
+The old addresses are closed rather than left unused. `/contests/[slug]/problems/[problem]` drops the catalogue from `generateStaticParams`, and `proxy.ts` redirects everything under the catalogue's `/contests` prefix. The proxy is where that has to happen: a page body cannot answer until its layout has streamed, which turns a redirect into a 200 carrying a meta refresh. For the same reason `catalogue.ts` reads nothing but the site config — the proxy imports it, and a contest registry does not belong in that bundle.
+
+Naming a catalogue is optional. Omit it and every contest stays under `/contests`.
 
 ## Key Contracts
 
@@ -148,6 +166,7 @@ When writing content, you implement these platform-defined interfaces:
 - Add score/maxScore/accepted/outcome columns to the DB — those are result-shape assumptions
 - Give `ProblemConfig` a visibility, lifecycle or ordering field — a problem is reachable only through a contest, so the contest owns all three
 - Ask about a problem without a contest — `problem.*` takes a `ContestProblemRef`, and a submission's `contest_slug` is `NOT NULL`
+- Write a contest, problem or standings path by hand — `lib/contests/catalogue.ts` decides which of the two namespaces a contest answers in
 - Write `isAccepted()` or `verdictColumns()` in `lib/` — result interpretation is the ruleset's job
 - Hardcode brand names, locale, timezone, navigation or taglines anywhere in the platform — those come from `content/site.ts`
 - Put `render` or `supportsFreeze` on the `Ruleset` interface — rulesets are pure compute functions

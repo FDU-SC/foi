@@ -7,6 +7,7 @@ import {
   contestFor,
   isContestProblemSetVisibleTo,
 } from "@/lib/contests/access";
+import { problemHref, standingsHref } from "@/lib/contests/catalogue";
 import { contestPhase, contestStatus } from "@/lib/contests/types";
 import { dateFormatter } from "@/lib/format";
 import { problemsFor } from "@/lib/problems/access";
@@ -77,7 +78,7 @@ export async function ContestDetailView({
           <Badge tone="warn">预览 · 尚未对选手公开</Badge>
         ) : null}
         <Link
-          href={`/contests/${contest.slug}/standings`}
+          href={standingsHref(contest.slug)}
           className="text-primary ml-auto text-sm hover:underline"
         >
           查看排行榜 →
@@ -105,7 +106,7 @@ export async function ContestDetailView({
           {problems.map(({ entry, problem }) => (
             <li key={problem.slug}>
               <Link
-                href={`/contests/${contest.slug}/problems/${problem.slug}`}
+                href={problemHref(contest.slug, problem.slug)}
                 className="hover:bg-surface-2 flex items-center gap-3 px-4 py-3 transition-colors"
               >
                 <span className="bg-surface-3 text-fg flex size-6 shrink-0 items-center justify-center rounded font-mono text-xs font-semibold">

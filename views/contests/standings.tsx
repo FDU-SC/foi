@@ -10,6 +10,11 @@ import {
   isContestProblemSetVisibleTo,
 } from "@/lib/contests/access";
 import {
+  catalogueSlug,
+  contestHref,
+  isCatalogue,
+} from "@/lib/contests/catalogue";
+import {
   contestPhase,
   type ContestConfig,
   type ContestPhase,
@@ -45,29 +50,53 @@ const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 /** Phases where new submissions can still change the board, so polling earns its keep. */
 const MOVING_PHASES: ContestPhase[] = ["running", "frozen"];
 
+async function titleOf(contestSlug: string | undefined): Promise<Metadata> {
+  if (contestSlug === undefined) return { title: "排行榜" };
+
+  const view = contestFor(contestSlug, await getViewer());
+  return { title: view ? `${view.config.title} 排行榜` : "排行榜" };
+}
+
 export async function standingsMetadata({
   params,
 }: PageProps<"/contests/[slug]/standings">): Promise<Metadata> {
   const { slug } = await params;
-  const view = contestFor(slug, await getViewer());
-  return { title: view ? `${view.config.title} 排行榜` : "排行榜" };
+  return titleOf(slug);
+}
+
+export function catalogueStandingsMetadata(): Promise<Metadata> {
+  return titleOf(catalogueSlug());
+}
+
+/**
+ * Where this board sits. The catalogue has no list above it, so its trail is
+ * one step; every other contest is reached through `/contests`.
+ */
+function Crumbs({ contest }: { contest: ContestConfig }) {
+  return (
+    <nav className="text-fg-subtle flex items-center gap-1.5 text-xs">
+      {isCatalogue(contest.slug) ? null : (
+        <>
+          <Link href="/contests" className="hover:text-fg transition-colors">
+            比赛
+          </Link>
+          <span>/</span>
+        </>
+      )}
+      <Link
+        href={contestHref(contest.slug)}
+        className="hover:text-fg transition-colors"
+      >
+        {contest.title}
+      </Link>
+    </nav>
+  );
 }
 
 function UpcomingNotice({ contest }: { contest: ContestConfig }) {
   return (
     <div className="space-y-5">
-      <nav className="text-fg-subtle flex items-center gap-1.5 text-xs">
-        <Link href="/contests" className="hover:text-fg transition-colors">
-          比赛
-        </Link>
-        <span>/</span>
-        <Link
-          href={`/contests/${contest.slug}`}
-          className="hover:text-fg transition-colors"
-        >
-          {contest.title}
-        </Link>
-      </nav>
+      <Crumbs contest={contest} />
 
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-fg text-2xl font-bold tracking-tight">排行榜</h1>
@@ -85,9 +114,20 @@ export async function StandingsView({
   params,
 }: PageProps<"/contests/[slug]/standings">) {
   const { slug } = await params;
+  return <Standings contestSlug={slug} />;
+}
+
+export function CatalogueStandingsView() {
+  const mounted = catalogueSlug();
+  if (mounted === undefined) notFound();
+
+  return <Standings contestSlug={mounted} />;
+}
+
+async function Standings({ contestSlug }: { contestSlug: string }) {
   const viewer = await getViewer();
 
-  const view = contestFor(slug, viewer);
+  const view = contestFor(contestSlug, viewer);
   if (!view) notFound();
 
   const contest = view.config;
@@ -104,18 +144,7 @@ export async function StandingsView({
 
   return (
     <div className="space-y-5">
-      <nav className="text-fg-subtle flex items-center gap-1.5 text-xs">
-        <Link href="/contests" className="hover:text-fg transition-colors">
-          比赛
-        </Link>
-        <span>/</span>
-        <Link
-          href={`/contests/${contest.slug}`}
-          className="hover:text-fg transition-colors"
-        >
-          {contest.title}
-        </Link>
-      </nav>
+      <Crumbs contest={contest} />
 
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-fg text-2xl font-bold tracking-tight">排行榜</h1>

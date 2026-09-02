@@ -61,13 +61,18 @@ FOI_STUB_RUNNER=yes-fake-verdicts node scripts/stub-runner.cjs
 配置与判题函数，`statement.mdx` 写题面，`views.tsx` 决定提交内容和判定详情怎么显示。
 glob 会自动发现它，不需要注册。
 
-题目只能作为比赛的所属物被打开，URL 只有 `/contests/<比赛>/problems/<题目>` 一种，
-所以新题还要写进某场比赛的 `problems`——不属于任何比赛的题目没有 URL，启动检查会
-点名它。谁能打开、什么时候能打开、比赛结束之后还剩什么，全部由那场比赛说了算。
+题目只能作为比赛的所属物被打开，所以新题还要写进某场比赛的 `problems`——不属于任何
+比赛的题目没有 URL，启动检查会点名它。谁能打开、什么时候能打开、比赛结束之后还剩
+什么，全部由那场比赛说了算。
 
 加一个比赛，建 `content/contests/<slug>/contest.ts`。比赛持有自己的排行榜，每个排行榜
-引用一套计分规则。想让一批题长期开放，就让这场比赛的窗口足够长——`content/contests/practice/`
-是现成的例子。
+引用一套计分规则。想让一批题长期开放，就让这场比赛的窗口足够长。
+
+题库也是这样一场比赛：`content/site.ts` 的 `catalogue` 指名哪一场，那场就答在
+`/problems`——题目在 `/problems/<题目>`，排行榜在 `/problems/standings`，并且不再出现在
+`/contests` 列表里。除了地址，它和别的比赛没有任何区别。其余比赛照旧是
+`/contests/<比赛>/problems/<题目>`，一对「比赛 + 题目」始终只有一个 URL。
+`content/contests/practice/` 是现成的例子。
 
 加一套计分规则，建 `content/rulesets/<id>.tsx`，导出一个纯函数：收进提交，吐出名次。
 它不需要知道封榜，也不需要知道怎么渲染，那些是另外的事。

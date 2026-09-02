@@ -5,6 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { adminContestsFor } from "@/lib/admin/access";
 import { describeAudience } from "@/lib/authz/audience";
+import {
+  contestHref,
+  isCatalogue,
+  standingsHref,
+} from "@/lib/contests/catalogue";
 import { contestStatus } from "@/lib/contests/types";
 import { dateFormatter } from "@/lib/format";
 import { rulesetFor } from "@/lib/standings/registry";
@@ -74,13 +79,16 @@ export async function AdminContestsView() {
                 title={
                   <span className="flex flex-wrap items-center gap-2">
                     <Link
-                      href={`/contests/${contest.slug}`}
+                      href={contestHref(contest.slug)}
                       className="hover:text-primary transition-colors"
                     >
                       {contest.title}
                     </Link>
                     <Badge tone={status.tone}>{status.label}</Badge>
                     <Badge>{ruleset?.name ?? "自定义赛制"}</Badge>
+                    {isCatalogue(contest.slug) ? (
+                      <Badge tone="primary">题库 · 挂在 /problems</Badge>
+                    ) : null}
                     {contest.leaderboards.length > 1 ? (
                       <Badge tone="info">
                         {contest.leaderboards.length} 个排行榜
@@ -95,7 +103,7 @@ export async function AdminContestsView() {
                 }
                 actions={
                   <Link
-                    href={`/contests/${contest.slug}/standings`}
+                    href={standingsHref(contest.slug)}
                     className="text-fg-subtle hover:text-primary text-xs transition-colors"
                   >
                     排行榜

@@ -1,15 +1,16 @@
 import type { ContestConfigInput } from "@/lib/contests/types";
 
 /**
- * The practice round: a contest whose window never closes.
+ * The catalogue: a contest whose window never closes.
  *
  * A problem is reachable only as part of a contest, so "just let people work on
  * these whenever" is expressed the same way everything else is — as a round
- * that happens to run for a very long time.
+ * that happens to run for a very long time. `site.catalogue` names this one, so
+ * its problems answer at `/problems/<slug>` rather than under `/contests`.
  */
 export const contest = {
   slug: "practice",
-  title: "练习场",
+  title: "题库",
   description: "长期开放的题目都在这里。随时提交，按总分排名。",
 
   leaderboards: [

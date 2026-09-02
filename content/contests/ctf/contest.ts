@@ -1,7 +1,7 @@
 import type { ContestConfigInput } from "@/lib/contests/types";
 
 /**
- * The CTF heading, holding one long-running section.
+ * The CTF section for web challenges.
  *
  * Its problem also belongs to the `demo-ctf` round, so the same problem holds
  * two URLs — one per pair. That is the intended shape: a round's copy is scored
@@ -9,8 +9,8 @@ import type { ContestConfigInput } from "@/lib/contests/types";
  */
 export const contest = {
   slug: "ctf",
-  title: "CTF",
-  description: "动态靶机题：开一台自己的实例，找到 flag 交回来。",
+  title: "Web",
+  description: "注入、鉴权、逻辑漏洞——对着站点把不该给你的东西拿出来。",
 
   domain: "CTF",
   facets: ["difficulty", "tags"],
@@ -26,7 +26,7 @@ export const contest = {
   startsAt: "2025-01-01T00:00:00+08:00",
   endsAt: "2099-12-31T23:59:59+08:00",
 
-  problems: [{ slug: "leaky-bucket", label: "A" }],
+  problems: [{ slug: "leaky-bucket" }],
 
   participants: { mode: "open" },
 } satisfies ContestConfigInput;

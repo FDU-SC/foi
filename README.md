@@ -73,7 +73,7 @@ glob 会自动发现它，不需要注册。
 `/problems/<比赛>/standings`，并且不再出现在 `/contests` 列表里。除了地址，它们和别的
 比赛没有任何区别，各自有窗口、受众与排行榜。`/problems` 是它们的索引页，一场比赛一张
 卡片，按各自的 `domain` 分组。其余比赛照旧是 `/contests/<比赛>/problems/<题目>`，
-一对「比赛 + 题目」始终只有一个 URL。`content/contests/basics/` 是现成的例子。
+一对「比赛 + 题目」始终只有一个 URL。`content/contests/graphs/` 是现成的例子。
 
 难度与标签写在题目的 `ui` 里，平台不读它。让它们变成可筛的维度靠 `views.tsx` 的
 `facets`，而露不露则由比赛的 `facets` 决定——不写就什么都不露，所以正式轮次默认不会

@@ -1,19 +1,19 @@
 import type { ContestConfigInput } from "@/lib/contests/types";
 
 /**
- * The second section under the 算法 heading, which is what makes the catalogue
- * index a grouped grid rather than a flat one.
+ * The section for problems that are light rather than hard.
  *
- * These problems are judged in-process or through an interactor rather than by
- * running a program against test data, so they sit apart from `basics` — the
- * work of solving them looks different, even where the subject matter overlaps.
+ * Cellular automata, a daily roulette, and one example of what an interactive
+ * problem looks like. None of them is judged by running a program against test
+ * data, and none of them is meant to be ground through — which is why they sit
+ * under a heading of their own rather than among the 算法与数据结构 sections.
  */
 export const contest = {
   slug: "puzzles",
-  title: "提交答案与交互",
-  description: "本地算完把答案贴上来，或者写一个程序去和评测机对话。",
+  title: "玩具箱",
+  description: "Just4Fun",
 
-  domain: "算法",
+  domain: "娱乐",
   facets: ["difficulty", "tags"],
 
   leaderboards: [
@@ -28,11 +28,10 @@ export const contest = {
   endsAt: "2099-12-31T23:59:59+08:00",
 
   problems: [
-    { slug: "answer-only", label: "A" },
-    { slug: "game-of-life", label: "B" },
-    { slug: "life-oscillator", label: "C" },
-    { slug: "interactive-binary-search", label: "D" },
-    { slug: "roulette-daily", label: "E" },
+    { slug: "game-of-life" },
+    { slug: "life-oscillator" },
+    { slug: "interactive-binary-search" },
+    { slug: "roulette-daily" },
   ],
 
   participants: { mode: "open" },

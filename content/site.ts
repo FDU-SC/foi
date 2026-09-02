@@ -12,7 +12,23 @@ export const site: SiteConfig = {
 
   // 题库就是这几场比赛：窗口长期开着，因此它们的题目挂在 /problems 而不是
   // /contests 下。顺序即卡片顺序，分组标题取自各自的 domain。
-  catalogue: ["basics", "puzzles", "kernel", "ctf"],
+  catalogue: [
+    "puzzles",
+    "kernel",
+    "comm",
+    "framework",
+    "inference",
+    "cluster",
+    "graphs",
+    "dynamic-programming",
+    "data-structures",
+    "divide-and-conquer",
+    "ctf",
+    "pwn",
+    "reverse",
+    "crypto",
+    "misc",
+  ],
 
   navigation: [
     { href: "/problems", label: "题库" },

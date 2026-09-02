@@ -1,0 +1,95 @@
+import { Callout } from "@/content/_shared/mdx/callout";
+import { Constraints } from "@/content/_shared/mdx/constraints";
+import { Sample } from "@/content/_shared/mdx/sample";
+import { SubmitPanel } from "@/content/_shared/ui/submit-panel";
+import { CodeInput } from "@/content/_shared/ui/code-input";
+
+<Constraints time="1 s" memory="256 MB" extra={{ 子任务: "3" }} />
+
+## 题目描述
+
+某个村落里住着 $n$ 个人，编号 $1 \dots n$。现在给出 $m$ 组亲戚关系，每组说明两个人
+是亲戚。
+
+亲戚关系是**可以传递**的：如果 $x$ 和 $y$ 是亲戚、$y$ 和 $z$ 是亲戚，那么 $x$ 和 $z$
+也是亲戚。此外，每个人都是自己的亲戚。
+
+接下来有 $q$ 个询问，每个询问给出两个人，请回答他们是不是亲戚。
+
+## 输入格式
+
+第一行三个整数 $n, m, q$。
+
+接下来 $m$ 行，每行两个整数 $x, y$，表示 $x$ 与 $y$ 是亲戚。
+
+再接下来 $q$ 行，每行两个整数 $x, y$，表示一个询问。
+
+## 输出格式
+
+$q$ 行，每行对应一个询问：是亲戚输出 `Yes`，否则输出 `No`。
+
+<Sample
+  n={1}
+  input={`5 3 3
+1 2
+3 4
+2 3
+1 4
+1 5
+4 5`}
+  output={`Yes
+No
+No`}
+  note="三组关系把 1、2、3、4 连成一片，5 始终是孤立的。"
+/>
+
+## 数据范围
+
+对于全部数据，保证 $1 \le n \le 2 \times 10^5$，$0 \le m \le 2 \times 10^5$，
+$1 \le q \le 2 \times 10^5$，且所有编号都在 $1$ 到 $n$ 之间。同一组关系可能重复给出。
+
+| 子任务 | 分值 | 限制 |
+| --- | --- | --- |
+| 1 | 30 | $n, m, q \le 10^3$ |
+| 2 | 30 | $n, m, q \le 10^5$ |
+| 3 | 40 | 无特殊限制 |
+
+<Callout kind="tip" title="解题提示">
+
+这是并查集的模板题。每个人一开始自成一个集合，读入一组关系就把两个人所在的集合
+合并；询问时比较两人所在集合的代表元是否相同。
+
+只要同时用上**路径压缩**和**按秩合并**（或按大小合并），单次操作的均摊代价就近乎
+常数，总复杂度约 $O((m + q)\,\alpha(n))$。
+
+</Callout>
+
+## 参考实现片段
+
+```cpp title="dsu.cpp" showLineNumbers
+int find(int x) {
+    while (fa[x] != x) {
+        fa[x] = fa[fa[x]];  // 路径压缩：顺手把父亲指向祖父
+        x = fa[x];
+    }
+    return x;
+}
+
+void unite(int x, int y) {
+    x = find(x), y = find(y);
+    if (x == y) return;
+    if (size[x] < size[y]) swap(x, y);
+    fa[y] = x;
+    size[x] += size[y];
+}
+```
+
+<Callout kind="warning">
+
+询问里的两个人可能是同一个人，这时应当输出 `Yes`。
+
+递归写法的 `find` 在退化成链的数据上会爆栈，上面用的是迭代写法。
+
+</Callout>
+
+<SubmitPanel><CodeInput /></SubmitPanel>

@@ -119,6 +119,10 @@ export const contest = {
 } satisfies ContestConfigInput;
 ```
 
+`label` is the contest letter a round numbers its problems with. A catalogue
+section omits it: the index and the section list treat the array tail as the
+newest problem, and a new one is appended.
+
 `problems` is the whole of a problem's reachability, and `afterEnd` is the whole
 of its afterlife:
 
@@ -140,7 +144,9 @@ facets: ["difficulty", "tags"],   // the keys `problemFacets` hands back
 
 The default is empty, which draws neither. That is the right default for a
 round: nothing gives away a problem's difficulty or tags while it is being
-solved. A catalogue section names what it wants browsable.
+solved. A catalogue section names what it wants browsable. The catalogue
+index card chips only the dimensions that did not declare an `order` — a
+ladder stays on the section page as filters and badges.
 
 ### Mounting Contests as the Catalogue
 
@@ -152,13 +158,29 @@ unchanged: the window, the `participants`, the `visibleTo`, and the fact that
 its submissions carry its slug.
 
 ```typescript
-catalogue: ["basics", "puzzles", "kernel", "ctf"],
+catalogue: [
+  "puzzles",
+  "kernel",
+  "comm",
+  "framework",
+  "inference",
+  "cluster",
+  "graphs",
+  "dynamic-programming",
+  "data-structures",
+  "divide-and-conquer",
+  "ctf",
+  "pwn",
+  "reverse",
+  "crypto",
+  "misc",
+],
 ```
 
 `/problems` is the index those cards sit on, grouped by each contest's `domain`:
 
 ```typescript
-domain: "Infra",
+domain: "HPC & AI Infra",
 ```
 
 Headings appear in the order their first contest appears in `catalogue`, and a

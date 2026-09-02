@@ -169,8 +169,12 @@ async function ProblemDetail({
           >
             {contest.title}
           </Link>
-          <span>/</span>
-          <span className="font-mono">{entry.label}</span>
+          {entry.label ? (
+            <>
+              <span>/</span>
+              <span className="font-mono">{entry.label}</span>
+            </>
+          ) : null}
           <Badge tone={status.tone} className="ml-1">
             {status.label}
           </Badge>

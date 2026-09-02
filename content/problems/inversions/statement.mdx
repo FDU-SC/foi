@@ -1,0 +1,95 @@
+import { Callout } from "@/content/_shared/mdx/callout";
+import { Constraints } from "@/content/_shared/mdx/constraints";
+import { Sample } from "@/content/_shared/mdx/sample";
+import { SubmitPanel } from "@/content/_shared/ui/submit-panel";
+import { CodeInput } from "@/content/_shared/ui/code-input";
+
+<Constraints time="1 s" memory="256 MB" extra={{ 子任务: "3" }} />
+
+## 题目描述
+
+给定一个长度为 $n$ 的整数序列 $a_1, a_2, \dots, a_n$。
+
+若一对下标 $(i, j)$ 满足 $i < j$ 且 $a_i > a_j$，就称它是一个**逆序对**。请统计
+序列中逆序对的数量。
+
+## 输入格式
+
+第一行一个整数 $n$。
+
+第二行 $n$ 个整数 $a_1, a_2, \dots, a_n$。
+
+## 输出格式
+
+一行一个整数，表示逆序对的数量。
+
+<Sample
+  n={1}
+  input={`6
+5 4 2 6 3 1`}
+  output={`11`}
+  note="以 5 打头的有 4 对，以 4 打头的有 3 对，6 有 2 对，2 和 3 各 1 对。"
+/>
+
+<Sample
+  n={2}
+  input={`4
+1 2 3 4`}
+  output={`0`}
+  note="序列本来就是升序的，一个逆序对都没有。"
+/>
+
+## 数据范围
+
+对于全部数据，保证 $1 \le n \le 5 \times 10^5$，$|a_i| \le 10^9$。序列中可能有
+重复元素，相等的两个数**不构成**逆序对。
+
+| 子任务 | 分值 | 限制 |
+| --- | --- | --- |
+| 1 | 30 | $n \le 10^3$ |
+| 2 | 30 | $n \le 10^5$ |
+| 3 | 40 | 无特殊限制 |
+
+<Callout kind="tip" title="解题提示">
+
+在归并排序的合并步骤里顺手统计：左右两半各自已经有序，当合并时从**右半**取走一个
+元素，说明左半剩下的每一个都比它大且下标更靠前——一次性加上左半的剩余个数即可。
+
+分治的两侧递归各自统计内部的逆序对，合并时统计跨越两侧的，合起来就是答案，
+复杂度 $O(n \log n)$。
+
+也可以把值离散化后倒着扫，用树状数组查询「已经出现过多少个比当前更小的数」。
+
+</Callout>
+
+## 参考实现片段
+
+```cpp title="merge-count.cpp" showLineNumbers
+long long merge_count(int lo, int hi) {
+    if (hi - lo <= 1) return 0;
+    int mid = (lo + hi) / 2;
+    long long res = merge_count(lo, mid) + merge_count(mid, hi);
+
+    int i = lo, j = mid, k = lo;
+    while (i < mid && j < hi) {
+        if (a[i] <= a[j]) tmp[k++] = a[i++];
+        else res += mid - i, tmp[k++] = a[j++];  // 左半剩下的都比 a[j] 大
+    }
+    while (i < mid) tmp[k++] = a[i++];
+    while (j < hi) tmp[k++] = a[j++];
+    copy(tmp + lo, tmp + hi, a + lo);
+    return res;
+}
+```
+
+<Callout kind="warning">
+
+$n$ 取到上界时逆序对数量约为 $1.25 \times 10^{11}$，用 32 位整数会溢出。
+
+判断相等时用 `a[i] <= a[j]` 把左边的先取走，否则相等的元素会被误计成逆序对。
+
+临时数组请在递归外分配一次，不要每层都新建。
+
+</Callout>
+
+<SubmitPanel><CodeInput /></SubmitPanel>

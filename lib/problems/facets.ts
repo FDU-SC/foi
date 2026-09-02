@@ -7,6 +7,8 @@ export interface FacetGroup {
   key: string;
   label: string;
   values: string[];
+  /** True when any problem declared an `order` for this key. */
+  ordered: boolean;
 }
 
 /** Chosen values per dimension. Within a key OR, across keys AND. */
@@ -100,8 +102,24 @@ export function collectFacets(
   return offered.flatMap((key) => {
     const group = groups.get(key);
     if (!group || group.counts.size === 0) return [];
-    return { key, label: group.label, values: orderValues(group) };
+    return {
+      key,
+      label: group.label,
+      values: orderValues(group),
+      ordered: group.declared.length > 0,
+    };
   });
+}
+
+/**
+ * Values from dimensions that have no declared order. A ladder stays on the
+ * section page (filters and badges); the index card only previews free-form
+ * labels, so two dimensions do not collapse into one unlabeled chip row.
+ */
+export function chipValues(groups: FacetGroup[]): string[] {
+  return groups
+    .filter((group) => !group.ordered)
+    .flatMap((group) => group.values);
 }
 
 export function matchesFacets(

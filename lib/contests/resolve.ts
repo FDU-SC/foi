@@ -23,7 +23,7 @@ export function resolveContestProblems(
     return [
       {
         slug: entry.slug,
-        label: entry.label,
+        label: entry.label ?? problem.slug,
         title: problem.title,
         points: entry.points ?? null,
         maxScore: problem.maxScore,

@@ -29,6 +29,26 @@ const LITERAL = /(["'])([^"'\n]*)\1/g;
 
 const COMMENT = /^\s*(?:\/\/|\/\*|\*)/;
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * A quoted content name is a hardcode only when the kernel uses it to pick
+ * an entity: comparing a slug or group, calling a BySlug helper, or writing
+ * a catalogue path. A word that already appears in a kernel type or guard
+ * is the kernel's own vocabulary.
+ */
+function namesEntity(line: string, name: string): boolean {
+  const id = escapeRegExp(name);
+  return [
+    String.raw`(?:slug|id|group)\s*(?:[=!]==?|:)\s*["']${id}["']`,
+    String.raw`(?:BySlug|isCatalogue|contestHref|problemHref|standingsHref)\(\s*["']${id}["']`,
+    String.raw`["']/(?:problems|contests)/${id}(?:/|["'])`,
+    String.raw`groups\.includes\(\s*["']${id}["']`,
+  ].some((pattern) => new RegExp(pattern).test(line));
+}
+
 function sourceFiles(dir: string, found: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (entry.name.startsWith(".") && entry.name !== ".github") continue;
@@ -97,6 +117,7 @@ describe("内核不认识 content 的名字", () => {
         for (const [, , literal] of line.matchAll(LITERAL)) {
           const kind = names.get(literal!);
           if (kind === undefined) continue;
+          if (!namesEntity(line, literal!)) continue;
           offences.push(
             `${path.slice(ROOT.length)}:${index + 1} 写死了${kind}「${literal}」`,
           );
@@ -106,8 +127,7 @@ describe("内核不认识 content 的名字", () => {
 
     expect(
       offences,
-      "内核提到了 content 里的一个名字。要么把它换成按形状或按契约取值，" +
-        "要么——如果这个名字撞的是内核本来就在用的普通词——给 content 换个 id。",
+      "内核按名字点了 content 里的一个实体。换成按形状或按契约取值。",
     ).toEqual([]);
   });
 

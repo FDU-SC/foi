@@ -16,6 +16,7 @@ const ROOT = join(__dirname, "..");
 
 const SITE = "content/site.ts";
 const CTF_ROUND = "content/contests/demo-ctf/contest.ts";
+const ENROLLMENT = "content/enrollment/example.ts";
 
 function fail(message) {
   console.error(`demo 配置补丁打不上：${message}`);
@@ -105,10 +106,31 @@ function patchCtfRound(source, what) {
   );
 }
 
+/** One entry of a top-level array literal, from its brace to its comma. */
+const RULE = /^ {2}\{[\s\S]*?^ {2}\},\n/gm;
+
+/** A rule that names accounts by uid instead of by address. */
+const UID_KEYED = /^\s*uids:/m;
+
+function patchEnrollment(source, what) {
+  // The nightly rebuild drops the database before seeding, so demo1 lands on
+  // uid 1. A rule keyed by uid hands whatever it grants to an account whose
+  // password is printed on the front page.
+  const next = source.replace(RULE, (rule) => (UID_KEYED.test(rule) ? "" : rule));
+
+  if (next === source) fail(`在 ${what} 里找不到按 uid 分配的用户组`);
+  // Removal is textual, so a rule laid out differently slips through it.
+  // Checking the postcondition is what makes that loud instead of silent.
+  if (UID_KEYED.test(next)) fail(`${what} 里还留着按 uid 分配的用户组`);
+
+  return next;
+}
+
 function main() {
   console.log("套用 demo 配置补丁：");
   edit(SITE, patchSite);
   edit(CTF_ROUND, patchCtfRound);
+  edit(ENROLLMENT, patchEnrollment);
   console.log("完成。");
 }
 

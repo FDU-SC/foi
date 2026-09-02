@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage } from "node:http";
 import { randomBytes, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
-import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -758,7 +758,7 @@ interface ParallelPerfConfig {
   compare?: "float" | "exact";
   /** 覆盖默认输入（String(n)）。实现题的程序可能不需要 stdin 输入。 */
   input?: string;
-  /** 覆盖默认串行基线；显式基线按 MPI 程序启动。 */
+  /** Override the default serial baseline; an explicit baseline runs as MPI. */
   baseline?: string;
 }
 
@@ -898,10 +898,6 @@ async function judgeMpi(
       "/usr/lib/x86_64-linux-gnu/openmpi:/usr/lib/x86_64-linux-gnu",
   };
 
-  // #region agent log
-  appendFileSync("/opt/cursor/logs/debug.log", JSON.stringify({ hypothesisId: "D/E", location: "scripts/mock-runner.ts:judgeMpi:entry", message: "MPI judge configuration", data: { np, compare: cfg.compare ?? "float", hasExplicitBaseline, sourceLength: source.length }, timestamp: Date.now() }) + "\n");
-  // #endregion
-
   try {
     const baseline = join(dir, "baseline");
     writeFileSync(join(dir, "baseline.cpp"), baselineSource);
@@ -927,12 +923,6 @@ async function judgeMpi(
         ? "测量基线耗时（mpirun -np " + String(np) + "）"
         : "测量基线耗时（串行单进程）",
     );
-    // #region agent log
-    appendFileSync("/opt/cursor/logs/debug.log", JSON.stringify({ hypothesisId: "A/E", location: "scripts/mock-runner.ts:judgeMpi:selectedBaseline", message: "Selected baseline process", data: { route: hasExplicitBaseline ? "launcher" : "direct", np, hasExplicitBaseline }, timestamp: Date.now() }) + "\n");
-    // #endregion
-    // #region agent log
-    appendFileSync("/opt/cursor/logs/debug.log", JSON.stringify({ hypothesisId: "A/E", location: "scripts/mock-runner.ts:judgeMpi:beforeBaseline", message: "Baseline execution route", data: { route: "launcher", np, hasExplicitBaseline }, timestamp: Date.now() }) + "\n");
-    // #endregion
     const baselineStart = process.hrtime.bigint();
     const baselineRun = hasExplicitBaseline
       ? await runMpi(baseline)
@@ -943,9 +933,6 @@ async function judgeMpi(
           env: mpiEnv,
         });
     const baselineMs = Math.max(1, Number(process.hrtime.bigint() - baselineStart) / 1e6);
-    // #region agent log
-    appendFileSync("/opt/cursor/logs/debug.log", JSON.stringify({ hypothesisId: "A/C", location: "scripts/mock-runner.ts:judgeMpi:afterBaseline", message: "Baseline process result", data: { code: baselineRun.code, killed: baselineRun.killed, stdoutLength: baselineRun.stdout.length, stdoutLines: baselineRun.stdout.toString().trim().split(/\r?\n/).filter(Boolean).length, parsedFinite: Number.isFinite(Number(baselineRun.stdout.toString().trim())) }, timestamp: Date.now() }) + "\n");
-    // #endregion
     if (baselineRun.killed) throw new Error("基线评测超时");
 
     const runs: number[] = [];
@@ -976,16 +963,10 @@ async function judgeMpi(
 
     const expected = baselineRun.stdout.toString();
     const got = best.stdout.toString();
-    // #region agent log
-    appendFileSync("/opt/cursor/logs/debug.log", JSON.stringify({ hypothesisId: "A/B", location: "scripts/mock-runner.ts:judgeMpi:beforeCompare", message: "Output shapes before comparison", data: { expectedLength: expected.length, expectedLines: expected.trim().split(/\r?\n/).filter(Boolean).length, expectedParsedFinite: Number.isFinite(Number(expected.trim())), gotLength: got.length, gotLines: got.trim().split(/\r?\n/).filter(Boolean).length, gotParsedFinite: Number.isFinite(Number(got.trim())) }, timestamp: Date.now() }) + "\n");
-    // #endregion
     const correct =
       cfg.compare === "exact"
         ? got.trim() === expected.trim()
         : floatClose(got, expected, tolerance);
-    // #region agent log
-    appendFileSync("/opt/cursor/logs/debug.log", JSON.stringify({ hypothesisId: "D", location: "scripts/mock-runner.ts:judgeMpi:afterCompare", message: "Output comparison result", data: { mode: cfg.compare ?? "float", tolerance, correct }, timestamp: Date.now() }) + "\n");
-    // #endregion
     if (!correct) {
       return {
         result: { status: "wrong_answer", score: 0, maxScore: 100, accepted: false },

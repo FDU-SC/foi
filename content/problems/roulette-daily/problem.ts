@@ -7,7 +7,7 @@ export const problem = {
   backend: { kind: "inline" as const },
   ui: {
     placeholder: "red / black / green / 0-36 / big / small",
-    tags: ["签到", "运气"],
+    tags: ["签到"],
   } satisfies ProblemUi,
   submit: {
     rateLimit: { max: 1, windowSeconds: 86400 },

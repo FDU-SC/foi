@@ -1,8 +1,8 @@
 import { knownGroups } from "@/lib/enrollment/registry";
 import { allProblems } from "@/lib/problems/registry";
-import { catalogueSlug, STANDINGS_SEGMENT } from "./catalogue";
+import { catalogueSlugs, STANDINGS_SEGMENT } from "./catalogue";
 import { orphanedProblems } from "./refs";
-import { allContests, catalogueContest } from "./registry";
+import { allContests, catalogueContests, contestBySlug } from "./registry";
 
 /**
  * Problems no contest carries.
@@ -24,43 +24,39 @@ export function orphanedProblemComplaints(): string[] {
 }
 
 /**
- * A problem the catalogue's own leaderboard page hides.
+ * A problem its own contest's leaderboard page hides.
  *
- * `/problems/standings` is a static segment and beats `/problems/[slug]`, so
- * this problem has no address at all — the same loss as an orphan, and refused
- * the same way.
+ * `/problems/<contest>/standings` is a static segment and beats
+ * `/problems/<contest>/[slug]`, so this problem has no address at all — the
+ * same loss as an orphan, and refused the same way.
  */
 export function catalogueComplaints(): string[] {
-  const contest = catalogueContest();
-  if (!contest) return [];
+  return catalogueContests().flatMap((contest) => {
+    const shadowed = contest.problems.some(
+      (entry) => entry.slug === STANDINGS_SEGMENT,
+    );
+    if (!shadowed) return [];
 
-  const shadowed = contest.problems.some(
-    (entry) => entry.slug === STANDINGS_SEGMENT,
-  );
-  if (!shadowed) return [];
-
-  return [
-    `题库比赛 "${contest.slug}" 的题单里有题目 "${STANDINGS_SEGMENT}"，` +
-      `它会被排行榜页 /problems/${STANDINGS_SEGMENT} 挡住，永远打不开。给这道题换个 slug。`,
-  ];
+    return `题库比赛 "${contest.slug}" 的题单里有题目 "${STANDINGS_SEGMENT}"，它会被排行榜页 /problems/${contest.slug}/${STANDINGS_SEGMENT} 挡住，永远打不开。给这道题换个 slug。`;
+  });
 }
 
 /**
- * A catalogue named but not present.
+ * A catalogued contest named but not present.
  *
- * Every `/problems` address answers 404 and the rest of the site is unaffected,
- * which puts it alongside a navigation entry pointing at an empty page rather
- * than alongside a broken deployment. It is also the normal state of a content
- * root stripped to its entry points, where `site.ts` survives and the contests
- * do not.
+ * Its card is missing from `/problems` and its own addresses answer 404, while
+ * the rest of the site is unaffected — alongside a navigation entry pointing at
+ * an empty page rather than alongside a broken deployment. It is also the
+ * normal state of a content root stripped to its entry points, where `site.ts`
+ * survives and the contests do not.
  */
 export function catalogueWarnings(): string[] {
-  const named = catalogueSlug();
-  if (named === undefined || catalogueContest()) return [];
+  const missing = catalogueSlugs().filter((slug) => !contestBySlug(slug));
+  if (missing.length === 0) return [];
 
   return [
-    `content/site.ts 的 catalogue 指向比赛 "${named}"，但 content/contests/ 里没有它，` +
-      `/problems 下的每个地址都会是 404。改掉这个 slug，或去掉 catalogue。`,
+    `content/site.ts 的 catalogue 指向比赛 ${missing.join("、")}，但 content/contests/ 里没有它们，` +
+      `这些分区在 /problems 上不会出现，它们自己的地址都会是 404。改掉这些 slug，或从 catalogue 里去掉。`,
   ];
 }
 

@@ -3,12 +3,14 @@ import {
   catalogueStandingsMetadata,
 } from "@/views/contests/standings";
 
+type Props = PageProps<"/problems/[section]/standings">;
+
 export const dynamic = "force-dynamic";
 
-export function generateMetadata() {
-  return catalogueStandingsMetadata();
+export function generateMetadata(props: Props) {
+  return catalogueStandingsMetadata(props);
 }
 
-export default function Page() {
-  return <CatalogueStandingsView />;
+export default function Page(props: Props) {
+  return <CatalogueStandingsView {...props} />;
 }

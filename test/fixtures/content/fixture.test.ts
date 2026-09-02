@@ -6,7 +6,7 @@ import { site } from "@/lib/site";
 import { listGroups } from "@/lib/authz/groups";
 import { privilegedGroups } from "@/lib/authz/introspect";
 import { contestProblemRefs } from "@/lib/contests/refs";
-import { allContests } from "@/lib/contests/registry";
+import { allContests, catalogueContests } from "@/lib/contests/registry";
 import {
   acceptsSubmissions,
   hasContestEnded,
@@ -16,7 +16,8 @@ import {
 import { backends } from "@/lib/backend/registry";
 import { undeclaredBackends } from "@/lib/backend/access";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
-import { isInlineBackend } from "@/lib/problems/types";
+import { isInlineBackend, toPublicConfig } from "@/lib/problems/types";
+import { viewsFor } from "@/lib/problems/views";
 import { listRulesets } from "@/lib/standings/registry";
 import {
   input,
@@ -186,6 +187,80 @@ describe("夹具供给了内核测试要的形状", () => {
     });
 
     expect(withPending.length, "封榜的 pending 语义要有赛制来承接").toBeGreaterThan(0);
+  });
+
+  it("不止一场题库比赛，且它们归在不止一个领域下", () => {
+    const sections = catalogueContests();
+
+    expect(sections.length, "只有一场题库比赛，复数挂载点就没被验证").toBeGreaterThan(1);
+    expect(
+      new Set(sections.map((contest) => contest.domain)).size,
+      "题库比赛全在一个领域下，索引页的分组就没被验证",
+    ).toBeGreaterThan(1);
+  });
+
+  it("一场点了名维度的题库比赛，和一场一个都没点的", () => {
+    const sections = catalogueContests();
+
+    expect(
+      sections.filter((contest) => contest.facets.length > 0).length,
+      "没有比赛点名维度，筛选栏与徽章都渲染不出来",
+    ).toBeGreaterThan(0);
+    expect(
+      sections.filter((contest) => contest.facets.length === 0).length,
+      "「一个维度都不点名就什么都不露」这条没有活体",
+    ).toBeGreaterThan(0);
+  });
+
+  it("被点名的维度里有一个谁都没有取值", () => {
+    const offered = catalogueContests().flatMap((contest) => contest.facets);
+    const carried = new Set(
+      allProblems().flatMap((problem) =>
+        (viewsFor(problem.slug).facets?.(toPublicConfig(problem)) ?? [])
+          .filter((facet) => facet.values.length > 0)
+          .map((facet) => facet.key),
+      ),
+    );
+
+    expect(
+      offered.filter((key) => !carried.has(key)).length,
+      "「点名了但谁都没占的那一维不出现」这条没有活体",
+    ).toBeGreaterThan(0);
+  });
+
+  it("两个分面维度，一个声明了取值顺序，一个没有", () => {
+    const facets = allProblems().flatMap(
+      (problem) => viewsFor(problem.slug).facets?.(toPublicConfig(problem)) ?? [],
+    );
+    const populated = facets.filter((facet) => facet.values.length > 0);
+
+    expect(
+      new Set(populated.map((facet) => facet.key)).size,
+      "只有一个有取值的维度，维度之间取 AND 就没被验证",
+    ).toBeGreaterThan(1);
+    expect(
+      populated.filter((facet) => !facet.order).length,
+      "没有未声明顺序的维度，按频次排与并列时的 localeCompare 都没被验证",
+    ).toBeGreaterThan(0);
+
+    const ladder = facets.find((facet) => facet.order)?.order;
+    expect(ladder, "没有声明顺序的维度，order 有没有被读无法区分").toBeDefined();
+
+    const held = new Set(
+      facets.flatMap((facet) => (facet.order ? facet.values : [])),
+    );
+    expect(
+      ladder!.filter((value) => !held.has(value)).length,
+      "声明里的每一档都有题占着，「空的那一档不列出来」就没被验证",
+    ).toBeGreaterThan(0);
+  });
+
+  it("一道没有登记分面的题", () => {
+    expect(
+      allProblems().filter((problem) => viewsFor(problem.slug).facets === undefined)
+        .length,
+      "「没登记分面的题在任何取值被选中时落选」这条没有活体",
+    ).toBeGreaterThan(0);
   });
 
   it("被策略点名的用户组", () => {

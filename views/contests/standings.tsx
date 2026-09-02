@@ -10,7 +10,7 @@ import {
   isContestProblemSetVisibleTo,
 } from "@/lib/contests/access";
 import {
-  catalogueSlug,
+  catalogueHref,
   contestHref,
   isCatalogue,
 } from "@/lib/contests/catalogue";
@@ -50,9 +50,7 @@ const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 /** Phases where new submissions can still change the board, so polling earns its keep. */
 const MOVING_PHASES: ContestPhase[] = ["running", "frozen"];
 
-async function titleOf(contestSlug: string | undefined): Promise<Metadata> {
-  if (contestSlug === undefined) return { title: "排行榜" };
-
+async function titleOf(contestSlug: string): Promise<Metadata> {
   const view = contestFor(contestSlug, await getViewer());
   return { title: view ? `${view.config.title} 排行榜` : "排行榜" };
 }
@@ -64,25 +62,26 @@ export async function standingsMetadata({
   return titleOf(slug);
 }
 
-export function catalogueStandingsMetadata(): Promise<Metadata> {
-  return titleOf(catalogueSlug());
+export async function catalogueStandingsMetadata({
+  params,
+}: PageProps<"/problems/[section]/standings">): Promise<Metadata> {
+  const { section } = await params;
+  return titleOf(section);
 }
 
-/**
- * Where this board sits. The catalogue has no list above it, so its trail is
- * one step; every other contest is reached through `/contests`.
- */
+/** Where this board sits: under the catalogue index, or under `/contests`. */
 function Crumbs({ contest }: { contest: ContestConfig }) {
+  const catalogued = isCatalogue(contest.slug);
+
   return (
     <nav className="text-fg-subtle flex items-center gap-1.5 text-xs">
-      {isCatalogue(contest.slug) ? null : (
-        <>
-          <Link href="/contests" className="hover:text-fg transition-colors">
-            比赛
-          </Link>
-          <span>/</span>
-        </>
-      )}
+      <Link
+        href={catalogued ? catalogueHref() : "/contests"}
+        className="hover:text-fg transition-colors"
+      >
+        {catalogued ? "题库" : "比赛"}
+      </Link>
+      <span>/</span>
       <Link
         href={contestHref(contest.slug)}
         className="hover:text-fg transition-colors"
@@ -117,11 +116,16 @@ export async function StandingsView({
   return <Standings contestSlug={slug} />;
 }
 
-export function CatalogueStandingsView() {
-  const mounted = catalogueSlug();
-  if (mounted === undefined) notFound();
+export async function CatalogueStandingsView({
+  params,
+}: PageProps<"/problems/[section]/standings">) {
+  const { section } = await params;
 
-  return <Standings contestSlug={mounted} />;
+  // Only a catalogued contest answers here; every other one keeps its board
+  // under `/contests`, and a board must not hold two addresses either.
+  if (!isCatalogue(section)) notFound();
+
+  return <Standings contestSlug={section} />;
 }
 
 async function Standings({ contestSlug }: { contestSlug: string }) {

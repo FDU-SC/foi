@@ -37,8 +37,9 @@ describe("proxy matcher 覆盖面", () => {
     expect(matches("/contests/some-contest/problems/some-problem")).toBe(true);
     expect(matches("/contests/some-contest/standings")).toBe(true);
     expect(matches("/problems")).toBe(true);
-    expect(matches("/problems/some-problem")).toBe(true);
-    expect(matches("/problems/standings")).toBe(true);
+    expect(matches("/problems/some-section")).toBe(true);
+    expect(matches("/problems/some-section/some-problem")).toBe(true);
+    expect(matches("/problems/some-section/standings")).toBe(true);
     expect(matches("/admin/accounts")).toBe(true);
   });
 

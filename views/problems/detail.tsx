@@ -9,11 +9,11 @@ import { describeAudience } from "@/lib/authz/audience";
 import { authorize } from "@/lib/authz/engine";
 import { viewerFor } from "@/lib/authz/viewer";
 import {
-  catalogueSlug,
+  catalogueHref,
   contestHref,
   isCatalogue,
 } from "@/lib/contests/catalogue";
-import { contestProblemRefs, contestProblemRefsIn } from "@/lib/contests/refs";
+import { contestProblemRefs } from "@/lib/contests/refs";
 import {
   contestStatus,
   hasContestStarted,
@@ -26,12 +26,12 @@ import { toPublicConfig } from "@/lib/problems/types";
 const gateFormatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
 type Props = PageProps<"/contests/[slug]/problems/[problem]">;
-type CatalogueProps = PageProps<"/problems/[slug]">;
+type CatalogueProps = PageProps<"/problems/[section]/[problem]">;
 
 /**
- * Every pair except the catalogue's. Those answer under `/problems`, and the
- * route has `dynamicParams = false`, so leaving them out is what keeps a pair
- * from having two URLs.
+ * Every pair except the catalogued ones. Those answer under `/problems`, and
+ * the route has `dynamicParams = false`, so leaving them out is what keeps a
+ * pair from having two URLs.
  */
 export function problemDetailParams() {
   return contestProblemRefs()
@@ -39,22 +39,17 @@ export function problemDetailParams() {
     .map((ref) => ({ slug: ref.contest.slug, problem: ref.problem.slug }));
 }
 
-/** The catalogue's pairs, addressed by the problem alone. */
+/** The catalogued pairs, addressed by section and problem. */
 export function cataloguedProblemParams() {
-  const mounted = catalogueSlug();
-  if (mounted === undefined) return [];
-
-  return contestProblemRefsIn(mounted).map((ref) => ({
-    slug: ref.problem.slug,
-  }));
+  return contestProblemRefs()
+    .filter((ref) => isCatalogue(ref.contest.slug))
+    .map((ref) => ({ section: ref.contest.slug, problem: ref.problem.slug }));
 }
 
 async function titleOf(
-  contestSlug: string | undefined,
+  contestSlug: string,
   problemSlug: string,
 ): Promise<Metadata> {
-  if (contestSlug === undefined) return { title: "题目" };
-
   const view = problemFor(
     contestSlug,
     problemSlug,
@@ -73,8 +68,8 @@ export async function problemDetailMetadata({
 export async function cataloguedProblemMetadata({
   params,
 }: CatalogueProps): Promise<Metadata> {
-  const { slug } = await params;
-  return titleOf(catalogueSlug(), slug);
+  const { section, problem } = await params;
+  return titleOf(section, problem);
 }
 
 export async function ProblemDetailView({ params }: Props) {
@@ -83,12 +78,13 @@ export async function ProblemDetailView({ params }: Props) {
 }
 
 export async function CataloguedProblemView({ params }: CatalogueProps) {
-  const { slug } = await params;
+  const { section, problem } = await params;
 
-  const mounted = catalogueSlug();
-  if (mounted === undefined) notFound();
+  // The section segment is a contest slug, but only a catalogued one answers
+  // here — otherwise the pair would hold a second URL beside its `/contests` one.
+  if (!isCatalogue(section)) notFound();
 
-  return <ProblemDetail contestSlug={mounted} problemSlug={slug} />;
+  return <ProblemDetail contestSlug={section} problemSlug={problem} />;
 }
 
 async function ProblemDetail({
@@ -156,6 +152,17 @@ async function ProblemDetail({
         ) : null}
 
         <nav className="text-fg-subtle mb-4 flex items-center gap-1.5 text-xs">
+          {isCatalogue(contest.slug) ? (
+            <>
+              <Link
+                href={catalogueHref()}
+                className="hover:text-fg transition-colors"
+              >
+                题库
+              </Link>
+              <span>/</span>
+            </>
+          ) : null}
           <Link
             href={contestHref(contest.slug)}
             className="hover:text-fg transition-colors"
@@ -174,7 +181,7 @@ async function ProblemDetail({
             {problem.title}
           </h1>
           <div className="mt-3 flex flex-wrap items-center gap-2 empty:mt-0">
-            <ProblemBadgesSlot config={problem} />
+            <ProblemBadgesSlot config={problem} offered={contest.facets} />
           </div>
         </header>
 

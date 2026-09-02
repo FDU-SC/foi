@@ -63,6 +63,25 @@ export const contestConfigSchema = z
     title: z.string().min(1),
     description: z.string().optional(),
 
+    /**
+     * The heading this contest sits under on the catalogue index.
+     *
+     * A label the platform groups by and never interprets. Headings appear in
+     * the order their first contest appears in `site.catalogue`, so the order
+     * is declared once and in one place.
+     */
+    domain: z.string().min(1).optional(),
+
+    /**
+     * Which of a problem's dimensions this contest's pages offer.
+     *
+     * Names keys out of `ProblemViews.facets`; the platform collects the values
+     * and matches the strings without learning what a key means. Empty — the
+     * default — draws no filter bar and no problem badges, so a round does not
+     * give away tags or difficulty unless it says to.
+     */
+    facets: z.array(z.string()).default([]),
+
     leaderboards: z.array(leaderboardSchema).min(1, "至少需要一个排行榜"),
 
     startsAt: zonedDateTime,

@@ -22,6 +22,7 @@ export const problem = {
   },
   ui: {
     placeholder: "FOI{...}",
-    tags: ["Web", "Rate Limit"],
+    tags: ["Web", "限流"],
+    difficulty: "进阶",
   } satisfies ProblemUi,
 } satisfies ProblemConfigInput;

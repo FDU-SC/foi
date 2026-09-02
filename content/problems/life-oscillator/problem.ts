@@ -7,7 +7,7 @@ export const problem = {
   backend: { kind: "inline" as const },
   ui: {
     placeholder: "粘贴图案（. 死 / O 活），场景之间空一行",
-    tags: ["提交答案", "Special Judge", "模拟", "趣味"],
-    difficulty: "省选",
+    tags: ["提交答案", "模拟", "构造"],
+    difficulty: "进阶",
   } satisfies ProblemUi,
 };

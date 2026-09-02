@@ -4,7 +4,7 @@ import {
   cataloguedProblemParams,
 } from "@/views/problems/detail";
 
-type Props = PageProps<"/problems/[slug]">;
+type Props = PageProps<"/problems/[section]/[problem]">;
 
 export const dynamicParams = false;
 export const dynamic = "force-dynamic";

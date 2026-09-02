@@ -8,7 +8,7 @@ import { groupsFor } from "@/lib/enrollment/registry";
 import { isCatalogue } from "@/lib/contests/catalogue";
 import {
   allContests,
-  catalogueContest,
+  catalogueContests,
   contestBySlug,
 } from "@/lib/contests/registry";
 import { mailSink } from "@/lib/mail/transport";
@@ -139,28 +139,64 @@ describe("演示赛", () => {
 });
 
 describe("题库", () => {
-  const catalogue = catalogueContest();
+  const sections = catalogueContests();
 
-  it("site.catalogue 指名的比赛存在，/problems 才有东西可挂", () => {
-    expect(site.catalogue).toBeDefined();
-    expect(catalogue).toBeDefined();
+  it("site.catalogue 指名的比赛都存在，/problems 才有卡片可摆", () => {
+    expect(site.catalogue?.length).toBeGreaterThan(0);
+    expect(sections.map((contest) => contest.slug)).toEqual(site.catalogue);
   });
 
-  it("窗口横跨当下，任何人随时都能提交", () => {
+  it("每个分区的窗口都横跨当下，任何人随时都能提交", () => {
     const now = Date.now();
-    expect(catalogue && catalogue.startsAt.getTime() < now).toBe(true);
-    expect(catalogue && catalogue.endsAt.getTime() > now).toBe(true);
-    expect(catalogue?.participants.mode).toBe("open");
+
+    for (const contest of sections) {
+      expect(contest.startsAt.getTime(), contest.slug).toBeLessThan(now);
+      expect(contest.endsAt.getTime(), contest.slug).toBeGreaterThan(now);
+      expect(contest.participants.mode, contest.slug).toBe("open");
+    }
   });
 
-  it("带着题，否则题库是空的", () => {
-    expect(catalogue?.problems.length).toBeGreaterThan(0);
+  it("每个分区都带着题，一张空卡片没有意义", () => {
+    for (const contest of sections) {
+      expect(contest.problems.length, contest.slug).toBeGreaterThan(0);
+    }
+  });
+
+  it("每个分区都点了名维度，否则筛选栏与徽章一起消失", () => {
+    for (const contest of sections) {
+      expect(contest.facets.length, contest.slug).toBeGreaterThan(0);
+    }
+  });
+
+  it("分区归在不止一个领域下，索引页才是分组的", () => {
+    const domains = sections.map((contest) => contest.domain);
+
+    expect(domains.filter((domain) => domain === undefined)).toEqual([]);
+    expect(new Set(domains).size).toBeGreaterThan(1);
+  });
+
+  it("有一个领域下挂着不止一个分区", () => {
+    const perDomain = new Map<string, number>();
+    for (const contest of sections) {
+      const domain = contest.domain!;
+      perDomain.set(domain, (perDomain.get(domain) ?? 0) + 1);
+    }
+
+    expect([...perDomain.values()].filter((count) => count > 1).length)
+      .toBeGreaterThan(0);
   });
 
   it("题库之外还有别的比赛，/contests 才不是空页", () => {
     expect(
       allContests().filter((contest) => !isCatalogue(contest.slug)).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("正式轮次一个维度都不点名，赛中不泄露难度与标签", () => {
+    for (const contest of allContests()) {
+      if (isCatalogue(contest.slug)) continue;
+      expect(contest.facets, contest.slug).toEqual([]);
+    }
   });
 });
 

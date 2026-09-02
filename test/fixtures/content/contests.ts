@@ -44,6 +44,12 @@ export const open = {
   slug: "fixture-open",
   title: "常开轮次",
 
+  // The only heading holding a single card, and the only round that offers
+  // dimensions. Its order is not the order the problems declare them in, and
+  // it names one dimension nothing here populates.
+  domain: "常开",
+  facets: ["marked", "ranked", "blank"],
+
   leaderboards: [
     { id: "main", title: "排行榜", ruleset: { id: "fixture-tally" } },
   ],
@@ -98,10 +104,18 @@ export const upcoming = {
   problems: [{ slug: "fixture-gated", label: "A" }],
 } satisfies ContestConfigInput;
 
-/** Finished the default way: statements stay, the door closes. */
+/**
+ * Finished the default way: statements stay, the door closes.
+ *
+ * Catalogued, and offering no dimensions — the shape behind "a contest that
+ * names none draws no filter bar and no badges". It shares a heading with
+ * `upsolve`, so a heading holding more than one card is covered too.
+ */
 export const archived = {
   slug: "fixture-archived",
   title: "已归档的轮次",
+
+  domain: "归档",
 
   leaderboards: [
     { id: "main", title: "排行榜", ruleset: { id: "fixture-tally" } },
@@ -113,10 +127,17 @@ export const archived = {
   problems: [{ slug: "fixture-late", label: "A" }],
 } satisfies ContestConfigInput;
 
-/** Finished, and still collecting: work lands outside every board's window. */
+/**
+ * Finished, and still collecting: work lands outside every board's window.
+ *
+ * Catalogued under the same heading as `archived`, and carrying the same
+ * problem — so one problem holds two catalogue URLs, one per pair.
+ */
 export const upsolve = {
   slug: "fixture-upsolve",
   title: "赛后仍收题的轮次",
+
+  domain: "归档",
 
   leaderboards: [
     { id: "main", title: "排行榜", ruleset: { id: "fixture-tally" } },

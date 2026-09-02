@@ -11,8 +11,8 @@ import { rulesetFor } from "@/lib/standings/registry";
 const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
 export async function ContestListView() {
-  // The catalogue is a contest, but it is reached at `/problems` and listing it
-  // here would give it a second front door.
+  // A catalogue section is a contest, but it is reached under `/problems` and
+  // listing it here would give it a second front door.
   const all = contestsFor(await getViewer()).filter(
     ({ config }) => !isCatalogue(config.slug),
   );

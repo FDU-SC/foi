@@ -1,11 +1,14 @@
-import { ProblemListView, problemListMetadata } from "@/views/problems/list";
+import {
+  CatalogueIndexView,
+  catalogueIndexMetadata,
+} from "@/views/problems/catalogue";
 
 export const dynamic = "force-dynamic";
 
 export function generateMetadata() {
-  return problemListMetadata();
+  return catalogueIndexMetadata();
 }
 
-export default function Page(props: PageProps<"/problems">) {
-  return <ProblemListView {...props} />;
+export default function Page() {
+  return <CatalogueIndexView />;
 }

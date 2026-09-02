@@ -7,9 +7,10 @@ export const site: SiteConfig = {
   lang: "zh-CN",
   timezone: "Asia/Shanghai",
 
-  // The round that is always open, so kernel tests reach both sides of the
-  // split: one contest mounted at `/problems`, the rest under `/contests`.
-  catalogue: "fixture-open",
+  // Three catalogued rounds across two headings, so kernel tests reach every
+  // side of the split: a heading holding one card, a heading holding two, and
+  // the contests that stay under `/contests`.
+  catalogue: ["fixture-open", "fixture-archived", "fixture-upsolve"],
 
   navigation: [
     { href: "/problems", label: "题库" },

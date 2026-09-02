@@ -87,7 +87,9 @@ export async function AdminContestsView() {
                     <Badge tone={status.tone}>{status.label}</Badge>
                     <Badge>{ruleset?.name ?? "自定义赛制"}</Badge>
                     {isCatalogue(contest.slug) ? (
-                      <Badge tone="primary">题库 · 挂在 /problems</Badge>
+                      <Badge tone="primary">
+                        题库分区{contest.domain ? ` · ${contest.domain}` : ""}
+                      </Badge>
                     ) : null}
                     {contest.leaderboards.length > 1 ? (
                       <Badge tone="info">

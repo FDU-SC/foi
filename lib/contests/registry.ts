@@ -2,7 +2,7 @@ import { contestModules } from "@/content/_modules/contests";
 import { problemBySlug } from "@/lib/problems/registry";
 import { slugFromGlobPath } from "@/lib/slug-from-path";
 import { rulesetFor } from "@/lib/standings/registry";
-import { catalogueSlug } from "./catalogue";
+import { catalogueSlugs } from "./catalogue";
 import { contestConfigSchema, type ContestConfig } from "./types";
 
 function buildRegistry(): Map<string, ContestConfig> {
@@ -67,8 +67,12 @@ export function contestBySlug(slug: string): ContestConfig | undefined {
   return registry.get(slug);
 }
 
-/** The contest `site.catalogue` names, if this deployment names one and has it. */
-export function catalogueContest(): ContestConfig | undefined {
-  const named = catalogueSlug();
-  return named === undefined ? undefined : registry.get(named);
+/**
+ * The contests `site.catalogue` names, in the order it names them.
+ *
+ * A name with no contest behind it is skipped rather than reported here — that
+ * is a boot diagnostic, and `lib/contests/warnings.ts` owns it.
+ */
+export function catalogueContests(): ContestConfig[] {
+  return catalogueSlugs().flatMap((slug) => registry.get(slug) ?? []);
 }

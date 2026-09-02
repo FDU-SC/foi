@@ -124,23 +124,32 @@ A problem config carries no visibility of its own. Who may open it is `contest.v
 
 Retiring a problem is removing it from `contest.problems`.
 
-### The Catalogue Is One of Those Contests
+### The Catalogue Is A Set Of Those Contests
 
-`site.catalogue` names one contest, and that contest's pages move rather than multiply:
+`site.catalogue` names the contests presented as a catalogue, and their pages move rather than multiply:
 
-| | Catalogue | Every other contest |
+| | Catalogued | Every other contest |
 |---|---|---|
-| Contest | `/problems` | `/contests/[slug]` |
-| Problem | `/problems/[problem]` | `/contests/[slug]/problems/[problem]` |
-| Standings | `/problems/standings` | `/contests/[slug]/standings` |
+| Index | `/problems` | `/contests` |
+| Contest | `/problems/[section]` | `/contests/[slug]` |
+| Problem | `/problems/[section]/[problem]` | `/contests/[slug]/problems/[problem]` |
+| Standings | `/problems/[section]/standings` | `/contests/[slug]/standings` |
 
-Long-running practice is a contest whose window is long; mounting it here is what makes it read as a catalogue instead of a round. It keeps its window, its leaderboard, its `participants` and its `visibleTo` — nothing about authorization or submission changes, and a submission still carries its slug in `contest_slug`. The API is untouched too: `/api/contests/[slug]/problems/[problem]/action/[action]` serves both.
+`[section]` is the contest slug, so each catalogued contest is one card on `/problems` — with its own window, audience, leaderboard and participants. Long-running practice is a contest whose window is long; mounting it here is what makes it read as a section instead of a round. Nothing about authorization or submission changes, and a submission still carries its slug in `contest_slug`. The API is untouched too: `/api/contests/[slug]/problems/[problem]/action/[action]` serves both.
+
+`contest.domain` is the heading a card sits under on that index. A label the platform groups by and never interprets; headings appear in the order their first contest appears in `site.catalogue`, so the order is declared once. A domain is a heading, not a page — there is no `/problems/[domain]`.
 
 `lib/contests/catalogue.ts` builds every such link and is the only place that reads `site.catalogue`. Never write a contest or problem path by hand — `problemHref`, `contestHref` and `standingsHref` are what keep the two namespaces from both claiming a pair.
 
-The old addresses are closed rather than left unused. `/contests/[slug]/problems/[problem]` drops the catalogue from `generateStaticParams`, and `proxy.ts` redirects everything under the catalogue's `/contests` prefix. The proxy is where that has to happen: a page body cannot answer until its layout has streamed, which turns a redirect into a 200 carrying a meta refresh. For the same reason `catalogue.ts` reads nothing but the site config — the proxy imports it, and a contest registry does not belong in that bundle.
+The old addresses are closed rather than left unused. `/contests/[slug]/problems/[problem]` drops the catalogued pairs from `generateStaticParams`, and `proxy.ts` redirects everything under a catalogued `/contests` prefix. The contest slug survives into the new path, so that mapping is lossless. The proxy is where it has to happen: a page body cannot answer until its layout has streamed, which turns a redirect into a 200 carrying a meta refresh. For the same reason `catalogue.ts` reads nothing but the site config — the proxy imports it, and a contest registry does not belong in that bundle.
 
 Naming a catalogue is optional. Omit it and every contest stays under `/contests`.
+
+### A Contest Decides Which Dimensions It Offers
+
+Difficulty, tags and anything like them live in `problem.ui`, which the platform does not read. What makes them filterable is `ProblemViews.facets`: content hands back `{ key, label, values, order }` and the platform collects the values, matches the strings and counts them, without learning what a key means.
+
+`contest.facets` names which of those keys that contest's pages offer. It drives the filter bar and the problem badges together, so a dimension cannot be hidden from one and left showing on the other. The default is empty — a round that says nothing gives away nothing.
 
 ## Key Contracts
 
@@ -167,6 +176,7 @@ When writing content, you implement these platform-defined interfaces:
 - Give `ProblemConfig` a visibility, lifecycle or ordering field — a problem is reachable only through a contest, so the contest owns all three
 - Ask about a problem without a contest — `problem.*` takes a `ContestProblemRef`, and a submission's `contest_slug` is `NOT NULL`
 - Write a contest, problem or standings path by hand — `lib/contests/catalogue.ts` decides which of the two namespaces a contest answers in
+- Read a field off `problem.ui` from `lib/`, `views/` or `components/` — a dimension reaches the platform as a `ProblemFacet`, and a contest decides whether it is offered at all
 - Write `isAccepted()` or `verdictColumns()` in `lib/` — result interpretation is the ruleset's job
 - Hardcode brand names, locale, timezone, navigation or taglines anywhere in the platform — those come from `content/site.ts`
 - Put `render` or `supportsFreeze` on the `Ruleset` interface — rulesets are pure compute functions

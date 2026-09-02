@@ -87,6 +87,16 @@ action, one is inline, and the ruleset implements the freeze contract. Add a
 shape when a new kernel test needs one, and add the matching assertion to
 `fixture.test.ts` so the next editor learns why it exists.
 
+Three of those contests are catalogued, across two `domain` headings, so both a
+heading holding one card and a heading holding two are covered — and two of them
+carry the same problem, which is where "one problem, two catalogue URLs" comes
+from. Only one names any `facets`, in an order that is not the order the
+problems declare them and including a dimension nothing here populates; the
+other two name none, which is the shape behind "a contest that offers nothing
+draws no filter bar and no badges". The facet keys are deliberately not
+`difficulty` and `tags`: a kernel test must not know which dimensions a
+deployment happens to offer.
+
 The `_modules/` files declare their module tables by hand, keyed the way
 `import.meta.glob` would key them, because the registries parse slugs and
 ruleset ids back out of those keys.

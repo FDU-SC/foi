@@ -110,7 +110,7 @@ export async function CatalogueIndexView() {
               revealClass,
             )}
           >
-            按方向分区
+            随时开练
           </p>
           <h1
             style={revealDelay(1)}

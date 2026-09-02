@@ -186,6 +186,137 @@ body::before {
     0 24px 80px -28px oklch(30% 0.08 280 / 0.45);
 }
 
+/* Angle the toybox card's border gradient has turned through. Registration is
+   what makes it interpolate rather than jump between whole degrees. */
+@property --toybox-spin {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* Phase of the toybox card's title gradient, in whole colour cycles. */
+@property --toybox-pan {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+/*
+ * The 玩具箱 section card on the catalogue index.
+ *
+ * Keyed on the link the card carries rather than on where the card sits:
+ * `site.catalogue` decides the order, so a positional selector drifts with it.
+ * Should the card markup change, this rule stops matching and that card falls
+ * back to the plain style instead of landing on someone else's.
+ */
+article:has(> a[href="/problems/puzzles"]) {
+  position: relative;
+
+  /* Yield the 1px border ring — the gradient below is painted across it. */
+  border-color: transparent;
+
+  &::before {
+    content: "";
+    position: absolute;
+
+    /* The containing block is the padding box, so reach 1px outward to cover
+       the border ring. */
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+
+    background: conic-gradient(
+      from var(--toybox-spin),
+      oklch(70% 0.19 25),
+      oklch(78% 0.17 85),
+      oklch(72% 0.18 145),
+      oklch(70% 0.16 220),
+      oklch(62% 0.22 300),
+      oklch(70% 0.19 25)
+    );
+
+    /* Keep the padding ring alone: two masks subtracted, so the content area is
+       cut back out of the box. */
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+
+    pointer-events: none;
+    animation: toybox-spin 6s linear infinite;
+  }
+
+  /* A colour glow over the monochrome hover shadow the card carries itself. */
+  &:hover {
+    box-shadow:
+      0 18px 44px -26px oklch(62% 0.22 300 / 0.85),
+      0 8px 30px -22px oklch(70% 0.19 25 / 0.7);
+  }
+
+  & h3 {
+    /* Length of one colour cycle along the 102° axis. Wider than the title, so
+       the visible window never holds a whole cycle and the sweep reads as
+       travel rather than as a fixed rainbow. */
+    --toybox-cycle: 4.5em;
+    --toybox-pan: 0;
+
+    /* Under the clipped gradient, for engines that cannot resolve it: without
+       a colour here an unresolvable var() drops `background-image` and leaves
+       the title as transparent text. */
+    color: var(--primary);
+
+    /* Stops run from `--toybox-pan - 2` to `--toybox-pan + 1`, so the first
+       stays strictly before 0 and the last past the glyph box at every phase.
+       Firefox fills everything ahead of the first stop with that stop's colour
+       rather than repeating the pattern backwards; a first stop at or after 0
+       therefore paints the leading part of the title flat. */
+    background-image: repeating-linear-gradient(
+      102deg,
+      oklch(70% 0.19 25) calc((var(--toybox-pan) - 2) * var(--toybox-cycle)),
+      oklch(78% 0.17 85) calc((var(--toybox-pan) - 1.75) * var(--toybox-cycle)),
+      oklch(72% 0.18 145) calc((var(--toybox-pan) - 1.5) * var(--toybox-cycle)),
+      oklch(62% 0.22 300) calc((var(--toybox-pan) - 1.25) * var(--toybox-cycle)),
+      oklch(70% 0.19 25) calc((var(--toybox-pan) - 1) * var(--toybox-cycle)),
+      oklch(78% 0.17 85) calc((var(--toybox-pan) - 0.75) * var(--toybox-cycle)),
+      oklch(72% 0.18 145) calc((var(--toybox-pan) - 0.5) * var(--toybox-cycle)),
+      oklch(62% 0.22 300) calc((var(--toybox-pan) - 0.25) * var(--toybox-cycle)),
+      oklch(70% 0.19 25) calc(var(--toybox-pan) * var(--toybox-cycle)),
+      oklch(78% 0.17 85) calc((var(--toybox-pan) + 0.25) * var(--toybox-cycle)),
+      oklch(72% 0.18 145) calc((var(--toybox-pan) + 0.5) * var(--toybox-cycle)),
+      oklch(62% 0.22 300) calc((var(--toybox-pan) + 0.75) * var(--toybox-cycle)),
+      oklch(70% 0.19 25) calc((var(--toybox-pan) + 1) * var(--toybox-cycle))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: toybox-pan 7s linear infinite;
+
+    /* Clipping happens inside the element box, so descenders hanging below it
+       are not drawn. Grow the box downward, then take the same amount off the
+       margin so the description below does not move. */
+    padding-bottom: 0.14em;
+    margin-bottom: -0.14em;
+  }
+}
+
+/* One full turn per iteration maps the pattern onto itself, so the loop shows
+   no step. `linear` for the same reason: easing would stall it once per turn. */
+@keyframes toybox-spin {
+  to {
+    --toybox-spin: 360deg;
+  }
+}
+
+@keyframes toybox-pan {
+  from {
+    --toybox-pan: 1;
+  }
+  to {
+    --toybox-pan: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .foi-display,
   .foi-orb,
@@ -196,5 +327,19 @@ body::before {
 
   .foi-display {
     --foi-pan: 0.85;
+  }
+
+  /* Stopped, but stopped somewhere with colour in it rather than at the start
+     of a turn. */
+  article:has(> a[href="/problems/puzzles"]) {
+    &::before {
+      --toybox-spin: 45deg;
+      animation: none;
+    }
+
+    & h3 {
+      --toybox-pan: 0.12;
+      animation: none;
+    }
   }
 }

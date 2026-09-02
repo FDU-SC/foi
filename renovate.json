@@ -70,9 +70,9 @@
       "automerge": false
     },
     {
-      "description": "Node 的大版本散在多个 manager 里：Dockerfile 的 node:24-slim（dockerfile）、CI workflow 的 setup-node（github-actions）、以及 @types/node（npm）。升大版本时这几处必须一起动，否则运行时、CI 与类型会各走各的。只对 major 分组，好让 @types/node 的 patch/minor 仍然走上面的自动合并，也让 base image 的 digest 刷新仍然独立成 PR。",
+      "description": "Node 的大版本散在多个 manager 里：Dockerfile 的 node:24-slim（dockerfile）、CI workflow 的 setup-node（github-actions）、以及 @types/node（npm）。升大版本时这几处必须一起动，否则运行时、CI 与类型会各走各的。只对 major 分组，好让 @types/node 的 patch/minor 仍然走上面的自动合并，也让 base image 的 digest 刷新仍然独立成 PR。匹配的是 depName 而不是 packageName：setup-node 的 node-version 由 actions/node-versions 提供版本，那也是它的 packageName，按 packageName 匹配会把 CI 这一处漏在组外、单独开一个 PR——而只合其中一个，正是这条规则要防的事。CI 的 postgres 用的是 service 容器镜像，走 docker datasource，不受这条影响。",
       "groupName": "node",
-      "matchPackageNames": ["node", "@types/node"],
+      "matchDepNames": ["node", "@types/node"],
       "matchUpdateTypes": ["major"],
       "automerge": false,
       "labels": ["dependencies", "需要人工核对"]

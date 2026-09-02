@@ -11,8 +11,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "puzzles",
   title: "玩具箱",
-  description:
-    "生命游戏、每日轮盘，外加一道演示交互题怎么写的示例——随手玩玩，不必较真。",
+  description: "Just4Fun",
 
   domain: "娱乐",
   facets: ["difficulty", "tags"],

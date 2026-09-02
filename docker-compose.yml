@@ -34,14 +34,17 @@ services:
       - internal
 
   postgres:
-    image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+    image: postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-foi}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-foi_dev_password}
       POSTGRES_DB: ${POSTGRES_DB:-foi}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # 挂在 /var/lib/postgresql 而不是它下面的数据目录：PG18 起，镜像把数据放进
+      # 按大版本命名的子目录（/var/lib/postgresql/18/docker），挂在旧路径上镜像会拒绝启动。
+      # 整个目录一个挂载点，pg_upgrade --link 也就不会跨挂载点边界。
+      - pgdata:/var/lib/postgresql
     networks:
       - internal
     healthcheck:

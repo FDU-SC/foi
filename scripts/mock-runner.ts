@@ -758,6 +758,8 @@ interface ParallelPerfConfig {
   compare?: "float" | "exact";
   /** 覆盖默认输入（String(n)）。实现题的程序可能不需要 stdin 输入。 */
   input?: string;
+  /** Override the default serial baseline; an explicit baseline runs as MPI. */
+  baseline?: string;
 }
 
 /** π 的矩形法数值积分（串行参考），OpenMP / MPI 两道题共用。 */
@@ -881,8 +883,8 @@ async function judgeMpi(
   const source = String((payload as { source?: unknown })?.source ?? "");
   // 评分基线：默认串行参考；题目可提供自己的基线源码（如「祖传低效 MPI 版」），
   // 这时对比的是优化前后，而不是 MPI 对串行。
-  const baselineSource =
-    (config as { baseline?: string })?.baseline ?? PI_INTEGRAL_SOURCE;
+  const hasExplicitBaseline = cfg.baseline !== undefined;
+  const baselineSource = cfg.baseline ?? PI_INTEGRAL_SOURCE;
   const input = cfg.input ?? String(n) + "\n";
   const dir = mkdtempSync(join(tmpdir(), "foi-mpi-"));
 
@@ -916,9 +918,20 @@ async function judgeMpi(
     const runMpi = (exe: string) =>
       run(launcher, ["-np", String(np), exe], { input, timeout: timeLimitMs, maxBuffer: 16 * 1024 * 1024, env: mpiEnv });
 
-    say("测量基线耗时（mpirun -np " + String(np) + "）");
+    say(
+      hasExplicitBaseline
+        ? "测量基线耗时（mpirun -np " + String(np) + "）"
+        : "测量基线耗时（串行单进程）",
+    );
     const baselineStart = process.hrtime.bigint();
-    const baselineRun = await runMpi(baseline);
+    const baselineRun = hasExplicitBaseline
+      ? await runMpi(baseline)
+      : await run(baseline, [], {
+          input,
+          timeout: timeLimitMs,
+          maxBuffer: 16 * 1024 * 1024,
+          env: mpiEnv,
+        });
     const baselineMs = Math.max(1, Number(process.hrtime.bigint() - baselineStart) / 1e6);
     if (baselineRun.killed) throw new Error("基线评测超时");
 

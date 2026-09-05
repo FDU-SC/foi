@@ -8,6 +8,7 @@ import { callBackendAction } from "@/lib/backend/client";
 import { resolveBackend } from "@/lib/backend/resolve";
 import { readJsonBody } from "@/lib/body-limit";
 import { contestEntryFor } from "@/lib/contests/access";
+import { log } from "@/lib/log";
 import { declaredAction } from "@/lib/problems/actions";
 import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest, tooManyRequests } from "@/lib/server/guard";
@@ -79,7 +80,7 @@ export async function POST(
       payload,
     });
   } catch (error) {
-    console.error("[foi] 题目后端配置错误，无法发起交互动作", error);
+    log.error("题目后端配置错误，无法发起交互动作", error);
     return NextResponse.json({ error: "题目后端配置错误" }, { status: 500 });
   }
 

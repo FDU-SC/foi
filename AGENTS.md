@@ -172,6 +172,8 @@ When writing content, you implement these platform-defined interfaces:
 
 ## Copywriting
 
+### Pages
+
 User-facing copy lives in `content/`, `views/`, `components/` and Server Actions in `app/`. Follow these principles when writing or reviewing it.
 
 1. **Write for the reader, not the author.** Admin pages address operators; contestant pages address contestants. A piece of copy includes only what its reader needs to act on.
@@ -181,6 +183,16 @@ User-facing copy lives in `content/`, `views/`, `components/` and Server Actions
 5. **Empty states describe the current situation.** They do not teach the reader what to do next—especially when the next step requires repository access that most readers lack.
 6. **Replace system jargon with user language.** If a term appears only in source code, it does not appear in the UI. Use the word the reader would use.
 7. **Keep it short.** One sentence that can be scanned is better than a paragraph that must be read. Admin descriptions in particular should be minimal—operators come to check data, not to read prose.
+
+### Operator stdout
+
+The platform process writes through `lib/log.ts`. Scripts are a separate dialect and do not use that module.
+
+- One sentence: name the subject (env var, slug, id) and state the fact.
+- A refuse-to-start may append a single command when that is the fix (`openssl rand -hex 32`).
+- No consequence lecture, no multi-step how-to, no repository path as an instruction.
+- Chinese; env vars, commands and proper nouns stay as written.
+- The platform process prefixes `[foi]`; scripts do not.
 
 ## Do NOT
 

@@ -18,18 +18,17 @@ describe("placeholderSecrets", () => {
 
     expect(complaints).toHaveLength(1);
     expect(complaints[0]).toContain("AUTH_SECRET");
-    expect(complaints[0]).toContain("伪造登录会话");
   });
 
-  it("会话密钥与评测密钥给出各自的后果", () => {
+  it("会话密钥与评测密钥各报一条", () => {
     const complaints = placeholderSecrets({
       AUTH_SECRET: "change-me",
       FOI_BACKEND_SECRET: "dev-secret",
     });
 
     expect(complaints).toHaveLength(2);
-    expect(complaints.join("\n")).toContain("伪造登录会话");
-    expect(complaints.join("\n")).toContain("写回任意评测结果");
+    expect(complaints.join("\n")).toContain("AUTH_SECRET");
+    expect(complaints.join("\n")).toContain("FOI_BACKEND_SECRET");
   });
 
   it("按形状认出后来新增的每队列密钥", () => {

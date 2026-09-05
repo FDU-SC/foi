@@ -9,6 +9,7 @@ import { resolveFromRow } from "@/lib/accounts/resolve";
 import { normalizeEmail } from "@/lib/accounts/types";
 import { allows } from "@/lib/authz/engine";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
+import { log } from "@/lib/log";
 import { sendPasswordReset, type Recipient } from "@/lib/mail/notify";
 import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
@@ -77,8 +78,8 @@ async function notifyQuietly(to: Recipient): Promise<void> {
     if (!fp) return;
 
     await sendPasswordReset(to, fp);
-    console.log(`[foi] 找回密码: 已向 uid=${to.uid} 发出重置链接`);
+    log.info(`找回密码: 已向 uid=${to.uid} 发出重置链接`);
   } catch (error) {
-    console.error(`[foi] 找回密码: 向 uid=${to.uid} 投递重置邮件失败`, error);
+    log.error(`找回密码: 向 uid=${to.uid} 投递重置邮件失败`, error);
   }
 }

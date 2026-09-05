@@ -18,6 +18,7 @@ import {
   type RegisterRejection,
 } from "@/lib/enrollment/register";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
+import { log } from "@/lib/log";
 import { sendVerificationLink } from "@/lib/mail/notify";
 import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { site } from "@/lib/site";
@@ -65,7 +66,7 @@ export async function sendVerificationLinkAction(
   try {
     await sendVerificationLink(email);
   } catch (error) {
-    console.error("[foi] 验证邮件发送失败", error);
+    log.error("验证邮件发送失败", error);
     return { error: "邮件发送失败，请稍后再试或联系管理员。" };
   }
 
@@ -142,7 +143,7 @@ export async function registerAction(
   } catch (error) {
     if (!(error instanceof AuthError)) throw error;
 
-    console.error("[foi] 注册后自动登录失败", error);
+    log.error("注册后自动登录失败", error);
     return { createdNeedsLogin: true };
   }
 

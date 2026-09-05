@@ -21,6 +21,7 @@ import {
   USERNAME_CHANGE_COOLDOWN_DAYS,
   usernameChangeAvailableAt,
 } from "@/lib/accounts/username";
+import { log } from "@/lib/log";
 import { sendSecurityNotice } from "@/lib/mail/notify";
 import type { SecurityChangeKind } from "@/lib/mail/types";
 import { rateLimit } from "@/lib/ratelimit";
@@ -64,7 +65,7 @@ async function notify(
       detail,
     );
   } catch (error) {
-    console.error("[foi] 安全变更通知邮件发送失败", error);
+    log.error("安全变更通知邮件发送失败", error);
   }
 }
 
@@ -276,7 +277,7 @@ export async function changePasswordAction(
     reissued = true;
   } catch (error) {
     if (!(error instanceof AuthError)) throw error;
-    console.error("[foi] 改密后自动重新登录失败", error);
+    log.error("改密后自动重新登录失败", error);
   }
 
   // signIn put the new session on the *response*. Re-rendering here would still read

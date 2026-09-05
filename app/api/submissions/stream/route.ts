@@ -5,6 +5,7 @@ import { denied, UNAUTHENTICATED } from "@/lib/authz/adapters";
 import { apiDeny } from "@/lib/authz/http";
 import { viewerFor } from "@/lib/authz/viewer";
 import { isSettled } from "@/lib/backend/types";
+import { log } from "@/lib/log";
 import { rateLimit } from "@/lib/ratelimit";
 import {
   MAX_STREAMS_PER_UID,
@@ -144,7 +145,7 @@ export async function GET(request: Request) {
         request.signal.addEventListener("abort", close);
       } catch (error) {
 
-        console.error("[foi] 提交事件流启动失败", error);
+        log.error("提交事件流启动失败", error);
         finish(error);
       }
     },

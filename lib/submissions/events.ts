@@ -1,6 +1,7 @@
 import { Client } from "pg";
 import { sql } from "drizzle-orm";
 import type { DbOrTx } from "@/lib/accounts/queries";
+import { log } from "@/lib/log";
 
 declare global {
   var __foiPgListener: Client | undefined;
@@ -69,7 +70,7 @@ function getListenerClient(): Client {
     });
 
     client.on("error", (err) => {
-      console.error("[foi] pg listener error", err);
+      log.error("提交事件监听失败", err);
     });
   });
 
@@ -105,7 +106,7 @@ export function subscribe(
     void ensureReady().then((client) => {
       if (subscriptions.get(channel)?.has(sub)) {
         client.query(`LISTEN ${quoteIdent(channel)}`).catch((err) => {
-          console.error("[foi] LISTEN failed", err);
+          log.error("订阅提交事件失败", err);
         });
       }
     });

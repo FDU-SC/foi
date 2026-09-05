@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import { declaredGroupIds } from "@/lib/authz/groups";
 import { isPrivilegedGroup, privilegedGroups } from "@/lib/authz/introspect";
+import { log } from "@/lib/log";
 import { enrollmentSources } from "./modules";
 import {
   enrollmentPolicySchema,
@@ -131,8 +132,8 @@ export function groupsFor(uid: number, email: string | null): string[] {
     const mayGrantPrivilege = isUidsRule(rule);
     for (const id of produced) {
       if (!mayGrantPrivilege && isPrivilegedGroup(id)) {
-        console.warn(
-          `[foi] 分流规则「${rule.label}」算出了带权限的用户组 "${id}"，已忽略。带权限的组只能由列出 uid 的规则授予。`,
+        log.warn(
+          `分流规则「${rule.label}」算出了带权限的用户组 "${id}"，已忽略。`,
         );
         continue;
       }
@@ -160,9 +161,7 @@ export function enrollmentPrivilegeViolations(): string[] {
 
     const origin = registry.origins.get(rule);
     return [
-      `${origin?.path ?? "content/enrollment/"} 第 ${origin?.position ?? "?"} 条分流规则试图授予带权限的用户组 ` +
-        `${privileged.join("、")}。按邮箱匹配的规则覆盖的地址是无穷的，注册时无法预留，` +
-        `正则写错就会把权限发给一片人；带权限的组只能由列出 uid 的规则授予。`,
+      `${origin?.path ?? "content/enrollment/"} 第 ${origin?.position ?? "?"} 条分流规则按邮箱授予带权限组 ${privileged.join("、")}。`,
     ];
   });
 }
@@ -237,8 +236,7 @@ export function looseGroupWarnings(): string[] {
     })
     .map(
       ([id, uids]) =>
-        `用户组 "${id}" 只在 uid=${uids[0]} 这一条规则里出现过，既没有在 groups 中声明，也不被任何邮箱规则产生。` +
-        `如果这是笔误，被授权的人不会得到任何能力。`,
+        `用户组 "${id}" 只出现在 uid=${uids[0]} 的规则里，且未声明。`,
     );
 }
 
@@ -251,19 +249,19 @@ export function enrollmentWarnings(): string[] {
   );
   if (admins.length === 0) {
     warnings.push(
-      "content/enrollment/ 中没有任何人被授予带权限的用户组，/admin 将无人可进入。",
+      "没有规则授予带权限的用户组。",
     );
   }
 
   if (registry.rules.length === 0) {
     warnings.push(
-      "没有配置任何分流规则，注册用户不会进入任何用户组，按组划定参赛范围的比赛将没有参赛者。",
+      "没有配置分流规则。",
     );
   }
 
   if (enrollmentPolicy.emailDomains.length === 0) {
     warnings.push(
-      "没有限制邮箱域名，任何地址都能注册。如非有意，请设置 policy.emailDomains。",
+      "没有限制注册邮箱域名。",
     );
   }
 

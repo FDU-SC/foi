@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getResolvedUser } from "@/auth";
 import { ProblemBadgesSlot } from "@/components/problem/badges-slot";
@@ -7,20 +6,14 @@ import { ProblemProvider } from "@/components/problem/problem-context";
 import { Badge } from "@/components/ui/badge";
 import { authorize } from "@/lib/authz/engine";
 import { viewerFor } from "@/lib/authz/viewer";
-import {
-  catalogueHref,
-  contestHref,
-  isCatalogue,
-} from "@/lib/contests/catalogue";
+import { isCatalogue } from "@/lib/contests/catalogue";
 import { contestProblemRefs } from "@/lib/contests/refs";
-import {
-  contestStatus,
-  hasContestStarted,
-  showsStatements,
-} from "@/lib/contests/types";
+import { hasContestStarted, showsStatements } from "@/lib/contests/types";
 import { loadStatement, problemFor } from "@/lib/problems/access";
 import { dateFormatter } from "@/lib/format";
 import { toPublicConfig } from "@/lib/problems/types";
+import type { SearchParams } from "@/lib/query";
+import { ContestWorkspace } from "@/views/contests/workspace";
 
 const gateFormatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
@@ -71,34 +64,54 @@ export async function cataloguedProblemMetadata({
   return titleOf(section, problem);
 }
 
-export async function ProblemDetailView({ params }: Props) {
-  const { slug, problem } = await params;
-  return <ProblemDetail contestSlug={slug} problemSlug={problem} />;
+export async function ProblemDetailView({ params, searchParams }: Props) {
+  const [{ slug, problem }, query] = await Promise.all([params, searchParams]);
+  return (
+    <ProblemDetail
+      contestSlug={slug}
+      problemSlug={problem}
+      searchParams={query}
+    />
+  );
 }
 
-export async function CataloguedProblemView({ params }: CatalogueProps) {
-  const { section, problem } = await params;
+export async function CataloguedProblemView({
+  params,
+  searchParams,
+}: CatalogueProps) {
+  const [{ section, problem }, query] = await Promise.all([
+    params,
+    searchParams,
+  ]);
 
   // The section segment is a contest slug, but only a catalogued one answers
   // here — otherwise the pair would hold a second URL beside its `/contests` one.
   if (!isCatalogue(section)) notFound();
 
-  return <ProblemDetail contestSlug={section} problemSlug={problem} />;
+  return (
+    <ProblemDetail
+      contestSlug={section}
+      problemSlug={problem}
+      searchParams={query}
+    />
+  );
 }
 
 async function ProblemDetail({
   contestSlug,
   problemSlug,
+  searchParams,
 }: {
   contestSlug: string;
   problemSlug: string;
+  searchParams: SearchParams;
 }) {
   const viewer = viewerFor(await getResolvedUser());
 
   const view = problemFor(contestSlug, problemSlug, viewer);
   if (!view) notFound();
 
-  const { contest, entry, problem } = view.ref;
+  const { contest, problem } = view.ref;
   const Statement = await loadStatement(problemSlug);
   if (!Statement) notFound();
 
@@ -106,8 +119,6 @@ async function ProblemDetail({
   // and when it refuses, it explains itself in the same words.
   const submittable = authorize("problem.submit", view.ref, viewer);
   const canAct = submittable.allow;
-
-  const status = contestStatus(contest);
 
   // Preview means the audience policy did not let this person in, and there are
   // exactly three ways that happens. Naming the wrong one is worse than saying
@@ -119,77 +130,52 @@ async function ProblemDetail({
       : "你不在这场比赛的参赛范围内。";
 
   return (
-    <ProblemProvider
-      value={{
-        config: toPublicConfig(problem),
-        contestSlug: contest.slug,
-        canAct,
-        blocked: submittable.allow
-          ? null
-          : {
-              code: submittable.reason.code,
-              message: submittable.reason.message,
-            },
-      }}
+    <ContestWorkspace
+      contestSlug={contest.slug}
+      selected={problem.slug}
+      searchParams={searchParams}
     >
-      <article className="mx-auto max-w-3xl">
-        {view.preview ? (
-          <div className="border-warn/40 bg-warn/10 mb-4 rounded-lg border px-4 py-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge tone="warn">预览</Badge>
-              <span className="text-fg text-sm font-medium">
-                这道题目尚未对选手公开
-              </span>
+      <ProblemProvider
+        value={{
+          config: toPublicConfig(problem),
+          contestSlug: contest.slug,
+          canAct,
+          blocked: submittable.allow
+            ? null
+            : {
+                code: submittable.reason.code,
+                message: submittable.reason.message,
+              },
+        }}
+      >
+        <article className="mx-auto max-w-3xl px-6 py-8">
+          {view.preview ? (
+            <div className="border-warn/40 bg-warn/10 mb-4 rounded-lg border px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone="warn">预览</Badge>
+                <span className="text-fg text-sm font-medium">
+                  这道题目尚未对选手公开
+                </span>
+              </div>
+              <p className="text-fg-muted mt-1.5 text-xs leading-5">
+                {why}
+                {canAct ? null : "仅管理员可预览，提交暂未开放。"}
+              </p>
             </div>
-            <p className="text-fg-muted mt-1.5 text-xs leading-5">
-              {why}
-              {canAct
-                ? null
-                : "仅管理员可预览，提交暂未开放。"}
-            </p>
-          </div>
-        ) : null}
-
-        <nav className="text-fg-subtle mb-4 flex items-center gap-1.5 text-xs">
-          {isCatalogue(contest.slug) ? (
-            <>
-              <Link
-                href={catalogueHref()}
-                className="hover:text-fg transition-colors"
-              >
-                题库
-              </Link>
-              <span>/</span>
-            </>
           ) : null}
-          <Link
-            href={contestHref(contest.slug)}
-            className="hover:text-fg transition-colors"
-          >
-            {contest.title}
-          </Link>
-          {entry.label ? (
-            <>
-              <span>/</span>
-              <span className="font-mono">{entry.label}</span>
-            </>
-          ) : null}
-          <Badge tone={status.tone} className="ml-1">
-            {status.label}
-          </Badge>
-        </nav>
 
-        <header className="border-border mb-6 border-b pb-5">
-          <h1 className="text-fg text-2xl font-bold tracking-tight">
-            {problem.title}
-          </h1>
-          <div className="mt-3 flex flex-wrap items-center gap-2 empty:mt-0">
-            <ProblemBadgesSlot config={problem} offered={contest.facets} />
-          </div>
-        </header>
+          <header className="border-border mb-6 border-b pb-5">
+            <h1 className="text-fg text-2xl font-bold tracking-tight">
+              {problem.title}
+            </h1>
+            <div className="mt-3 flex flex-wrap items-center gap-2 empty:mt-0">
+              <ProblemBadgesSlot config={problem} offered={contest.facets} />
+            </div>
+          </header>
 
-        <Statement />
-      </article>
-    </ProblemProvider>
+          <Statement />
+        </article>
+      </ProblemProvider>
+    </ContestWorkspace>
   );
 }

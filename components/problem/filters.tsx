@@ -41,6 +41,7 @@ export function ProblemFilters({
   searchValue,
   searchPlaceholder,
   filtered,
+  compact,
 }: {
   path: string;
   params: SearchParams;
@@ -49,11 +50,17 @@ export function ProblemFilters({
   searchValue: string;
   searchPlaceholder: string;
   filtered: boolean;
+  compact?: boolean;
 }) {
   return (
-    <div className="border-border bg-surface/70 space-y-3 rounded-xl border p-4 backdrop-blur-sm">
+    <div
+      className={cn(
+        "border-border bg-surface/70 space-y-3 rounded-xl border backdrop-blur-sm",
+        compact ? "p-3" : "p-4",
+      )}
+    >
       <div className="flex flex-wrap items-center gap-3">
-        <form action={path} className="flex gap-2">
+        <form action={path} className="flex min-w-0 flex-1 gap-2">
           {carried(params, searchKey).map((field, index) => (
             <input
               key={index}
@@ -66,7 +73,7 @@ export function ProblemFilters({
             name={searchKey}
             defaultValue={searchValue}
             placeholder={searchPlaceholder}
-            className="h-9 w-64 py-0"
+            className={cn("h-9 py-0", compact ? "min-w-0 flex-1" : "w-64")}
             spellCheck={false}
           />
           <Button type="submit">搜索</Button>

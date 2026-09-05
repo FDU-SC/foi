@@ -101,7 +101,6 @@ export const emailTemplates: EmailTemplates = registry.templates;
 export function mailTemplateWarnings(): string[] {
   if (registry.source) return [];
   return [
-    "没有找到邮件文案，验证链接和重置链接会以内置的纯文本样式发出。" +
-      `补一个 content/emails/index.ts，导出 ${METHODS.join("、")}。`,
+    "没有找到邮件文案。",
   ];
 }

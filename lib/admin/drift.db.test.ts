@@ -1,8 +1,5 @@
 import { sql } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ProblemBackend } from "@/lib/backend/types";
-import { backends } from "@/lib/backend/registry";
-import { problemsServedBy } from "@/lib/backend/access";
 import { db } from "@/lib/db";
 import { loadAdminOverview } from "./drift";
 
@@ -28,87 +25,26 @@ function findingAbout(findings: Finding[], word: string) {
   return findings.find((finding) => finding.title.includes(word));
 }
 
-const savedBackends = new Map<string, ProblemBackend>();
-
-function patchBackend(id: string, changes: Partial<ProblemBackend>): void {
-  if (!savedBackends.has(id)) savedBackends.set(id, backends[id]);
-  backends[id] = { ...backends[id], ...changes };
-}
-
 afterEach(() => {
   vi.unstubAllEnvs();
-  for (const [id, entry] of savedBackends) backends[id] = entry;
-  savedBackends.clear();
+  globalThis.__foiBootWarnings = undefined;
 });
 
-describeDb("运维台偏差：邮件", () => {
-  it("FOI_MAIL_DELIVERY=smtp 却没有中继时报出来", async () => {
-    vi.stubEnv("FOI_MAIL_DELIVERY", "smtp");
-    vi.stubEnv("FOI_SMTP_HOST", undefined);
+describeDb("运维台偏差：启动警告", () => {
+  it("启动时留下的提醒会出现在运维台", async () => {
+    globalThis.__foiBootWarnings = ["FOI_SMTP_HOST 未设置"];
 
-    const finding = findingAbout((await loadAdminOverview()).findings, "SMTP");
-
-    expect(finding).toBeDefined();
+    const finding = findingAbout((await loadAdminOverview()).findings, "启动");
 
     expect(finding?.severity).toBe("warn");
+    expect(finding?.items).toEqual(["FOI_SMTP_HOST 未设置"]);
   });
 
-  it("FOI_MAIL_DELIVERY=smtp 且配了中继就不报", async () => {
-    vi.stubEnv("FOI_MAIL_DELIVERY", "smtp");
-    vi.stubEnv("FOI_SMTP_HOST", "smtp.example.com");
+  it("没有启动提醒时不列这一项", async () => {
+    globalThis.__foiBootWarnings = [];
 
     expect(
-      findingAbout((await loadAdminOverview()).findings, "SMTP"),
+      findingAbout((await loadAdminOverview()).findings, "启动"),
     ).toBeUndefined();
-  });
-
-  it("FOI_MAIL_DELIVERY=console 就不报——那是个决定，不是可以修的偏差", async () => {
-    vi.stubEnv("FOI_MAIL_DELIVERY", "console");
-
-    for (const host of [undefined, "smtp.example.com"]) {
-      vi.stubEnv("FOI_SMTP_HOST", host);
-
-      expect(
-        findingAbout((await loadAdminOverview()).findings, "SMTP"),
-      ).toBeUndefined();
-    }
-  });
-});
-
-describeDb("运维台偏差：题目后端签名密钥", () => {
-  const inUse = Object.keys(backends).filter(
-    (id) => problemsServedBy(id).length > 0,
-  );
-
-  it("两个服务共用一个密钥时报出来，并列出该配哪几台", async () => {
-    if (inUse.length < 2) return;
-    inUse.forEach((id, index) => {
-      patchBackend(id, { secret: undefined, url: `http://backend-${index}:4100` });
-    });
-
-    const finding = findingAbout((await loadAdminOverview()).findings, "签名密钥");
-
-    expect(finding?.severity).toBe("warn");
-    expect(finding?.items.sort()).toEqual([...inUse].sort());
-  });
-
-  it("各自有密钥时不报", async () => {
-    for (const id of inUse) patchBackend(id, { secret: `secret-for-${id}` });
-
-    expect(
-      findingAbout((await loadAdminOverview()).findings, "签名密钥"),
-    ).toBeUndefined();
-  });
-
-  it("仓库默认配置——全部回落到共享密钥——照样报", async () => {
-    if (inUse.length < 2) return;
-
-    const finding = findingAbout(
-      (await loadAdminOverview()).findings,
-      "签名密钥",
-    );
-
-    expect(finding?.severity).toBe("warn");
-    expect(finding?.items.sort()).toEqual([...inUse].sort());
   });
 });

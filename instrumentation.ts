@@ -25,7 +25,8 @@ export async function register() {
       await migrate(db, { migrationsFolder: "drizzle.local" });
     }
 
-    console.log("[foi] 数据库迁移已应用");
+    const { log } = await import("@/lib/log");
+    log.info("数据库迁移已应用");
   }
 
   const { startReaping } = await import("@/lib/runner/reaper");

@@ -8,6 +8,7 @@ import { reinstateAccount, suspendAccount } from "@/lib/accounts/queries";
 import { resolveUser } from "@/lib/accounts/resolve";
 import type { Denial } from "@/lib/authz/adapters";
 import { authorize } from "@/lib/authz/engine";
+import { log } from "@/lib/log";
 import { sendPasswordReset } from "@/lib/mail/notify";
 import { rateLimit } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
@@ -80,7 +81,7 @@ export async function resendPasswordResetAction(
       fp,
     );
   } catch (error) {
-    console.error("[foi] 重置密码邮件发送失败", error);
+    log.error("重置密码邮件发送失败", error);
     return {
       error: `邮件发送失败：${error instanceof Error ? error.message : "未知错误"}`,
     };

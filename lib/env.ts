@@ -1,20 +1,21 @@
 import { z } from "zod";
 import { TIERS } from "@/lib/boot/deployment";
+import { refuse } from "@/lib/log";
 
 const schema = z.object({
   DATABASE_URL: z
-    .string("未设置，应用无法连接数据库")
+    .string("未设置")
     .refine(
       (value) => value.startsWith("postgres://") || value.startsWith("postgresql://"),
       "必须是 postgres:// 或 postgresql:// 连接串",
     ),
 
   AUTH_SECRET: z
-    .string("未设置，无法签名会话。用 openssl rand -base64 32 生成")
-    .min(16, "太短，会话签名不安全。用 openssl rand -base64 32 生成"),
+    .string("未设置，用 openssl rand -base64 32 生成")
+    .min(16, "太短，用 openssl rand -base64 32 生成"),
 
   FOI_PUBLIC_URL: z
-    .string("未设置，评测机将无法连到平台")
+    .string("未设置")
     .refine((value) => {
       try {
         new URL(value);
@@ -22,11 +23,11 @@ const schema = z.object({
       } catch {
         return false;
       }
-    }, "必须是完整的 URL，例如 https://foi.example.com"),
+    }, "必须是完整的 URL"),
 
   FOI_BACKEND_SECRET: z
-    .string("未设置。用 openssl rand -hex 32 生成，并与题目后端保持一致")
-    .min(16, "太短。用 openssl rand -hex 32 生成，并与题目后端保持一致"),
+    .string("未设置，用 openssl rand -hex 32 生成")
+    .min(16, "太短，用 openssl rand -hex 32 生成"),
 
   FOI_ENV: z
     .string()
@@ -62,7 +63,7 @@ const schema = z.object({
         value === undefined ||
         value === "" ||
         (Number.isInteger(Number(value)) && Number(value) >= 0),
-      "必须是非负整数：反向代理的层数，直接暴露端口时填 0",
+      "必须是非负整数",
     ),
 });
 
@@ -80,8 +81,5 @@ export function assertEnv(
 
   if (problems.length === 0) return;
 
-  throw new Error(
-    `环境变量配置不完整，拒绝启动:\n` +
-      problems.map((problem) => `  - ${problem}`).join("\n"),
-  );
+  refuse("环境变量配置不完整：", problems);
 }

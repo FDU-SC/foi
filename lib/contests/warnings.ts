@@ -18,8 +18,7 @@ export function orphanedProblemComplaints(): string[] {
   if (orphans.length === 0) return [];
 
   return [
-    `题目 ${orphans.join("、")} 不在任何一场比赛的题单里，没有人打得开它们。` +
-      `把它们加进某场比赛的 problems，或删掉这些目录。`,
+    `题目 ${orphans.join("、")} 不在任何一场比赛的题单里。`,
   ];
 }
 
@@ -37,7 +36,7 @@ export function catalogueComplaints(): string[] {
     );
     if (!shadowed) return [];
 
-    return `题库比赛 "${contest.slug}" 的题单里有题目 "${STANDINGS_SEGMENT}"，它会被排行榜页 /problems/${contest.slug}/${STANDINGS_SEGMENT} 挡住，永远打不开。给这道题换个 slug。`;
+    return `题库比赛 "${contest.slug}" 的题单里有题目 "${STANDINGS_SEGMENT}"，会被排行榜页挡住。`;
   });
 }
 
@@ -55,8 +54,7 @@ export function catalogueWarnings(): string[] {
   if (missing.length === 0) return [];
 
   return [
-    `content/site.ts 的 catalogue 指向比赛 ${missing.join("、")}，但 content/contests/ 里没有它们，` +
-      `这些分区在 /problems 上不会出现，它们自己的地址都会是 404。改掉这些 slug，或从 catalogue 里去掉。`,
+    `catalogue 指向不存在的比赛 ${missing.join("、")}。`,
   ];
 }
 
@@ -78,7 +76,7 @@ export function contestWarnings(): string[] {
       if (!exhaustive) continue;
       if (known.has(participants.group)) continue;
       warnings.push(
-        `比赛 "${contest.slug}" 的参赛用户组 "${participants.group}" 不会被 content/enrollment/ 中的任何规则或授权产生，排行榜将为空。`,
+        `比赛 "${contest.slug}" 的参赛用户组 "${participants.group}" 没有任何规则会产生。`,
       );
       continue;
     }
@@ -93,8 +91,7 @@ export function contestWarnings(): string[] {
     }
     if (duplicated.size > 0) {
       warnings.push(
-        `比赛 "${contest.slug}" 的参赛名单里有重复的 uid：${[...duplicated].join("、")}。` +
-          `重复的条目只算一个人。`,
+        `比赛 "${contest.slug}" 的参赛名单有重复 uid：${[...duplicated].join("、")}。`,
       );
     }
   }

@@ -101,7 +101,6 @@ export function policyMatrix(): {
 export function policyWarnings(): string[] {
   return actionsWithoutPermit().map(
     (action) =>
-      `没有任何策略放行 "${action}"（${ACTIONS[action].describe}），它对所有人永远是拒绝。` +
-      `如果这是有意的，用一条 forbid 写明；否则请在 content/policies/ 里补一条 permit。`,
+      `动作 "${action}"（${ACTIONS[action].describe}）没有任何 permit。`,
   );
 }

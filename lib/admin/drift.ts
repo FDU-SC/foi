@@ -5,11 +5,7 @@ import { allContests } from "@/lib/contests/registry";
 import { db } from "@/lib/db";
 import { contests, problems, submissions } from "@/lib/db/schema";
 import { enumeratedUids, tallyCohorts } from "@/lib/enrollment/registry";
-import { orphanedBackends, problemsServedBy } from "@/lib/backend/access";
-import { sharedSecret } from "@/lib/backend/env";
-import { backends } from "@/lib/backend/registry";
-import { effectiveSecret } from "@/lib/backend/resolve";
-import { declaredDelivery, relayOptions } from "@/lib/mail/transport";
+import { orphanedBackends } from "@/lib/backend/access";
 import { reaperHealth, recentDisruptions } from "@/lib/runner/reaper";
 import { allProblems } from "@/lib/problems/registry";
 
@@ -68,39 +64,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       detail:
         "以下提醒在启动时已报告过，列在此处方便查看。",
       items: bootWarnings,
-    });
-  }
-
-  if (declaredDelivery() === "smtp" && relayOptions() === null) {
-    findings.push({
-      severity: "warn",
-      title: "SMTP 中继未配置",
-      detail:
-        "FOI_MAIL_DELIVERY 设为 smtp（默认），但 FOI_SMTP_HOST 未设置。" +
-        "邮件无法投递。设置 FOI_SMTP_HOST，或改为 FOI_MAIL_DELIVERY=console。",
-      items: [],
-    });
-  }
-
-  const shared = sharedSecret();
-  const inUseBackends = Object.keys(backends).filter(
-    (id) => problemsServedBy(id).length > 0,
-  );
-  const onShared = inUseBackends.filter(
-    (id) =>
-      problemsServedBy(id).length > 0 &&
-      effectiveSecret(id) === shared,
-  );
-  const anyBorrowed = onShared.some((id) => !backends[id].secret);
-  if (anyBorrowed && onShared.length >= 2) {
-    findings.push({
-      severity: "warn",
-      title: "多个题目后端共用签名密钥",
-      detail:
-        "这些题目后端都在使用共享的 FOI_BACKEND_SECRET。" +
-        "任何一台被攻破，另外几台的评测队列也一起暴露。" +
-        "为每台服务单独设置 FOI_BACKEND_<名字>_SECRET。",
-      items: onShared,
     });
   }
 

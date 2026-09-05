@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defaultExclude, defineConfig } from "vitest/config";
 import { CONTENT_SLOT, DEPLOYMENT_ROOTS } from "./test/content-roots.mjs";
+import { FIXTURE_CONTENT } from "./test/fixture-content.mjs";
 
 if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 
@@ -57,26 +58,14 @@ function fixture(path: string): string {
  * a deployment kept some particular group or contest around. Only the
  * `deployment` project resolves these to `content/`.
  */
-const FIXTURE_CONTENT = [
-  "site",
-  "site-views",
-  "backends",
-  "schema",
-  "_modules/contests",
-  "_modules/emails",
-  "_modules/enrollment",
-  "_modules/policies",
-  "_modules/problem-views",
-  "_modules/problems",
-  "_modules/rulesets",
-].map((name) => ({
-  find: `@/content/${name}`,
-  replacement: fixture(`${name}.ts`),
+const fixtureContent = FIXTURE_CONTENT.map(({ specifier, file }) => ({
+  find: `@/content/${specifier}`,
+  replacement: fixture(file),
 }));
 
 const againstFixture = {
   tsconfigPaths: true,
-  alias: [serverOnly, ...FIXTURE_CONTENT],
+  alias: [serverOnly, ...fixtureContent],
 };
 
 export default defineConfig({

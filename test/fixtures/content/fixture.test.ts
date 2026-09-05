@@ -1,7 +1,8 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { FIXTURE_CONTENT } from "@/test/fixture-content.mjs";
 import { site } from "@/lib/site";
 import { listGroups } from "@/lib/authz/groups";
 import { privilegedGroups } from "@/lib/authz/introspect";
@@ -273,19 +274,9 @@ describe("夹具自身自洽", () => {
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 /** The specifiers `vitest.config.mts` redirects here. */
-const REDIRECTED = new Set([
-  "@/content/site",
-  "@/content/site-views",
-  "@/content/backends",
-  "@/content/schema",
-  "@/content/_modules/contests",
-  "@/content/_modules/emails",
-  "@/content/_modules/enrollment",
-  "@/content/_modules/policies",
-  "@/content/_modules/problem-views",
-  "@/content/_modules/problems",
-  "@/content/_modules/rulesets",
-]);
+const REDIRECTED = new Set(
+  FIXTURE_CONTENT.map(({ specifier }) => `@/content/${specifier}`),
+);
 
 const FIXTURE_DIR = join("test", "fixtures");
 
@@ -312,8 +303,43 @@ function testsIn(dir: string, found: string[] = []): string[] {
 }
 
 const IMPORT = /from\s+["']([^"']+)["']/g;
+const ENTRY_IMPORT = /(?:from|import)\s+["'](@\/content\/[^"']+)["']/g;
+
+function contentEntriesIn(dir: string, found = new Set<string>()): Set<string> {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      contentEntriesIn(path, found);
+      continue;
+    }
+    if (!/\.(?:tsx?|mts|m?js)$/.test(entry.name) || /\.test\.tsx?$/.test(entry.name)) {
+      continue;
+    }
+
+    const source = readFileSync(path, "utf8");
+    for (const [, specifier] of source.matchAll(ENTRY_IMPORT)) {
+      found.add(specifier!);
+    }
+  }
+  return found;
+}
 
 describe("内核测试跑在夹具上", () => {
+  it("lib/ 的每个 content 入口都改道到夹具", () => {
+    expect(
+      [...contentEntriesIn(join(ROOT, "lib"))].sort(),
+      "入口与夹具改道列表不一致，内核测试会读到真实部署或缺少所需夹具",
+    ).toEqual([...REDIRECTED].sort());
+  });
+
+  it("每个入口的夹具文件都存在", () => {
+    const missing = FIXTURE_CONTENT.filter(
+      ({ file }) => !existsSync(join(ROOT, "test", "fixtures", "content", file)),
+    ).map(({ file }) => file);
+
+    expect(missing, "夹具改道指向不存在的文件").toEqual([]);
+  });
+
   it("站点配置来自夹具，说明入口真的被改道了", () => {
     expect(
       site.name,

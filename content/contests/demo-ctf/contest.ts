@@ -26,7 +26,7 @@ export const contest = {
   startsAt: "2026-08-15T09:00:00+08:00",
   endsAt: "2026-08-16T21:00:00+08:00",
 
-  afterEnd: { statements: true, submissions: true },
+  afterEnd: { statements: false, submissions: false },
 
   problems: [{ slug: "leaky-bucket", label: "A" }],
 

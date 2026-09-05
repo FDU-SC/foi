@@ -8,19 +8,23 @@
 //
 // 这个脚本会删掉一切。守卫有两道，都必须显式满足。
 
-const { bail, run, withClient } = require("./account-cli.cjs");
+const {
+  bail,
+  requireDevelopmentEnvironment,
+  run,
+  withClient,
+} = require("./account-cli.cjs");
 
 const CONFIRM = "yes-drop-everything";
 
 const USAGE = `用法:
-  FOI_ALLOW_DESTRUCTIVE=${CONFIRM} node scripts/db-reset.cjs
+  FOI_ENV=dev FOI_ALLOW_DESTRUCTIVE=${CONFIRM} node scripts/db-reset.cjs
 
 需要环境变量 DATABASE_URL。
+必须显式设置 FOI_ENV=dev。
 
 丢弃 public schema 下的一切并重建空 schema。表结构由应用启动时的自动迁移恢复，
-演示账号由 scripts/demo-seed.cjs 重新建立。
-
-FOI_ENV=prod 时一律拒绝执行。`;
+演示账号由 scripts/demo-seed.cjs 重新建立。`;
 
 async function main() {
   if (process.argv.includes("--help") || process.argv.includes("-h")) {
@@ -35,14 +39,7 @@ async function main() {
     );
   }
 
-  // 第二道守卫，防的是把 demo 的环境变量套在了别的库上。前一道只证明操作者知道
-  // 这个脚本会删数据，不证明他知道自己连的是哪个库。
-  //
-  // 装着真实数据的部署一律填 FOI_ENV=prod，预发布环境也是——tier 表达的是有没有
-  // 真东西，不是发布流程里的位置。
-  if (process.env.FOI_ENV === "prod") {
-    bail("FOI_ENV=prod，拒绝在这套环境上清库。");
-  }
+  requireDevelopmentEnvironment();
 
   await withClient(async (client) => {
     const { rows } = await client.query(

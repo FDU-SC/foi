@@ -24,6 +24,12 @@ function bail(message) {
   throw new CliError(message);
 }
 
+function requireDevelopmentEnvironment(env = process.env) {
+  if (env.FOI_ENV !== "dev") {
+    bail("FOI_ENV 必须显式设为 dev，拒绝修改可能包含真实数据的数据库");
+  }
+}
+
 /**
  * Parses `<positional...> --flag value` argv.
  *
@@ -136,6 +142,7 @@ module.exports = {
   hashPassword,
   parseArgs,
   reportPassword,
+  requireDevelopmentEnvironment,
   resolvePassword,
   run,
   singlePositional,

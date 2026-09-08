@@ -71,7 +71,7 @@ const viewer = {
   disabled: false,
 };
 
-function upload(bytes: Uint8Array): FormData {
+function upload(bytes: Uint8Array<ArrayBuffer>): FormData {
   const form = new FormData();
   form.set("avatar", new File([bytes], "avatar.webp", { type: "image/webp" }));
   return form;

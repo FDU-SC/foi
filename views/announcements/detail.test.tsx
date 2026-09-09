@@ -29,7 +29,9 @@ describe("公告正文", () => {
     expect(
       renderToStaticMarkup(await AnnouncementDetailView(props("recent"))),
     ).toContain("第二段包含完整公告信息。");
-    siteViews.AnnouncementBody = ({ slug }) => <p>正文插槽：{slug}</p>;
+    siteViews.AnnouncementBody = function AnnouncementBody({ slug }) {
+      return <p>正文插槽：{slug}</p>;
+    };
     expect(
       renderToStaticMarkup(await AnnouncementDetailView(props("recent"))),
     ).toContain("正文插槽：recent");

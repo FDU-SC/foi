@@ -123,7 +123,7 @@ describe("夹具供给了内核测试要的形状", () => {
         acceptsSubmissions(ref.contest, now) &&
         !isInlineBackend(ref.problem.backend),
     );
-    expect(live.length, "runner 领活的整条链路靠它").toBeGreaterThan(0);
+    expect(live.length, "runner 领取任务的测试需要可访问的比赛").toBeGreaterThan(0);
   });
 
   it("一道内联判题的题，在一场正在收题的比赛里", () => {
@@ -204,11 +204,11 @@ describe("夹具供给了内核测试要的形状", () => {
 
     expect(
       sections.filter((contest) => contest.facets.length > 0).length,
-      "没有比赛点名维度，筛选栏与徽章都渲染不出来",
+      "没有比赛指定维度，筛选栏与徽章都渲染不出来",
     ).toBeGreaterThan(0);
     expect(
       sections.filter((contest) => contest.facets.length === 0).length,
-      "「一个维度都不点名就什么都不露」这条没有活体",
+      "缺少不提供任何筛选维度的比赛夹具",
     ).toBeGreaterThan(0);
   });
 
@@ -230,7 +230,7 @@ describe("夹具供给了内核测试要的形状", () => {
     ).toBe(true);
     expect(
       offered.some((key) => !carried.has(key)),
-      "至少一个点名了但没有题占着的维度，空维度过滤才能被验证",
+      "需要至少一个已指定但无题目取值的维度，以验证空维度过滤",
     ).toBe(true);
   });
 
@@ -242,14 +242,14 @@ describe("夹具供给了内核测试要的形状", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("被策略点名的用户组", () => {
+  it("被策略指定的用户组", () => {
     expect(
       privilegedGroups().size,
       "每一条按动作取 viewer 的用例都靠它",
     ).toBeGreaterThan(0);
   });
 
-  it("被点名的组都声明过", () => {
+  it("被指定的组都声明过", () => {
     const declared = new Set(listGroups().map((group) => group.id));
     for (const id of privilegedGroups()) {
       expect(declared.has(id), `策略把权限给了 "${id}"，但没有声明它`).toBe(true);

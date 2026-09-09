@@ -33,7 +33,7 @@ export function builtinPolicies(): CompiledPolicy[] {
       id: "builtin:contest-problem-audience",
       effect: "permit",
       describe:
-        "比赛的 visibleTo 覆盖到这个人，且它正在展示题目时，题单里的每一道题都对他开放",
+        "比赛题面开放期间，可见范围内的用户可访问题目；提交和交互另受参赛规则限制",
       action: ["problem.read", "problem.submit", "problem.invoke"],
       when: ({ resource, viewer, now }) =>
         inAudience(resource.contest.visibleTo, viewer) &&
@@ -43,7 +43,7 @@ export function builtinPolicies(): CompiledPolicy[] {
     policy({
       id: "builtin:contest-audience",
       effect: "permit",
-      describe: "比赛的 visibleTo 覆盖到这个人时，他能看到这场比赛与它的排行榜",
+      describe: "可见范围内的用户可查看比赛和排行榜；参赛另受时间与名单限制",
       action: ["contest.read", "contest.enter", "standings.read"],
       when: ({ resource, viewer }) => inAudience(resource.visibleTo, viewer),
     }),
@@ -52,7 +52,7 @@ export function builtinPolicies(): CompiledPolicy[] {
       id: "builtin:contest-problem-set",
       effect: "permit",
       describe:
-        "比赛开始之后，看得到这场比赛的人也就看得到它的题目清单，直到它自己收回",
+        "比赛开始后，可见范围内的用户可查看题单，赛后是否开放由比赛决定",
       action: "contest.readProblemSet",
       when: ({ resource, viewer, now }) =>
         inAudience(resource.visibleTo, viewer) &&
@@ -63,7 +63,7 @@ export function builtinPolicies(): CompiledPolicy[] {
       id: "builtin:backend-serves-reachable-problem",
       effect: "permit",
       describe:
-        "一台后端至少评测一道这个人打得开的题时，他可以知道这台后端存在",
+        "用户可查看至少关联一道可访问题目的评测后端",
       action: "backend.read",
       when: ({ resource, viewer, now }) => {
         const served = new Set(problemsServedBy(resource.id));
@@ -78,7 +78,7 @@ export function builtinPolicies(): CompiledPolicy[] {
     policy({
       id: "builtin:anonymous-cannot-write",
       effect: "forbid",
-      describe: "没有身份就没有归属：提交、交互与参赛都要求先登录",
+      describe: "提交、交互与参赛均须登录",
       action: ["problem.submit", "problem.invoke", "contest.enter"],
       when: ({ viewer }) => !viewer.authenticated,
       reason: { code: "unauthenticated", message: "请先登录" },
@@ -87,7 +87,7 @@ export function builtinPolicies(): CompiledPolicy[] {
     policy({
       id: "builtin:problem-not-collecting",
       effect: "forbid",
-      describe: "一道题只在它所属的那场比赛收题时，才接受提交与交互",
+      describe: "题目仅在所属比赛接受提交期间开放提交与交互",
       action: ["problem.submit", "problem.invoke"],
       when: ({ resource, now }) => !acceptsSubmissions(resource.contest, now),
       reason: {
@@ -100,7 +100,7 @@ export function builtinPolicies(): CompiledPolicy[] {
       id: "builtin:contest-window",
       effect: "forbid",
       describe:
-        "比赛只在自己声明的收题窗口内接受参赛者动作：赛前不行，赛后除非它自己留了门",
+        "比赛开始前不接受参赛操作，赛后仅在允许继续提交时开放",
       action: "contest.enter",
       when: ({ resource, now }) => !acceptsSubmissions(resource, now),
       reason: {
@@ -113,7 +113,7 @@ export function builtinPolicies(): CompiledPolicy[] {
       id: "builtin:not-in-participants",
       effect: "forbid",
       describe:
-        "参赛范围由比赛自己的 participants 划定，没有任何策略能把人塞进闭门赛",
+        "参赛范围由比赛的参赛名单或用户组决定，其他策略不能绕过此限制",
       action: "contest.enter",
       when: ({ resource, viewer }) =>
         !matchesParticipants(resource.participants, viewer),
@@ -142,7 +142,7 @@ export function builtinPolicies(): CompiledPolicy[] {
     policy({
       id: "builtin:no-self-suspend",
       effect: "forbid",
-      describe: "不能封禁自己：把自己关在门外之后没有人能再打开它",
+      describe: "禁止封禁当前账号",
       action: "account.suspend",
       when: ({ resource, viewer }) => resource.uid === viewer.uid,
       reason: { code: "self", message: "不能封禁自己" },

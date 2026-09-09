@@ -10,7 +10,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "warmup-2025",
   title: "2025 热身赛",
-  description: "已经结束。题面留着供回看，提交入口已经关闭。",
+  description: "比赛已结束，题面可查看，提交已关闭。",
 
   leaderboards: [
     {

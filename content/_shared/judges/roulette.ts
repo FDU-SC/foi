@@ -69,7 +69,7 @@ export const judgeRoulette: InlineJudge = ({ payload, config, user }) => {
       color,
       size,
       hit,
-      message: `你的今日结果：数字 ${number}（${color}${size ? `，${size}` : ""}）。你押「${submitted}」→ ${hit}${score > 0 ? `，+${score} 分` : "，0 分"}。明天再来！`,
+      message: `你的今日结果：数字 ${number}（${color}${size ? `，${size}` : ""}）。你押「${submitted}」→ ${hit}${score > 0 ? `，+${score} 分` : "，0 分"}。`,
     },
   };
 };

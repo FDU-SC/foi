@@ -7,7 +7,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "cluster",
   title: "集群与平台",
-  description: "调度、弹性、故障——一套真环境上的配置与答案。",
+  description: "真实环境中的调度、弹性与故障处理。",
 
   domain: "HPC & AI Infra",
   facets: ["difficulty", "tags"],

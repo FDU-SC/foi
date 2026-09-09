@@ -70,14 +70,12 @@ Utility functions available to rulesets:
 
 ## Scoring the Window Is the Ruleset's Job
 
-A contest whose `afterEnd.submissions` is true keeps collecting once its clock
-runs out, and `compute.ts` hands the ruleset **every** submission attributed to
+A contest whose `afterEnd.submissions` is true continues accepting submissions after it ends, and `compute.ts` hands the ruleset **every** submission attributed to
 the round, late ones included. It does not clamp: a ruleset owns what counts,
 and the platform does not decide that for it.
 
 So a leaderboard covers `startsAt`..`endsAt` only because the ruleset runs its
 submissions through `submissionsInWindow`. Skip it and late practice work lands
-on the official ranking. Two tests hold the line — `lib/standings/window.test.ts`
+on the official ranking. Two tests enforce the contest window — `lib/standings/window.test.ts`
 for the kernel, and `content/deployment.test.ts` for whatever a deployment
-registers — so a new ruleset that forgets fails immediately rather than
-quietly rewriting a finished contest's result.
+registers — so a ruleset that includes late submissions fails validation before changing a finished contest's ranking.

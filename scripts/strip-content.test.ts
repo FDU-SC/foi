@@ -8,14 +8,11 @@ import { entrySpecifiers, keepIn, reachableFiles } from "./strip-content";
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 /**
- * The stripper decides what survives; these decide the stripper is honest.
- *
- * They assert properties rather than a list of entry points — a list here would
- * be the same hand-written copy the stripper exists to avoid, and would go stale
- * the same way.
+ * Verify discovery and retention properties without duplicating the entry-point
+ * list. A hardcoded list here would require separate maintenance.
  */
-describe("抽空保留什么由 lib/ 的 import 决定", () => {
-  it("确实扫出了入口，而不是正则写错后空过", () => {
+describe("内容移除后的保留文件由 lib/ 的 import 决定", () => {
+  it("扫描结果包含入口，避免空结果导致测试误通过", () => {
     expect(entrySpecifiers().length).toBeGreaterThanOrEqual(8);
   });
 

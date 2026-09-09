@@ -383,7 +383,7 @@ describe("回收循环的存活信号", () => {
     expect(reaperHealth()).toEqual({ ok: true, ranAt: null });
   });
 
-  it("刚启动、还没跑完一趟时是绿的", () => {
+  it("启动后首次回收尚未完成时报告健康", () => {
     const stop = startReaping(15_000);
     try {
       expect(reaperHealth()).toEqual({ ok: true, ranAt: null });

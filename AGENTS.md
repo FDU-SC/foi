@@ -10,7 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Architecture: "Everything as Code" Contest Platform
 
-The platform is a generic, semantics-free engine. It stores, routes, and renders—but never interprets—contest-specific data. All meaning lives in `content/`.
+The platform stores, routes, and renders contest-specific data. Only `content/` interprets that data.
 
 ## The One Rule
 
@@ -23,7 +23,7 @@ The platform is a generic, semantics-free engine. It stores, routes, and renders
 - `problem.backend.config` — backend-specific configuration (time limits, Docker image, anything)
 - `ruleset.config` — ruleset-specific parameters (penalty minutes, decay rate, anything)
 
-If you find yourself adding a platform-level `if` that checks the shape of any of these fields, you are violating the architecture. The interpretation belongs in `content/`.
+Do not inspect the shape of these fields in platform code. Their interpretation must remain in `content/`.
 
 ## Directory Structure
 
@@ -56,9 +56,9 @@ and behaviour must not sit in a layer a deployment can replace.
 
 The platform discovers content through twelve entry points: the seven registries under `content/_modules/`, plus `content/site.ts`, `site-views.tsx`, `backends.ts`, `schema.ts` and `theme.css`. The `app/`, `views/` and `components/` layers NEVER import from `content/` directly — only `lib/` does, and only through those twelve. `test/slots.test.ts` enforces it.
 
-Those imports *are* the list. `scripts/strip-content.ts` derives from them what the content-free CI job keeps, following relative imports onward so the discovery files come along; adding an entry point needs no edit anywhere else.
+`scripts/strip-content.ts` derives the content-free CI file list from those imports and follows their relative dependencies. Adding an entry point requires no separate list update.
 
-Tests hold the same line. The `unit` and `db` vitest projects resolve all twelve to `test/fixtures/content/`, so a kernel test asserts what the platform does and never what a deployment happens to contain. Only the `deployment` project sees a deployment's own content — `content/` plus whatever a fork put in the slots. A fork may delete any group, problem or contest without turning the kernel suites red.
+Tests enforce the same boundary. The `unit` and `db` vitest projects resolve all twelve to `test/fixtures/content/`, so a kernel test asserts what the platform does and never what a deployment happens to contain. Only the `deployment` project sees a deployment's own content — `content/` plus whatever a fork put in the slots. A fork may delete any group, problem or contest without turning the kernel suites red.
 
 ## Slots
 
@@ -70,13 +70,13 @@ Tests hold the same line. The `unit` and `db` vitest projects resolve all twelve
 "@/views/*":      ["./views.local/*",      "./views/*"],
 ```
 
-So a deployment overrides the handful of files it cares about and inherits the rest — the difference between a merge that conflicts every time and one that never does. `test/content-roots.mjs` is the single list of slots; no `.local` root exists in this repository, and resolution, the deployment test project and every source scanner tolerate their absence.
+A deployment overrides selected files and inherits the rest, reducing conflicts when merging upstream changes. `test/content-roots.mjs` is the single list of slots; no `.local` root exists in this repository, and resolution, the deployment test project and every source scanner tolerate their absence.
 
 Depth of customization, shallowest first — **prefer the shallowest that works**, because each step down gives up more of the upstream's future changes:
 
 1. **Data.** `content/site.ts` for brand, navigation, tagline, footer; `content/theme.css` for colour tokens, which load after `globals.css` so redeclaring one wins.
 2. **Chrome slots.** `SiteViews` in `content/site-views.tsx` replaces the Header, Footer, Brand, HomeHero or AuthShell. Every slot is optional and has a platform default, so `{}` is a complete implementation.
-3. **File override.** Any file under `components/` or `views/` can be replaced wholesale by a same-named file in its `.local` twin. This is how a whole page gets rewritten — and the overriding file stops tracking upstream changes to it, which is the price.
+3. **File override.** Any file under `components/` or `views/` can be replaced wholesale by a same-named file in its `.local` twin. The overriding file no longer receives upstream changes automatically.
 
 An override that wants to wrap the upstream original must reach it by **relative path** (`../../components/site/header`), because the alias would resolve back to the override itself.
 
@@ -96,13 +96,13 @@ Default-deny. A request is refused unless some `permit` policy matches, and a ma
 
 The split follows the same rule as everything else here:
 
-- **The platform owns the action catalogue** (`lib/authz/actions.ts`). It has to: the enforcement points are platform code, and they name these ids literally. Adding a gate means adding an action.
-- **Content owns the policies** (`content/policies/`). Who may do what is a deployment decision, and it belongs in a diff.
+- **The platform owns the action catalogue** (`lib/authz/actions.ts`). Platform enforcement points reference these ids directly. Adding a gate means adding an action.
+- **Content owns the policies** (`content/policies/`). Permission grants are deployment-specific configuration.
 - **Builtin policies** (`lib/authz/builtin.ts`) do two things only: give platform-declared resource attributes their meaning (`visibleTo`, `participants`, the contest window and what `afterEnd` leaves of it), and enforce invariants content must not be able to grant around. They never hand power to a principal.
 
 A group is a label. It carries no permissions — what its members may do is whatever policies name it. "Privileged" is derived: a group some `permit` policy points at.
 
-Refusals are one shape (`Decision`) turned into each layer's expectation by the adapters in `lib/authz/adapters.ts` and `http.ts` — `undefined` for a read gate, a thrown `ForbiddenError` for a write, a status-carrying JSON body for a route. Never invent a new way to say no.
+Refusals are one shape (`Decision`) turned into each layer's expectation by the adapters in `lib/authz/adapters.ts` and `http.ts` — `undefined` for a read gate, a thrown `ForbiddenError` for a write, a status-carrying JSON body for a route. Do not add alternative refusal formats.
 
 ## A Problem Is a Belonging of a Contest
 
@@ -149,7 +149,7 @@ Naming a catalogue is optional. Omit it and every contest stays under `/contests
 
 Difficulty, tags and anything like them live in `problem.ui`, which the platform does not read. What makes them filterable is `ProblemViews.facets`: content hands back `{ key, label, values, order }` and the platform collects the values, matches the strings and counts them, without learning what a key means.
 
-`contest.facets` names which of those keys that contest's pages offer. It drives the filter bar and the problem badges together, so a dimension cannot be hidden from one and left showing on the other. The default is empty — a round that says nothing gives away nothing.
+`contest.facets` names which of those keys that contest's pages offer. It drives the filter bar and the problem badges together, so a dimension cannot be hidden from one and left showing on the other. The default is empty, so no facets or corresponding badges are shown.
 
 ## Key Contracts
 
@@ -184,9 +184,25 @@ User-facing copy lives in `content/`, `views/`, `components/` and Server Actions
 6. **Replace system jargon with user language.** If a term appears only in source code, it does not appear in the UI. Use the word the reader would use.
 7. **Keep it short.** One sentence that can be scanned is better than a paragraph that must be read. Admin descriptions in particular should be minimal—operators come to check data, not to read prose.
 
+### Style and fidelity
+
+Use concise, neutral wording across UI, emails, problem statements, documentation,
+comments, test descriptions and script output. Remove slogans, exaggerated
+metaphors, forced informality and repeated explanations. Keep normal technical
+terms and the existing language of each document.
+
+Preserve facts, numbers, conditions, security guidance, attribution and the force
+of architectural requirements. Do not change identifiers, commands, URLs, samples,
+formulas or protocol strings to improve style. Check message consumers before
+editing errors or logs. Leave already clear text unchanged.
+
+Delete descriptions that only repeat a heading. Move repository procedures from
+the UI to maintenance documentation when they remain useful. Review the result
+for factual fidelity before reviewing its style.
+
 ### Operator stdout
 
-The platform process writes through `lib/log.ts`. Scripts are a separate dialect and do not use that module.
+The platform process writes through `lib/log.ts`. Scripts use their own output format and do not use that module.
 
 - One sentence: name the subject (env var, slug, id) and state the fact.
 - A refuse-to-start may append a single command when that is the fix (`openssl rand -hex 32`).

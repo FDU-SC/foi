@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 模拟评测机：走完整的领活协议，但不编译、不执行、不读取任何提交内容。
+ * 模拟评测机：走完整的领取任务协议，但不编译、不执行、不读取任何提交内容。
  *
  * 用途有两个。一是公开 demo 站——那里没有判题机，需要外部后端的题目会永远停在
  * 队列里；二是本地体验，clone 下来就能把提交流程走通，不必先架一套判题机。
@@ -266,7 +266,7 @@ async function serve(backendId) {
         });
       }
     } catch (error) {
-      console.error(`  领活循环 ${backendId} 出错：`, error);
+      console.error(`  领取任务循环 ${backendId} 出错：`, error);
     }
 
     await sleep(POLL_INTERVAL_MS);
@@ -282,12 +282,12 @@ function main() {
     );
   }
 
-  // 早失败：密钥缺失要在启动时就报出来，而不是等第一次领活。
+  // 早失败：密钥缺失要在启动时就报出来，而不是等第一次领取任务。
   for (const id of BACKEND_IDS) secretFor(id);
 
   console.log(`模拟评测机 ${RUNNER_ID}`);
   console.log(`  平台 ${KERNEL_URL}，队列 ${BACKEND_IDS.join("、")}`);
-  console.log(`  并发 ${CAPACITY}/队列，领活间隔 ${POLL_INTERVAL_MS}ms`);
+  console.log(`  并发 ${CAPACITY}/队列，领取任务间隔 ${POLL_INTERVAL_MS}ms`);
   console.log(`  ${SIMULATION_NOTE}`);
 
   for (const id of BACKEND_IDS) void serve(id);

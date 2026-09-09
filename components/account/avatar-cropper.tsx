@@ -176,7 +176,7 @@ function CropPanel({
       onCropped(await encodeAvatar(image, cropOf(image, FRAME, state)));
     } catch (error) {
       onFailed(
-        error instanceof Error ? error.message : "图片处理失败，请换一张试试。",
+        error instanceof Error ? error.message : "图片处理失败，请选择其他图片。",
       );
     } finally {
       setBusy(false);
@@ -188,7 +188,7 @@ function CropPanel({
       <div>
         <h2 className="text-fg text-base font-semibold">调整头像</h2>
         <p className="text-fg-muted mt-1 text-xs leading-5">
-          拖动移动位置，滚轮或下方滑块缩放。圆圈里的部分就是最终的头像。
+          拖动图片调整位置，使用滚轮或滑块缩放。圆形区域为头像预览。
         </p>
       </div>
 
@@ -241,7 +241,7 @@ function CropPanel({
           onClick={confirm}
           disabled={busy}
         >
-          {busy ? "处理中…" : "使用这张"}
+          {busy ? "处理中…" : "保存头像"}
         </Button>
       </div>
     </div>

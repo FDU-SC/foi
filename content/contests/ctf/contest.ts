@@ -10,7 +10,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "ctf",
   title: "Web",
-  description: "注入、鉴权、逻辑漏洞——对着站点把不该给你的东西拿出来。",
+  description: "Web 注入、鉴权与逻辑漏洞。",
 
   domain: "CTF",
   facets: ["difficulty", "tags"],

@@ -5,9 +5,8 @@ import { viewsFor } from "@/lib/problems/views";
 /**
  * The badges beside a problem's title, narrowed to what its contest offers.
  *
- * `offered` is the contest's `facets`, so a round that names no dimension draws
- * nothing here — the same silence its filter bar keeps. Content still decides
- * what a dimension looks like; this only decides which ones reach it.
+ * `offered` is the contest's `facets`. An empty list hides both the badges and
+ * the filter bar. Content determines how the selected facets are rendered.
  */
 export function ProblemBadgesSlot({
   config,

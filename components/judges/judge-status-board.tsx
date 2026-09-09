@@ -135,7 +135,7 @@ function JudgeCard({
 
         {stranded ? (
           <p className="text-err bg-err-subtle rounded px-2.5 py-1.5 text-xs">
-            队列里有等待评测的提交，但最近一分钟没有任何评测机来领活。
+            有提交等待评测，最近一分钟没有评测机领取任务。
           </p>
         ) : null}
 
@@ -229,7 +229,7 @@ export function JudgeStatusBoard({
     <div className="space-y-4">
       <div className="text-fg-subtle flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
         <span>
-          共 <span className="text-fg font-mono">{statuses.length}</span> 个题目后端
+          共 <span className="text-fg font-mono">{statuses.length}</span> 个评测队列
         </span>
         <span>
           在线评测机{" "}
@@ -260,7 +260,7 @@ export function JudgeStatusBoard({
 
       {statuses.length === 0 ? (
         <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
-          还没有配置题目后端。
+          暂无评测队列。
         </p>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">

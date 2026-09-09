@@ -10,7 +10,7 @@ function NeedsLogin() {
   return (
     <div className="space-y-4">
       <FormMessage tone="ok">
-        账号已创建。自动登录没有成功，请手动登录一次。
+        账号已创建，自动登录失败，请登录。
       </FormMessage>
       <Link
         href="/login"

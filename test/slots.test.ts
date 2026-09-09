@@ -51,7 +51,7 @@ describe("插槽的别名表", () => {
     }
   });
 
-  it("兜底的 @/* 排在插槽后面，否则更具体的映射不会生效", () => {
+  it("默认映射 @/* 排在插槽后面，确保具体映射优先生效", () => {
     const patterns = Object.keys(tsconfigPaths());
     const fallback = patterns.indexOf("@/*");
 

@@ -5,9 +5,9 @@ import type { CompiledPolicy, Effect } from "./types";
 /**
  * Reading the policy set as data.
  *
- * Because a policy's scope is declarative, the platform can answer questions
- * about who holds power without running anything — which is what keeps the
- * enrollment guard honest and lets the admin console show the whole picture.
+ * Declarative policy scopes let the platform identify privileged groups
+ * without evaluating predicates. Enrollment validation and the admin console
+ * use this information.
  */
 
 let privileged: Set<string> | null = null;

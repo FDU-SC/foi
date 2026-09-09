@@ -7,7 +7,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "pwn",
   title: "Pwn",
-  description: "漏洞利用、权限提升——对着二进制把控制流抢过来。",
+  description: "二进制漏洞利用、控制流劫持与权限提升。",
 
   domain: "CTF",
   facets: ["difficulty", "tags"],

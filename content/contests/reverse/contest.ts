@@ -6,7 +6,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "reverse",
   title: "Reverse",
-  description: "拆开别人的程序，看它在藏什么。",
+  description: "分析程序逻辑与隐藏信息。",
 
   domain: "CTF",
   facets: ["difficulty", "tags"],

@@ -8,7 +8,7 @@ export const contest = {
   slug: "framework",
   title: "框架与运行时",
   description:
-    "dispatcher、编译、显存分配——框架在算子之上替你调度的那一层。",
+    "框架的算子调度、编译与显存分配。",
 
   domain: "HPC & AI Infra",
   facets: ["difficulty", "tags"],

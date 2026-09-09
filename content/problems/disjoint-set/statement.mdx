@@ -69,7 +69,7 @@ $1 \le q \le 2 \times 10^5$，且所有编号都在 $1$ 到 $n$ 之间。同一�
 ```cpp title="dsu.cpp" showLineNumbers
 int find(int x) {
     while (fa[x] != x) {
-        fa[x] = fa[fa[x]];  // 路径压缩：顺手把父亲指向祖父
+        fa[x] = fa[fa[x]];  // 路径压缩：将父节点设为祖父节点
         x = fa[x];
     }
     return x;
@@ -88,7 +88,7 @@ void unite(int x, int y) {
 
 询问里的两个人可能是同一个人，这时应当输出 `Yes`。
 
-递归写法的 `find` 在退化成链的数据上会爆栈，上面用的是迭代写法。
+递归写法的 `find` 在退化成链的数据上可能导致栈溢出，上面用的是迭代写法。
 
 </Callout>
 

@@ -10,7 +10,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "kernel",
   title: "算子与 Kernel",
-  description: "访存、向量化、并行——把一段计算跑得更快，按相对基线的加速比计分。",
+  description: "访存、向量化与并行优化，按相对基线的加速比计分。",
 
   domain: "HPC & AI Infra",
   facets: ["difficulty", "tags"],

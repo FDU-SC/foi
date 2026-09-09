@@ -16,7 +16,7 @@ export async function ResetPasswordView({
       <AuthShell
         footer={
           <>
-            需要一封新的重置邮件？{" "}
+            重新获取重置邮件：{" "}
             <Link href="/forgot-password" className="hover:text-fg underline">
               重新申请
             </Link>
@@ -47,7 +47,7 @@ export async function ResetPasswordView({
       {session ? (
         <p className="text-warn bg-warn-subtle mb-4 rounded-md px-3 py-2 text-sm leading-6">
           你正以 <span className="font-mono">{session.username}</span>{" "}
-          登录。若这个链接就是这个账号的，设置新密码后当前会话会立即失效，需要重新登录。
+          登录。若重置的是当前账号的密码，重置后将立即退出登录。
         </p>
       ) : null}
       <ResetForm token={token} />

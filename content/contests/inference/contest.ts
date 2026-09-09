@@ -7,7 +7,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "inference",
   title: "推理与服务",
-  description: "吞吐、延迟、显存分页——把模型做成服务之后怎么稳、怎么快。",
+  description: "模型服务的吞吐、延迟、显存分页与稳定性。",
 
   domain: "HPC & AI Infra",
   facets: ["difficulty", "tags"],

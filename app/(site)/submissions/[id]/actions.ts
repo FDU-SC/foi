@@ -61,7 +61,7 @@ export async function rejudgeSubmissionAction(
   if (!decision.allow) return { error: decision.reason.message };
 
   if (row.state === "pending") {
-    return { error: "这条提交还没有评测完，不需要重判。" };
+    return { error: "提交尚未完成评测，暂不能重判。" };
   }
 
   const skipFilter = parsed.data.includeAccepted
@@ -89,14 +89,14 @@ export async function rejudgeSubmissionAction(
   if (result.skippedByFilter > 0) {
     return {
       error:
-        "这条提交已经通过，默认不重判。确实要覆盖它的结果，请勾选「连已通过的一起重判」。",
+        "该提交已通过。如需覆盖结果，请勾选「包含已通过的提交」。",
     };
   }
 
   if (result.requeued === 0) {
 
     revalidatePath(`/submissions/${parsed.data.id}`);
-    return { error: "这条提交的状态刚刚变了，没有改动任何东西，请刷新后再看。" };
+    return { error: "提交状态已变更，本次未作修改。请刷新页面。" };
   }
 
   revalidatePath(`/submissions/${parsed.data.id}`);

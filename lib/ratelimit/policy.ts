@@ -27,8 +27,8 @@ export type RouteRule = RateLimitRule & {
 
   /**
    * Replaces `SOURCE_GATE` for this route. The default bound assumes one call
-   * per page; a route a single page fetches many of needs its own number, and
-   * `why` is where that gets argued.
+   * per page; routes fetched repeatedly by one page need a separate bound.
+   * `why` documents the reason.
    */
   flood?: AlsoBound;
 };
@@ -42,9 +42,8 @@ export const ROUTE_LIMITS = {
       max: 60,
       windowSeconds: 60,
       why:
-        "按题计数是比赛自己的决定，管不住一个账号同时对每一道开放的题各花满一份预算——" +
-        "单个全局计数器原本挡的就是这种用法。这一条是内核压在下面的地板，" +
-        "定在任何真人都够不到的高度：它防的是一个被盗账号占满评测机，不是塑造玩法。",
+        "比赛的按题限流无法限制同一账号跨题提交的总量。" +
+        "内核另设全局上限，防止单个被盗账号占满评测机；比赛仍可设置更严格的按题限制。",
     },
     guard: "same-origin",
   },
@@ -73,14 +72,14 @@ export const ROUTE_LIMITS = {
 
   "GET /api/avatars/[uid]": {
     unlimited: true,
-    why: "公开的静态字节，没有账号可计数；URL 里的版本号让浏览器只取一次，量由 flood 兜住",
+    why: "公开静态资源，不按账号计数；带版本号的 URL 支持浏览器缓存，请求量由 flood 限制",
     guard: "read-only",
     flood: {
       max: 1200,
       windowSeconds: 60,
       why:
-        "SOURCE_GATE 的 300 是按「一页打一次」定的。一页排行榜就是上百张头像，" +
-        "沿用那个数字会让第二次刷新变成 429——挡住的是正常阅读，不是滥用",
+        "SOURCE_GATE 的 300 按每页一次请求设置，排行榜一页可能加载上百张头像；" +
+        "使用更高的头像请求上限，避免正常刷新触发 429",
     },
   },
 
@@ -102,13 +101,13 @@ export const ROUTE_LIMITS = {
   },
   "PUT /api/runner/jobs/[id]": {
     unlimited: true,
-    why: "同上；每次上报都要比对 lease，陈旧的持有者写不进任何东西",
+    why: "同上；每次上报都要比对 lease，lease 失效后无法写入",
     guard: "signed",
   },
 
   "GET /api/health": {
     unlimited: true,
-    why: "存活探针无账号可计数；仍会 select 1，由 SOURCE_GATE 兜底",
+    why: "存活探针不按账号计数；会执行 select 1，请求量由 SOURCE_GATE 限制",
     guard: "read-only",
   },
 
@@ -116,12 +115,12 @@ export const ROUTE_LIMITS = {
     unlimited: true,
     why:
       "唯一有代价的动作是登录尝试，由下面的 `login` 在 authorize 里按 uid 与来源双重计数；" +
-      "其余端点（signout、session 更新）只改 cookie 与解 JWT，不读库。量由 SOURCE_GATE 兜住",
+      "其余端点（signout、session 更新）只改 cookie 与解 JWT，不读库。请求量由 SOURCE_GATE 限制",
     guard: "framework",
   },
   "GET /api/auth/[...nextauth]": {
     unlimited: true,
-    why: "session / csrf / providers 只解 JWT 并回读仓库里的授予，不读库；量由 SOURCE_GATE 兜住",
+    why: "session / csrf / providers 只解 JWT 并回读仓库里的授予，不读库；请求量由 SOURCE_GATE 限制",
     guard: "read-only",
   },
 } as const satisfies Record<string, RouteRule>;
@@ -135,13 +134,13 @@ export const ACTION_LIMITS = {
       max: 40,
       windowSeconds: 300,
       why:
-        "按 uid 计数只看得见对着一个账号猜密码。把同一个弱密码撒向一百个账号的人，" +
-        "每个账号只试一次，那个计数器永远不会响",
+        "按 uid 限流无法阻止同一来源对一百个账号各尝试一次相同弱密码；" +
+        "额外按来源限制登录尝试总量",
     },
   },
   logout: {
     unlimited: true,
-    why: "只清 cookie，不写库不发信；限它反而会把人卡在登录态里",
+    why: "仅清除 cookie，不写库或发邮件；不限制退出登录",
   },
   sendVerificationLinkAction: { max: 10, windowSeconds: 3600 },
   registerAction: { max: 10, windowSeconds: 3600 },
@@ -188,7 +187,7 @@ export const ACTION_LIMITS = {
   },
   suspendAccountAction: {
     unlimited: true,
-    why: "写自己库里的一行，且策略拒绝带权限的目标；成本不外溢",
+    why: "仅更新本地数据库的一行，策略拒绝操作受保护账号，不调用外部服务",
   },
   reinstateAccountAction: {
     unlimited: true,

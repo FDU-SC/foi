@@ -22,7 +22,7 @@ export function RejudgeForm({ id }: { id: string }) {
           name="includeAccepted"
           className="accent-primary size-3.5"
         />
-        连已通过的一起重判
+        包含已通过的提交
       </label>
       <ActionResult state={state} />
     </form>

@@ -29,7 +29,7 @@ export function SendLinkForm({ invalidToken }: { invalidToken?: boolean }) {
 
   return (
     <div className="space-y-4">
-      <Field label="邮箱" hint="决定你所属的分组，请使用学校邮箱">
+      <Field label="邮箱" hint="用于验证身份和分配用户组">
         <Input
           type="email"
           autoComplete="email"
@@ -48,7 +48,7 @@ export function SendLinkForm({ invalidToken }: { invalidToken?: boolean }) {
 
       {sent ? (
         <FormMessage tone="ok">
-          验证链接已发送到你的邮箱，请查收并点击链接继续注册。没收到请先看看垃圾邮件。
+          验证链接已发送，请打开邮件中的链接继续注册。未收到时可检查垃圾邮件。
         </FormMessage>
       ) : null}
 

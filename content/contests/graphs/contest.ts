@@ -13,7 +13,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "graphs",
   title: "图论",
-  description: "最短路、连通性、支配关系——把问题画成点和边之后该怎么走。",
+  description: "最短路、连通性与支配关系。",
 
   domain: "算法与数据结构",
 

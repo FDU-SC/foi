@@ -78,7 +78,7 @@ async function main() {
 
   console.log(
     `\n已创建 ${SEED_ACCOUNTS.length} 个账号，密码统一为: ${password}` +
-      `\n用户组不在数据库中，全部由 content/enrollment/ 的规则现算：admin 被一条 uids 规则点名，其余三个按邮箱分流。`,
+      `\n用户组由 content/enrollment/ 的规则计算，不存入数据库：admin 按 uids 规则分配，其余三个账号按邮箱分组。`,
   );
   await pool.end();
 }

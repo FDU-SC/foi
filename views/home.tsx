@@ -195,7 +195,7 @@ function Domains({ viewer, now }: { viewer: Viewer; now: Date }) {
     groups.set("", ungrouped);
   }
   return (
-    <HomePanel title="探索题库" href="/problems" className="order-5">
+    <HomePanel title="题库分区" href="/problems" className="order-5">
       <div className="divide-y divide-border">
         {[...groups].map(([domain, contests]) => (
           <div key={domain} className="px-4 py-3">

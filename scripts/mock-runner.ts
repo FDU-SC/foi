@@ -217,7 +217,7 @@ async function serve(backendId: string): Promise<void> {
         });
       }
     } catch (error) {
-      console.error(`  领活循环 ${backendId} 出错`, error);
+      console.error(`  领取任务循环 ${backendId} 出错`, error);
     }
 
     await sleep(POLL_INTERVAL_MS);
@@ -407,7 +407,7 @@ function judgeInstanceFlag(job: JobDetails): Verdict {
     detail: {
       message: mine
         ? "flag 正确"
-        : "flag 不正确。每个实例的 flag 都不一样，请提交你自己那台靶机吐出的那一个。",
+        : "flag 不正确。每个实例的 flag 不同，请提交当前靶机实例生成的 flag。",
     },
   };
 }
@@ -1086,7 +1086,7 @@ server.listen(PORT, () => {
   console.log(`mock 评测机 ${RUNNER_ID}`);
   console.log(`  平台 ${KERNEL_URL}，服务队列 ${BACKEND_IDS.join("、")}`);
   console.log(
-    `  并发 ${CAPACITY}/队列，领活间隔 ${POLL_INTERVAL_MS}ms，心跳 ${HEARTBEAT_INTERVAL_MS}ms`,
+    `  并发 ${CAPACITY}/队列，领取任务间隔 ${POLL_INTERVAL_MS}ms，心跳 ${HEARTBEAT_INTERVAL_MS}ms`,
   );
   console.log(`  交互动作监听 :${PORT}（仅 leaky-bucket 需要）`);
   if (GO_SILENT) {

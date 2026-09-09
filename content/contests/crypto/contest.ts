@@ -7,7 +7,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "crypto",
   title: "Crypto",
-  description: "协议、原语、实现漏洞——密码学从哪一环开始松。",
+  description: "密码协议、密码原语与实现漏洞。",
 
   domain: "CTF",
   facets: ["difficulty", "tags"],

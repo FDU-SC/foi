@@ -25,7 +25,7 @@ export interface ActionState {
 function refused(denial: Denial): ActionState {
   const stale =
     denial.reason.code === "forbidden"
-      ? "——如果刚才还看得到这个按钮，多半是权限刚被收回，刷新页面即可。"
+      ? " 请刷新页面后重试。"
       : "";
   return { error: `${denial.reason.message}${stale}` };
 }
@@ -66,13 +66,13 @@ export async function resendPasswordResetAction(
   if (!user.email || !user.emailVerified) {
     return {
       error:
-        "该账号没有已验证的邮箱，无法发送重置邮件。请在服务器上直接设置密码。",
+        "该账号没有已验证的邮箱，无法发送重置邮件。",
     };
   }
 
   const fp = await getPasswordFingerprint(user.uid);
   if (!fp) {
-    return { error: "该账号没有设置密码，无法生成重置链接的 fingerprint。" };
+    return { error: "该账号尚未设置密码，无法发送重置链接。" };
   }
 
   try {
@@ -148,7 +148,7 @@ export async function reinstateAccountAction(
   if (target.status !== "suspended") {
     revalidatePath("/admin/accounts");
     return {
-      error: `${target.username} 当前并未被封禁，没有改动任何东西——这一行大概是在别人解封之前加载的。`,
+      error: `${target.username} 当前未被封禁，本次未作修改。请刷新页面。`,
     };
   }
 

@@ -7,7 +7,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "data-structures",
   title: "数据结构",
-  description: "并查集、树状数组、单调栈——用对的结构存住信息，查询才便宜。",
+  description: "并查集、树状数组与单调栈。",
 
   domain: "算法与数据结构",
   facets: ["difficulty", "tags"],

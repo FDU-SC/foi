@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getViewer } from "@/auth";
+import { ContestNav } from "@/components/contests/contest-nav";
+import { PageHeader, EmptyState, TableFrame } from "@/components/ui/page";
 import { Badge } from "@/components/ui/badge";
 import {
   contestFor,
   isContestProblemSetVisibleTo,
 } from "@/lib/contests/access";
-import { problemHref, standingsHref } from "@/lib/contests/catalogue";
+import { problemHref } from "@/lib/contests/catalogue";
 import { contestPhase, contestStatus } from "@/lib/contests/types";
 import { dateFormatter } from "@/lib/format";
 import { problemsFor } from "@/lib/problems/access";
@@ -47,78 +49,92 @@ export async function ContestDetailView({
   const problems = problemsFor(contest.slug, viewer, now).map(({ ref }) => ref);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <header className="border-border border-b pb-5">
-        <div className="mb-2 flex items-center gap-2">
-          <Badge tone={status.tone}>{status.label}</Badge>
-          <Badge>{ruleset?.name ?? primaryLb.ruleset.id}</Badge>
-        </div>
-        <h1 className="text-fg text-2xl font-bold tracking-tight">
-          {contest.title}
-        </h1>
-        {contest.description ? (
-          <p className="text-fg-muted mt-2 leading-7">{contest.description}</p>
-        ) : null}
-        <dl className="text-fg-subtle mt-3 flex flex-wrap gap-x-6 gap-y-1 font-mono text-xs">
-          <div>开始 {formatter.format(contest.startsAt)}</div>
-          <div>结束 {formatter.format(contest.endsAt)}</div>
-          {contest.freezeAt ? (
-            <div>封榜 {formatter.format(contest.freezeAt)}</div>
+    <div className="space-y-4">
+      <PageHeader
+        title={contest.title}
+        description={contest.description}
+        actions={<Badge tone={status.tone}>{status.label}</Badge>}
+      />
+      <ContestNav slug={contest.slug} />
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <aside className="oj-sidebar lg:col-start-2 lg:row-start-1">
+          <h2 className="mb-3 text-sm font-semibold">比赛信息</h2>
+          <dl className="grid-cols-2 lg:grid-cols-1">
+            <div>
+              <dt>开始时间</dt>
+              <dd>{formatter.format(contest.startsAt)}</dd>
+            </div>
+            <div>
+              <dt>结束时间</dt>
+              <dd>{formatter.format(contest.endsAt)}</dd>
+            </div>
+            {contest.freezeAt ? (
+              <div>
+                <dt>封榜时间</dt>
+                <dd>{formatter.format(contest.freezeAt)}</dd>
+              </div>
+            ) : null}
+            <div>
+              <dt>赛制</dt>
+              <dd>{ruleset?.name ?? primaryLb.ruleset.id}</dd>
+            </div>
+          </dl>
+          {ruleset ? (
+            <p className="text-fg-muted mt-3 border-t pt-3 text-xs leading-5">
+              {ruleset.description}
+            </p>
           ) : null}
-        </dl>
-        {ruleset ? (
-          <p className="text-fg-subtle mt-3 text-xs">{ruleset.description}</p>
-        ) : null}
-      </header>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-fg text-lg font-semibold">题目</h2>
-
-        {phase === "upcoming" && problemSetVisible ? (
-          <Badge tone="warn">预览 · 尚未对选手公开</Badge>
-        ) : null}
-        <Link
-          href={standingsHref(contest.slug)}
-          className="text-primary ml-auto text-sm hover:underline"
-        >
-          查看排行榜 →
-        </Link>
+        </aside>
+        <section className="min-w-0 space-y-3 lg:col-start-1 lg:row-start-1">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold">题目</h2>
+            {phase === "upcoming" && problemSetVisible ? (
+              <Badge tone="warn">预览 · 尚未对选手公开</Badge>
+            ) : null}
+          </div>
+          {!problemSetVisible ? (
+            <EmptyState>
+              {phase === "ended"
+                ? "这场比赛的题目不再公开。"
+                : `题目将在 ${formatter.format(contest.startsAt)} 开赛时公开。`}
+            </EmptyState>
+          ) : problems.length === 0 ? (
+            <EmptyState>这场比赛暂无题目。</EmptyState>
+          ) : (
+            <TableFrame>
+              <table>
+                <thead>
+                  <tr>
+                    <th className="w-24">题号</th>
+                    <th>题目</th>
+                    <th className="numeric">分值</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {problems.map(({ entry, problem }) => (
+                    <tr key={problem.slug}>
+                      <td className="text-fg-muted font-mono text-xs">
+                        {entry.label ?? problem.slug}
+                      </td>
+                      <td>
+                        <Link
+                          className="row-link"
+                          href={problemHref(contest.slug, problem.slug)}
+                        >
+                          {problem.title}
+                        </Link>
+                      </td>
+                      <td className="numeric font-mono text-xs">
+                        {entry.points ?? problem.maxScore}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableFrame>
+          )}
+        </section>
       </div>
-
-      {!problemSetVisible ? (
-        <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
-          {phase === "ended"
-            ? "这场比赛已经结束，它的题目不再公开。"
-            : `题目将在 ${formatter.format(contest.startsAt)} 开赛时公开。`}
-        </p>
-      ) : problems.length === 0 ? (
-        <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
-          这场比赛还没有添加题目。
-        </p>
-      ) : (
-        <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
-          {problems.map(({ entry, problem }) => (
-            <li key={problem.slug}>
-              <Link
-                href={problemHref(contest.slug, problem.slug)}
-                className="hover:bg-surface-2 flex items-center gap-3 px-4 py-3 transition-colors"
-              >
-                {entry.label ? (
-                  <span className="bg-surface-3 text-fg flex size-6 shrink-0 items-center justify-center rounded font-mono text-xs font-semibold">
-                    {entry.label}
-                  </span>
-                ) : null}
-                <span className="text-fg flex-1 truncate font-medium">
-                  {problem.title}
-                </span>
-                <span className="text-fg-subtle font-mono text-xs tabular-nums">
-                  {entry.points ?? problem.maxScore}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

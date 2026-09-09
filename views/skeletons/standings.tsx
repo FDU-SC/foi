@@ -5,6 +5,7 @@ export function StandingsSkeleton() {
   return (
     <SkeletonScreen label="正在加载排行榜" className="space-y-5">
       <Breadcrumb />
+      <Skeleton className="h-10 w-40" />
 
       <div className="flex flex-wrap items-center gap-3">
         <Skeleton className="h-8 w-24" />

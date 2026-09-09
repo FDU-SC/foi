@@ -18,6 +18,12 @@ type Slot<P = object> = (props: P) => ReactNode | Promise<ReactNode>;
  * rewriting is a `views.local/` override.
  */
 export interface SiteViews {
+  /** Optional home summary, mounted only when leaderboard.read is allowed. */
+  HomeLeaderboard?: Slot;
+
+  /** Body for a published site.announcements entry; absent uses its summary. */
+  AnnouncementBody?: Slot<{ slug: string }>;
+
   /** The top bar: brand, navigation, session controls. */
   Header?: Slot;
 

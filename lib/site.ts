@@ -24,7 +24,17 @@ export interface FooterConfig {
   links?: NavItem[];
 }
 
+export interface Announcement {
+  slug: string;
+  title: string;
+  summary: string;
+  /** ISO timestamp with an explicit timezone. */
+  publishedAt: string;
+  pinned?: boolean;
+}
+
 export interface SiteConfig {
+  announcements?: readonly Announcement[];
   name: string;
   title: string;
   description: string;

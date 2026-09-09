@@ -38,6 +38,7 @@ export function CodeInput() {
     <form onSubmit={onSubmit} className="space-y-3">
       <div className="flex items-center gap-2">
         <Select
+          aria-label="编程语言"
           value={language}
           onChange={(e) => setLanguage(e.target.value)}
           className="w-40"
@@ -50,6 +51,7 @@ export function CodeInput() {
         </Select>
       </div>
       <Textarea
+        aria-label="代码"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         rows={12}

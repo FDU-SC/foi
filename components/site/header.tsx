@@ -15,9 +15,9 @@ export async function DefaultHeader() {
   const viewer = viewerFor(user);
 
   return (
-    <header className="border-border/80 bg-bg/75 sticky top-0 z-40 border-b backdrop-blur-xl">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4">
-        <div className="shrink-0 text-base">
+    <header className="border-border/80 bg-bg/80 sticky top-0 z-40 border-b backdrop-blur-xl">
+      <div className="mx-auto flex min-h-14 max-w-[1280px] flex-wrap items-center gap-x-6 px-4 md:px-6">
+        <div className="flex h-14 shrink-0 items-center text-base">
           <Brand />
         </div>
 
@@ -30,17 +30,14 @@ export async function DefaultHeader() {
             .map(({ href, label }) => ({ href, label }))}
         />
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex h-14 shrink-0 items-center gap-2">
           <ThemeToggle />
           {user ? (
-            <UserMenu
-              user={user}
-              groupNames={user.groups.map(groupName)}
-            />
+            <UserMenu user={user} groupNames={user.groups.map(groupName)} />
           ) : (
             <Link
               href="/login"
-              className="bg-primary text-primary-fg hover:bg-primary-hover rounded-md px-3 py-1.5 text-sm font-medium shadow-[0_0_20px_-4px_var(--primary)] transition-[background-color,box-shadow,transform] duration-200 hover:shadow-[0_0_28px_-2px_var(--primary)] motion-safe:active:scale-[0.98]"
+              className="ui-primary bg-primary text-primary-fg hover:bg-primary-hover rounded-md px-3 py-1.5 text-sm font-medium transition-[background-color,box-shadow,transform] duration-200 motion-safe:active:scale-[0.98]"
             >
               登录
             </Link>

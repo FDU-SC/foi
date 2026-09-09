@@ -4,6 +4,7 @@ import { AS_PLAYER } from "@/test/auth-support";
 import { viewerFor } from "@/lib/authz/viewer";
 import { db } from "@/lib/db";
 import { accounts, contests, problems, submissions } from "@/lib/db/schema";
+import { homeSubmissions } from "@/lib/home";
 import { submissionFor, submissionsFor } from "./access";
 import { viewerWith } from "@/test/content-shapes";
 
@@ -160,6 +161,11 @@ describeDb("提交门禁", () => {
 
       const rows = await submissionsFor(otherViewer);
       expect(rows.every((r) => r.uid === OTHER_UID)).toBe(true);
+    });
+
+    it("主页即便有跨用户读取权限也只拿本人记录", async () => {
+      const rows = await homeSubmissions(viewerWith("submission.read", OWNER_UID));
+      expect(rows.map(row => row.uid)).toEqual([OWNER_UID]);
     });
 
     it("匿名视角拿不到任何提交", async () => {

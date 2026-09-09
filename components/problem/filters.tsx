@@ -50,10 +50,31 @@ export function ProblemFilters({
   searchPlaceholder: string;
   filtered: boolean;
 }) {
+  const selected = rows
+    .flatMap((row) =>
+      row.choices
+        .filter(
+          (choice) =>
+            row.selected.includes(choice.value) &&
+            choice.value !== row.fallback,
+        )
+        .map((choice) => `${row.label}：${choice.label}`),
+    )
+    .join(" · ");
+  const choicesFor = (row: FilterRow) =>
+    row.choices.map((choice) => (
+      <Chip
+        key={choice.value}
+        choice={choice}
+        active={row.selected.includes(choice.value)}
+        href={path + hrefFor(row, choice, params)}
+      />
+    ));
+
   return (
-    <div className="border-border bg-surface/70 space-y-3 rounded-xl border p-4 backdrop-blur-sm">
+    <div className="border-border bg-surface relative space-y-2 rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-3">
-        <form action={path} className="flex gap-2">
+        <form action={path} className="flex min-w-0 flex-1 gap-2 sm:max-w-sm">
           {carried(params, searchKey).map((field, index) => (
             <input
               key={index}
@@ -66,37 +87,53 @@ export function ProblemFilters({
             name={searchKey}
             defaultValue={searchValue}
             placeholder={searchPlaceholder}
-            className="h-9 w-64 py-0"
+            aria-label={searchPlaceholder}
+            className="h-9 min-w-0 flex-1 py-0"
             spellCheck={false}
           />
           <Button type="submit">搜索</Button>
         </form>
-
+        <div className="hidden flex-wrap gap-2 sm:flex">
+          {rows.map((row) => (
+            <details key={row.key} name="problem-filter">
+              <summary className="text-fg-muted hover:bg-surface-2 cursor-pointer rounded-md border px-3 py-2 text-xs">
+                {row.label}
+                {row.selected.length > 0 &&
+                !row.selected.includes(row.fallback ?? "")
+                  ? ` · ${row.selected.length}`
+                  : ""}
+              </summary>
+              <div className="border-border bg-surface absolute top-full left-3 z-20 mt-1 flex max-h-72 w-72 max-w-[calc(100%-1.5rem)] flex-wrap gap-2 overflow-y-auto rounded-lg border p-3 shadow-md">
+                {choicesFor(row)}
+              </div>
+            </details>
+          ))}
+        </div>
         {filtered ? (
           <Link
             href={path}
-            className="text-fg-subtle hover:text-fg text-xs underline underline-offset-2 transition-colors"
+            className="text-fg-muted text-xs underline underline-offset-2"
           >
             清除筛选
           </Link>
         ) : null}
       </div>
-
-      {rows.map((row) => (
-        <div key={row.key} className="flex flex-wrap items-center gap-1.5">
-          <span className="text-fg-muted w-10 shrink-0 text-xs font-medium">
-            {row.label}
-          </span>
-          {row.choices.map((choice) => (
-            <Chip
-              key={choice.value}
-              choice={choice}
-              active={row.selected.includes(choice.value)}
-              href={path + hrefFor(row, choice, params)}
-            />
+      {selected ? <p className="text-fg-muted text-xs">{selected}</p> : null}
+      <details className="sm:hidden">
+        <summary className="text-primary cursor-pointer py-1 text-xs font-medium">
+          筛选与排序{selected ? "" : " · 全部题目"}
+        </summary>
+        <div className="mt-2 space-y-3">
+          {rows.map((row) => (
+            <div key={row.key} className="flex flex-wrap items-center gap-1.5">
+              <span className="text-fg-muted w-10 shrink-0 text-xs font-medium">
+                {row.label}
+              </span>
+              {choicesFor(row)}
+            </div>
           ))}
         </div>
-      ))}
+      </details>
     </div>
   );
 }
@@ -123,11 +160,7 @@ function Chip({
   href: string;
 }) {
   return (
-    <Link
-      href={href}
-      aria-current={active || undefined}
-      className="rounded-md focus-visible:outline-none"
-    >
+    <Link href={href} aria-current={active || undefined} className="rounded-md">
       <Badge
         tone={active ? "primary" : "neutral"}
         className={cn(

@@ -1,3 +1,4 @@
+import { AdminNav } from "@/components/admin/admin-nav";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getViewer } from "@/auth";
@@ -21,11 +22,12 @@ export async function AdminOverviewView() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <AdminNav />
       <div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">管理</h1>
         <p className="text-fg-muted mt-2 text-sm leading-6">
-          查看平台运行概况。配置变更在仓库中完成，这里可以补发重置密码邮件和管理账号状态。
+          查看平台概况与账号状态。
         </p>
       </div>
 
@@ -61,7 +63,6 @@ export async function AdminOverviewView() {
       <Card>
         <CardHeader title="仓库与数据库一致性" />
         <CardBody className="space-y-3">
-
           {overview.findings.length === 0 ? (
             <p className="text-fg-muted text-sm leading-6">
               一切正常，未发现配置问题。
@@ -97,7 +98,8 @@ export async function AdminOverviewView() {
             <p className="text-fg-subtle text-xs leading-5">
               数据库中有{" "}
               <span className="font-mono">{overview.mirroredProblems}</span>{" "}
-              道题、<span className="font-mono">{overview.mirroredContests}</span>{" "}
+              道题、
+              <span className="font-mono">{overview.mirroredContests}</span>{" "}
               场比赛的提交记录，仓库共{" "}
               <span className="font-mono">{overview.problemCount}</span> 道题、
               <span className="font-mono">{overview.contestCount}</span>{" "}
@@ -137,7 +139,10 @@ export async function AdminOverviewView() {
         <CardHeader title="授权策略" />
         <CardBody className="space-y-3">
           <p className="text-fg-muted text-sm leading-6">
-            未被放行的操作一律拒绝，<strong className="text-fg font-medium">禁止</strong>规则优先于<strong className="text-fg font-medium">放行</strong>规则。「有条件」表示该策略还取决于资源本身的属性。
+            未被放行的操作一律拒绝，
+            <strong className="text-fg font-medium">禁止</strong>规则优先于
+            <strong className="text-fg font-medium">放行</strong>
+            规则。「有条件」表示该策略还取决于资源本身的属性。
           </p>
           <div className="border-border overflow-hidden rounded-md border">
             <table className="w-full text-sm">

@@ -1,3 +1,4 @@
+import { AdminNav } from "@/components/admin/admin-nav";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getViewer } from "@/auth";
@@ -13,7 +14,6 @@ import {
 import { contestStatus } from "@/lib/contests/types";
 import { dateFormatter } from "@/lib/format";
 import { rulesetFor } from "@/lib/standings/registry";
-
 
 const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
@@ -32,7 +32,6 @@ function participantsLabel(
 }
 
 export async function AdminContestsView() {
-
   const rows = await adminContestsFor(await getViewer());
   if (!rows) notFound();
 
@@ -42,7 +41,8 @@ export async function AdminContestsView() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <AdminNav />
       <nav className="text-fg-subtle text-xs">
         <Link href="/admin" className="hover:text-fg transition-colors">
           管理
@@ -59,7 +59,7 @@ export async function AdminContestsView() {
       </div>
 
       {all.length === 0 ? (
-        <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
+        <p className="text-fg-muted border-border bg-surface rounded-lg border py-10 text-center text-sm">
           还没有比赛。
         </p>
       ) : (
@@ -138,7 +138,6 @@ export async function AdminContestsView() {
                     ))}
                   </ul>
                 )}
-
               </CardBody>
             </Card>
           );

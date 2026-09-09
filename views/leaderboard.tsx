@@ -25,11 +25,11 @@ export async function LeaderboardView() {
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
-          还没有人提交过——来当第一个吧。
+        <p className="text-fg-subtle border-border rounded-lg border bg-surface py-10 text-center text-sm">
+          还没有提交记录。
         </p>
       ) : (
-        <div className="border-border overflow-hidden rounded-lg border">
+        <div className="oj-table-frame">
           <table className="w-full text-sm">
             <thead className="bg-surface-2">
               <tr className="text-fg-muted text-xs">
@@ -56,18 +56,25 @@ export async function LeaderboardView() {
                 return (
                   <tr
                     key={row.uid}
-                    className={cn("hover:bg-surface-2/60", isMe && "bg-primary/5")}
+                    className={cn(
+                      "hover:bg-surface-2/60",
+                      isMe && "bg-primary/5",
+                    )}
                   >
                     <td className="text-fg-muted px-4 py-2.5 font-mono text-xs">
                       {index + 1}
                     </td>
                     <td className="px-4 py-2.5">
-                      <span className="text-fg font-medium">{row.nickname}</span>
+                      <span className="text-fg font-medium">
+                        {row.nickname}
+                      </span>
                       <span className="text-fg-subtle ml-1.5 font-mono text-xs">
                         @{row.username}
                       </span>
                       {isMe ? (
-                        <span className="text-fg-muted ml-1.5 text-xs">（我）</span>
+                        <span className="text-fg-muted ml-1.5 text-xs">
+                          （我）
+                        </span>
                       ) : null}
                     </td>
                     <td className="text-fg px-4 py-2.5 text-right font-mono tabular-nums">

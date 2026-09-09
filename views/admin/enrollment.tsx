@@ -1,3 +1,4 @@
+import { AdminNav } from "@/components/admin/admin-nav";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +24,8 @@ export async function AdminEnrollmentView() {
   } = view;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <AdminNav />
       <nav className="text-fg-subtle text-xs">
         <Link href="/admin" className="hover:text-fg transition-colors">
           管理
@@ -35,7 +37,7 @@ export async function AdminEnrollmentView() {
       <div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">分流规则</h1>
         <p className="text-fg-muted mt-2 text-sm leading-6">
-          分流规则决定注册用户所属的用户组。修改在仓库中完成，部署后即时生效。
+          查看注册规则与用户分组。
         </p>
       </div>
 
@@ -53,9 +55,7 @@ export async function AdminEnrollmentView() {
             </div>
             <div className="flex justify-between gap-2">
               <dt className="text-fg-muted">验证链接有效期</dt>
-              <dd className="text-fg font-mono text-xs">
-                30 分钟
-              </dd>
+              <dd className="text-fg font-mono text-xs">30 分钟</dd>
             </div>
           </dl>
           <div className="border-border mt-3 border-t pt-3">
@@ -79,7 +79,8 @@ export async function AdminEnrollmentView() {
         <CardHeader title="分流规则" />
         <CardBody className="space-y-3">
           <p className="text-fg-muted text-sm leading-6">
-            按邮箱匹配的规则可以批量分组，但不能分配带权限的组。按 uid 指定的规则可以分配任何组。
+            按邮箱匹配的规则可以批量分组，但不能分配带权限的组。按 uid
+            指定的规则可以分配任何组。
           </p>
           {rules.length === 0 ? (
             <p className="text-fg-muted text-sm leading-6">
@@ -127,7 +128,9 @@ export async function AdminEnrollmentView() {
                             {rule.groups.map((id) => (
                               <Badge
                                 key={id}
-                                tone={isPrivilegedGroup(id) ? "primary" : "neutral"}
+                                tone={
+                                  isPrivilegedGroup(id) ? "primary" : "neutral"
+                                }
                               >
                                 {groupName(id)}
                               </Badge>
@@ -207,7 +210,6 @@ export async function AdminEnrollmentView() {
           </p>
         </CardBody>
       </Card>
-
     </div>
   );
 }

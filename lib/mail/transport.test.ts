@@ -42,7 +42,7 @@ describe("未配置中继时", () => {
 });
 
 describe("配置了中继时强制 STARTTLS", () => {
-  it("587 上要求升级，而不是有就用、没有就算了", () => {
+  it("端口 587 强制升级为 TLS", () => {
     withEnv({ FOI_SMTP_HOST: "smtp.example.com" });
 
     expect(relayOptions()).toMatchObject({ secure: false, requireTLS: true });
@@ -82,13 +82,13 @@ describe("配置了中继时强制 STARTTLS", () => {
 });
 
 describe("没有明文豁免", () => {
-  it("本机地址不再是例外，照样要求升级", () => {
+  it("本机地址同样要求升级为 TLS", () => {
     withEnv({ FOI_SMTP_HOST: "localhost", FOI_SMTP_PORT: "1025" });
 
     expect(relayOptions()).toMatchObject({ requireTLS: true });
   });
 
-  it("那个变量已经不参与判断了", () => {
+  it("FOI_SMTP_ALLOW_INSECURE 不参与传输选项判断", () => {
     for (const value of ["true", "1", "TRUE", "false", ""]) {
       vi.unstubAllEnvs();
       withEnv({ FOI_SMTP_HOST: "localhost" });
@@ -117,14 +117,14 @@ describe("declaredDelivery", () => {
 });
 
 describe("邮件投递策略", () => {
-  it("FOI_MAIL_DELIVERY=console 时什么都不报", () => {
+  it("FOI_MAIL_DELIVERY=console 时无配置警告", () => {
     withEnv({ FOI_MAIL_DELIVERY: "console" });
     atTier("prod");
 
     expect(mailDeliveryComplaints()).toEqual([]);
   });
 
-  it("smtp 且配了中继就真的投递", () => {
+  it("smtp 且配置中继时使用 SMTP 投递", () => {
     withEnv({ FOI_SMTP_HOST: "smtp.example.com" });
     atTier("prod");
 

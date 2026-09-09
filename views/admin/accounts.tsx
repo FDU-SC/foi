@@ -120,8 +120,8 @@ export async function AdminAccountsView({
           <Input
             name="q"
             defaultValue={query}
-            placeholder="按用户名、显示名、邮箱或标签筛选"
-            aria-label="按用户名、显示名、邮箱或标签筛选"
+            placeholder="按用户名、昵称、邮箱或标签筛选"
+            aria-label="按用户名、昵称、邮箱或标签筛选"
             className="w-64 max-w-full"
             spellCheck={false}
           />
@@ -147,7 +147,7 @@ export async function AdminAccountsView({
                 用户名
               </th>
               <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
-                显示名
+                昵称
               </th>
               <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
                 邮箱
@@ -156,7 +156,7 @@ export async function AdminAccountsView({
                 状态
               </th>
               <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
-                用户组（派生）
+                用户组
               </th>
               <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
                 凭据

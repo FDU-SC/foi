@@ -3,7 +3,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "demo-acm",
   title: "演示赛 · ACM 赛制",
-  description: "用于演示排行榜与赛制渲染的示例比赛。",
+  description: "ACM 赛制与排行榜演示。",
 
   leaderboards: [
     {

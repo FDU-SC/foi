@@ -55,7 +55,7 @@ describe("facetsFor", () => {
     }
   });
 
-  it("只交出比赛点名的那几维，比赛没点名的一概不露", () => {
+  it("仅返回比赛指定的维度", () => {
     const one = OFFERED[0];
 
     for (const config of catalogue) {
@@ -66,7 +66,7 @@ describe("facetsFor", () => {
     }
   });
 
-  it("按比赛点名的先后排，而不是按题目声明的先后", () => {
+  it("按比赛指定的先后排，而不是按题目声明的先后", () => {
     const carrier = catalogue.find(
       (config) => facetsFor(config, OFFERED).length > 1,
     );
@@ -99,11 +99,11 @@ describe("facetsFor", () => {
 });
 
 describe("collectFacets", () => {
-  it("比赛什么都没点名时一行都不给", () => {
+  it("比赛未指定维度时返回空列表", () => {
     expect(collectFacets(catalogue, [])).toEqual([]);
   });
 
-  it("维度按比赛点名的先后排列", () => {
+  it("维度按比赛指定的先后排列", () => {
     const shown = new Set(groups.map((group) => group.key));
     expect(groups.map((group) => group.key)).toEqual(
       OFFERED.filter((key) => shown.has(key)),
@@ -112,14 +112,14 @@ describe("collectFacets", () => {
     const reversed = [...OFFERED].reverse();
     expect(
       collectFacets(catalogue, reversed).map((group) => group.key),
-      "反过来点名，行的顺序没跟着反过来",
+      "反过来指定，行的顺序没跟着反过来",
     ).toEqual(reversed.filter((key) => shown.has(key)));
   });
 
   it("谁都没有取值的维度不出现，否则筛选栏上是一行空标题", () => {
     expect(
       OFFERED.length - groups.length,
-      "夹具点名的维度全都有题占着，「空的那一维不出现」就没被验证",
+      "夹具缺少无题目取值的维度，无法验证空维度过滤",
     ).toBeGreaterThan(0);
 
     for (const group of groups) {
@@ -279,7 +279,7 @@ describe("matchesFacets", () => {
     }
   });
 
-  it("比赛没点名的维度谁也匹配不上，即使题目在它上面有取值", () => {
+  it("比赛没指定的维度谁也匹配不上，即使题目在它上面有取值", () => {
     const dropped = OFFERED.find((key) => key !== groups[0].key)!;
     const value = appearanceIn(dropped)[0];
     expect(value, "夹具里没有第二个有取值的维度").toBeDefined();

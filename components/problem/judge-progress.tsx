@@ -16,12 +16,8 @@ const REACHED: Record<SubmissionState, number> = {
 };
 
 /**
- * Where a submission is between arriving and being answered.
- *
- * A verdict badge says what a submission *is*; this says how much of the wait
- * is left, which is the question someone staring at "评测中" actually has. The
- * stage in progress breathes rather than filling, because nothing here knows
- * how long it will take.
+ * Shows the submission's current stage. The active stage pulses rather than
+ * displaying a percentage because the remaining duration is unknown.
  */
 export function JudgeProgress({
   state,

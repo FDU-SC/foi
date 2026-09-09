@@ -23,7 +23,7 @@ function participantsLabel(
 ): string {
   switch (mode) {
     case "open":
-      return "开放（谁提交谁上榜）";
+      return "开放参赛";
     case "group":
       return `按用户组，${resolved} 人`;
     case "list":
@@ -54,7 +54,7 @@ export async function AdminContestsView() {
       <div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">比赛</h1>
         <p className="text-fg-muted mt-2 text-sm leading-6">
-          所有比赛及其配置概览。修改在仓库中完成。
+          查看比赛配置。
         </p>
       </div>
 

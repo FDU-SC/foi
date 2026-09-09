@@ -7,7 +7,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "divide-and-conquer",
   title: "递归与分治",
-  description: "把问题拆成同样形状的小问题，答案藏在拆开的那一刀上。",
+  description: "将问题分解为同类子问题，合并子问题的解。",
 
   domain: "算法与数据结构",
   facets: ["difficulty", "tags"],

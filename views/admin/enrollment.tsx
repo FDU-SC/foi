@@ -79,12 +79,11 @@ export async function AdminEnrollmentView() {
         <CardHeader title="分流规则" />
         <CardBody className="space-y-3">
           <p className="text-fg-muted text-sm leading-6">
-            按邮箱匹配的规则可以批量分组，但不能分配带权限的组。按 uid
-            指定的规则可以分配任何组。
+            邮箱规则不能分配特权组；按用户编号指定的规则可以分配任何组。
           </p>
           {rules.length === 0 ? (
             <p className="text-fg-muted text-sm leading-6">
-              还没有任何规则，注册用户不会进入任何用户组，按组划定参赛范围的比赛将没有参赛者。
+              暂无分流规则，注册用户尚未分组。
             </p>
           ) : (
             <div className="border-border overflow-hidden rounded-md border">
@@ -169,7 +168,7 @@ export async function AdminEnrollmentView() {
           {untagged !== null && untagged > 0 ? (
             <p className="text-warn text-xs leading-5">
               有 <span className="font-mono">{untagged}</span>{" "}
-              个账号的邮箱不匹配任何规则，他们进不了受用户组限制的比赛。
+              个账号的邮箱未匹配分流规则，无法参加限定用户组的比赛。
             </p>
           ) : null}
         </CardBody>

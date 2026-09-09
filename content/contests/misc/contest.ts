@@ -6,7 +6,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "misc",
   title: "Misc",
-  description: "编码、取证、奇怪的题——其余都放这里。",
+  description: "编码、取证及其他杂项题目。",
 
   domain: "CTF",
   facets: ["difficulty", "tags"],

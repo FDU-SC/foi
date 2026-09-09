@@ -92,11 +92,11 @@ describe("这套 content 的策略集", () => {
     ).toEqual([]);
   });
 
-  it("有用户组被策略点名，否则运维台无人可进", () => {
+  it("有用户组被策略指定，否则运维台无人可进", () => {
     expect(privilegedGroups().size).toBeGreaterThan(0);
   });
 
-  it("被点名的组都在 content/enrollment/ 里声明过", () => {
+  it("被指定的组都在 content/enrollment/ 里声明过", () => {
     const declared = new Set(listGroups().map((group) => group.id));
     for (const id of privilegedGroups()) {
       expect(

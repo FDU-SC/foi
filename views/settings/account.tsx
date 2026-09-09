@@ -28,7 +28,7 @@ function usernameHint(changedAt: Date | null): string {
   const availableAt = usernameChangeAvailableAt(changedAt);
 
   if (availableAt && availableAt.getTime() > Date.now()) {
-    return `已在冷却中，${formatMoment(availableAt)} 之后才能再次修改。`;
+    return `可在 ${formatMoment(availableAt)} 之后再次修改。`;
   }
 
   return `登录时使用，只能包含字母、数字、下划线和连字符。每 ${USERNAME_CHANGE_COOLDOWN_DAYS} 天只能修改一次。`;
@@ -61,7 +61,7 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
       <div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">个人设置</h1>
         <p className="text-fg-muted mt-2 text-sm leading-6">
-          管理你的账号资料与登录凭据。
+          修改个人资料、邮箱和密码。
         </p>
       </div>
 

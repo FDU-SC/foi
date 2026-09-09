@@ -35,17 +35,17 @@ interface ActionSpec {
 export const ACTIONS = {
   "problem.read": {
     resource: "problem",
-    describe: "打开一场比赛题单里某一道题的题面",
+    describe: "查看比赛中的题面",
     denial: { code: "not-found", message: "题目不存在" },
   },
   "problem.submit": {
     resource: "problem",
-    describe: "向一场比赛题单里的某一道题提交答案",
+    describe: "向比赛中的题目提交答案",
     denial: { code: "not-open", message: "这道题现在不接受提交" },
   },
   "problem.invoke": {
     resource: "problem",
-    describe: "调用一场比赛题单里某一道题的交互动作",
+    describe: "执行比赛中题目的交互操作",
     denial: { code: "not-open", message: "这道题现在不接受交互" },
   },
 
@@ -61,7 +61,7 @@ export const ACTIONS = {
   },
   "contest.readProblemSet": {
     resource: "contest",
-    describe: "看到题目清单：几道题、叫什么、各值多少分",
+    describe: "查看题目清单、名称和分值",
     denial: { code: "not-available", message: "现在看不到这场比赛的题目" },
   },
 
@@ -72,7 +72,7 @@ export const ACTIONS = {
   },
   "standings.readUnfrozen": {
     resource: "contest",
-    describe: "封榜期间看到真实排名，而不是冻结后的那一份",
+    describe: "封榜期间查看实时排名",
     denial: { code: "frozen", message: "封榜期间不展示实时结果" },
   },
 
@@ -84,7 +84,7 @@ export const ACTIONS = {
   },
   "submission.rejudge": {
     resource: "submission",
-    describe: "把一条已终结的提交放回评测队列",
+    describe: "将已结束评测的提交重新排队",
     denial: { code: "forbidden", message: "没有重新评测的权限" },
   },
 
@@ -131,7 +131,7 @@ export const ACTIONS = {
   },
   "account.sendPasswordReset": {
     resource: "account",
-    describe: "让一个账号收到找回密码的邮件",
+    describe: "向账号发送密码重置邮件",
     denial: { code: "forbidden", message: "这个账号不能接收找回密码的邮件" },
   },
   "account.resetPassword": {
@@ -163,7 +163,7 @@ export const ACTIONS = {
 
   "backend.read": {
     resource: "backend",
-    describe: "知道一台题目后端存在",
+    describe: "查看评测后端列表",
     denial: { code: "not-found", message: "题目后端不存在" },
   },
   "backend.inspect": {

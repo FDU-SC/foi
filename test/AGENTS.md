@@ -5,8 +5,7 @@ this directory; its edits go in the slots.
 
 ## Four Projects, Two Content Sets
 
-`vitest.config.mts` declares four projects, and which content they see is the
-whole point of the split:
+`vitest.config.mts` declares four projects, with separate content resolution:
 
 | Project | Includes | Subject | Resolves `@/content/*` to |
 |---|---|---|---|
@@ -65,7 +64,7 @@ runtime. Every helper throws a named error when the shape is missing, so a gap
 in the fixture reads as "the fixture lacks X" rather than as an unrelated
 assertion failure.
 
-Two guards in `test/fixtures/content/fixture.test.ts` keep this honest: one
+Two guards in `test/fixtures/content/fixture.test.ts` enforce this boundary: one
 asserts the redirect is live, the other fails if any test outside `content/` —
 including one under `scripts/` — imports `content/` directly.
 
@@ -78,7 +77,7 @@ local-first, that `app/` holds nothing but route shells, and that no file in
 `test/fixtures/content/` is a complete, minimal content set: four problems,
 seven contests, one ruleset, one policy file, four groups.
 
-Its shapes are load-bearing. The contests cover every situation a problem can be
+The fixture shapes are required by the tests. The contests cover every situation a problem can be
 in — one limits entry to a group and overrides a rate limit, one runs whatever
 the clock says so route tests can reach it, one is visible to nobody, one has
 not started, and three have ended one way each: readable and closed, readable

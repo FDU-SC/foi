@@ -29,12 +29,9 @@ const participantsSchema = z
   .default({ mode: "open" });
 
 /**
- * What the contest leaves open once `endsAt` has passed.
- *
- * A problem is reachable only through a contest, so this is the whole of a
- * problem's afterlife: a round that seals itself takes its problems with it,
- * and one that keeps collecting is a practice area whose leaderboard still
- * covers the official window alone.
+ * Problem access after `endsAt`. Problems are reachable only through contests:
+ * sealing a contest closes its problem statements, while allowing submissions
+ * enables practice without extending the official leaderboard window.
  */
 const afterEndSchema = z
   .object({
@@ -77,9 +74,8 @@ export const contestConfigSchema = z
      * Which of a problem's dimensions this contest's pages offer.
      *
      * Names keys out of `ProblemViews.facets`; the platform collects the values
-     * and matches the strings without learning what a key means. Empty — the
-     * default — draws no filter bar and no problem badges, so a round does not
-     * give away tags or difficulty unless it says to.
+     * and matches opaque strings. The default empty list hides the filter bar
+     * and problem badges, preventing disclosure of undeclared dimensions.
      */
     facets: z.array(z.string()).default([]),
 
@@ -180,7 +176,7 @@ export type ContestClock = Pick<
 >;
 
 /**
- * The clock plus what the contest declared about its own afterlife.
+ * The contest clock and its post-contest access rules.
  *
  * Not `ContestWindow` — `lib/standings/types.ts` already owns that name for the
  * `startsAt`..`endsAt` pair a ruleset scores, and the two must not be confused:

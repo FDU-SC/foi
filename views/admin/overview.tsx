@@ -65,7 +65,7 @@ export async function AdminOverviewView() {
         <CardBody className="space-y-3">
           {overview.findings.length === 0 ? (
             <p className="text-fg-muted text-sm leading-6">
-              一切正常，未发现配置问题。
+              未发现配置问题。
             </p>
           ) : (
             <ul className="space-y-3">
@@ -113,7 +113,7 @@ export async function AdminOverviewView() {
         <CardHeader title="用户组" />
         <CardBody className="space-y-3">
           <p className="text-fg-muted text-sm leading-6">
-            用户组由分流规则自动分配，组能做什么由下方的授权策略决定。
+            用户组由分流规则分配，权限由授权策略决定。
           </p>
           <ul className="space-y-2">
             {listGroups().map((group) => (
@@ -170,7 +170,7 @@ export async function AdminOverviewView() {
                     <td className="px-3 py-2">
                       {entry.policies.length === 0 ? (
                         <span className="text-fg-subtle text-xs">
-                          没有任何策略，对所有人拒绝
+                          未配置策略，所有人均无权操作
                         </span>
                       ) : (
                         <ul className="space-y-1.5">
@@ -228,9 +228,6 @@ export async function AdminOverviewView() {
               </p>
             </div>
           ))}
-          <p className="text-fg-subtle border-border border-t pt-3 text-xs leading-5">
-            赛制在仓库中定义，修改后重新部署即可生效。
-          </p>
         </CardBody>
       </Card>
     </div>

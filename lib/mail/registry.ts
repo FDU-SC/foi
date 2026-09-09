@@ -61,8 +61,8 @@ const FALLBACK: EmailTemplates = {
       `${input.displayName}，你好：`,
       `你的${what}已于 ${formatAt(input.changedAt)} 变更。`,
       ...(input.detail ? [input.detail] : []),
-      "如果这是你本人操作，无需理会这封邮件。",
-      "如果不是，请立即打开下面的地址重置密码，并联系管理员。",
+      "若为本人操作，无需处理此邮件。",
+      "若非本人操作，请立即打开以下地址重置密码，并联系管理员。",
       input.recoverUrl,
     ]);
   },

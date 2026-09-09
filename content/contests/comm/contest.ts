@@ -8,7 +8,7 @@ export const contest = {
   slug: "comm",
   title: "分布式与通信",
   description:
-    "集合通信、并行切分、计算与通信 overlap——多进程之间怎么把数据搬走。",
+    "集合通信、并行切分与计算通信重叠。",
 
   domain: "HPC & AI Infra",
   facets: ["difficulty", "tags"],

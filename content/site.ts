@@ -7,10 +7,10 @@ export const site: SiteConfig = {
   lang: "zh-CN",
   timezone: "Asia/Shanghai",
 
-  tagline: "练手、比赛、看排名，都在这里。",
+  tagline: "在线练习与竞赛",
 
-  // 题库就是这几场比赛：窗口长期开着，因此它们的题目挂在 /problems 而不是
-  // /contests 下。顺序即卡片顺序，分组标题取自各自的 domain。
+  // 这些长期开放的比赛作为题库分区，使用 /problems 路径。
+  // 顺序即卡片顺序，分组标题取自各自的 domain。
   catalogue: [
     "puzzles",
     "kernel",
@@ -48,12 +48,12 @@ export const site: SiteConfig = {
     {
       href: "/problems",
       title: "题库",
-      description: "按方向分区的长期题单，随时提交、随时上榜。",
+      description: "按方向分类的练习题单。",
     },
     {
       href: "/contests",
       title: "比赛",
-      description: "进行中的、即将开始的、已经结束的比赛。",
+      description: "查看赛程与历届比赛。",
     },
     {
       href: "/submissions",

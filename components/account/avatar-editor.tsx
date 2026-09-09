@@ -83,7 +83,7 @@ export function AvatarEditor({
       // setup/cleanup/setup that StrictMode puts every effect through.
       setPicked(await createImageBitmap(file));
     } catch {
-      setProblem("这张图片读不出来，换一张试试。");
+      setProblem("无法读取图片，请选择其他图片。");
     }
   }
 
@@ -134,7 +134,7 @@ export function AvatarEditor({
         {withControls ? (
           <div className="min-w-0 space-y-2">
             <p className="text-fg-muted text-sm leading-6">
-              点击头像挑一张图片，裁好后会存成{" "}
+              点击头像选择图片，裁剪后保存为{" "}
               {AVATAR_LIMITS.edge}×{AVATAR_LIMITS.edge} 的 WebP。
             </p>
             {current.avatarUpdatedAt ? (

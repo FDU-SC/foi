@@ -138,7 +138,7 @@ export function InstanceControl() {
         ) : pulling ? (
           <>
             <span className="text-fg-muted text-xs">
-              正在拉取镜像并启动容器，地址就绪后会出现在这里……
+              实例正在启动，就绪后显示访问地址。
             </span>
             <Button size="sm" variant="danger" onClick={destroy} disabled={busy}>
               取消

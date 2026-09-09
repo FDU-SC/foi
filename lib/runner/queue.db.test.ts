@@ -92,7 +92,7 @@ async function cleanup(): Promise<void> {
   await db.delete(runners).where(eq(runners.backendId, BACKEND));
 }
 
-describeDb("runner 领活与上报", () => {
+describeDb("runner 领取任务与上报", () => {
   beforeAll(async () => {
     await cleanup();
 
@@ -114,9 +114,9 @@ describeDb("runner 领活与上报", () => {
 
   afterAll(cleanup);
 
-  describe("领活", () => {
+  describe("领取任务", () => {
 
-    it("多个 runner 同时领活时，一条提交只会发给一个人", async () => {
+    it("多个 runner 同时领取任务时，一条提交只会分配给一个 runner", async () => {
       const ids = ["sub_rq_race_1", "sub_rq_race_2", "sub_rq_race_3"];
       const base = Date.now() - 60_000;
       for (const [index, id] of ids.entries()) {

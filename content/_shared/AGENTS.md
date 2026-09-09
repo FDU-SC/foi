@@ -1,6 +1,6 @@
 # _shared/ — Reusable Template Library
 
-This directory contains **composable building blocks** for problems, contests, and rulesets. These are NOT platform defaults—they are a menu of common implementations that content authors pick from.
+This directory contains **composable building blocks** for problems, contests, and rulesets. Content authors choose these implementations explicitly; they are not platform defaults.
 
 If nothing here fits, write your own component in the problem/contest directory.
 
@@ -74,7 +74,7 @@ Each problem's `views.tsx` picks view templates for displaying submissions:
 
 `facets` and `Badges` are two ends of one mechanism. The platform asks `facets`
 what dimensions a problem holds, keeps the ones the carrying contest named in
-its own `facets`, and hands the survivors to `Badges`. So a dimension a contest
+its own `facets`, and passes the selected facets to `Badges`. So a dimension a contest
 withholds disappears from the chips and the badges together, and `Badges`
 renders what it is given rather than reaching back into `ui`.
 

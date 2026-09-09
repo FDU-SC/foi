@@ -23,6 +23,7 @@ export function FlagInput() {
   return (
     <form onSubmit={onSubmit} className="space-y-3">
       <Input
+        aria-label="Flag"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         spellCheck={false}

@@ -80,8 +80,12 @@ body::before {
     linear-gradient(var(--border) 1px, transparent 1px),
     linear-gradient(90deg, var(--border) 1px, transparent 1px);
   background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 80% 60% at 50% -10%, black 10%, transparent 70%);
-  opacity: 0.45;
+  mask-image: radial-gradient(
+    ellipse 80% 60% at 50% -10%,
+    black 10%,
+    transparent 70%
+  );
+  opacity: 0.24;
 }
 
 .foi-orb {
@@ -209,24 +213,23 @@ body::before {
 /*
  * The 玩具箱 section card on the catalogue index.
  *
- * Keyed on the link the card carries rather than on where the card sits:
+ * Keyed on the section link rather than the item's position:
  * `site.catalogue` decides the order, so a positional selector drifts with it.
  * Should the card markup change, this rule stops matching and that card falls
  * back to the plain style instead of landing on someone else's.
  */
-article:has(> a[href="/problems/puzzles"]) {
+.catalogue-section:has(a[href="/problems/puzzles"]) {
   position: relative;
 
-  /* Yield the 1px border ring — the gradient below is painted across it. */
+  /* The decorative ring follows the compact section item. */
   border-color: transparent;
 
   &::before {
     content: "";
     position: absolute;
 
-    /* The containing block is the padding box, so reach 1px outward to cover
-       the border ring. */
-    inset: -1px;
+    /* Keep the ring inside the item without changing its layout. */
+    inset: 0;
     border-radius: inherit;
     padding: 1px;
 
@@ -259,7 +262,7 @@ article:has(> a[href="/problems/puzzles"]) {
       0 8px 30px -22px oklch(70% 0.19 25 / 0.7);
   }
 
-  & h3 {
+  & .catalogue-title {
     /* Length of one colour cycle along the 102° axis. Wider than the title, so
        the visible window never holds a whole cycle and the sweep reads as
        travel rather than as a fixed rainbow. */
@@ -336,15 +339,78 @@ article:has(> a[href="/problems/puzzles"]) {
 
   /* Stopped, but stopped somewhere with colour in it rather than at the start
      of a turn. */
-  article:has(> a[href="/problems/puzzles"]) {
+  .catalogue-section:has(a[href="/problems/puzzles"]) {
     &::before {
       --toybox-spin: 45deg;
       animation: none;
     }
 
-    & h3 {
+    & .catalogue-title {
       --toybox-pan: 0.12;
       animation: none;
     }
   }
+}
+
+/* Home atmosphere stays within its own box on small screens. */
+.foi-home-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, var(--primary) 16%, var(--border));
+  border-radius: 1rem;
+  background: color-mix(in oklch, var(--surface) 72%, transparent);
+  box-shadow: 0 12px 40px -30px var(--primary);
+}
+.foi-home-hero .foi-orb {
+  z-index: -1;
+}
+.foi-home-hero::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 18rem;
+  aspect-ratio: 1;
+  right: 6%;
+  top: -5rem;
+  border: 1px solid color-mix(in oklch, var(--primary) 12%, transparent);
+  border-radius: 3rem;
+  transform: rotate(35deg);
+  box-shadow: 0 0 0 3rem color-mix(in oklch, var(--primary) 3%, transparent);
+  pointer-events: none;
+}
+
+@keyframes aurora-drift {
+  0%,
+  100% {
+    transform: translate(-6%, -4%) scale(1);
+  }
+  50% {
+    transform: translate(8%, 6%) scale(1.08);
+  }
+}
+
+/* A quiet schedule, with a stronger visual anchor for the current round. */
+.contest-date {
+  background: linear-gradient(
+    155deg,
+    color-mix(in oklch, var(--primary) 8%, var(--surface)),
+    var(--surface)
+  );
+}
+.contest-featured {
+  background:
+    radial-gradient(
+      ellipse at top right,
+      color-mix(in oklch, var(--primary) 12%, transparent),
+      transparent 65%
+    ),
+    var(--surface);
+  box-shadow: 0 10px 36px -28px var(--primary);
+}
+.contest-featured[data-phase="running"] {
+  border-left-color: var(--ok);
+}
+.contest-featured[data-phase="frozen"] {
+  border-left-color: var(--warn);
 }

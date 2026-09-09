@@ -11,6 +11,7 @@ import {
   catalogueHref,
   contestHref,
   isCatalogue,
+  standingsHref,
 } from "@/lib/contests/catalogue";
 import { contestProblemRefs } from "@/lib/contests/refs";
 import {
@@ -22,7 +23,10 @@ import { loadStatement, problemFor } from "@/lib/problems/access";
 import { dateFormatter } from "@/lib/format";
 import { toPublicConfig } from "@/lib/problems/types";
 
-const gateFormatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
+const gateFormatter = dateFormatter({
+  dateStyle: "medium",
+  timeStyle: "short",
+});
 
 type Props = PageProps<"/contests/[slug]/problems/[problem]">;
 type CatalogueProps = PageProps<"/problems/[section]/[problem]">;
@@ -113,7 +117,7 @@ async function ProblemDetail({
   // exactly three ways that happens. Naming the wrong one is worse than saying
   // nothing: "你不在其中" reads as a mistake to someone who is in the audience.
   const why = !hasContestStarted(contest)
-    ? `将在比赛「${contest.title}」于 ${gateFormatter.format(contest.startsAt)} 开始时自动公开，无需重新部署。`
+    ? `将在比赛「${contest.title}」于 ${gateFormatter.format(contest.startsAt)} 开始时公开。`
     : !showsStatements(contest)
       ? `比赛「${contest.title}」已经结束，并且不再公开它的题面。`
       : "你不在这场比赛的参赛范围内。";
@@ -132,7 +136,7 @@ async function ProblemDetail({
             },
       }}
     >
-      <article className="mx-auto max-w-3xl">
+      <article className="min-w-0">
         {view.preview ? (
           <div className="border-warn/40 bg-warn/10 mb-4 rounded-lg border px-4 py-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -143,9 +147,7 @@ async function ProblemDetail({
             </div>
             <p className="text-fg-muted mt-1.5 text-xs leading-5">
               {why}
-              {canAct
-                ? null
-                : "仅管理员可预览，提交暂未开放。"}
+              {canAct ? null : "仅管理员可预览，提交暂未开放。"}
             </p>
           </div>
         ) : null}
@@ -188,7 +190,53 @@ async function ProblemDetail({
           </div>
         </header>
 
-        <Statement />
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <aside className="oj-sidebar lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1">
+            <h2 className="mb-3 text-sm font-semibold">所属比赛</h2>
+            <Link
+              href={contestHref(contest.slug)}
+              className="text-primary text-sm font-medium hover:underline"
+            >
+              {contest.title}
+            </Link>
+            <dl className="mt-3 grid-cols-2 lg:grid-cols-1">
+              <div>
+                <dt>开始时间</dt>
+                <dd>{gateFormatter.format(contest.startsAt)}</dd>
+              </div>
+              <div>
+                <dt>结束时间</dt>
+                <dd>{gateFormatter.format(contest.endsAt)}</dd>
+              </div>
+              <div>
+                <dt>状态</dt>
+                <dd>
+                  <Badge tone={status.tone}>{status.label}</Badge>
+                </dd>
+              </div>
+            </dl>
+            <nav
+              aria-label="题目相关页面"
+              className="mt-4 flex gap-4 border-t pt-3 text-sm"
+            >
+              <Link
+                className="text-primary hover:underline"
+                href={contestHref(contest.slug)}
+              >
+                返回题单
+              </Link>
+              <Link
+                className="text-primary hover:underline"
+                href={standingsHref(contest.slug)}
+              >
+                排行榜
+              </Link>
+            </nav>
+          </aside>
+          <div className="oj-statement bg-surface border-border rounded-lg border p-4 sm:p-6 lg:col-start-1 lg:row-start-1">
+            <Statement />
+          </div>
+        </div>
       </article>
     </ProblemProvider>
   );

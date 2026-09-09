@@ -23,6 +23,7 @@ export function TextInput() {
   return (
     <form onSubmit={onSubmit} className="space-y-3">
       <Textarea
+        aria-label="答案"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         rows={6}

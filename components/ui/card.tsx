@@ -5,7 +5,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "bg-surface/90 border-border overflow-hidden rounded-xl border shadow-[0_1px_0_oklch(100%_0_0/0.04)]",
+        "ui-panel bg-surface border-border min-w-0 overflow-hidden rounded-lg border",
         className,
       )}
       {...props}
@@ -25,7 +25,7 @@ export function CardHeader({
   return (
     <div
       className={cn(
-        "border-border bg-surface-2/50 flex items-center justify-between gap-3 border-b px-4 py-2.5",
+        "border-border bg-surface-2/50 flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2.5",
         className,
       )}
       {...props}

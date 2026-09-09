@@ -62,7 +62,7 @@ export async function UserProfileView({ params }: PageProps<"/u/[username]">) {
   const { user } = profile;
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
+    <div className="bg-surface border-border mx-auto max-w-2xl space-y-4 rounded-lg border p-5">
       <div className="flex items-center gap-5">
         {profile.editable ? (
           <AvatarEditor current={user} />

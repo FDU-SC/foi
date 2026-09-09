@@ -5,7 +5,6 @@ import { getViewer } from "@/auth";
 import { ProblemBadgesSlot } from "@/components/problem/badges-slot";
 import { ProblemFilters, type FilterRow } from "@/components/problem/filters";
 import { Badge } from "@/components/ui/badge";
-import { revealClass, revealDelay } from "@/components/ui/reveal";
 import { contestFor } from "@/lib/contests/access";
 import {
   catalogueHref,
@@ -27,7 +26,7 @@ import type { ProblemConfig } from "@/lib/problems/types";
 import { readAll, readOne } from "@/lib/query";
 import { computeProblemStatuses, type ProblemStatus } from "@/lib/stats";
 import { submissionsFor } from "@/lib/submissions/access";
-import { cn } from "@/lib/utils";
+import { TableFrame } from "@/components/ui/page";
 
 type Props = PageProps<"/problems/[section]">;
 
@@ -56,11 +55,6 @@ const SORTS = [
 ];
 
 const NEWEST = SORTS[0].value;
-
-const LIFT = [
-  "ui-lift border-border bg-surface/80 hover:border-primary/40 hover:bg-surface rounded-xl border",
-  "shadow-[0_1px_0_oklch(100%_0_0/0.04)] hover:shadow-[0_16px_40px_-24px_var(--primary)]",
-].join(" ");
 
 function pick(
   asked: string | undefined,
@@ -234,9 +228,12 @@ export async function ProblemListView({ params, searchParams }: Props) {
     contestPhase(contest) === "running" ? null : contestStatus(contest);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <nav className="text-fg-subtle flex items-center gap-1.5 text-xs">
-        <Link href={catalogueHref()} className="hover:text-fg transition-colors">
+        <Link
+          href={catalogueHref()}
+          className="hover:text-fg transition-colors"
+        >
           题库
         </Link>
         <span>/</span>
@@ -261,25 +258,14 @@ export async function ProblemListView({ params, searchParams }: Props) {
         </span>
       </div>
 
-      {contest.description ? (
-        <p className="text-fg-muted leading-7">{contest.description}</p>
-      ) : null}
-
-      {solved !== null && catalogue.length > 0 ? (
-        <div className="flex max-w-xs items-center gap-2">
-          <div className="bg-primary-subtle h-1.5 min-w-0 flex-1 overflow-hidden rounded-full">
-            <div
-              className="bg-primary h-full rounded-full"
-              style={{
-                width: `${Math.round((solved / catalogue.length) * 100)}%`,
-              }}
-            />
-          </div>
-          <span className="text-fg-subtle font-mono text-xs tabular-nums">
-            {solved} / {catalogue.length} 题
+      <div className="text-fg-muted flex flex-wrap items-center justify-between gap-2 text-xs leading-5">
+        {contest.description ? <p>{contest.description}</p> : null}
+        {solved !== null ? (
+          <span className="shrink-0 font-mono tabular-nums">
+            已通过 {solved} / {catalogue.length} 题
           </span>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       {catalogue.length > 0 ? (
         <ProblemFilters
@@ -294,9 +280,9 @@ export async function ProblemListView({ params, searchParams }: Props) {
       ) : null}
 
       {problems.length === 0 ? (
-        <p className="text-fg-subtle border-border rounded-xl border py-12 text-center text-sm">
+        <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
           {catalogue.length === 0 ? (
-            "这个方向还在筹备，题目随后会挂上来。"
+            "这个分区暂无题目。"
           ) : (
             <>
               没有符合条件的题目。
@@ -310,59 +296,73 @@ export async function ProblemListView({ params, searchParams }: Props) {
           )}
         </p>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {problems.map(({ ref: { problem, entry }, preview }, index) => {
-            const mine = statuses?.get(problem.slug);
-            const preset = mine
-              ? describeVerdict(problem.slug, { status: mine.status })
-              : null;
-            const accepted = mine?.accepted === true;
-            const chips =
-              preview || (mine && preset) ? (
-                <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-                  {preview ? <Badge tone="warn">未公开</Badge> : null}
-                  {mine && preset ? (
-                    <Badge tone={preset.tone} mono title={preset.label}>
-                      {preset.short}
-                    </Badge>
-                  ) : null}
-                </div>
-              ) : null;
-
-            return (
-              <Link
-                key={problem.slug}
-                href={problemHref(contest.slug, problem.slug)}
-                style={revealDelay(index)}
-                className={cn(
-                  "group flex flex-col gap-3 p-4",
-                  LIFT,
-                  accepted && "border-ok/30 bg-ok-subtle/20",
-                  revealClass,
-                )}
-              >
-                {entry.label || chips ? (
-                  <div className="flex items-start justify-between gap-2">
-                    {entry.label ? (
-                      <span className="bg-surface-3 text-fg flex size-8 shrink-0 items-center justify-center rounded font-mono text-xs font-semibold">
-                        {entry.label}
-                      </span>
-                    ) : null}
-                    {chips}
-                  </div>
+        <TableFrame>
+          <table>
+            <thead>
+              <tr>
+                <th className="w-36">题号</th>
+                <th>题目</th>
+                {offered.length > 0 ? (
+                  <th className="hidden sm:table-cell">标签</th>
                 ) : null}
-
-                <h2 className="text-fg group-hover:text-primary font-semibold transition-colors">
-                  {problem.title}
-                </h2>
-
-                <div className="mt-auto flex flex-wrap items-center gap-1.5">
-                  <ProblemBadgesSlot config={problem} offered={offered} />
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+                {statuses ? <th className="w-28">我的状态</th> : null}
+              </tr>
+            </thead>
+            <tbody>
+              {problems.map(({ ref: { problem, entry }, preview }) => {
+                const mine = statuses?.get(problem.slug);
+                const preset = mine
+                  ? describeVerdict(problem.slug, { status: mine.status })
+                  : null;
+                return (
+                  <tr key={problem.slug}>
+                    <td className="text-fg-muted font-mono text-xs">
+                      {entry.label ?? problem.slug}
+                    </td>
+                    <td>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                          className="row-link"
+                          href={problemHref(contest.slug, problem.slug)}
+                        >
+                          {problem.title}
+                        </Link>
+                        {preview ? <Badge tone="warn">未公开</Badge> : null}
+                      </div>
+                      {offered.length > 0 ? (
+                        <div className="mt-1 flex flex-wrap gap-1 sm:hidden">
+                          <ProblemBadgesSlot
+                            config={problem}
+                            offered={offered}
+                          />
+                        </div>
+                      ) : null}
+                    </td>
+                    {offered.length > 0 ? (
+                      <td className="hidden sm:table-cell">
+                        <div className="flex flex-wrap gap-1">
+                          <ProblemBadgesSlot
+                            config={problem}
+                            offered={offered}
+                          />
+                        </div>
+                      </td>
+                    ) : null}
+                    {statuses ? (
+                      <td>
+                        {preset ? (
+                          <Badge tone={preset.tone}>{preset.label}</Badge>
+                        ) : (
+                          <span className="text-fg-subtle text-xs">未尝试</span>
+                        )}
+                      </td>
+                    ) : null}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </TableFrame>
       )}
     </div>
   );

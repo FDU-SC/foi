@@ -1,3 +1,4 @@
+import { ContestNav } from "@/components/contests/contest-nav";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -26,7 +27,7 @@ import type { BoardProps } from "@/lib/standings/types";
 function DefaultBoard({ board }: BoardProps) {
   if (board.standings.rows.length === 0) {
     return (
-      <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
+      <p className="text-fg-subtle border-border rounded-lg border bg-surface py-10 text-center text-sm">
         还没有提交记录。
       </p>
     );
@@ -34,11 +35,20 @@ function DefaultBoard({ board }: BoardProps) {
   return (
     <ol className="divide-border divide-y">
       {board.standings.rows.map((row) => (
-        <li key={row.participant.uid} className="flex items-center gap-3 px-3 py-2">
-          <span className="text-fg-muted font-mono text-xs tabular-nums w-8 text-right">{row.rank}</span>
+        <li
+          key={row.participant.uid}
+          className="flex items-center gap-3 px-3 py-2"
+        >
+          <span className="text-fg-muted font-mono text-xs tabular-nums w-8 text-right">
+            {row.rank}
+          </span>
           <Avatar of={row.participant} />
-          <span className="text-fg font-medium">{row.participant.nickname}</span>
-          <span className="text-fg-muted ml-auto font-mono text-sm tabular-nums">{Math.round(row.total)}</span>
+          <span className="text-fg font-medium">
+            {row.participant.nickname}
+          </span>
+          <span className="text-fg-muted ml-auto font-mono text-sm tabular-nums">
+            {Math.round(row.total)}
+          </span>
         </li>
       ))}
     </ol>
@@ -96,6 +106,7 @@ function UpcomingNotice({ contest }: { contest: ContestConfig }) {
   return (
     <div className="space-y-5">
       <Crumbs contest={contest} />
+      <ContestNav slug={contest.slug} />
 
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-fg text-2xl font-bold tracking-tight">排行榜</h1>
@@ -103,7 +114,8 @@ function UpcomingNotice({ contest }: { contest: ContestConfig }) {
       </div>
 
       <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
-        比赛将于 {formatter.format(contest.startsAt)} 开始，届时这里会出现排行榜。
+        比赛将于 {formatter.format(contest.startsAt)}{" "}
+        开始，届时这里会出现排行榜。
       </p>
     </div>
   );
@@ -149,6 +161,7 @@ async function Standings({ contestSlug }: { contestSlug: string }) {
   return (
     <div className="space-y-5">
       <Crumbs contest={contest} />
+      <ContestNav slug={contest.slug} />
 
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-fg text-2xl font-bold tracking-tight">排行榜</h1>

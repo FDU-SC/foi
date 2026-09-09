@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/ui/page";
 import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
 import { JudgeStatusBoard } from "@/components/judges/judge-status-board";
@@ -17,19 +18,21 @@ export async function JudgesView() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-fg text-2xl font-bold tracking-tight">评测机</h1>
-        <p className="text-fg-muted mt-2 text-sm leading-6">
-          各评测队列的排队情况与评测机在线状态。
-        </p>
-      </div>
+      <PageHeader
+        title="评测机"
+        description="各队列的排队情况与评测机在线状态。"
+      />
 
       {visible.length === 0 ? (
-        <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
+        <p className="text-fg-subtle border-border rounded-lg border bg-surface py-10 text-center text-sm">
           目前没有你可以查看的评测机。
         </p>
       ) : (
-        <JudgeStatusBoard initial={visible} lang={site.lang} timezone={site.timezone} />
+        <JudgeStatusBoard
+          initial={visible}
+          lang={site.lang}
+          timezone={site.timezone}
+        />
       )}
     </div>
   );

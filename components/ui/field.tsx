@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 const CONTROL =
   "w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-fg " +
   "placeholder:text-fg-subtle transition-colors " +
-  "hover:border-border-strong focus:border-primary focus:outline-none " +
+  "hover:border-border-strong focus:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary " +
   "disabled:opacity-50 disabled:cursor-not-allowed";
 
 export function Input({
@@ -51,7 +51,9 @@ export function Field({
     <label className="block space-y-1.5">
       <span className="text-fg-muted text-xs font-medium">{label}</span>
       {children}
-      {hint ? <span className="text-fg-subtle block text-xs">{hint}</span> : null}
+      {hint ? (
+        <span className="text-fg-subtle block text-xs">{hint}</span>
+      ) : null}
     </label>
   );
 }

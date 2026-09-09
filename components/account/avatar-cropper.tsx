@@ -62,7 +62,7 @@ export function AvatarCropper({
       onClick={(event) => {
         if (event.target === dialog.current) onCancel();
       }}
-      className="border-border bg-surface text-fg m-auto rounded-xl border p-0 shadow-xl backdrop:bg-black/60"
+      className="border-border bg-surface text-fg m-auto rounded-lg border p-0 shadow-xl backdrop:bg-black/60"
     >
       {image ? (
         <CropPanel
@@ -125,7 +125,9 @@ function CropPanel({
 
   const nudgeZoom = useCallback(
     (delta: number) => {
-      setState((current) => zoomAround(image, FRAME, current, current.zoom + delta));
+      setState((current) =>
+        zoomAround(image, FRAME, current, current.zoom + delta),
+      );
     },
     [image],
   );
@@ -233,7 +235,12 @@ function CropPanel({
         <Button type="button" onClick={onCancel} disabled={busy}>
           取消
         </Button>
-        <Button type="button" variant="primary" onClick={confirm} disabled={busy}>
+        <Button
+          type="button"
+          variant="primary"
+          onClick={confirm}
+          disabled={busy}
+        >
           {busy ? "处理中…" : "使用这张"}
         </Button>
       </div>

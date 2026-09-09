@@ -7,9 +7,7 @@ function DefaultCell({ cell }: { cell: unknown }) {
   if (cell === undefined || cell === null) {
     return <span className="text-fg-subtle">·</span>;
   }
-  return (
-    <span className="text-fg font-mono text-xs tabular-nums">✓</span>
-  );
+  return <span className="text-fg font-mono text-xs tabular-nums">✓</span>;
 }
 
 function DefaultTotal({ row }: { row: { total: number } }) {
@@ -35,14 +33,14 @@ export function ProblemGridBoard({ board, problems }: BoardProps) {
   }
 
   return (
-    <div className="border-border overflow-x-auto rounded-lg border">
+    <div className="oj-table-frame">
       <table className="w-full text-sm">
         <thead className="bg-surface-2">
           <tr className="text-fg-muted text-xs">
             <th className="border-border w-12 border-b px-3 py-2.5 text-right font-semibold">
               #
             </th>
-            <th className="border-border border-b px-3 py-2.5 text-left font-semibold">
+            <th className="border-border bg-surface-2 sticky left-0 z-10 min-w-36 border-r border-b px-3 py-2.5 text-left font-semibold">
               选手
             </th>
             <th className="border-border w-20 border-b px-3 py-2.5 text-center font-semibold">
@@ -70,7 +68,7 @@ export function ProblemGridBoard({ board, problems }: BoardProps) {
               <td className="text-fg-muted px-3 py-2 text-right font-mono text-xs tabular-nums">
                 <AnimatedNumber value={row.rank} />
               </td>
-              <td className="px-3 py-2">
+              <td className="bg-surface border-border sticky left-0 z-10 border-r px-3 py-2">
                 <div className="flex items-center gap-2">
                   <Avatar of={row.participant} />
                   <span className="text-fg font-medium">

@@ -57,7 +57,7 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
   const passwordGate = authorize("account.changePassword", user, viewer);
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
+    <div className="mx-auto max-w-5xl space-y-4">
       <div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">个人设置</h1>
         <p className="text-fg-muted mt-2 text-sm leading-6">
@@ -65,81 +65,90 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
         </p>
       </div>
 
-      <Card>
-        <CardHeader title="昵称" />
-        <CardBody>
-          {nicknameGate.allow ? (
-            <NicknameForm current={user.nickname} />
-          ) : (
-            <Unavailable>{nicknameGate.reason.message}</Unavailable>
-          )}
-        </CardBody>
-      </Card>
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <section className="min-w-0 space-y-4">
+          <h2 className="text-sm font-semibold">个人资料</h2>
+          <Card>
+            <CardHeader title="昵称" />
+            <CardBody>
+              {nicknameGate.allow ? (
+                <NicknameForm current={user.nickname} />
+              ) : (
+                <Unavailable>{nicknameGate.reason.message}</Unavailable>
+              )}
+            </CardBody>
+          </Card>
 
-      <Card>
-        <CardHeader title="头像" />
-        <CardBody>
-          {avatarGate.allow ? (
-            <AvatarEditor current={user} withControls />
-          ) : (
-            <Unavailable>{avatarGate.reason.message}</Unavailable>
-          )}
-        </CardBody>
-      </Card>
+          <Card>
+            <CardHeader title="头像" />
+            <CardBody>
+              {avatarGate.allow ? (
+                <AvatarEditor current={user} withControls />
+              ) : (
+                <Unavailable>{avatarGate.reason.message}</Unavailable>
+              )}
+            </CardBody>
+          </Card>
 
-      <Card>
-        <CardHeader title="用户名" />
-        <CardBody>
-          {usernameGate.allow ? (
-            <UsernameForm
-              current={user.username}
-              hint={usernameHint(account?.usernameChangedAt ?? null)}
-            />
-          ) : (
-            <Unavailable>{usernameGate.reason.message}</Unavailable>
-          )}
-        </CardBody>
-      </Card>
+          <Card>
+            <CardHeader title="用户名" />
+            <CardBody>
+              {usernameGate.allow ? (
+                <UsernameForm
+                  current={user.username}
+                  hint={usernameHint(account?.usernameChangedAt ?? null)}
+                />
+              ) : (
+                <Unavailable>{usernameGate.reason.message}</Unavailable>
+              )}
+            </CardBody>
+          </Card>
+        </section>
+        <section className="min-w-0 space-y-4">
+          <h2 className="text-sm font-semibold">账号安全</h2>
+          <Card>
+            <CardHeader title="邮箱" />
+            <CardBody className="space-y-4">
+              <div className="bg-surface-2 rounded-md px-4 py-3">
+                <p className="text-fg-muted text-xs">当前邮箱</p>
+                <p className="text-fg mt-0.5 font-mono text-sm">
+                  {user.email ?? "未设置"}
+                </p>
+              </div>
+              {!emailGate.allow ? (
+                <Unavailable>{emailGate.reason.message}</Unavailable>
+              ) : user.email ? (
+                <>
+                  <p className="text-fg-muted text-sm leading-6">
+                    验证链接会发到新邮箱，确认后生效。
+                  </p>
+                  <EmailChangeForm />
+                </>
+              ) : (
+                <Unavailable>
+                  当前账号没有设置邮箱，无法使用修改邮箱功能。
+                </Unavailable>
+              )}
+            </CardBody>
+          </Card>
 
-      <Card>
-        <CardHeader title="邮箱" />
-        <CardBody className="space-y-4">
-          <div className="bg-surface-2 rounded-md px-4 py-3">
-            <p className="text-fg-muted text-xs">当前邮箱</p>
-            <p className="text-fg mt-0.5 font-mono text-sm">
-              {user.email ?? "未设置"}
-            </p>
-          </div>
-          {!emailGate.allow ? (
-            <Unavailable>{emailGate.reason.message}</Unavailable>
-          ) : user.email ? (
-            <>
-              <p className="text-fg-muted text-sm leading-6">
-                验证链接会发到新邮箱，确认后生效。
-              </p>
-              <EmailChangeForm />
-            </>
-          ) : (
-            <Unavailable>当前账号没有设置邮箱，无法使用修改邮箱功能。</Unavailable>
-          )}
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader title="密码" />
-        <CardBody className="space-y-4">
-          {password === "updated" ? (
-            <FormMessage tone="ok">
-              密码已更新，其他设备上的登录状态已全部失效。
-            </FormMessage>
-          ) : null}
-          {passwordGate.allow ? (
-            <PasswordForm minLength={site.passwordMinLength ?? 8} />
-          ) : (
-            <Unavailable>{passwordGate.reason.message}</Unavailable>
-          )}
-        </CardBody>
-      </Card>
+          <Card>
+            <CardHeader title="密码" />
+            <CardBody className="space-y-4">
+              {password === "updated" ? (
+                <FormMessage tone="ok">
+                  密码已更新，其他设备上的登录状态已全部失效。
+                </FormMessage>
+              ) : null}
+              {passwordGate.allow ? (
+                <PasswordForm minLength={site.passwordMinLength ?? 8} />
+              ) : (
+                <Unavailable>{passwordGate.reason.message}</Unavailable>
+              )}
+            </CardBody>
+          </Card>
+        </section>
+      </div>
     </div>
   );
 }

@@ -5,6 +5,6 @@ export const metadata: Metadata = { title: "比赛" };
 
 export const dynamic = "force-dynamic";
 
-export default function Page() {
-  return <ContestListView />;
+export default function Page(props: PageProps<"/contests">) {
+  return <ContestListView {...props} />;
 }

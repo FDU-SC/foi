@@ -11,7 +11,7 @@ export function DefaultAuthShell({
 }) {
   return (
     <div className="relative z-10 flex flex-1 items-center justify-center px-4 py-16">
-      <div className="border-border bg-surface/80 w-full max-w-xs rounded-2xl border px-6 py-8 shadow-[0_24px_80px_-32px_oklch(20%_0.04_265/0.45)] backdrop-blur-xl">
+      <div className="border-border bg-surface w-full max-w-xs rounded-lg border px-6 py-8">
         <div className="mb-8 text-center text-2xl">
           <Brand />
         </div>
@@ -26,10 +26,7 @@ export function DefaultAuthShell({
   );
 }
 
-export function AuthShell(props: {
-  children: ReactNode;
-  footer?: ReactNode;
-}) {
+export function AuthShell(props: { children: ReactNode; footer?: ReactNode }) {
   const Slot = siteViews.AuthShell;
   return Slot ? <Slot {...props} /> : <DefaultAuthShell {...props} />;
 }

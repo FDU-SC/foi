@@ -1,3 +1,4 @@
+import { AdminNav } from "@/components/admin/admin-nav";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getViewer } from "@/auth";
@@ -66,7 +67,8 @@ export async function AdminAccountsView({
 
   const { accounts: rows, lastSuspensionEvents } = directory;
 
-  const query = typeof params.q === "string" ? params.q.trim().toLowerCase() : "";
+  const query =
+    typeof params.q === "string" ? params.q.trim().toLowerCase() : "";
   const byUid = new Map(rows.map((row) => [row.uid, row]));
 
   // Each button is drawn from the same decision the action itself will make,
@@ -92,7 +94,8 @@ export async function AdminAccountsView({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <AdminNav />
       <nav className="text-fg-subtle text-xs">
         <Link href="/admin" className="hover:text-fg transition-colors">
           管理
@@ -106,23 +109,24 @@ export async function AdminAccountsView({
         <p className="text-fg-muted mt-2 text-sm leading-6">
           注册用户列表。用户组由{" "}
           <Link href="/admin/enrollment" className="hover:text-fg underline">
-          分流规则
-        </Link>
+            分流规则
+          </Link>
           自动分配。
         </p>
       </div>
 
-      <form className="flex gap-2" action="/admin/accounts">
+      <form className="flex flex-wrap items-end gap-2" action="/admin/accounts">
         <Field label="">
           <Input
             name="q"
             defaultValue={query}
             placeholder="按用户名、显示名、邮箱或标签筛选"
-            className="w-72"
+            aria-label="按用户名、显示名、邮箱或标签筛选"
+            className="w-64 max-w-full"
             spellCheck={false}
           />
         </Field>
-        <Button type="submit" size="sm" className="self-start">
+        <Button type="submit" size="md">
           筛选
         </Button>
         {query ? (
@@ -135,7 +139,7 @@ export async function AdminAccountsView({
         ) : null}
       </form>
 
-      <div className="border-border overflow-x-auto rounded-lg border">
+      <div className="oj-table-frame">
         <table className="w-full text-sm">
           <thead className="bg-surface-2">
             <tr className="text-fg-muted text-xs">
@@ -186,7 +190,10 @@ export async function AdminAccountsView({
                   </td>
                   <td className="px-4 py-2.5">
                     <Badge tone={status.tone}>{status.label}</Badge>
-                    <ModerationNote row={row} lastEvent={lastSuspensionEvents.get(account.uid)} />
+                    <ModerationNote
+                      row={row}
+                      lastEvent={lastSuspensionEvents.get(account.uid)}
+                    />
                   </td>
                   <td className="px-4 py-2.5">
                     {account.groups.length === 0 ? (

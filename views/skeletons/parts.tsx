@@ -43,7 +43,7 @@ export function TableSkeleton({
       </div>
       <div className="divide-border divide-y">
         {Array.from({ length: rows }, (_, row) => (
-          <div key={row} className="flex items-center gap-4 px-4 py-3.5">
+          <div key={row} className="flex items-center gap-4 px-4 py-3">
             {head.map((width, index) => (
               <Skeleton key={index} className={cn("h-4", width)} />
             ))}

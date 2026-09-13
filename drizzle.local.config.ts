@@ -1,4 +1,5 @@
 import { defineConfig } from "drizzle-kit";
+import { deploymentMigrationConfig } from "./lib/db/migration-config";
 
 /**
  * Migrations for the tables a deployment adds for itself.
@@ -24,9 +25,10 @@ try {
 
 export default defineConfig({
   schema: "./content.local/schema.ts",
-  out: "./drizzle.local",
+  out: deploymentMigrationConfig.migrationsFolder,
   dialect: "postgresql",
   tablesFilter: ["x_*"],
+  migrations: { table: deploymentMigrationConfig.migrationsTable },
   dbCredentials: { url: process.env.DATABASE_URL! },
   casing: "snake_case",
 });

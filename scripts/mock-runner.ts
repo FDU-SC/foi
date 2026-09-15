@@ -13,6 +13,10 @@ import {
 import { effectiveSecretFromEnv } from "../lib/backend/env";
 import type { JobDetails, JobTicket, Verdict } from "../lib/backend/types";
 import { backends } from "../content/backends";
+import {
+  parallelOutputMatches,
+  parallelScore,
+} from "./mock-runner-hpc";
 
 if (process.env.NODE_ENV === "production") {
   throw new Error(
@@ -775,14 +779,6 @@ int main() {
   return 0;
 }`;
 
-/** 浮点结果容差比对：|a - b| <= tol * max(1, |b|)。 */
-function floatClose(a: string, b: string, tolerance: number): boolean {
-  const x = Number(a.trim());
-  const y = Number(b.trim());
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
-  return Math.abs(x - y) <= tolerance * Math.max(1, Math.abs(y));
-}
-
 async function judgeOpenmp(
   config: unknown,
   payload: unknown,
@@ -844,7 +840,7 @@ async function judgeOpenmp(
 
     const expected = baselineRun.stdout.toString();
     const got = best.stdout.toString();
-    if (!floatClose(got, expected, tolerance)) {
+    if (!parallelOutputMatches(got, expected, "float", tolerance)) {
       return {
         result: { status: "wrong_answer", score: 0, maxScore: 100, accepted: false },
         detail: { message: `输出与参考不一致（|差| 超过容差 ${tolerance}）` },
@@ -852,7 +848,7 @@ async function judgeOpenmp(
     }
 
     const timeMs = Math.max(1, best.timeMs);
-    const score = Math.min(100, Math.floor((50 * baselineMs) / timeMs));
+    const score = parallelScore(baselineMs, timeMs, "speedup");
     return {
       result: { status: score >= 100 ? "accepted" : score > 0 ? "partial" : "wrong_answer", score, maxScore: 100, accepted: score >= 100 },
       detail: {
@@ -950,10 +946,12 @@ async function judgeMpi(
 
     const expected = baselineRun.stdout.toString();
     const got = best.stdout.toString();
-    const correct =
-      cfg.compare === "exact"
-        ? got.trim() === expected.trim()
-        : floatClose(got, expected, tolerance);
+    const correct = parallelOutputMatches(
+      got,
+      expected,
+      cfg.compare,
+      tolerance,
+    );
     if (!correct) {
       return {
         result: { status: "wrong_answer", score: 0, maxScore: 100, accepted: false },
@@ -967,10 +965,7 @@ async function judgeMpi(
     }
 
     const timeMs = Math.max(1, best.timeMs);
-    const score =
-      cfg.scoring === "correctness"
-        ? 100
-        : Math.min(100, Math.floor((50 * baselineMs) / timeMs));
+    const score = parallelScore(baselineMs, timeMs, cfg.scoring);
     return {
       result: { status: score >= 100 ? "accepted" : score > 0 ? "partial" : "wrong_answer", score, maxScore: 100, accepted: score >= 100 },
       detail: {

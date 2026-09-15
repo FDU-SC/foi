@@ -1,9 +1,9 @@
 import type { SiteConfig } from "@/lib/site";
 
 export const site: SiteConfig = {
-  name: "FOI",
-  title: "FOI 竞赛平台",
-  description: "内部竞赛平台",
+  name: "FOI Demo",
+  title: "FOI 竞赛平台 · 演示",
+  description: "开源竞赛平台 FOI 的演示站点，数据每晚重置。",
   lang: "zh-CN",
   timezone: "Asia/Shanghai",
 
@@ -45,6 +45,11 @@ export const site: SiteConfig = {
   },
 
   homeEntries: [
+    {
+      href: "/login",
+      title: "演示账号",
+      description: "用 demo1 到 demo5 登录，密码 foi-demo。数据每晚重置。",
+    },
     {
       href: "/problems",
       title: "题库",

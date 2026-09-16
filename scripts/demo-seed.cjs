@@ -15,14 +15,15 @@ const {
   bail,
   hashPassword,
   parseArgs,
+  requireDevelopmentEnvironment,
   run,
   withClient,
 } = require("./account-cli.cjs");
 
 const USAGE = `用法:
-  FOI_DEMO_PASSWORD=<密码> node scripts/demo-seed.cjs [--count 5] [--prefix demo]
+  FOI_ENV=dev FOI_DEMO_PASSWORD=<密码> node scripts/demo-seed.cjs [--count 5] [--prefix demo]
 
-需要环境变量 DATABASE_URL 与 FOI_DEMO_PASSWORD。
+需要环境变量 DATABASE_URL 与 FOI_DEMO_PASSWORD，并且必须显式设置 FOI_ENV=dev。
 
 密码会公示在 demo 站首页，所以由调用方显式给出，不自动生成。
 已存在的账号会被重置成这个密码，不会报错。`;
@@ -75,6 +76,8 @@ async function main() {
     console.log(USAGE);
     return;
   }
+
+  requireDevelopmentEnvironment();
 
   const password = process.env.FOI_DEMO_PASSWORD;
   if (!password) bail(`缺少环境变量 FOI_DEMO_PASSWORD\n\n${USAGE}`);

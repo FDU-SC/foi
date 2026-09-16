@@ -28,9 +28,6 @@ vi.mock("@/lib/contests/access", () => ({
   contestsFor: () => [],
   contestFor: vi.fn(),
 }));
-vi.mock("@/lib/submissions/queue-position", () => ({
-  locateInQueues: vi.fn().mockResolvedValue(new Map()),
-}));
 const originalBoard = siteViews.HomeLeaderboard;
 afterEach(() => {
   siteViews.HomeLeaderboard = originalBoard;

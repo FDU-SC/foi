@@ -18,7 +18,7 @@ export interface SubmissionView {
   createdAt: string;
   judgedAt: string | null;
 
-  queue?: QueuePosition | null;
+  queue: QueuePosition | null;
 }
 
 export const createSubmissionSchema = z.object({

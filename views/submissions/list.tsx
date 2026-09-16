@@ -6,10 +6,8 @@ import { ProblemRef } from "@/components/problem/problem-ref";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { viewerFor } from "@/lib/authz/viewer";
-import { isSettled } from "@/lib/backend/types";
 import { dateFormatter } from "@/lib/format";
 import { submissionsFor } from "@/lib/submissions/access";
-import { locateInQueues } from "@/lib/submissions/queue-position";
 import { PageHeader } from "@/components/ui/page";
 
 const formatter = dateFormatter({ dateStyle: "short", timeStyle: "medium" });
@@ -21,9 +19,6 @@ export async function SubmissionListView() {
   const viewer = viewerFor(user);
   const rows = await submissionsFor(viewer, { uid: user.uid, limit: 50 });
 
-  const positions = await locateInQueues(
-    rows.filter((row) => !isSettled(row.state)).map((row) => row.id),
-  );
 
   return (
     <div className="space-y-5">
@@ -73,7 +68,7 @@ export async function SubmissionListView() {
                   <td className="px-4 py-2.5">
                     <span className="flex flex-wrap items-center gap-2">
                       <VerdictBadge submission={row} />
-                      <QueueBadge queue={positions.get(row.id)} showJudge />
+                      <QueueBadge queue={row.queue} showJudge />
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-right">

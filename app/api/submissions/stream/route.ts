@@ -15,7 +15,6 @@ import { guardRequest } from "@/lib/server/guard";
 import { ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { subscribe, type NotifyPayload } from "@/lib/submissions/events";
 import { submissionFor } from "@/lib/submissions/access";
-import { getQueueInfo, toView } from "@/lib/submissions/queries";
 import type { SubmissionView } from "@/lib/submissions/types";
 
 export const runtime = "nodejs";
@@ -100,8 +99,7 @@ export async function GET(request: Request) {
 
       try {
         streamController.enqueue(encoder.encode("retry: 5000\n\n"));
-        const initialQueue = await getQueueInfo(id);
-        send(toView(initial, initialQueue));
+        send(initial.view);
         if (closed) return;
 
         cleanups.push(
@@ -109,15 +107,13 @@ export async function GET(request: Request) {
             if (closed) return;
             const row = await submissionFor(id, viewer);
             if (!row) return;
-            const qi = await getQueueInfo(id);
-            send(toView(row, qi));
+            send(row.view);
           }),
         );
 
         const afterSubscribe = await submissionFor(id, viewer);
         if (afterSubscribe) {
-          const afterQueue = await getQueueInfo(id);
-          send(toView(afterSubscribe, afterQueue));
+          send(afterSubscribe.view);
         }
         if (closed) return;
 

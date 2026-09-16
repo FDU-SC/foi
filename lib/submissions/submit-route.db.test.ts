@@ -1,8 +1,11 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/submissions/route";
+import { GET as getSubmission } from "@/app/api/submissions/[id]/route";
+import * as positions from "./queue-position";
+import { log } from "@/lib/log";
 import { db } from "@/lib/db";
-import { accounts, submissions } from "@/lib/db/schema";
+import { accounts, judgingQueue, submissions } from "@/lib/db/schema";
 import {
   INLINE_BACKEND_ID,
   INLINE_BACKEND_VERSION,
@@ -393,6 +396,60 @@ describeDb("提交的幂等键", () => {
     ]);
     for (const response of responses) {
       expect((await response.json()).id).toBe(rows[0].id);
+    }
+  });
+
+  it("创建与领取后的 nonce 重放返回完整的当前读取结果", async () => {
+    const body = {
+      contestSlug: EXTERNAL.contest.slug,
+      problemSlug: EXTERNAL.problem.slug,
+      payload: PAYLOAD,
+      clientNonce: "idem-complete-view",
+    };
+    const createdResponse = await post(body);
+    expect(createdResponse.status).toBe(201);
+    const created = await createdResponse.json();
+    expect(created.queue).toMatchObject({ state: "queued" });
+    expect(Object.keys(created).sort()).toEqual([
+      "id", "problemSlug", "contestSlug", "state", "result", "detail", "reason",
+      "runnerStatus", "createdAt", "judgedAt", "queue",
+    ].sort());
+    const poll = () => getSubmission(
+      new Request(`http://localhost:3000/api/submissions/${created.id}`),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(await (await poll()).json()).toEqual(created);
+    await db.update(judgingQueue).set({ state: "claimed", runnerStatus: "testing" })
+      .where(eq(judgingQueue.submissionId, created.id));
+    const replayResponse = await post(body);
+    expect(replayResponse.status).toBe(200);
+    const replay = await replayResponse.json();
+    expect(replay).toMatchObject({ state: "judging", runnerStatus: "testing", queue: { state: "judging", ahead: 0 } });
+    expect(await (await poll()).json()).toEqual(replay);
+  });
+
+  it("写入后的读取失败返回 500，同 nonce 重试不会再次创建", async () => {
+    const body = {
+      contestSlug: EXTERNAL.contest.slug,
+      problemSlug: EXTERNAL.problem.slug,
+      payload: PAYLOAD,
+      clientNonce: "idem-read-failure",
+    };
+    const rank = vi.spyOn(positions, "locateInQueues").mockRejectedValueOnce(new Error("read failed"));
+    const logged = vi.spyOn(log, "error").mockImplementation(() => {});
+    try {
+      const failed = await post(body);
+      expect(failed.status).toBe(500);
+      expect(await failed.json()).toEqual({ error: "提交读取失败，请重试" });
+      const [stored] = await rowsWithNonce(body.clientNonce);
+      expect(stored).toBeDefined();
+      const retry = await post(body);
+      expect(retry.status).toBe(200);
+      expect(await retry.json()).toMatchObject({ id: stored.id, queue: { state: "queued" } });
+      expect(await rowsWithNonce(body.clientNonce)).toHaveLength(1);
+    } finally {
+      rank.mockRestore();
+      logged.mockRestore();
     }
   });
 

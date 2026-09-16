@@ -1,6 +1,7 @@
 import { and, desc, eq, type SQL } from "drizzle-orm";
 import { failureReason, type SubmissionState } from "@/lib/backend/types";
 import { db } from "@/lib/db";
+import type { DbOrTx } from "@/lib/db/types";
 import {
   accounts,
   judgingQueue,
@@ -37,24 +38,27 @@ export function toView(
   >,
   queueInfo?: { state?: string | null; runnerStatus?: string | null } | null,
 ): SubmissionView {
+  const state = deriveViewState(row.state, queueInfo?.state);
   return {
     id: row.id,
     problemSlug: row.problemSlug,
     contestSlug: row.contestSlug,
-    state: deriveViewState(row.state, queueInfo?.state),
+    state,
     result: row.result ?? null,
     detail: row.detail ?? null,
-    reason: failureReason({ state: deriveViewState(row.state, queueInfo?.state), error: row.error }),
-    runnerStatus: queueInfo?.runnerStatus ?? null,
+    reason: failureReason({ state, error: row.error }),
+    runnerStatus: row.state === "pending" ? queueInfo?.runnerStatus ?? null : null,
     createdAt: row.createdAt.toISOString(),
     judgedAt: row.judgedAt?.toISOString() ?? null,
+    queue: null,
   };
 }
 
 export async function getSubmissionRow(
   id: string,
+  on: DbOrTx = db,
 ): Promise<SubmissionRow | undefined> {
-  const [row] = await db
+  const [row] = await on
     .select()
     .from(submissions)
     .where(eq(submissions.id, id))
@@ -64,8 +68,9 @@ export async function getSubmissionRow(
 
 export async function getQueueInfo(
   submissionId: string,
+  on: DbOrTx = db,
 ): Promise<{ state: string; runnerStatus: string | null } | null> {
-  const [row] = await db
+  const [row] = await on
     .select({
       state: judgingQueue.state,
       runnerStatus: judgingQueue.runnerStatus,
@@ -101,7 +106,7 @@ export async function listSubmissions(options: {
 
   /** What the viewer is allowed to see, from `rowScope`. */
   scope?: SQL;
-}): Promise<SubmissionListItem[]> {
+}, on: DbOrTx = db): Promise<SubmissionListItem[]> {
   const filters = [
     options.scope,
     options.uid ? eq(submissions.uid, options.uid) : undefined,
@@ -113,7 +118,7 @@ export async function listSubmissions(options: {
       : undefined,
   ].filter((clause) => clause !== undefined);
 
-  const rows = await db
+  const rows = await on
     .select({
       submission: {
         id: submissions.id,

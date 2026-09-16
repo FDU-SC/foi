@@ -5,6 +5,9 @@ export interface NavItem {
   href: string;
   label: string;
 
+  /** Defaults to the primary header navigation. */
+  location?: "primary" | "account" | "catalogue" | "submissions" | "admin";
+
   /**
    * Hide the link unless this action is permitted. It names the same action the
    * destination enforces, so the nav cannot drift from what the page allows.

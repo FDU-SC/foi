@@ -32,10 +32,11 @@ export const site: SiteConfig = {
   navigation: [
     { href: "/problems", label: "题库" },
     { href: "/contests", label: "比赛" },
-    { href: "/submissions", label: "提交记录" },
-    { href: "/leaderboard", label: "练习排行榜", visibleWhen: "leaderboard.read" },
-    { href: "/judges", label: "评测机", visibleWhen: "judge.readBoard" },
-    { href: "/admin", label: "管理", visibleWhen: "admin.enter" },
+    { href: "/submissions", label: "我的提交" },
+    { href: "/leaderboard", label: "练习排行榜", location: "catalogue", visibleWhen: "leaderboard.read" },
+    { href: "/judges", label: "评测状态", location: "submissions", visibleWhen: "judge.readBoard" },
+    { href: "/judges", label: "评测机", location: "admin", visibleWhen: "judge.readBoard" },
+    { href: "/admin", label: "管理", location: "account", visibleWhen: "admin.enter" },
   ],
 
   passwordMinLength: 8,
@@ -57,7 +58,7 @@ export const site: SiteConfig = {
     },
     {
       href: "/submissions",
-      title: "提交记录",
+      title: "我的提交",
       description: "查看自己的提交与评测结果。",
     },
   ],

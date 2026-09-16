@@ -15,9 +15,11 @@ const ITEM =
 export function UserMenu({
   user,
   groupNames,
+  links = [],
 }: {
   user: SessionUser;
   groupNames: string[];
+  links?: { href: string; label: string }[];
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -102,6 +104,20 @@ export function UserMenu({
             >
               个人设置
             </Link>
+            {links.length > 0 ? (
+              <div className="border-border border-t py-1">
+                {links.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={ITEM}
+                    onClick={() => setOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
             <form action={logout}>
               <button
                 type="submit"

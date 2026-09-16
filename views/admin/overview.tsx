@@ -1,3 +1,5 @@
+import { NavigationLinks } from "@/components/site/navigation-links";
+import { PageHeader } from "@/components/ui/page";
 import { AdminNav } from "@/components/admin/admin-nav";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -24,7 +26,10 @@ export async function AdminOverviewView() {
   return (
     <div className="space-y-4">
       <AdminNav />
-      <h1 className="text-fg text-2xl font-bold tracking-tight">管理</h1>
+      <PageHeader
+        title="管理"
+        actions={<NavigationLinks viewer={viewer} location="admin" />}
+      />
 
       <div className="grid gap-3 sm:grid-cols-4">
         {stats.map((stat) => {

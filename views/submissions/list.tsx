@@ -1,3 +1,4 @@
+import { NavigationLinks } from "@/components/site/navigation-links";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
@@ -17,7 +18,8 @@ export async function SubmissionListView() {
   const user = await getSessionUser();
   if (!user) redirect("/login?next=/submissions");
 
-  const rows = await submissionsFor(viewerFor(user), { limit: 50 });
+  const viewer = viewerFor(user);
+  const rows = await submissionsFor(viewer, { uid: user.uid, limit: 50 });
 
   const positions = await locateInQueues(
     rows.filter((row) => !isSettled(row.state)).map((row) => row.id),
@@ -25,7 +27,11 @@ export async function SubmissionListView() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="我的提交" description="最近 50 条提交记录" />
+      <PageHeader
+        title="我的提交"
+        description="最近 50 条提交记录"
+        actions={<NavigationLinks viewer={viewer} location="submissions" />}
+      />
 
       {rows.length === 0 ? (
         <p className="text-fg-subtle border-border rounded-lg border bg-surface py-10 text-center text-sm">

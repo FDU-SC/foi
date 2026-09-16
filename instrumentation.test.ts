@@ -8,6 +8,7 @@ const mocked = vi.hoisted(() => {
     database: {},
     existsSync: vi.fn(),
     migrate: vi.fn(),
+    prepareDeploymentMigrationJournal: vi.fn(),
     startReaping: vi.fn(() => stopReaping),
   };
 });
@@ -23,6 +24,10 @@ vi.mock("@/lib/boot/checks", () => ({
 
 vi.mock("drizzle-orm/node-postgres/migrator", () => ({
   migrate: mocked.migrate,
+}));
+
+vi.mock("@/lib/db/migration-journal", () => ({
+  prepareDeploymentMigrationJournal: mocked.prepareDeploymentMigrationJournal,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -56,11 +61,16 @@ describe("instrumentation.register", () => {
 
     await register();
 
+    expect(mocked.prepareDeploymentMigrationJournal).toHaveBeenCalledWith(mocked.database);
+    expect(mocked.prepareDeploymentMigrationJournal.mock.invocationCallOrder[0])
+      .toBeLessThan(mocked.migrate.mock.invocationCallOrder[0]!);
     expect(mocked.migrate).toHaveBeenNthCalledWith(1, mocked.database, {
       migrationsFolder: "drizzle",
+      migrationsTable: "__drizzle_migrations",
     });
     expect(mocked.migrate).toHaveBeenNthCalledWith(2, mocked.database, {
       migrationsFolder: "drizzle.local",
+      migrationsTable: "__drizzle_local_migrations",
     });
   });
 
@@ -68,9 +78,11 @@ describe("instrumentation.register", () => {
     await register();
 
     expect(mocked.existsSync).toHaveBeenCalledWith("drizzle.local/meta/_journal.json");
+    expect(mocked.prepareDeploymentMigrationJournal).not.toHaveBeenCalled();
     expect(mocked.migrate).toHaveBeenCalledTimes(1);
     expect(mocked.migrate).toHaveBeenCalledWith(mocked.database, {
       migrationsFolder: "drizzle",
+      migrationsTable: "__drizzle_migrations",
     });
   });
 });

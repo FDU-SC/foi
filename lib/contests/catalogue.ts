@@ -44,26 +44,47 @@ export function contestHref(contestSlug: string): string {
     : `${CONTESTS}/${contestSlug}`;
 }
 
+export function catalogueLeaderboards() {
+  return site.catalogueLeaderboards ?? [];
+}
+
+export function catalogueBoardFor(contestSlug: string) {
+  return isCatalogue(contestSlug)
+    ? catalogueLeaderboards().find((board) => board.sections.includes(contestSlug))
+    : undefined;
+}
+
+export function leaderboardHref(board?: string): string {
+  return board === undefined
+    ? "/leaderboard"
+    : `/leaderboard?board=${encodeURIComponent(board)}`;
+}
+
 export function standingsHref(contestSlug: string): string {
+  const board = catalogueBoardFor(contestSlug);
+  if (board) return leaderboardHref(board.id);
   return isCatalogue(contestSlug)
     ? `${CATALOGUE}/${contestSlug}/${STANDINGS_SEGMENT}`
     : `${CONTESTS}/${contestSlug}/${STANDINGS_SEGMENT}`;
 }
 
 /**
- * Map catalogued `/contests/...` paths to their new URLs; return null otherwise.
+ * Map old catalogue URLs, including section standings, to their current URLs.
  * Run in the proxy before layouts stream, since page-level redirects can return
  * 200 with a meta refresh. Preserve the contest slug; unrecognised suffixes
  * redirect to the contest page.
  */
 export function catalogueRedirect(pathname: string): string | null {
   for (const slug of named) {
+    if (catalogueBoardFor(slug) &&
+      pathname.replace(/\/$/, "") === `${CATALOGUE}/${slug}/${STANDINGS_SEGMENT}`
+    ) return standingsHref(slug);
     const prefix = `${CONTESTS}/${slug}`;
     if (pathname !== prefix && !pathname.startsWith(`${prefix}/`)) continue;
 
     const rest = pathname.slice(prefix.length);
     if (rest === "") return contestHref(slug);
-    if (rest === `/${STANDINGS_SEGMENT}`) return standingsHref(slug);
+    if (rest.replace(/\/$/, "") === `/${STANDINGS_SEGMENT}`) return standingsHref(slug);
 
     const problem = /^\/problems\/([^/]+)\/?$/.exec(rest);
     return problem ? problemHref(slug, problem[1]) : contestHref(slug);

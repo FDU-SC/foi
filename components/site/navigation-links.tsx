@@ -6,7 +6,9 @@ import { navigationFor } from "@/lib/site-navigation";
 export function NavigationLinks({
   viewer,
   location,
+  className,
 }: {
+  className?: string;
   viewer: Viewer;
   location: NonNullable<NavItem["location"]>;
 }) {
@@ -14,7 +16,7 @@ export function NavigationLinks({
     <Link
       key={href}
       href={href}
-      className="text-fg-muted hover:text-primary rounded-sm text-sm transition-colors hover:underline"
+      className={className ?? "text-fg-muted hover:text-primary rounded-sm text-sm transition-colors hover:underline"}
     >
       {label}
     </Link>

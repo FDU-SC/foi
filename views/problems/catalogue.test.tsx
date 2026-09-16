@@ -7,6 +7,7 @@ import {
 } from "@/lib/contests/access";
 import {
   catalogueSlugs,
+  catalogueBoardFor,
   problemHref,
 } from "@/lib/contests/catalogue";
 import {
@@ -29,6 +30,8 @@ vi.mock("@/auth", () => ({ getViewer: vi.fn() }));
 vi.mock("@/lib/contests/access", () => ({ contestFor: vi.fn() }));
 vi.mock("@/lib/contests/catalogue", () => ({
   catalogueSlugs: vi.fn(),
+  catalogueBoardFor: vi.fn(),
+  leaderboardHref: (id: string) => `/leaderboard?board=${id}`,
   contestHref: (slug: string) => `/problems/${slug}`,
   problemHref: vi.fn(
     (contest: string, problem: string) => `/problems/${contest}/${problem}`,
@@ -92,6 +95,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getViewer).mockResolvedValue(ANONYMOUS);
   vi.mocked(catalogueSlugs).mockReturnValue([]);
+  vi.mocked(catalogueBoardFor).mockReturnValue(undefined);
   vi.mocked(contestFor).mockReturnValue(undefined);
   vi.mocked(problemsFor).mockReturnValue([]);
   vi.mocked(progressFor).mockResolvedValue(new Map());
@@ -154,8 +158,11 @@ describe("题库首页访问边界", () => {
       [shared.slug, { state: slug === first.slug ? "solved" : "untouched", verdict: null }],
     ]));
 
+    vi.mocked(catalogueBoardFor).mockReturnValue({ id: "direction", title: "同题方向", sections: [first.slug, second.slug], includeInTotal: true });
     const html = renderToStaticMarkup(await CatalogueIndexView());
 
+    expect(html.match(/href="\/leaderboard\?board=direction"/g)).toHaveLength(1);
+    expect(html).not.toContain("/standings");
     expect(html).toContain("已通过 1 / 1");
     expect(html).toContain("已通过 0 / 1");
     expect(progressFor).toHaveBeenCalledTimes(2);

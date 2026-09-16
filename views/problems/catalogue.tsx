@@ -8,6 +8,8 @@ import type { Viewer } from "@/lib/authz/viewer";
 import { contestFor } from "@/lib/contests/access";
 import {
   catalogueSlugs,
+  catalogueBoardFor,
+  leaderboardHref,
   contestHref,
   problemHref,
   standingsHref,
@@ -20,6 +22,8 @@ import {
 import { problemsFor } from "@/lib/problems/access";
 import { summarizeProgress } from "@/lib/problems/selection";
 import { progressFor } from "@/lib/problems/progress";
+
+const leaderboardButton = "inline-flex min-h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-border px-2.5 text-xs font-medium text-fg-muted transition-colors hover:border-border-strong hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
 const UNGROUPED = Symbol("ungrouped");
 interface SectionCard {
@@ -48,7 +52,7 @@ export async function CatalogueIndexView() {
     <div className="space-y-5">
       <PageHeader
         title="题库"
-        actions={<NavigationLinks viewer={viewer} location="catalogue" />}
+        actions={<NavigationLinks viewer={viewer} location="catalogue" className={leaderboardButton} />}
       />
       {groups.length === 0 ? <EmptyState>题库还没有分区。</EmptyState> : null}
       <div className="grid items-start gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -69,9 +73,7 @@ export async function CatalogueIndexView() {
                 <h2 className="text-fg text-sm font-semibold">
                   {group.heading ?? "其他分区"}
                 </h2>
-                <span className="text-fg-subtle shrink-0 text-xs">
-                  {group.cards.length} 个分区
-                </span>
+                <DirectionLink card={group.cards[0]} />
               </header>
               <ul className="divide-border/70 divide-y">
                 {group.cards.map((card) => (
@@ -84,6 +86,19 @@ export async function CatalogueIndexView() {
       </div>
     </div>
   );
+}
+
+function DirectionLink({ card }: { card: SectionCard }) {
+  const board = catalogueBoardFor(card.contest.slug);
+  return board ? (
+    <Link
+      href={leaderboardHref(board.id)}
+      aria-label={`${board.title}排行榜`}
+      className={leaderboardButton}
+    >
+      排行榜 →
+    </Link>
+  ) : null;
 }
 
 function SectionState({ card }: { card: SectionCard }) {
@@ -107,13 +122,13 @@ function SectionMeta({ card }: { card: SectionCard }) {
           ? `已通过 ${card.solved} / ${card.total}`
           : `${card.total} 题`}
       </span>
-      <Link
+      {!catalogueBoardFor(card.contest.slug) && <Link
         href={standingsHref(card.contest.slug)}
         aria-label={`${card.contest.title}排行榜`}
-        className="hover:text-primary rounded-sm transition-colors hover:underline"
+        className={leaderboardButton}
       >
         排行榜
-      </Link>
+      </Link>}
     </div>
   );
 }
@@ -175,8 +190,11 @@ function FeaturedSection({
             {contest.description}
           </p>
         ) : null}
-        <div className="mt-2">
-          <SectionMeta card={card} />
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <SectionMeta card={card} />
+          </div>
+          <DirectionLink card={card} />
         </div>
       </div>
       {featuredProblems.length > 0 ? (

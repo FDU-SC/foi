@@ -39,7 +39,12 @@ export default auth((req) => {
   // contest is the catalogue is a deployment's to change.
   const moved = catalogueRedirect(path);
   if (moved) {
-    return NextResponse.redirect(new URL(moved + nextUrl.search, nextUrl), 307);
+    const destination = new URL(moved, nextUrl);
+    const fixedKeys = new Set(destination.searchParams.keys());
+    nextUrl.searchParams.forEach((value, key) => {
+      if (!fixedKeys.has(key)) destination.searchParams.append(key, value);
+    });
+    return NextResponse.redirect(destination, 307);
   }
 
   // A convenience redirect, not a boundary: the JWT alone says nothing about

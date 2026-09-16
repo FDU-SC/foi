@@ -19,7 +19,7 @@ type Slot<P = object> = (props: P) => ReactNode | Promise<ReactNode>;
  */
 export interface SiteViews {
   /** Optional full leaderboard; the platform authorizes before mounting it. */
-  Leaderboard?: Slot;
+  Leaderboard?: Slot<{ board?: string }>;
 
   /** Optional home summary, mounted only when leaderboard.read is allowed. */
   HomeLeaderboard?: Slot;

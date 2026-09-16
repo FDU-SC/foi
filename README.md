@@ -152,6 +152,17 @@ import { DefaultHeader } from "../../components/site/header";
 Next 通过文件系统发现路由，别名不影响这一过程，因此 `app/` 路由文件不支持插槽覆盖。
 路由文件只声明段配置并转发到 `views/` 中的页面主体，`test/slots.test.ts` 检查此约束。
 
+### 题库方向排行榜
+
+`content/site.ts` 的 `catalogueLeaderboards` 配置方向榜的 `id`、`title`、
+`sections`（题库分区 slug）与 `includeInTotal`。同一方向下的分区归入同一个榜，
+每个分区只配置一次。省略此配置的部署继续使用原有分区榜。
+
+本部署提供 HPC & AI Infra、算法与数据结构、CTF 和玩具箱四个方向榜；总榜排除玩具箱。
+`/leaderboard` 展示总榜，`board` 查询参数选择方向。每个分区中的每题取最高分后累加，
+部分得分计入；同分按达成时间排序，时间也相同则并列。首页展示总榜前五名。
+原分区榜地址跳转到所属方向榜，普通比赛的排行榜保持原样。
+
 ### 新增页面与新增表
 
 新增路由放在 `app/(local)/` 路由组，无需插槽。路由组不影响 URL，且上游不在此目录添加

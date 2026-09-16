@@ -4,10 +4,11 @@ import { db } from "@/lib/db";
 import { accounts, contests, problems, submissions } from "@/lib/db/schema";
 import { contestConfigSchema, type ContestConfig } from "@/lib/contests/types";
 import { problemConfigSchema } from "@/lib/problems/types";
+import type { CatalogueLeaderboard } from "@/lib/site";
 import { leaderboardRows } from "./leaderboard-data";
 
-const state = vi.hoisted(() => ({ contests: new Map<string, ContestConfig>(), listed: [] as string[] }));
-vi.mock("@/lib/contests/catalogue", () => ({ catalogueSlugs: () => state.listed }));
+const state = vi.hoisted(() => ({ contests: new Map<string, ContestConfig>(), boards: [] as CatalogueLeaderboard[], listed: [] as string[] }));
+vi.mock("@/lib/contests/catalogue", () => ({ catalogueSlugs: () => state.listed, catalogueLeaderboards: () => state.boards }));
 vi.mock("@/lib/contests/registry", () => ({
   contestBySlug: (slug: string) => state.contests.get(slug),
   allContests: () => [...state.contests.values()],
@@ -46,22 +47,22 @@ describeDb("练习排行榜数据库聚合", () => {
     await db.insert(problems).values(problemSlugs.map((slug) => ({ slug, title: slug })));
     const users = await db.insert(accounts).values(["a", "b", "c", "d", "e"].map((key) => ({ username: `practice-test-${key}`, nickname: key }))).returning({ uid: accounts.uid });
     uids.push(...users.map(({ uid }) => uid));
-    const row = (id: string, user: number, problem: number, minute: number, result: unknown = { accepted: true }, contest = slugs[0], status: "completed" | "pending" | "disrupted" = "completed") => ({
+    const row = (id: string, user: number, problem: number, minute: number, result: unknown = { accepted: true, score: 100, maxScore: 100 }, contest = slugs[0], status: "completed" | "pending" | "disrupted" = "completed") => ({
       id: `practice-test-${id}`, uid: uids[user], problemSlug: problemSlugs[problem], contestSlug: contest,
       payload: {}, backendId: "test", state: status, result, createdAt: at(minute), judgedAt: at(59 - minute / 2),
     });
     await db.insert(submissions).values([
-      row("a-p", 0, 0, 1), row("a-p-again", 0, 0, 2, { accepted: true }, slugs[1]),
+      row("a-p", 0, 0, 1), row("a-p-again", 0, 0, 2, { accepted: true, score: 100, maxScore: 100 }, slugs[1]),
       row("a-q", 0, 1, 40), // after-end practice; reaches two later than b
       row("b-p", 1, 0, 3), row("b-q", 1, 1, 4),
       row("c-fail", 2, 0, 5, { accepted: "true" }), row("d-fail", 3, 0, 6, false),
       row("e-earliest", 4, 0, 0),
       row("prestart", 2, 1, -1), row("future", 2, 1, 61),
-      row("private", 2, 1, 7, { accepted: true }, slugs[2]),
-      row("sealed", 2, 1, 7, { accepted: true }, slugs[3]),
-      row("unlisted", 2, 1, 7, { accepted: true }, slugs[4]),
-      row("pending", 2, 1, 8, { accepted: true }, slugs[0], "pending"),
-      row("disrupted", 2, 1, 9, { accepted: true }, slugs[0], "disrupted"),
+      row("private", 2, 1, 7, { accepted: true, score: 100, maxScore: 100 }, slugs[2]),
+      row("sealed", 2, 1, 7, { accepted: true, score: 100, maxScore: 100 }, slugs[3]),
+      row("unlisted", 2, 1, 7, { accepted: true, score: 100, maxScore: 100 }, slugs[4]),
+      row("pending", 2, 1, 8, { accepted: true, score: 100, maxScore: 100 }, slugs[0], "pending"),
+      row("disrupted", 2, 1, 9, { accepted: true, score: 100, maxScore: 100 }, slugs[0], "disrupted"),
     ]);
     await db.update(accounts).set({ status: "suspended" }).where(eq(accounts.uid, uids[4]));
   });
@@ -73,15 +74,42 @@ describeDb("练习排行榜数据库聚合", () => {
     await db.delete(contests).where(inArray(contests.slug, slugs));
     await db.delete(problems).where(inArray(problems.slug, problemSlugs));
   });
-  it("按题去重并按达成时间排序，只统计公开、已完成和 active 账号", async () => {
+  it("按分区与题目去重并按分数排序，只统计公开、已完成和 active 账号", async () => {
     const rows = await leaderboardRows(50, NOW);
     expect(rows.map(({ uid, solved, submissions, firstBloods }) => ({ uid, solved, submissions, firstBloods }))).toEqual([
+      { uid: uids[0], solved: 3, submissions: 3, firstBloods: 2 },
       { uid: uids[1], solved: 2, submissions: 2, firstBloods: 1 },
-      { uid: uids[0], solved: 2, submissions: 3, firstBloods: 1 },
       { uid: uids[2], solved: 0, submissions: 1, firstBloods: 0 },
       { uid: uids[3], solved: 0, submissions: 1, firstBloods: 0 },
     ]);
     expect(await leaderboardRows(1, NOW)).toEqual(rows.slice(0, 1));
+  });
+  it("方向隔离，总榜排除不计入的方向，未知方向为空", async () => {
+    state.boards = [
+      { id: "main", title: "练习", sections: [slugs[0]], includeInTotal: true },
+      { id: "toy", title: "娱乐", sections: [slugs[1]], includeInTotal: false },
+    ];
+    try {
+      const total = await leaderboardRows(50, NOW);
+      expect(total).toEqual(await leaderboardRows(50, NOW, "main"));
+      expect(total[0]).toMatchObject({ uid: uids[1], total: 200, rank: 1 });
+      expect(total.find((r) => r.uid === uids[0])).toMatchObject({ total: 200, solved: 2, submissions: 2, firstBloods: 1 });
+      expect(await leaderboardRows(50, NOW, "toy")).toEqual([expect.objectContaining({ uid: uids[0], total: 100, solved: 1, submissions: 1, firstBloods: 1 })]);
+      expect(await leaderboardRows(50, NOW, "missing")).toEqual([]);
+    } finally { state.boards = []; }
+  });
+  it("部分得分按题目分值换算，重复提交取最高分，重评即时生效", async () => {
+    const ids = ["practice-test-partial", "practice-test-lower", "practice-test-repeat"];
+    try {
+      await db.insert(submissions).values(ids.map((id, index) => ({
+        id, uid: uids[2], problemSlug: problemSlugs[0], contestSlug: slugs[0], payload: {}, backendId: "test", state: "completed" as const,
+        result: { score: index === 1 ? 2 : 8, maxScore: 10, accepted: false }, createdAt: at(10 + index),
+      })));
+      const row = (await leaderboardRows(50, NOW)).find((r) => r.uid === uids[2]);
+      expect(row).toMatchObject({ total: 80, solved: 0, submissions: 4, rank: 3 });
+      await db.update(submissions).set({ result: { score: 1, maxScore: 10 } }).where(inArray(submissions.id, ids));
+      expect((await leaderboardRows(50, NOW)).find((r) => r.uid === uids[2])?.total).toBe(10);
+    } finally { await db.delete(submissions).where(inArray(submissions.id, ids)); }
   });
   it("封榜退出、解封恢复，退役题目和移除题库也即时生效", async () => {
     const contest = state.contests.get(slugs[0])!;
@@ -97,7 +125,7 @@ describeDb("练习排行榜数据库聚合", () => {
       contest.endsAt = endsAt;
       delete contest.freezeAt;
       contest.problems = entries.filter(({ slug }) => slug !== problemSlugs[1]);
-      expect((await leaderboardRows(50, NOW))[0]).toMatchObject({ uid: uids[0], solved: 1 });
+      expect((await leaderboardRows(50, NOW))[0]).toMatchObject({ uid: uids[0], solved: 2 });
       state.listed = [];
       expect(await leaderboardRows(50, NOW)).toEqual([]);
     } finally { contest.endsAt = endsAt; delete contest.freezeAt; contest.problems = entries; state.listed = slugs.slice(0, 4); }
@@ -112,11 +140,12 @@ describeDb("练习排行榜数据库聚合", () => {
     expect((await leaderboardRows(50, NOW))[0]).toMatchObject({ uid: uids[1], firstBloods: 2 });
   });
   it("达成时间相同以 uid 排序，首杀时间相同以提交 id 排序", async () => {
-    await db.update(submissions).set({ result: { accepted: true }, state: "completed", createdAt: at(3) })
+    await db.update(submissions).set({ result: { accepted: true, score: 100, maxScore: 100 }, state: "completed", createdAt: at(3) })
       .where(inArray(submissions.id, ["practice-test-a-p", "practice-test-b-p"]));
     await db.update(submissions).set({ createdAt: at(4) }).where(eq(submissions.id, "practice-test-a-q"));
     const rows = await leaderboardRows(50, NOW);
     expect(rows.slice(0, 2).map(({ uid }) => uid)).toEqual(uids.slice(0, 2));
     expect(rows[0].firstBloods).toBe(2);
+    expect(rows.slice(0, 2).map(({ rank, total }) => ({ rank, total }))).toEqual([{ rank: 1, total: 200 }, { rank: 1, total: 200 }]);
   });
 });

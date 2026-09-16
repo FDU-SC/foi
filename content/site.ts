@@ -29,11 +29,18 @@ export const site: SiteConfig = {
     "misc",
   ],
 
+  catalogueLeaderboards: [
+    { id: "hpc", title: "HPC & AI Infra", sections: ["kernel", "comm", "framework", "inference", "cluster"], includeInTotal: true },
+    { id: "algorithms", title: "算法与数据结构", sections: ["graphs", "dynamic-programming", "data-structures", "divide-and-conquer"], includeInTotal: true },
+    { id: "ctf", title: "CTF", sections: ["ctf", "pwn", "reverse", "crypto", "misc"], includeInTotal: true },
+    { id: "puzzles", title: "玩具箱", sections: ["puzzles"], includeInTotal: false },
+  ],
+
   navigation: [
     { href: "/problems", label: "题库" },
     { href: "/contests", label: "比赛" },
     { href: "/submissions", label: "我的提交" },
-    { href: "/leaderboard", label: "练习排行榜", location: "catalogue", visibleWhen: "leaderboard.read" },
+    { href: "/leaderboard", label: "总排行榜", location: "catalogue", visibleWhen: "leaderboard.read" },
     { href: "/judges", label: "评测状态", location: "submissions", visibleWhen: "judge.readBoard" },
     { href: "/judges", label: "评测机", location: "admin", visibleWhen: "judge.readBoard" },
     { href: "/admin", label: "管理", location: "account", visibleWhen: "admin.enter" },

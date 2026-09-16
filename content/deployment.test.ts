@@ -34,6 +34,19 @@ import { ignoresLateSubmissions } from "@/test/standings-support";
  */
 
 describe("这套 content 自身自洽", () => {
+  it("四个方向覆盖题库一次，总榜排除玩具箱", () => {
+    const boards = site.catalogueLeaderboards!;
+    expect(boards.map((board) => board.title)).toEqual(["HPC & AI Infra", "算法与数据结构", "CTF", "玩具箱"]);
+    const sections = boards.flatMap((board) => board.sections);
+    expect(sections.toSorted()).toEqual(site.catalogue!.toSorted());
+    expect(new Set(sections).size).toBe(sections.length);
+    expect(boards.filter((board) => !board.includeInTotal).map((board) => board.sections)).toEqual([["puzzles"]]);
+    for (const board of boards) {
+      const domains = new Set(board.sections.map((slug) => contestBySlug(slug)?.domain));
+      expect(domains.size).toBe(1);
+      expect(domains.has(undefined)).toBe(false);
+    }
+  });
   it("每道外挂题指向的后端都登记过", () => {
     expect(undeclaredBackends()).toEqual([]);
   });

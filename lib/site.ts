@@ -36,7 +36,16 @@ export interface Announcement {
   pinned?: boolean;
 }
 
+export interface CatalogueLeaderboard {
+  id: string;
+  title: string;
+  sections: string[];
+  includeInTotal: boolean;
+}
+
 export interface SiteConfig {
+  /** Direction boards for catalogue sections; omitted preserves per-contest boards. */
+  catalogueLeaderboards?: CatalogueLeaderboard[];
   announcements?: readonly Announcement[];
   name: string;
   title: string;

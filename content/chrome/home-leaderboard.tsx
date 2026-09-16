@@ -9,17 +9,17 @@ export async function FoiHomeLeaderboard() {
     return null;
   const rows = await leaderboardRows(5);
   return (
-    <HomePanel title="练习排行榜" href="/leaderboard">
+    <HomePanel title="总排行榜" href="/leaderboard">
       <ol className="divide-y divide-border">
-        {rows.map((row, i) => (
+        {rows.map((row) => (
           <li
             key={row.uid}
             className={`flex items-center gap-3 px-4 py-3 ${row.uid === viewer.uid ? "bg-primary-subtle/40" : ""}`}
           >
             <span
-              className={`w-4 shrink-0 font-mono text-sm ${i === 0 ? "text-primary font-semibold" : "text-fg-muted"}`}
+              className={`w-4 shrink-0 font-mono text-sm ${row.rank === 1 ? "text-primary font-semibold" : "text-fg-muted"}`}
             >
-              {i + 1}
+              {row.rank}
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-medium">
@@ -32,9 +32,9 @@ export async function FoiHomeLeaderboard() {
             </span>
             <span className="text-fg-muted shrink-0 text-xs">
               <strong className="text-fg font-mono font-medium">
-                {row.solved}
+                {Number(row.total.toFixed(2))}
               </strong>{" "}
-              题
+              分
             </span>
           </li>
         ))}

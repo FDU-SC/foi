@@ -13,6 +13,7 @@ vi.mock("./leaderboard-data", () => ({ leaderboardRows: vi.fn() }));
 const VIEWER = viewerFor({ uid: 7, groups: [] });
 const ROWS: LeaderboardRow[] = [
   {
+    rank: 1, total: 200,
     uid: VIEWER.uid!,
     username: "alice",
     nickname: "Alice",
@@ -21,6 +22,7 @@ const ROWS: LeaderboardRow[] = [
     firstBloods: 1,
   },
   {
+    rank: 2, total: 100,
     uid: 8,
     username: "bob",
     nickname: "Bob",

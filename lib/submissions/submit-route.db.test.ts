@@ -371,7 +371,7 @@ describeDb("提交的幂等键", () => {
     }
   });
 
-  it("重放同一个 nonce 得到 200 与同一行，而不是第二次 201", async () => {
+  it("同一题属于多个比赛时，重放 nonce 仍保留本次比赛归属", async () => {
     const nonce = "idem-replay";
     const body = {
       contestSlug: EXTERNAL.contest.slug,
@@ -379,6 +379,11 @@ describeDb("提交的幂等键", () => {
       payload: PAYLOAD,
       clientNonce: nonce,
     };
+
+    const contestSlugs = contestProblemRefs()
+      .filter((ref) => ref.problem.slug === EXTERNAL.problem.slug)
+      .map((ref) => ref.contest.slug);
+    expect(new Set(contestSlugs).size).toBeGreaterThan(1);
 
     const first = await post(body);
     expect(first.status).toBe(201);
@@ -388,7 +393,13 @@ describeDb("提交的幂等键", () => {
     expect(second.status).toBe(200);
     expect((await second.json()).id).toBe(created.id);
 
-    expect((await rowsWithNonce(nonce)).length).toBe(1);
+    expect(await rowsWithNonce(nonce)).toMatchObject([
+      {
+        id: created.id,
+        problemSlug: EXTERNAL.problem.slug,
+        contestSlug: EXTERNAL.contest.slug,
+      },
+    ]);
   });
 
   it("contestSlug 是空串时 400，且什么也不写", async () => {

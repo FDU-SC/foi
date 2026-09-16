@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { getViewer } from "@/auth";
 import { viewerFor } from "@/lib/authz/viewer";
-import { problemHref } from "@/lib/contests/catalogue";
+import { contestHref, problemHref } from "@/lib/contests/catalogue";
 import {
   stagedProblem,
   upcomingProblem,
@@ -15,11 +15,13 @@ vi.mock("@/auth", () => ({
   getViewer: vi.fn(),
 }));
 
+const navigation = vi.hoisted(() => ({ pathname: "" }));
+
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("not-found");
   },
-  usePathname: () => "/contests/test",
+  usePathname: () => navigation.pathname,
 }));
 
 afterEach(() => {
@@ -33,6 +35,7 @@ const props = (slug: string) => ({
 });
 
 async function renderDetail(slug: string) {
+  navigation.pathname = contestHref(slug);
   const pageProps = props(slug);
   return renderToStaticMarkup(
     await ContestWorkspaceView({
@@ -72,6 +75,12 @@ describe("比赛详情权限边界", () => {
       viewerWith("contest.readProblemSet", 22),
     );
     const previewHtml = await renderDetail(ref.contest.slug);
+    expect(previewHtml.match(/<h1\b/g)).toHaveLength(1);
+    expect(previewHtml.split(ref.contest.title)).toHaveLength(2);
+    expect(previewHtml).toContain("开始时间");
+    expect(previewHtml).toContain("结束时间");
+    expect(previewHtml).toContain(`dateTime="${ref.contest.startsAt.toISOString()}"`);
+    expect(previewHtml).toContain(`dateTime="${ref.contest.endsAt.toISOString()}"`);
     expect(previewHtml).toContain("预览 · 尚未对选手公开");
     expect(previewHtml).toContain(ref.problem.title);
     expect(previewHtml).toContain(problemHref(ref.contest.slug, ref.problem.slug));

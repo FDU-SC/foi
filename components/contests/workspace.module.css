@@ -1,12 +1,16 @@
-.header {
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  background: linear-gradient(110deg, var(--surface), color-mix(in oklch, var(--primary-subtle) 45%, var(--surface)));
-  box-shadow: 0 4px 20px -16px var(--primary);
+.root {
+  --contest-header-height: 0px;
 }
 
-.header nav {
-  border-bottom: 0;
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  min-height: 2.75rem;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
 }
 
 .workspace {
@@ -18,35 +22,46 @@
 
 .panel {
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  background: var(--surface);
-  box-shadow: 0 4px 20px -16px color-mix(in oklch, var(--fg) 25%, transparent);
 }
 
 .statement {
   box-shadow: none;
 }
 
+/* Limit prose, not the space available to content-owned interactive views. */
+.statement > :where(p, ul, ol, blockquote) {
+  max-width: 80ch;
+}
+
 .problemLink {
   display: grid;
   grid-template-columns: fit-content(5rem) minmax(0, 1fr);
   align-items: start;
-  gap: 0.75rem;
+  gap: 0.5rem;
+}
+
+.content {
+  scroll-margin-top: calc(var(--contest-header-height) + 1rem);
 }
 
 @media (min-width: 1024px) {
   .workspace {
-    grid-template-columns: 272px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .sidebar,
-  .content {
-    height: max(20rem, var(--contest-workspace-height, 65dvh));
+  .expanded {
+    grid-template-columns: minmax(0, 1fr) 224px;
   }
 
-  .content {
-    overflow-y: auto;
-    scrollbar-gutter: stable;
+  .sidebar {
+    position: sticky;
+    top: calc(var(--contest-header-height) + 1rem);
+    max-height: calc(100dvh - var(--contest-header-height) - 2rem);
+    border-left: 1px solid var(--border);
+    padding-left: 0.5rem;
+  }
+
+  .sidebar[hidden] {
+    display: none;
   }
 }

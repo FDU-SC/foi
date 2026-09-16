@@ -464,3 +464,8 @@
     grid-column: 2;
   }
 }
+
+/* Only the contest workspace uses the full page width. */
+.oj-page:has([data-contest-workspace]) {
+  max-width: none;
+}

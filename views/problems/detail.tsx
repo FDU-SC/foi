@@ -140,7 +140,7 @@ async function ProblemDetail({
             },
       }}
     >
-      <article className={cn("min-w-0", embedded && workspaceStyles.panel)}>
+      <article className="min-w-0">
         {view.preview ? (
           <div className={cn("border-warn/40 bg-warn/10 mb-4 rounded-lg border px-4 py-3", embedded && "mx-4 mt-4 sm:mx-6 sm:mt-6")}>
             <div className="flex flex-wrap items-center gap-2">
@@ -189,8 +189,8 @@ async function ProblemDetail({
 
         <header className={cn("border-border border-b", embedded ? "px-4 py-5 sm:px-6" : "mb-6 pb-5")}>
           <div className="flex flex-wrap items-center gap-3">
-            {embedded ? <span className="text-primary bg-primary-subtle max-w-full rounded-lg px-3 py-1.5 font-mono text-base font-semibold wrap-anywhere">{entry.label ?? problem.slug}</span> : null}
-            <h1 className="text-fg min-w-0 text-2xl font-bold tracking-tight wrap-anywhere">
+            {embedded ? <span className="text-fg-muted max-w-full font-mono text-sm font-medium wrap-anywhere">{entry.label ?? problem.slug}</span> : null}
+            <h1 className={cn("text-fg min-w-0 text-2xl font-bold tracking-tight wrap-anywhere", embedded && "lg:text-3xl")}>
               {problem.title}
             </h1>
             {embedded ? <span className="text-fg-muted text-sm tabular-nums">{entry.points ?? problem.maxScore} 分</span> : null}

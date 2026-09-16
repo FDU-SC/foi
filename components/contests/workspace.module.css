@@ -1,0 +1,52 @@
+.header {
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: linear-gradient(110deg, var(--surface), color-mix(in oklch, var(--primary-subtle) 45%, var(--surface)));
+  box-shadow: 0 4px 20px -16px var(--primary);
+}
+
+.header nav {
+  border-bottom: 0;
+}
+
+.workspace {
+  display: grid;
+  min-width: 0;
+  align-items: start;
+  gap: 1rem;
+}
+
+.panel {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  box-shadow: 0 4px 20px -16px color-mix(in oklch, var(--fg) 25%, transparent);
+}
+
+.statement {
+  box-shadow: none;
+}
+
+.problemLink {
+  display: grid;
+  grid-template-columns: fit-content(5rem) minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+}
+
+@media (min-width: 1024px) {
+  .workspace {
+    grid-template-columns: 272px minmax(0, 1fr);
+  }
+
+  .sidebar,
+  .content {
+    height: max(20rem, var(--contest-workspace-height, 65dvh));
+  }
+
+  .content {
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
+}

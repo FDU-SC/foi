@@ -22,6 +22,8 @@ import {
 import { loadStatement, problemFor } from "@/lib/problems/access";
 import { dateFormatter } from "@/lib/format";
 import { toPublicConfig } from "@/lib/problems/types";
+import { cn } from "@/lib/utils";
+import workspaceStyles from "@/components/contests/workspace.module.css";
 
 const gateFormatter = dateFormatter({
   dateStyle: "medium",
@@ -138,9 +140,9 @@ async function ProblemDetail({
             },
       }}
     >
-      <article className="min-w-0">
+      <article className={cn("min-w-0", embedded && workspaceStyles.panel)}>
         {view.preview ? (
-          <div className="border-warn/40 bg-warn/10 mb-4 rounded-lg border px-4 py-3">
+          <div className={cn("border-warn/40 bg-warn/10 mb-4 rounded-lg border px-4 py-3", embedded && "mx-4 mt-4 sm:mx-6 sm:mt-6")}>
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone="warn">预览</Badge>
               <span className="text-fg text-sm font-medium">
@@ -185,10 +187,14 @@ async function ProblemDetail({
           </nav>
         ) : null}
 
-        <header className="border-border mb-6 border-b pb-5">
-          <h1 className="text-fg text-2xl font-bold tracking-tight">
-            {problem.title}
-          </h1>
+        <header className={cn("border-border border-b", embedded ? "px-4 py-5 sm:px-6" : "mb-6 pb-5")}>
+          <div className="flex flex-wrap items-center gap-3">
+            {embedded ? <span className="text-primary bg-primary-subtle max-w-full rounded-lg px-3 py-1.5 font-mono text-base font-semibold wrap-anywhere">{entry.label ?? problem.slug}</span> : null}
+            <h1 className="text-fg min-w-0 text-2xl font-bold tracking-tight wrap-anywhere">
+              {problem.title}
+            </h1>
+            {embedded ? <span className="text-fg-muted text-sm tabular-nums">{entry.points ?? problem.maxScore} 分</span> : null}
+          </div>
           <div className="mt-3 flex flex-wrap items-center gap-2 empty:mt-0">
             <ProblemBadgesSlot config={problem} offered={contest.facets} />
           </div>
@@ -243,7 +249,7 @@ async function ProblemDetail({
               </nav>
             </aside>
           ) : null}
-          <div className="oj-statement bg-surface border-border rounded-lg border p-4 sm:p-6 lg:col-start-1 lg:row-start-1">
+          <div className={cn("oj-statement p-4 sm:p-6 lg:col-start-1 lg:row-start-1", embedded ? workspaceStyles.statement : "bg-surface border-border rounded-lg border")}>
             <Statement />
           </div>
         </div>

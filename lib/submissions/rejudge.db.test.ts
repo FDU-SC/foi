@@ -15,6 +15,7 @@ import { accounts, contests, judgingQueue, problems, submissions } from "@/lib/d
 import { externallyJudged } from "@/lib/problems/registry";
 import { claimJob, reportDone } from "@/lib/runner/queue";
 import { rejudgeSubmissions } from "./rejudge";
+import { withLockedRow } from "@/test/db-concurrency";
 
 const USERNAME = "rejudge-alice";
 let ACCOUNT_UID = 0;
@@ -97,6 +98,29 @@ describeDb("重判", () => {
   });
 
   describe("重判清空判定结果", () => {
+    it("并发重判只创建一份任务并只计数一次", async () => {
+      const id = await settled("sub_rj_concurrent");
+      const results = await withLockedRow("submissions", id, () =>
+        Promise.all([rejudgeSubmissions([id]), rejudgeSubmissions([id])]),
+      );
+      expect(results.map((result) => result.requeued).sort()).toEqual([0, 1]);
+      const queued = await db.select().from(judgingQueue)
+        .where(eq(judgingQueue.submissionId, id));
+      expect(queued).toHaveLength(1);
+    });
+
+    it("队列冲突使重判整体回滚，保留原判定", async () => {
+      const id = await settled("sub_rj_conflict");
+      const before = await rowOf(id);
+      await db.insert(judgingQueue).values({
+        submissionId: id,
+        backendId: BACKEND,
+      });
+
+      await expect(rejudgeSubmissions([id])).rejects.toThrow();
+      expect(await rowOf(id)).toEqual(before);
+    });
+
     it("上一轮判定整个清掉", async () => {
       const id = await settled("sub_rj_cleared");
 

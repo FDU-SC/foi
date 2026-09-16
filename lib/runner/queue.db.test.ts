@@ -1,10 +1,11 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
 import {
   accounts,
   contests,
+  judgingAttempts,
   judgingQueue,
   problems,
   runners,
@@ -13,12 +14,14 @@ import {
 import { externallyJudged } from "@/lib/problems/registry";
 import { scoredSubmissions } from "@/lib/standings/types";
 import { rejudgeSubmissions } from "@/lib/submissions/rejudge";
+import { withLockedRow } from "@/test/db-concurrency";
 import {
   claimJob,
   jobDetails,
   MAX_ATTEMPTS,
   reportDone,
   reportFailed,
+  reportAlive,
 } from "./queue";
 
 const USERNAME = "runner-queue-alice";
@@ -115,6 +118,58 @@ describeDb("runner 领取任务与上报", () => {
   afterAll(cleanup);
 
   describe("领取任务", () => {
+    it("attempt 写入失败时任务仍可领取", async () => {
+      const id = await enqueue("sub_rq_attempt_failure");
+      await db.execute(sql`
+        CREATE FUNCTION test_fail_claim() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          IF NEW.submission_id = 'sub_rq_attempt_failure' THEN
+            RAISE EXCEPTION 'injected attempt failure';
+          END IF;
+          RETURN NEW;
+        END $$;
+        CREATE TRIGGER test_fail_claim BEFORE INSERT ON judging_attempts
+        FOR EACH ROW EXECUTE FUNCTION test_fail_claim();
+      `);
+      try {
+        await expect(claimJob(BACKEND, "r-failure")).rejects.toThrow();
+        expect(await queueOf(id)).toMatchObject({ state: "waiting", attempts: 0, lease: null });
+      } finally {
+        await db.execute(sql`
+          DROP TRIGGER test_fail_claim ON judging_attempts;
+          DROP FUNCTION test_fail_claim();
+        `);
+      }
+      expect(await claimJob(BACKEND, "r-retry")).toMatchObject({ id });
+    });
+
+    it("通知失败时心跳与状态一起回滚", async () => {
+      const id = await enqueue("sub_rq_notify_failure");
+      const ticket = (await claimJob(BACKEND, "r-notify"))!;
+      const before = await queueOf(id);
+      await expect(reportAlive(id, ticket.lease, "x".repeat(8_000))).rejects.toThrow();
+      expect(await queueOf(id)).toEqual(before);
+    });
+
+    it.each(["done", "failed"] as const)("完成与 %s 竞争只接受一次终态上报", async (other) => {
+      const id = await enqueue(`sub_rq_terminal_${other}`);
+      const ticket = (await claimJob(BACKEND, "r-terminal"))!;
+      const accepted = await withLockedRow("judging_queue", id, () =>
+        Promise.all([
+          reportDone(id, ticket.lease, VERDICT, VERSION),
+          other === "done"
+            ? reportDone(id, ticket.lease, WRONG, VERSION)
+            : reportFailed(id, ticket.lease, "失败", VERSION),
+        ]),
+      );
+      expect(accepted.sort()).toEqual([false, true]);
+      expect(await queueOf(id)).toBeUndefined();
+      const attempts = await db.select().from(judgingAttempts)
+        .where(eq(judgingAttempts.submissionId, id));
+      expect(attempts).toHaveLength(1);
+      expect(attempts[0].outcome).not.toBeNull();
+    });
+
 
     it("多个 runner 同时领取任务时，一条提交只会分配给一个 runner", async () => {
       const ids = ["sub_rq_race_1", "sub_rq_race_2", "sub_rq_race_3"];

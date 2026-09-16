@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ViewTransition } from "react";
 import { getSessionUser } from "@/auth";
 import { allows } from "@/lib/authz/engine";
 import { groupName } from "@/lib/authz/groups";
@@ -16,33 +17,39 @@ export async function DefaultHeader() {
 
   return (
     <header className="border-border/80 bg-bg/80 sticky top-0 z-40 border-b backdrop-blur-xl">
-      <div className="mx-auto flex min-h-14 max-w-[1280px] flex-wrap items-center gap-x-6 px-4 md:px-6">
-        <div className="flex h-14 shrink-0 items-center text-base">
-          <Brand />
-        </div>
+      <div className="site-container mx-auto flex min-h-14 flex-wrap items-center gap-x-6 px-4 md:px-6">
+        <ViewTransition default="header-move" enter="none" exit="none">
+          <div className="flex h-14 shrink-0 items-center text-base">
+            <Brand />
+          </div>
+        </ViewTransition>
 
-        <SiteNav
-          items={site.navigation
-            .filter(
-              (item) =>
-                !item.visibleWhen || allows(item.visibleWhen, null, viewer),
-            )
-            .map(({ href, label }) => ({ href, label }))}
-        />
+        <ViewTransition default="header-move" enter="none" exit="none">
+          <SiteNav
+            items={site.navigation
+              .filter(
+                (item) =>
+                  !item.visibleWhen || allows(item.visibleWhen, null, viewer),
+              )
+              .map(({ href, label }) => ({ href, label }))}
+          />
+        </ViewTransition>
 
-        <div className="ml-auto flex h-14 shrink-0 items-center gap-2">
-          <ThemeToggle />
-          {user ? (
-            <UserMenu user={user} groupNames={user.groups.map(groupName)} />
-          ) : (
-            <Link
-              href="/login"
-              className="ui-primary bg-primary text-primary-fg hover:bg-primary-hover rounded-md px-3 py-1.5 text-sm font-medium transition-[background-color,box-shadow,transform] duration-200 motion-safe:active:scale-[0.98]"
-            >
-              登录
-            </Link>
-          )}
-        </div>
+        <ViewTransition default="header-move" enter="none" exit="none">
+          <div className="ml-auto flex h-14 shrink-0 items-center gap-2">
+            <ThemeToggle />
+            {user ? (
+              <UserMenu user={user} groupNames={user.groups.map(groupName)} />
+            ) : (
+              <Link
+                href="/login"
+                className="ui-primary bg-primary text-primary-fg hover:bg-primary-hover rounded-md px-3 py-1.5 text-sm font-medium transition-[background-color,box-shadow,transform] duration-200 motion-safe:active:scale-[0.98]"
+              >
+                登录
+              </Link>
+            )}
+          </div>
+        </ViewTransition>
       </div>
     </header>
   );

@@ -30,7 +30,7 @@ describe("比赛工作区权限", () => {
     expect(html).not.toContain("<h1");
     expect(html).not.toContain("开始时间");
     expect(html).not.toContain("结束时间");
-    const button = html.match(/<button[^>]*aria-expanded="true"[^>]*aria-controls="([^"]+)"[^>]*>[\s\S]*?收起题单<\/button>/);
+    const button = html.match(/<button[^>]*aria-expanded="true"[^>]*aria-controls="([^"]+)"[^>]*>[\s\S]*?收起<\/button>/);
     expect(button).not.toBeNull();
     expect(html).toContain(`<aside id="${button![1]}"`);
     expect(html).not.toMatch(/<aside[^>]*hidden=""/);

@@ -47,8 +47,11 @@ pnpm dev
 剩下几道要外部评测机。我们提供了一个模拟评测机：
 
 ```bash
-FOI_STUB_RUNNER=yes-fake-verdicts node scripts/stub-runner.cjs
+FOI_STUB_RUNNER=yes-fake-verdicts pnpm backend:stub
 ```
+
+该命令读取 `.env.local`，仅生成模拟结果，不编译或执行提交代码，也不提供交互动作服务。
+真实评测和交互动作需要独立部署的评测机。
 
 ## 增加自定义内容
 
@@ -225,7 +228,7 @@ export const problemConfigModules = { ...upstream, ...local };
 
 评测机主动领取任务，平台无需配置评测机地址，双方使用相同密钥认证。协议在
 `lib/backend/` 定义，包含领取任务、获取任务详情和上报结果三个端点，均使用 HMAC 签名。
-`scripts/stub-runner.cjs` 是一份最小实现，三百行，可以照着写。
+`scripts/stub-runner.cjs` 提供模拟结果，可用作领取、心跳和上报协议的参考。
 
 例外是需要平台主动发起的交互动作（比如为选手拉起一台靶机），那种后端要额外配一个地址。
 

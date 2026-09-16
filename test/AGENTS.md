@@ -32,7 +32,7 @@ through — the seven `_modules/` registries plus `site.ts`, `site-views.tsx`,
 Kernel tests must remain valid when deployments remove groups or contests.
 Assert deployment facts in `content/deployment.test.ts`, which the fork owns.
 
-Tests for `scripts/stub-runner.cjs` and `scripts/mock-runner.ts` belong to `tools`.
+Tests for `scripts/stub-runner.cjs` belong to `tools`.
 Use placeholders instead of actual problem, backend or group names, as in
 `stub-runner.test.ts`.
 

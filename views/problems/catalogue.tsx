@@ -18,6 +18,7 @@ import {
   type ContestConfig,
 } from "@/lib/contests/types";
 import { problemsFor } from "@/lib/problems/access";
+import { summarizeProgress } from "@/lib/problems/selection";
 import { progressFor } from "@/lib/problems/progress";
 
 const UNGROUPED = Symbol("ungrouped");
@@ -237,17 +238,8 @@ async function cardFor(
     solved: null,
   };
 
-  if (!viewer.authenticated) return card;
-
-  const statuses = await progressFor(slug, viewer);
-  if (!problems.every(({ ref }) => statuses.has(ref.problem.slug))) return card;
-
-  return {
-    ...card,
-    solved: problems.filter(
-      ({ ref }) => statuses.get(ref.problem.slug)?.state === "solved",
-    ).length,
-  };
+  const statuses = viewer.authenticated ? await progressFor(slug, viewer) : null;
+  return { ...card, solved: summarizeProgress(problems, statuses).solved };
 }
 
 /** Headings in the order their first card appears, ungrouped cards last. */

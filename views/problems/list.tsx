@@ -14,76 +14,26 @@ import {
   standingsHref,
 } from "@/lib/contests/catalogue";
 import { contestPhase, contestStatus } from "@/lib/contests/types";
-import { problemsFor, type ProblemView } from "@/lib/problems/access";
-import {
-  collectFacets,
-  facetCounts,
-  matchesFacets,
-  type FacetSelection,
-} from "@/lib/problems/facets";
-import type { ProblemConfig } from "@/lib/problems/types";
-import { readAll, readOne } from "@/lib/query";
+import { problemsFor } from "@/lib/problems/access";
+import { selectProblems, SELECTION_PARAMS, DEFAULT_PROBLEM_SORT } from "@/lib/problems/selection";
 import { progressFor } from "@/lib/problems/progress";
-import type { ProblemProgress } from "@/lib/problems/views";
 import { TableFrame } from "@/components/ui/page";
 
 type Props = PageProps<"/problems/[section]">;
 
-/**
- * Parameters this page owns. Facet keys carry a prefix, so a dimension a
- * deployment invents can never shadow one of these.
- */
-const SEARCH = "q";
-const STATUS = "status";
-const SORT = "sort";
-const FACET = "f.";
+const { search: SEARCH, status: STATUS, sort: SORT, facet: FACET } = SELECTION_PARAMS;
 
 const STATUSES = [
   { value: "solved", label: "已通过" },
   { value: "attempted", label: "尝试过" },
   { value: "untouched", label: "未尝试" },
-];
+] as const;
 
 const SORTS = [
   { value: "newest", label: "最新" },
   { value: "listed", label: "题单序" },
   { value: "score", label: "分值" },
 ];
-
-const NEWEST = SORTS[0].value;
-
-function pick(
-  asked: string | undefined,
-  from: { value: string }[],
-): string | undefined {
-  return from.some((one) => one.value === asked) ? asked : undefined;
-}
-
-function matchesQuery(config: ProblemConfig, query: string): boolean {
-  if (query.length === 0) return true;
-  return (
-    config.title.toLowerCase().includes(query) || config.slug.includes(query)
-  );
-}
-
-function matchesStatus(
-  status: string | undefined,
-  mine: ProblemProgress | undefined,
-): boolean {
-  if (status) return mine?.state === status;
-  return true;
-}
-
-/** What this section is worth a problem, which the contest may override. */
-function worth({ ref }: ProblemView): number {
-  return ref.entry.points ?? ref.problem.maxScore;
-}
-
-function sorted(views: ProblemView[], sort: string): ProblemView[] {
-  if (sort === "score") return [...views].sort((a, b) => worth(b) - worth(a));
-  if (sort === "newest") return views.toReversed();
-  return views;
-}
 
 /** The catalogued contest this URL names, refused the way a missing page is. */
 function sectionFor(section: string) {
@@ -127,49 +77,12 @@ export async function ProblemListView({ params, searchParams }: Props) {
   const path = contestHref(contest.slug);
 
   const statuses = viewer.authenticated ? await progressFor(contest.slug, viewer) : null;
-  const completeProgress = statuses !== null && catalogue.every(({ ref }) => statuses.has(ref.problem.slug));
-  const showProgress = statuses !== null && statuses.size > 0;
-
   const offered = contest.facets;
-  const groups = collectFacets(
-    catalogue.map(({ ref }) => ref.problem),
-    offered,
-  );
-
-  const selection: FacetSelection = Object.fromEntries(
-    groups.map((group) => [group.key, readAll(query, FACET + group.key)]),
-  );
-
-  const text = readOne(query, SEARCH)?.trim().toLowerCase() ?? "";
-  const status = completeProgress ? pick(readOne(query, STATUS), STATUSES) : undefined;
-  const sort = pick(readOne(query, SORT), SORTS) ?? NEWEST;
-
-  // Counts answer "how many would this choice leave", so each dimension is
-  // measured against every criterion except its own.
-  const beforeFacets = catalogue.filter(
-    ({ ref }) =>
-      matchesQuery(ref.problem, text) &&
-      matchesStatus(status, statuses?.get(ref.problem.slug)),
-  );
-  const beforeStatus = catalogue.filter(
-    ({ ref }) =>
-      matchesQuery(ref.problem, text) &&
-      matchesFacets(ref.problem, offered, selection),
-  );
-
-  const counts = facetCounts(
-    beforeFacets.map(({ ref }) => ref.problem),
-    offered,
-    groups,
-    selection,
-  );
-
-  const problems = sorted(
-    beforeFacets.filter(({ ref }) =>
-      matchesFacets(ref.problem, offered, selection),
-    ),
-    sort,
-  );
+  const {
+    problems, groups, selection, counts, status, sort, statusCounts,
+    summary: { complete: completeProgress, showProgress, solved },
+    narrowed, filtered, params: filterParams, searchValue,
+  } = selectProblems({ problems: catalogue, offered, progress: statuses, query });
 
   const rows: FilterRow[] = groups.map((group) => ({
     key: FACET + group.key,
@@ -190,9 +103,7 @@ export async function ProblemListView({ params, searchParams }: Props) {
       selected: status ? [status] : [],
       choices: STATUSES.map((choice) => ({
         ...choice,
-        count: beforeStatus.filter(({ ref }) =>
-          matchesStatus(choice.value, statuses.get(ref.problem.slug)),
-        ).length,
+        count: statusCounts.get(choice.value),
       })),
     });
   }
@@ -201,15 +112,9 @@ export async function ProblemListView({ params, searchParams }: Props) {
     key: SORT,
     label: "排序",
     selected: [sort],
-    fallback: NEWEST,
+    fallback: DEFAULT_PROBLEM_SORT,
     choices: SORTS,
   });
-
-  const narrowed = problems.length !== catalogue.length;
-  const solved = completeProgress
-    ? catalogue.filter(({ ref }) => statuses.get(ref.problem.slug)?.state === "solved")
-        .length
-    : null;
 
   // A catalogue section's normal state is open, and saying so on every visit is
   // noise. Anything else changes what a visitor can do here, so it gets a badge.
@@ -259,12 +164,12 @@ export async function ProblemListView({ params, searchParams }: Props) {
       {catalogue.length > 0 ? (
         <ProblemFilters
           path={path}
-          params={completeProgress ? query : Object.fromEntries(Object.entries(query).filter(([key]) => key !== STATUS))}
+          params={filterParams}
           rows={rows}
           searchKey={SEARCH}
-          searchValue={readOne(query, SEARCH) ?? ""}
+          searchValue={searchValue}
           searchPlaceholder="按题目名或标识搜索"
-          filtered={narrowed || text.length > 0 || sort !== NEWEST}
+          filtered={filtered}
         />
       ) : null}
 

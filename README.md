@@ -164,6 +164,16 @@ pnpm exec drizzle-kit generate --config drizzle.local.config.ts
 永不相撞。表名要带 `drizzle.local.config.ts` 里 `tablesFilter` 约定的前缀，这样即使你
 import 上游的表来挂外键，drizzle-kit 也不会试图重复创建它。
 
+平台和部署分别使用 `drizzle.__drizzle_migrations` 与
+`drizzle.__drizzle_local_migrations` 记录已执行的迁移。旧版本曾共用前一张表；升级时，
+保留原有的两个迁移目录，先让应用以自动迁移开启的状态启动一次。启动流程会按迁移文件的
+hash 和时间戳转移旧的部署记录，再应用尚未执行的迁移；无法区分平台和部署的相同 hash
+会使启动失败，需要先核查迁移文件。
+
+`drizzle-kit migrate --config drizzle.local.config.ts` 只使用新的部署 journal，
+不会转移旧记录。已有部署完成上述启动升级前，不要直接运行此命令，以免重放已执行的迁移。
+设置了 `FOI_AUTO_MIGRATE=false` 的部署也需要在这次升级时临时开启自动迁移。
+
 ### 覆盖 content 入口
 
 十二个入口分两类，行为不同。

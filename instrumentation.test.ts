@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   existsSync: vi.fn(),
   info: vi.fn(),
   migrate: vi.fn(),
+  prepareDeploymentMigrationJournal: vi.fn(),
   startReaping: vi.fn(),
 }));
 
@@ -22,6 +23,9 @@ vi.mock("node:fs", async (importOriginal) => ({
 }));
 vi.mock("drizzle-orm/node-postgres/migrator", () => ({
   migrate: mocks.migrate,
+}));
+vi.mock("@/lib/db/migration-journal", () => ({
+  prepareDeploymentMigrationJournal: mocks.prepareDeploymentMigrationJournal,
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/log", () => ({ log: { info: mocks.info } }));
@@ -75,6 +79,7 @@ describe("instrumentation 运行时隔离", () => {
     await register();
 
     expect(mocks.assertBootConfiguration).not.toHaveBeenCalled();
+    expect(mocks.prepareDeploymentMigrationJournal).not.toHaveBeenCalled();
     expect(mocks.migrate).not.toHaveBeenCalled();
     expect(mocks.startReaping).not.toHaveBeenCalled();
   });
@@ -90,11 +95,16 @@ describe("instrumentation 运行时隔离", () => {
     await register();
 
     expect(mocks.assertBootConfiguration).toHaveBeenCalledOnce();
+    expect(mocks.prepareDeploymentMigrationJournal).toHaveBeenCalledWith(db);
+    expect(mocks.prepareDeploymentMigrationJournal.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.migrate.mock.invocationCallOrder[0]!);
     expect(mocks.migrate).toHaveBeenNthCalledWith(1, db, {
       migrationsFolder: "drizzle",
+      migrationsTable: "__drizzle_migrations",
     });
     expect(mocks.migrate).toHaveBeenNthCalledWith(2, db, {
       migrationsFolder: "drizzle.local",
+      migrationsTable: "__drizzle_local_migrations",
     });
     expect(mocks.info).toHaveBeenCalledWith("数据库迁移已应用");
     expect(stopPrevious).toHaveBeenCalledOnce();
@@ -110,11 +120,16 @@ describe("instrumentation 运行时隔离", () => {
 
     await register();
 
+    expect(mocks.prepareDeploymentMigrationJournal).toHaveBeenCalledWith(db);
+    expect(mocks.prepareDeploymentMigrationJournal.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.migrate.mock.invocationCallOrder[0]!);
     expect(mocks.migrate).toHaveBeenNthCalledWith(1, db, {
       migrationsFolder: "drizzle",
+      migrationsTable: "__drizzle_migrations",
     });
     expect(mocks.migrate).toHaveBeenNthCalledWith(2, db, {
       migrationsFolder: "drizzle.local",
+      migrationsTable: "__drizzle_local_migrations",
     });
   });
 
@@ -126,9 +141,11 @@ describe("instrumentation 运行时隔离", () => {
     await register();
 
     expect(mocks.existsSync).toHaveBeenCalledWith("drizzle.local/meta/_journal.json");
+    expect(mocks.prepareDeploymentMigrationJournal).not.toHaveBeenCalled();
     expect(mocks.migrate).toHaveBeenCalledTimes(1);
     expect(mocks.migrate).toHaveBeenCalledWith(db, {
       migrationsFolder: "drizzle",
+      migrationsTable: "__drizzle_migrations",
     });
   });
 });

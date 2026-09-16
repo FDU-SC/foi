@@ -1,3 +1,4 @@
+import { NavigationLinks } from "@/components/site/navigation-links";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getViewer } from "@/auth";
@@ -44,7 +45,10 @@ export async function CatalogueIndexView() {
   const groups = groupByDomain(cards);
   return (
     <div className="space-y-5">
-      <PageHeader title="题库" />
+      <PageHeader
+        title="题库"
+        actions={<NavigationLinks viewer={viewer} location="catalogue" />}
+      />
       {groups.length === 0 ? <EmptyState>题库还没有分区。</EmptyState> : null}
       <div className="grid items-start gap-5 md:grid-cols-2 xl:grid-cols-3">
         {groups.map((group) => {

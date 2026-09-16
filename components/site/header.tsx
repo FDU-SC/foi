@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { ViewTransition } from "react";
 import { getSessionUser } from "@/auth";
-import { allows } from "@/lib/authz/engine";
+import { navigationFor } from "@/lib/site-navigation";
 import { groupName } from "@/lib/authz/groups";
 import { viewerFor } from "@/lib/authz/viewer";
-import { site } from "@/lib/site";
 import { siteViews } from "@/lib/site-views";
 import { Brand } from "@/components/site/brand";
 import { SiteNav } from "@/components/site/site-nav";
@@ -26,12 +25,7 @@ export async function DefaultHeader() {
 
         <ViewTransition default="header-move" enter="none" exit="none">
           <SiteNav
-            items={site.navigation
-              .filter(
-                (item) =>
-                  !item.visibleWhen || allows(item.visibleWhen, null, viewer),
-              )
-              .map(({ href, label }) => ({ href, label }))}
+            items={navigationFor(viewer)}
           />
         </ViewTransition>
 
@@ -39,7 +33,11 @@ export async function DefaultHeader() {
           <div className="ml-auto flex h-14 shrink-0 items-center gap-2">
             <ThemeToggle />
             {user ? (
-              <UserMenu user={user} groupNames={user.groups.map(groupName)} />
+              <UserMenu
+                user={user}
+                groupNames={user.groups.map(groupName)}
+                links={navigationFor(viewer, "account")}
+              />
             ) : (
               <Link
                 href="/login"

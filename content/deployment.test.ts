@@ -5,14 +5,22 @@ import { listGroups } from "@/lib/authz/groups";
 import { actionsWithoutPermit, privilegedGroups } from "@/lib/authz/introspect";
 import type { AccountRef } from "@/lib/authz/resources";
 import { groupsFor } from "@/lib/enrollment/registry";
-import { allContests, contestBySlug } from "@/lib/contests/registry";
+import { isCatalogue } from "@/lib/contests/catalogue";
+import {
+  allContests,
+  catalogueContests,
+  contestBySlug,
+} from "@/lib/contests/registry";
 import { mailSink } from "@/lib/mail/transport";
+import { site } from "@/lib/site";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
 import { backends } from "@/lib/backend/registry";
 import { undeclaredBackends } from "@/lib/backend/access";
 import { viewsFor } from "@/lib/problems/views";
+import { listRulesets } from "@/lib/standings/registry";
 import { viewerFor } from "@/lib/authz/viewer";
 import { viewerWith } from "@/test/content-shapes";
+import { ignoresLateSubmissions } from "@/test/standings-support";
 
 /**
  * Assertions about *this* deployment's content, kept out of the kernel suites.
@@ -41,11 +49,38 @@ describe("这套 content 自身自洽", () => {
     expect(mailSink()).toBe("console");
   });
 
+  it("每道题都被某场比赛带着，否则它没有任何 URL", () => {
+    const carried = new Set(
+      allContests().flatMap((contest) =>
+        contest.problems.map((entry) => entry.slug),
+      ),
+    );
+    const orphans = allProblems()
+      .map((problem) => problem.slug)
+      .filter((slug) => !carried.has(slug));
+
+    expect(orphans, "题目只能作为比赛的所属物被打开").toEqual([]);
+  });
+
   it("per-problem views.tsx 真的被 glob 自动发现了", () => {
     const declared = allProblems().filter(
       (problem) => viewsFor(problem.slug).PayloadView !== undefined,
     );
     expect(declared.length, "没有一道题拿到渲染，八成是 glob 没扫到").toBeGreaterThan(0);
+  });
+});
+
+describe("这套 content 的赛制", () => {
+  it("每一套都无视比赛窗口之外的提交", () => {
+    expect(listRulesets().length).toBeGreaterThan(0);
+
+    for (const ruleset of listRulesets()) {
+      const { onTime, withLate } = ignoresLateSubmissions(ruleset);
+      expect(
+        withLate,
+        `${ruleset.id} 把赛后提交算进了名次：afterEnd.submissions 的比赛会被它污染终榜`,
+      ).toEqual(onTime);
+    }
   });
 });
 
@@ -57,11 +92,11 @@ describe("这套 content 的策略集", () => {
     ).toEqual([]);
   });
 
-  it("有用户组被策略点名，否则运维台无人可进", () => {
+  it("有用户组被策略指定，否则运维台无人可进", () => {
     expect(privilegedGroups().size).toBeGreaterThan(0);
   });
 
-  it("被点名的组都在 content/enrollment/ 里声明过", () => {
+  it("被指定的组都在 content/enrollment/ 里声明过", () => {
     const declared = new Set(listGroups().map((group) => group.id));
     for (const id of privilegedGroups()) {
       expect(
@@ -79,12 +114,6 @@ describe("演示赛", () => {
     expect(demo).toBeDefined();
   });
 
-  it("用 acm 赛制，罚时二十分钟", () => {
-    const main = demo?.leaderboards[0];
-    expect(main?.ruleset.id).toBe("acm");
-    expect(main?.ruleset.config).toEqual({ penaltyMinutes: 20 });
-  });
-
   it("题单里的每道题都真的存在", () => {
     for (const entry of demo?.problems ?? []) {
       expect(allProblems().some((p) => p.slug === entry.slug), entry.slug).toBe(
@@ -93,13 +122,52 @@ describe("演示赛", () => {
     }
   });
 
-  it("窗口在过去，seed 之后立刻有一张终榜可看", () => {
-    expect(demo && demo.endsAt.getTime() < Date.now()).toBe(true);
-  });
-
   it("题单不为空，否则排行榜没有列", () => {
     expect(demo?.problems.length).toBeGreaterThan(0);
     expect(allContests().length).toBeGreaterThan(0);
+  });
+});
+
+describe("题库", () => {
+  const sections = catalogueContests();
+
+  it("site.catalogue 指名的比赛都存在，/problems 才有卡片可摆", () => {
+    expect(site.catalogue?.length).toBeGreaterThan(0);
+    expect(sections.map((contest) => contest.slug)).toEqual(site.catalogue);
+  });
+
+  it("每个分区的窗口都横跨当下，任何人随时都能提交", () => {
+    const now = Date.now();
+
+    for (const contest of sections) {
+      expect(contest.startsAt.getTime(), contest.slug).toBeLessThan(now);
+      expect(contest.endsAt.getTime(), contest.slug).toBeGreaterThan(now);
+      expect(contest.participants.mode, contest.slug).toBe("open");
+    }
+  });
+
+  it("分区归在不止一个领域下，索引页才是分组的", () => {
+    const domains = sections.map((contest) => contest.domain);
+
+    expect(domains.filter((domain) => domain === undefined)).toEqual([]);
+    expect(new Set(domains).size).toBeGreaterThan(1);
+  });
+
+  it("有一个领域下挂着不止一个分区", () => {
+    const perDomain = new Map<string, number>();
+    for (const contest of sections) {
+      const domain = contest.domain!;
+      perDomain.set(domain, (perDomain.get(domain) ?? 0) + 1);
+    }
+
+    expect([...perDomain.values()].filter((count) => count > 1).length)
+      .toBeGreaterThan(0);
+  });
+
+  it("题库之外还有别的比赛，/contests 才不是空页", () => {
+    expect(
+      allContests().filter((contest) => !isCatalogue(contest.slug)).length,
+    ).toBeGreaterThan(0);
   });
 });
 
@@ -108,6 +176,7 @@ describe("演示账号", () => {
 
   const FROZEN = [
     "account.changeNickname",
+    "account.changeAvatar",
     "account.changeUsername",
     "account.changeEmail",
     "account.changePassword",

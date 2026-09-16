@@ -23,7 +23,7 @@ export function resolveContestProblems(
     return [
       {
         slug: entry.slug,
-        label: entry.label,
+        label: entry.label ?? problem.slug,
         title: problem.title,
         points: entry.points ?? null,
         maxScore: problem.maxScore,
@@ -36,6 +36,7 @@ export function resolveContestProblems(
 export interface ResolvedParticipant {
   uid: number;
   nickname: string;
+  avatarUpdatedAt: Date | null;
 }
 
 /**
@@ -65,7 +66,11 @@ export async function resolveParticipants(
     });
     if (!named) continue;
 
-    matched.push({ uid: account.uid, nickname: account.nickname });
+    matched.push({
+      uid: account.uid,
+      nickname: account.nickname,
+      avatarUpdatedAt: account.avatarUpdatedAt,
+    });
   }
 
   return matched.sort((a, b) => a.uid - b.uid);

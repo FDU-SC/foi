@@ -6,7 +6,8 @@ import type { PublicProblemConfig } from "@/lib/problems/types";
 export interface ProblemContextValue {
   config: PublicProblemConfig;
 
-  contestSlug: string | null;
+  /** The contest this problem is being worked on as part of. */
+  contestSlug: string;
 
   canAct: boolean;
 

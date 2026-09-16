@@ -3,9 +3,8 @@
  *
  * Each pair is an `upstream` root this repository ships and a `local` root a
  * fork supplies. `tsconfig.json` resolves each alias to the local root first
- * and falls back per file, so a fork overrides the handful of files it cares
- * about instead of editing files the upstream owns — which is what makes every
- * upstream merge conflict-free.
+ * and falls back per file. A fork can override selected files without editing
+ * upstream files, reducing merge conflicts.
  *
  * No slot exists in this repository. Resolution, the deployment test project,
  * and the source scanners all tolerate their absence.

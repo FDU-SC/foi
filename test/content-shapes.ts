@@ -1,12 +1,21 @@
 import type { ActionId } from "@/lib/authz/actions";
 import { allPolicies } from "@/lib/authz/registry";
+import type { ContestProblemRef } from "@/lib/authz/resources";
 import type { CompiledPolicy } from "@/lib/authz/types";
 import { viewerFor, type Viewer } from "@/lib/authz/viewer";
+import { contestProblemRefs } from "@/lib/contests/refs";
 import { allContests } from "@/lib/contests/registry";
 import type { ContestConfig, ContestProblemConfig } from "@/lib/contests/types";
-import { problemsFor } from "@/lib/problems/access";
-import { allProblems, externallyJudged } from "@/lib/problems/registry";
-import type { ExternallyJudged, ProblemConfig } from "@/lib/problems/types";
+import {
+  acceptsSubmissions,
+  hasContestEnded,
+  hasContestStarted,
+  showsStatements,
+} from "@/lib/contests/types";
+import {
+  isInlineBackend,
+  type ExternallyJudged,
+} from "@/lib/problems/types";
 
 function required<T>(value: T | undefined, shape: string): T {
   if (value === undefined) {
@@ -97,38 +106,104 @@ export function contestWithGroupEntry(): {
   };
 }
 
-export function retiredProblem(): ProblemConfig {
-  return required(
-    allProblems().find((config) => config.retired),
-    "一道 retired 的题目",
+function refWhere(
+  predicate: (ref: ContestProblemRef) => boolean,
+  shape: string,
+): ContestProblemRef {
+  return required(contestProblemRefs().find(predicate), shape);
+}
+
+/**
+ * A problem anyone can open and submit to whatever the clock says: an open
+ * round whose window is wide enough to cover the real `now`.
+ *
+ * Route tests need this — a handler reads the system clock, so a fixture round
+ * pinned to a past window would refuse them for the wrong reason.
+ */
+export function openContestProblem(now = new Date()): ContestProblemRef {
+  return refWhere(
+    (ref) =>
+      ref.contest.visibleTo === undefined &&
+      ref.contest.participants.mode === "open" &&
+      acceptsSubmissions(ref.contest, now),
+    "一场对所有人开放、任何人都能参加、且此刻正在收题的比赛里的一道题",
   );
 }
 
-export function externalProblem(): ExternallyJudged {
-  return required(
-    externallyJudged().find((problem) => !problem.retired),
-    "一道在役的、由后端评测的题目",
+/** The same, narrowed to a problem an external backend judges. */
+export interface ExternalProblemRef extends ContestProblemRef {
+  problem: ExternallyJudged;
+}
+
+export function openExternalProblem(now = new Date()): ExternalProblemRef {
+  const ref = refWhere(
+    (candidate) =>
+      candidate.contest.visibleTo === undefined &&
+      candidate.contest.participants.mode === "open" &&
+      acceptsSubmissions(candidate.contest, now) &&
+      !isInlineBackend(candidate.problem.backend) &&
+      Object.keys(candidate.problem.backend.actions).length > 0,
+    "一场此刻开放的比赛里、一道由后端评测且声明了交互动作的题",
+  );
+
+  return ref as ExternalProblemRef;
+}
+
+/** A problem in a round the clock has not reached yet. */
+export function upcomingProblem(now = new Date()): ContestProblemRef {
+  return refWhere(
+    (ref) =>
+      ref.contest.visibleTo?.length !== 0 &&
+      !hasContestStarted(ref.contest, now),
+    "一场尚未开始、且对某个受众可见的比赛里的一道题",
   );
 }
 
-export function inlineProblem(): ProblemConfig {
-  return required(
-    allProblems().find(
-      (config) => !config.retired && "kind" in config.backend,
-    ),
-    "一道内联判题的题目",
+/** A problem in a round whose audience covers nobody. */
+export function stagedProblem(): ContestProblemRef {
+  return refWhere(
+    (ref) => ref.contest.visibleTo?.length === 0,
+    "一场 visibleTo 为空数组的比赛里的一道题",
   );
 }
 
-export function publicProblemOutside(
-  contest: ContestConfig,
-  now: Date,
-): ProblemConfig {
-  const listed = new Set(contest.problems.map((entry) => entry.slug));
-  return required(
-    problemsFor(viewerFor(null), now)
-      .map((view) => view.config)
-      .find((config) => !listed.has(config.slug)),
-    `一道不属于「${contest.title}」、且当时对所有人可见的题目`,
+/** Readable after the fact, but taking no more work. */
+export function archivedProblem(now = new Date()): ContestProblemRef {
+  return refWhere(
+    (ref) =>
+      hasContestEnded(ref.contest, now) &&
+      showsStatements(ref.contest, now) &&
+      !acceptsSubmissions(ref.contest, now),
+    "一场已经结束、题面仍可读但不再收题的比赛里的一道题",
+  );
+}
+
+/** Finished, and still collecting. */
+export function upsolveProblem(now = new Date()): ContestProblemRef {
+  return refWhere(
+    (ref) =>
+      hasContestEnded(ref.contest, now) && acceptsSubmissions(ref.contest, now),
+    "一场已经结束但仍然收题的比赛里的一道题",
+  );
+}
+
+/** Finished, and gone: the round took its statements with it. */
+export function sealedProblem(now = new Date()): ContestProblemRef {
+  return refWhere(
+    (ref) =>
+      hasContestEnded(ref.contest, now) && !showsStatements(ref.contest, now),
+    "一场已经结束、且连题面都收起来了的比赛里的一道题",
+  );
+}
+
+/** Judged in-process, in a round anyone can submit to right now. */
+export function inlineProblem(now = new Date()): ContestProblemRef {
+  return refWhere(
+    (ref) =>
+      ref.contest.visibleTo === undefined &&
+      ref.contest.participants.mode === "open" &&
+      acceptsSubmissions(ref.contest, now) &&
+      isInlineBackend(ref.problem.backend),
+    "一场此刻开放的比赛里的一道内联判题的题",
   );
 }

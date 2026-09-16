@@ -90,8 +90,8 @@ export function useSubmit() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            problemSlug: config.slug,
             contestSlug,
+            problemSlug: config.slug,
             payload,
             clientNonce,
           }),

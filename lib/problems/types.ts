@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { audienceSchema } from "@/lib/authz/audience";
 import { SLUG_PATTERN } from "@/lib/utils";
 
 import type { BackendUser } from "@/lib/backend/types";
@@ -95,12 +94,6 @@ export const problemConfigSchema = z.object({
     .default({}),
 
   ui: z.unknown().optional(),
-
-  visibleTo: audienceSchema,
-
-  retired: z.boolean().default(false),
-
-  order: z.number().default(0),
 });
 
 export type ProblemConfig = z.infer<typeof problemConfigSchema>;

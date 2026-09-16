@@ -4,12 +4,7 @@ import { AS_PLAYER } from "@/test/auth-support";
 import { viewerWith } from "@/test/content-shapes";
 import { accountRef } from "@/lib/accounts/resolve";
 import { db } from "@/lib/db";
-import {
-  accountColumns,
-  accounts,
-  problems,
-  submissions,
-} from "@/lib/db/schema";
+import { accountColumns, accounts, contests, problems, submissions } from "@/lib/db/schema";
 import { allows } from "./engine";
 import { rowScope } from "./filter";
 import { viewerFor, type Viewer } from "./viewer";
@@ -35,6 +30,8 @@ async function reachable(): Promise<boolean> {
 }
 
 const online = await reachable();
+const CONTEST = "authz-filter-round";
+
 const describeDb = online ? describe : describe.skip;
 
 if (!online) {
@@ -48,6 +45,7 @@ async function cleanup() {
     await db.delete(accounts).where(eq(accounts.uid, uid));
   }
   await db.delete(problems).where(eq(problems.slug, SLUG));
+  await db.delete(contests).where(eq(contests.slug, CONTEST));
 }
 
 /** Everything in the table, regardless of who is asking. */
@@ -91,6 +89,7 @@ describeDb("when 与 filter 选出同一批行", () => {
   beforeAll(async () => {
     await cleanup();
     await db.insert(problems).values({ slug: SLUG, title: "Filter Fixture" });
+    await db.insert(contests).values({ slug: CONTEST, title: "Filter Fixture" });
 
     const [owner] = await db
       .insert(accounts)
@@ -109,6 +108,7 @@ describeDb("when 与 filter 选出同一批行", () => {
         id: `sub_authz_filter_${uid}`,
         uid,
         problemSlug: SLUG,
+        contestSlug: CONTEST,
         payload: {},
         backendId: "queue-a",
         state: "completed" as const,

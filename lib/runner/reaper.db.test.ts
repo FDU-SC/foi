@@ -11,14 +11,7 @@ import {
 } from "vitest";
 import type { Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
-import {
-  accounts,
-  judgingAttempts,
-  judgingQueue,
-  problems,
-  runners,
-  submissions,
-} from "@/lib/db/schema";
+import { accounts, contests, judgingAttempts, judgingQueue, problems, runners, submissions } from "@/lib/db/schema";
 import { externallyJudged } from "@/lib/problems/registry";
 import { rejudgeSubmissions } from "@/lib/submissions/rejudge";
 import {
@@ -31,6 +24,7 @@ import {
   reportFailed,
 } from "./queue";
 import { reaperHealth, reapOnce, startReaping } from "./reaper";
+import { withLockedRow } from "@/test/db-concurrency";
 
 const USERNAME = "runner-reaper-alice";
 let ACCOUNT_UID = 0;
@@ -40,6 +34,8 @@ const BACKEND = "runner-reaper-fixture";
 const PROBLEM = externallyJudged()[0]!;
 const VERDICT: Verdict = { result: { status: "accepted", score: 100, maxScore: 100 } };
 const VERSION = "runner-reaper-fixture/1.0.0";
+
+const CONTEST = "runner-reaper-round";
 
 const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
 
@@ -54,6 +50,7 @@ async function enqueue(
     id,
     uid: ACCOUNT_UID,
     problemSlug: PROBLEM.slug,
+    contestSlug: CONTEST,
     payload: {},
     backendId: BACKEND,
     state: "pending",
@@ -110,6 +107,10 @@ describeDb("失联回收", () => {
       .insert(problems)
       .values({ slug: PROBLEM.slug, title: PROBLEM.title })
       .onConflictDoNothing();
+    await db
+      .insert(contests)
+      .values({ slug: CONTEST, title: "Reaper Fixture" })
+      .onConflictDoNothing();
     const [acct] = await db
       .insert(accounts)
       .values({ username: USERNAME, nickname: USERNAME })
@@ -122,6 +123,39 @@ describeDb("失联回收", () => {
   });
 
   afterAll(cleanup);
+
+  it("回收等待行锁时已更新的心跳不会被旧查询覆盖", async () => {
+    const id = await enqueue("sub_reaper_heartbeat_race");
+    const ticket = (await claimJob(BACKEND, "r-heartbeat-race"))!;
+    await goSilent(id);
+    const result = await withLockedRow("judging_queue", id, reapOnce, async (client) => {
+      await client.query(
+        "UPDATE judging_queue SET heartbeat_at = now() WHERE submission_id = $1",
+        [id],
+      );
+    });
+    expect(result).toEqual({ exhausted: 0, requeued: 0, fused: 0 });
+    expect(await queueRowOf(id)).toMatchObject({ state: "claimed", lease: ticket.lease });
+  });
+
+  it("回收与完成上报竞争不覆盖已提交的终态", async () => {
+    const id = await enqueue("sub_reaper_done_race");
+    const ticket = (await claimJob(BACKEND, "r-done-race"))!;
+    await goSilent(id);
+    const [reaped, accepted] = await withLockedRow("judging_queue", id, () =>
+      Promise.all([reapOnce(), reportDone(id, ticket.lease, VERDICT, VERSION)]),
+    );
+    const row = await rowOf(id);
+    if (accepted) {
+      expect(reaped).toEqual({ exhausted: 0, requeued: 0, fused: 0 });
+      expect(row.state).toBe("completed");
+      expect(await queueRowOf(id)).toBeUndefined();
+    } else {
+      expect(reaped).toEqual({ exhausted: 0, requeued: 1, fused: 0 });
+      expect(row.state).toBe("pending");
+      expect(await queueRowOf(id)).toMatchObject({ state: "waiting", lease: null });
+    }
+  });
 
   it("心跳过期的行回到队列，lease 一并作废", async () => {
     const id = await enqueue("sub_rr_lapsed");
@@ -383,7 +417,7 @@ describe("回收循环的存活信号", () => {
     expect(reaperHealth()).toEqual({ ok: true, ranAt: null });
   });
 
-  it("刚启动、还没跑完一趟时是绿的", () => {
+  it("启动后首次回收尚未完成时报告健康", () => {
     const stop = startReaping(15_000);
     try {
       expect(reaperHealth()).toEqual({ ok: true, ranAt: null });

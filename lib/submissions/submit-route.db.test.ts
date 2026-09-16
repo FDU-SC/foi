@@ -1,26 +1,37 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/submissions/route";
-import { AS_PLAYER } from "@/test/auth-support";
 import { db } from "@/lib/db";
 import { accounts, submissions } from "@/lib/db/schema";
 import {
   INLINE_BACKEND_ID,
   INLINE_BACKEND_VERSION,
 } from "@/lib/backend/types";
-import { problemsFor } from "@/lib/problems/access";
+import { contestProblemRefs } from "@/lib/contests/refs";
+import { acceptsSubmissions } from "@/lib/contests/types";
 import {
-  isInlineBackend,
   submitRateLimit,
   type InlineBackend,
   type InlineJudge,
 } from "@/lib/problems/types";
-import { inlineProblem } from "@/test/content-shapes";
+import {
+  inlineProblem,
+  openContestProblem,
+  openExternalProblem,
+} from "@/test/content-shapes";
 
 const USERNAME = "rl-alice";
 let ACCOUNT_UID = 0;
 
-const [FIRST, SECOND] = problemsFor(AS_PLAYER).map((view) => view.config);
+/** Reachable right now, because the route reads the real clock. */
+const OPEN = contestProblemRefs().filter((ref) =>
+  acceptsSubmissions(ref.contest, new Date()),
+);
+
+const FIRST = openContestProblem();
+const SECOND = OPEN.find(
+  (ref) => ref.problem.slug !== FIRST.problem.slug,
+)!;
 
 const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
 
@@ -70,8 +81,15 @@ function post(body: Record<string, unknown>): Promise<Response> {
   );
 }
 
-function postSubmission(slug: string): Promise<Response> {
-  return post({ problemSlug: slug, payload: PAYLOAD });
+function postSubmission(ref: {
+  contest: { slug: string };
+  problem: { slug: string };
+}): Promise<Response> {
+  return post({
+    contestSlug: ref.contest.slug,
+    problemSlug: ref.problem.slug,
+    payload: PAYLOAD,
+  });
 }
 
 describeDb("提交端点限流", () => {
@@ -99,14 +117,14 @@ describeDb("提交端点限流", () => {
   });
 
   it("窗口内的提交照常落地，超出上限的得到 429 且不留行", async () => {
-    const allowed = submitRateLimit(FIRST).max;
+    const allowed = submitRateLimit(FIRST.problem, FIRST.entry.rateLimit).max;
 
     for (let i = 0; i < allowed; i += 1) {
-      const response = await postSubmission(FIRST.slug);
+      const response = await postSubmission(FIRST);
       expect(response.status).toBe(201);
     }
 
-    const rejected = await postSubmission(FIRST.slug);
+    const rejected = await postSubmission(FIRST);
     expect(rejected.status).toBe(429);
     expect(rejected.headers.get("retry-after")).not.toBeNull();
 
@@ -120,17 +138,15 @@ describeDb("提交端点限流", () => {
   });
 
   it("一道题用光配额不影响另一道题", async () => {
-    expect(SECOND.slug).not.toBe(FIRST.slug);
+    expect(SECOND.problem.slug).not.toBe(FIRST.problem.slug);
 
-    const response = await postSubmission(SECOND.slug);
+    const response = await postSubmission(SECOND);
     expect(response.status).toBe(201);
   });
 });
 
 describeDb("内联判题的提交", () => {
-  const INLINE = problemsFor(AS_PLAYER)
-    .map((view) => view.config)
-    .find((config) => isInlineBackend(config.backend));
+  const INLINE = inlineProblem();
 
   const INLINE_USERNAME = "rl-inline";
   let INLINE_UID = 0;
@@ -162,14 +178,13 @@ describeDb("内联判题的提交", () => {
   });
 
   it("一次请求里判完，落库时已经是终态", async () => {
-    expect(INLINE).toBeDefined();
-
     const response = await POST(
       new Request("http://localhost:3000/api/submissions", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          problemSlug: INLINE!.slug,
+          contestSlug: INLINE.contest.slug,
+          problemSlug: INLINE.problem.slug,
           payload: { text: "definitely not the answer" },
         }),
       }),
@@ -197,7 +212,8 @@ describeDb("内联判题的提交", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          problemSlug: INLINE!.slug,
+          contestSlug: INLINE.contest.slug,
+          problemSlug: INLINE.problem.slug,
           payload: { text: "still not the answer" },
         }),
       }),
@@ -208,7 +224,8 @@ describeDb("内联判题的提交", () => {
 });
 
 describeDb("内联判题说自己判不了", () => {
-  const PROBLEM = inlineProblem();
+  const REF = inlineProblem();
+  const PROBLEM = REF.problem;
   const REASON = "夹具：这道题此刻判不了";
   const UNAVAIL_USERNAME = "rl-unavailable";
   let UNAVAIL_UID = 0;
@@ -250,6 +267,7 @@ describeDb("内联判题说自己判不了", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          contestSlug: REF.contest.slug,
           problemSlug: PROBLEM.slug,
           payload: { text: "red" },
         }),
@@ -280,9 +298,7 @@ describeDb("提交的幂等键", () => {
   let ALICE_UID = 0;
   let BOB_UID = 0;
 
-  const EXTERNAL = problemsFor(AS_PLAYER)
-    .map((view) => view.config)
-    .find((config) => !isInlineBackend(config.backend));
+  const EXTERNAL = openExternalProblem();
 
   async function rowsWithNonce(nonce: string) {
     return db
@@ -334,13 +350,15 @@ describeDb("提交的幂等键", () => {
   });
 
   it("同一个 nonce 并发提交两次，只落一行", async () => {
-    expect(EXTERNAL).toBeDefined();
     const nonce = "idem-race";
+    const body = {
+      contestSlug: EXTERNAL.contest.slug,
+      problemSlug: EXTERNAL.problem.slug,
+      payload: PAYLOAD,
+      clientNonce: nonce,
+    };
 
-    const responses = await Promise.all([
-      post({ problemSlug: EXTERNAL!.slug, payload: PAYLOAD, clientNonce: nonce }),
-      post({ problemSlug: EXTERNAL!.slug, payload: PAYLOAD, clientNonce: nonce }),
-    ]);
+    const responses = await Promise.all([post(body), post(body)]);
 
     const rows = await rowsWithNonce(nonce);
     expect(rows.length).toBe(1);
@@ -356,7 +374,8 @@ describeDb("提交的幂等键", () => {
   it("重放同一个 nonce 得到 200 与同一行，而不是第二次 201", async () => {
     const nonce = "idem-replay";
     const body = {
-      problemSlug: EXTERNAL!.slug,
+      contestSlug: EXTERNAL.contest.slug,
+      problemSlug: EXTERNAL.problem.slug,
       payload: PAYLOAD,
       clientNonce: nonce,
     };
@@ -376,7 +395,7 @@ describeDb("提交的幂等键", () => {
     const nonce = "idem-empty-contest";
 
     const response = await post({
-      problemSlug: EXTERNAL!.slug,
+      problemSlug: EXTERNAL.problem.slug,
       payload: PAYLOAD,
       contestSlug: "",
       clientNonce: nonce,
@@ -389,7 +408,8 @@ describeDb("提交的幂等键", () => {
   it("两个人用同一个 nonce，各自都落一行", async () => {
     const nonce = "idem-shared";
     const body = {
-      problemSlug: EXTERNAL!.slug,
+      contestSlug: EXTERNAL.contest.slug,
+      problemSlug: EXTERNAL.problem.slug,
       payload: PAYLOAD,
       clientNonce: nonce,
     };

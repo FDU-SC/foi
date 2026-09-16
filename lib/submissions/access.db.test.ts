@@ -3,7 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/test/auth-support";
 import { viewerFor } from "@/lib/authz/viewer";
 import { db } from "@/lib/db";
-import { accounts, problems, submissions } from "@/lib/db/schema";
+import { accounts, contests, problems, submissions } from "@/lib/db/schema";
+import { homeSubmissions } from "@/lib/home";
 import { submissionFor, submissionsFor } from "./access";
 import { viewerWith } from "@/test/content-shapes";
 
@@ -23,6 +24,8 @@ async function reachable(): Promise<boolean> {
 }
 
 const online = await reachable();
+const CONTEST = "subaccess-round";
+
 const describeDb = online ? describe : describe.skip;
 
 if (!online) {
@@ -37,6 +40,7 @@ async function cleanup() {
     }
   }
   await db.delete(problems).where(eq(problems.slug, SLUG));
+  await db.delete(contests).where(eq(contests.slug, CONTEST));
 }
 
 describeDb("提交门禁", () => {
@@ -47,6 +51,7 @@ describeDb("提交门禁", () => {
   beforeAll(async () => {
     await cleanup();
     await db.insert(problems).values({ slug: SLUG, title: "Access Fixture" });
+    await db.insert(contests).values({ slug: CONTEST, title: "Access Fixture" });
 
     const [owner] = await db
       .insert(accounts)
@@ -75,6 +80,7 @@ describeDb("提交门禁", () => {
         id: "sub_access_owner",
         uid: OWNER_UID,
         problemSlug: SLUG,
+        contestSlug: CONTEST,
         payload: {},
         backendId: "queue-a",
         state: "completed",
@@ -83,6 +89,7 @@ describeDb("提交门禁", () => {
         id: "sub_access_other",
         uid: OTHER_UID,
         problemSlug: SLUG,
+        contestSlug: CONTEST,
         payload: {},
         backendId: "queue-a",
         state: "completed",
@@ -154,6 +161,11 @@ describeDb("提交门禁", () => {
 
       const rows = await submissionsFor(otherViewer);
       expect(rows.every((r) => r.uid === OTHER_UID)).toBe(true);
+    });
+
+    it("主页即便有跨用户读取权限也只拿本人记录", async () => {
+      const rows = await homeSubmissions(viewerWith("submission.read", OWNER_UID));
+      expect(rows.map(row => row.uid)).toEqual([OWNER_UID]);
     });
 
     it("匿名视角拿不到任何提交", async () => {

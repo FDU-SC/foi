@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { PulseDot } from "@/components/ui/pulse-dot";
 import { STATE_PRESETS, type SubmissionState } from "@/lib/backend/types";
 import { describeVerdict } from "@/lib/presentation";
 
@@ -19,7 +20,7 @@ export function VerdictBadge({
     return (
       <Badge tone={tone}>
         {submission.state === "judging" || submission.state === "queued" ? (
-          <span className="bg-info inline-block size-1.5 animate-pulse rounded-full" />
+          <PulseDot className="bg-current" />
         ) : null}
         {label}
       </Badge>

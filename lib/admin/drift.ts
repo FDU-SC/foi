@@ -5,11 +5,7 @@ import { allContests } from "@/lib/contests/registry";
 import { db } from "@/lib/db";
 import { contests, problems, submissions } from "@/lib/db/schema";
 import { enumeratedUids, tallyCohorts } from "@/lib/enrollment/registry";
-import { orphanedBackends, problemsServedBy } from "@/lib/backend/access";
-import { sharedSecret } from "@/lib/backend/env";
-import { backends } from "@/lib/backend/registry";
-import { effectiveSecret } from "@/lib/backend/resolve";
-import { declaredDelivery, relayOptions } from "@/lib/mail/transport";
+import { orphanedBackends } from "@/lib/backend/access";
 import { reaperHealth, recentDisruptions } from "@/lib/runner/reaper";
 import { allProblems } from "@/lib/problems/registry";
 
@@ -66,41 +62,8 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       severity: "warn",
       title: "启动时发现的配置提醒",
       detail:
-        "以下提醒在启动时已报告过，列在此处方便查看。",
+        "应用启动时记录了以下配置问题。",
       items: bootWarnings,
-    });
-  }
-
-  if (declaredDelivery() === "smtp" && relayOptions() === null) {
-    findings.push({
-      severity: "warn",
-      title: "SMTP 中继未配置",
-      detail:
-        "FOI_MAIL_DELIVERY 设为 smtp（默认），但 FOI_SMTP_HOST 未设置。" +
-        "邮件无法投递。设置 FOI_SMTP_HOST，或改为 FOI_MAIL_DELIVERY=console。",
-      items: [],
-    });
-  }
-
-  const shared = sharedSecret();
-  const inUseBackends = Object.keys(backends).filter(
-    (id) => problemsServedBy(id).length > 0,
-  );
-  const onShared = inUseBackends.filter(
-    (id) =>
-      problemsServedBy(id).length > 0 &&
-      effectiveSecret(id) === shared,
-  );
-  const anyBorrowed = onShared.some((id) => !backends[id].secret);
-  if (anyBorrowed && onShared.length >= 2) {
-    findings.push({
-      severity: "warn",
-      title: "多个题目后端共用签名密钥",
-      detail:
-        "这些题目后端都在使用共享的 FOI_BACKEND_SECRET。" +
-        "任何一台被攻破，另外几台的评测队列也一起暴露。" +
-        "为每台服务单独设置 FOI_BACKEND_<名字>_SECRET。",
-      items: onShared,
     });
   }
 
@@ -113,7 +76,7 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       severity: "warn",
       title: "有账号的邮箱不匹配任何分流规则",
       detail:
-        "他们不属于任何标签，因此进不了任何 tag 制比赛。多半是 content/enrollment/ 里的规则没跟上新的邮箱格式。",
+        "这些账号未分配用户组，无法参加限定用户组的比赛。",
       items: untagged.map(String),
     });
   }
@@ -123,9 +86,9 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
   if (unclaimed.length > 0) {
     findings.push({
       severity: "info",
-      title: "有规则点名的 uid 还没有对应账号",
+      title: "分流规则中有不存在的账号",
       detail:
-        "这些 uid 在 content/enrollment/ 的规则里被点名，但数据库中不存在。确认 uid 填写无误。",
+        "以下用户编号未匹配到账号。",
       items: unclaimed.map(String),
     });
   }
@@ -146,13 +109,13 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
   if (!reaper.ok) {
     findings.push({
       severity: "warn",
-      title: "回收循环似乎已经停摆",
+      title: "评测任务回收未按时完成",
       detail:
-        "reaper 负责把失联评测机手上的提交收回来重新排队，也负责判定 attempts 用尽与排队超时。它停下之后，评测机一崩，它当时领走的提交就永远停在评测中——而页面、提交、数据库都照常，所以别的检查全是绿的。先看应用日志里有没有「回收失败」，再确认进程没有卡在某个没有超时的调用上。",
+        "失联评测机的任务回收、重试耗尽和排队超时处理可能受影响。",
       items: [
         reaper.ranAt
           ? `最后一次回收：${reaper.ranAt.toISOString()}`
-          : "本进程还没有跑过一轮",
+          : "当前进程尚未完成任务回收",
       ],
     });
   }
@@ -161,9 +124,9 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
   if (disrupted > 0) {
     findings.push({
       severity: "warn",
-      title: "最近有提交因为评测中断而没有结果",
+      title: "近期有评测中断的提交",
       detail:
-        "disrupted 表示这次评测没有产出结论，且不算在选手头上——可能是评测机自己报了 failed，也可能是它失联后被判定不会再回来。零星几条正常，成片出现说明某台评测机在持续失败。逐条打开看 error 里的原因，修好之后可以重判。",
+        "这些提交没有评测结果，不计入选手成绩。可查看提交详情中的中断原因，修复后重新评测。",
       items: [`最近一小时 ${disrupted} 条`],
     });
   }
@@ -172,9 +135,9 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
   if (unusedJudges.length > 0) {
     findings.push({
       severity: "info",
-      title: "有评测机没有任何题目指向",
+      title: "有未关联题目的评测后端",
       detail:
-        "它们不会出现在选手的 /judges 页面（那里只列出承载了可见题目的题目后端）。确认是备用节点还是 content/backends.ts 里的残留。",
+        "选手只能查看关联了可见题目的评测队列，以下后端不在其中。",
       items: unusedJudges,
     });
   }
@@ -182,9 +145,9 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
   if (orphanMirrors.length > 0) {
     findings.push({
       severity: "info",
-      title: "有已从仓库删除、但仍被历史提交引用的条目",
+      title: "有已移除题目或比赛的历史记录",
       detail:
-        "这些行是历史提交的归属锚点，外键为 RESTRICT，删不掉也不该删——没有它们，那些提交就不知道自己属于哪道题。属正常状态。",
+        "这些记录用于保留历史提交的题目和比赛归属，属于正常保留数据。",
       items: orphanMirrors,
     });
   }

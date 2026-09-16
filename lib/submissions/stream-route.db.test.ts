@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { GET } from "@/app/api/submissions/stream/route";
 import { db } from "@/lib/db";
-import { accounts, judgingQueue, problems, submissions } from "@/lib/db/schema";
+import { accounts, contests, judgingQueue, problems, submissions } from "@/lib/db/schema";
 import { externallyJudged } from "@/lib/problems/registry";
 import {
   MAX_STREAMS_PER_UID,
@@ -13,6 +13,8 @@ const USERNAME = "sse-cancel-alice";
 let ACCOUNT_UID = 0;
 const PROBLEM = externallyJudged()[0]!;
 const SUBMISSION = "sub_sse_cancel";
+
+const CONTEST = "stream-route-round";
 
 const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
 
@@ -55,6 +57,10 @@ describeDb("提交事件流的清理", () => {
       .insert(problems)
       .values({ slug: PROBLEM.slug, title: PROBLEM.title })
       .onConflictDoNothing();
+    await db
+      .insert(contests)
+      .values({ slug: CONTEST, title: "Stream Fixture" })
+      .onConflictDoNothing();
     const [acct] = await db
       .insert(accounts)
       .values({ username: USERNAME, nickname: USERNAME })
@@ -65,6 +71,7 @@ describeDb("提交事件流的清理", () => {
       id: SUBMISSION,
       uid: ACCOUNT_UID,
       problemSlug: PROBLEM.slug,
+      contestSlug: CONTEST,
       payload: {},
       backendId: "sse-cancel-fixture",
       state: "pending",

@@ -3,9 +3,9 @@ import { siteViews } from "@/lib/site-views";
 
 export function DefaultHomeHero() {
   return (
-    <section className="pt-6">
-      <h1 className="text-fg text-3xl font-bold tracking-tight">{site.name}</h1>
-      <p className="text-fg-muted mt-3 max-w-2xl leading-7">
+    <section className="border-border border-b pb-5">
+      <h1 className="text-fg text-2xl font-bold tracking-tight">{site.name}</h1>
+      <p className="text-fg-muted mt-1 max-w-2xl text-sm leading-6">
         {site.tagline ?? site.description}
       </p>
     </section>

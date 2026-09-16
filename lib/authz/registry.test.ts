@@ -125,7 +125,7 @@ describe("策略集", () => {
     ).toEqual([]);
   });
 
-  it("有用户组被策略点名，否则运维台无人可进", () => {
+  it("有用户组被策略指定，否则运维台无人可进", () => {
     expect(privilegedGroups().size).toBeGreaterThan(0);
   });
 });

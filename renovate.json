@@ -10,11 +10,28 @@
   "schedule": ["before 9am on monday"],
   "prConcurrentLimit": 5,
   "labels": ["dependencies"],
+  "description": [
+    "pnpm 11 的 minimumReleaseAge 默认为 1440 分钟，而 pnpm install --frozen-lockfile 会拿这条策略把整份 lockfile 重新校验一遍：只要有一个条目的发布时间不足一天，CI 在安装依赖这一步就以 ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION 失败。Renovate 取同一个阈值，internalChecksFilter=strict 把未达龄的版本从候选里滤掉，PR 的目标因此永远是最新的达龄版本，交到 CI 手里的 lockfile 装得上。候选全部未达龄时不建分支，被压住的更新在 Dependency Dashboard 上看得到。"
+  ],
+  "minimumReleaseAge": "1 day",
+  "internalChecksFilter": "strict",
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["before 9am on the first day of the month"]
   },
   "packageRules": [
+    {
+      "description": "Renovate 只能给带发布时间戳的更新算年龄，这几类拿不到时间戳。默认的 minimumReleaseAgeBehaviour=timestamp-required 会把算不出年龄的更新无限期压住，其中 lockfileUpdate 正是 vulnerabilityAlerts 修复 in-range 依赖时走的类型——压住它等于把安全修复一并关掉。这里豁免的只是「没有时间戳就压住」这一条：候选版本仍然经过 internalChecksFilter=strict 过滤，未达龄的版本不会成为更新目标。lockFileMaintenance 另有 pnpm 把关，按版本范围解析时它只会选满一天的版本。",
+      "matchUpdateTypes": [
+        "lockFileMaintenance",
+        "lockfileUpdate",
+        "bump",
+        "rollback",
+        "pin",
+        "replacement"
+      ],
+      "minimumReleaseAge": null
+    },
     {
       "description": "开发依赖的 patch/minor 自动合并。它们不进生产镜像，而 verify 会跑 typecheck、lint、真 Postgres 上的集成测试、完整 build 与启动冒烟——能让这套全绿的升级，人再看一遍能多发现的很有限。",
       "matchDepTypes": ["devDependencies"],
@@ -59,7 +76,7 @@
       "labels": ["dependencies", "需要人工核对"]
     },
     {
-      "description": "base image 的 digest 会随每次安全刷新变动，单独一组以免和 npm 升级混在一起。不自动合并：PR 上的 verify 并不构建镜像，所以 Dockerfile 的改动在 PR 阶段没有任何东西验证过。",
+      "description": "base image 的 tag 只指到大版本线，Node 的小版本与 Debian 的安全刷新都以 digest 变动的形式到达——digest 钉住的就是这两者，镜像内容因此完全确定。单独一组以免和 npm 升级混在一起。不自动合并：PR 上的 verify 并不构建镜像，所以 Dockerfile 的改动在 PR 阶段没有任何东西验证过。",
       "matchManagers": ["dockerfile"],
       "groupName": "docker base image",
       "automerge": false
@@ -70,21 +87,21 @@
       "automerge": false
     },
     {
-      "description": "Node 的大版本散在多个 manager 里：Dockerfile 的 node:22-alpine（dockerfile）、CI workflow 的容器镜像（github-actions）、以及 @types/node（npm）。升大版本时这几处必须一起动，否则运行时、CI 与类型会各走各的。只对 major 分组，好让 @types/node 的 patch/minor 仍然走上面的自动合并，也让 base image 的 digest 刷新仍然独立成 PR。",
+      "description": "Node 的大版本散在多个 manager 里：Dockerfile 的 node:24-slim（dockerfile）、CI workflow 的 setup-node（github-actions）、以及 @types/node（npm）。升大版本时这几处必须一起动，否则运行时、CI 与类型会各走各的。只对 major 分组，好让 @types/node 的 patch/minor 仍然走上面的自动合并，也让 base image 的 digest 刷新仍然独立成 PR。匹配的是 depName 而不是 packageName：setup-node 的 node-version 由 actions/node-versions 提供版本，那也是它的 packageName，按 packageName 匹配会把 CI 这一处漏在组外、单独开一个 PR——而只合其中一个，正是这条规则要防的事。CI 的 postgres 用的是 service 容器镜像，走 docker datasource，不受这条影响。",
       "groupName": "node",
-      "matchPackageNames": ["node", "@types/node"],
+      "matchDepNames": ["node", "@types/node"],
       "matchUpdateTypes": ["major"],
       "automerge": false,
       "labels": ["dependencies", "需要人工核对"]
     },
     {
-      "description": "postgres:17-alpine 出现在多处、分属两个 manager：docker-compose.example.yml 和 check.yml 的 CI service。不同组的话 CI 用的和生产跑的会漂移，而那种漂移只会在迁移行为不一致时才被发现。",
+      "description": "postgres 镜像出现在多处、分属两个 manager：docker-compose.yml 和 ci.yml 的 CI service。不同组的话 CI 用的和生产跑的会漂移，而那种漂移只会在迁移行为不一致时才被发现。",
       "groupName": "postgres",
       "matchPackageNames": ["postgres"],
       "automerge": false
     },
     {
-      "description": "Postgres 的大版本升级不是升级，是迁移。PG17 拒绝在 PG16 的数据目录上启动，要跑 pg_upgrade；而一个把 16-alpine 换成 17-alpine 的 PR 长得和其它依赖 PR 一模一样，只靠人记得别点。不是禁掉——那样就再也听不到新版本了——而是要求先在 Dependency Dashboard 上勾选批准，PR 才会被创建。想知道的时候看得见，不想要的时候不会有东西躺在那里等人误合。",
+      "description": "Postgres 的大版本升级不是升级，是迁移。PG19 会拒绝在 PG18 的数据目录上启动，要跑 pg_upgrade；而一个把 18 换成 19 的 PR 长得和其它依赖 PR 一模一样，只靠人记得别点。不是禁掉——那样就再也听不到新版本了——而是要求先在 Dependency Dashboard 上勾选批准，PR 才会被创建。想知道的时候看得见，不想要的时候不会有东西躺在那里等人误合。",
       "matchPackageNames": ["postgres"],
       "matchUpdateTypes": ["major"],
       "dependencyDashboardApproval": true,

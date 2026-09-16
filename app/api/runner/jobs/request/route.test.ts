@@ -65,8 +65,8 @@ afterEach(() => {
   queue.claimJob.mockReset();
 });
 
-describe("领活接口的 nonce", () => {
-  it("带上新 nonce 的合法请求照常领活", async () => {
+describe("领取任务接口的 nonce", () => {
+  it("带上新 nonce 的合法请求照常领取任务", async () => {
     const response = await claim({
       backendId: BACKEND_ID,
       runnerId: "runner-a",

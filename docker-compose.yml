@@ -34,14 +34,17 @@ services:
       - internal
 
   postgres:
-    image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+    image: postgres:18@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-foi}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-foi_dev_password}
       POSTGRES_DB: ${POSTGRES_DB:-foi}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # 挂在 /var/lib/postgresql 而不是它下面的数据目录：PG18 起，镜像把数据放进
+      # 按大版本命名的子目录（/var/lib/postgresql/18/docker），挂在旧路径上镜像会拒绝启动。
+      # 整个目录一个挂载点，pg_upgrade --link 也就不会跨挂载点边界。
+      - pgdata:/var/lib/postgresql
     networks:
       - internal
     healthcheck:
@@ -54,7 +57,7 @@ services:
       timeout: 5s
       retries: 12
 
-  # 模拟评测机。同一个镜像换一个入口，走完整的领活协议，但不编译也不运行任何代码
+  # 模拟评测机。同一个镜像换一个入口，走完整的领取任务协议，但不编译也不运行任何代码
   # ——判定按提交内容的哈希预设，每条判定都会在详情页说明这一点。
   #
   # 有了它，那些声明了外部后端的题目才不会停在队列里。真实评测需要独立部署的评测机，
@@ -81,7 +84,7 @@ services:
   # 隧道走的是容器网络里的 app:3000。
   tunnel:
     profiles: [tunnel]
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:latest@sha256:51c9cefcb4569df44e1ad403ab1d3d8065aa8e84339bcfc6aee75502e1140339
     restart: unless-stopped
     command: tunnel --no-autoupdate run
     environment:

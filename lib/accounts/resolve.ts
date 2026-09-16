@@ -9,6 +9,7 @@ export function resolveFromRow(account: AccountRow): ResolvedUser {
     uid: account.uid,
     username: account.username,
     nickname: account.nickname,
+    avatarUpdatedAt: account.avatarUpdatedAt,
     email: account.email,
     emailVerified: account.email !== null,
     groups: groupsFor(account.uid, account.email),

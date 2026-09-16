@@ -1,4 +1,3 @@
-import type { ContestConfig } from "@/lib/contests/types";
 import { ACTIONS, denialFor, type ActionId, type ResourceOf } from "./actions";
 import { policiesFor } from "./registry";
 import { OWNER_OF, type ResourceKind } from "./resources";
@@ -12,9 +11,6 @@ import type { Viewer } from "./viewer";
 
 export interface AuthorizeContext {
   now?: Date;
-
-  /** The contest the caller claims this action belongs to. */
-  contest?: ContestConfig | null;
 
   /** Which interactive action on a problem is being invoked. */
   invocation?: string | null;
@@ -64,8 +60,9 @@ function applies(
 /**
  * Default-deny: a request is refused unless some policy permits it. A matching
  * `forbid` wins over every `permit`, which is what makes the platform's own
- * invariants — no submitting to a retired problem, no competing in a contest
- * you are not entered in — impossible for content to grant around.
+ * invariants — no submitting outside a contest's collecting window, no
+ * competing in a contest you are not entered in — impossible for content to
+ * grant around.
  *
  * Takes its candidates as an argument so the rule can be exercised against a
  * hand-written policy set rather than the deployment's own.
@@ -82,7 +79,6 @@ export function evaluate(
     action,
     resource,
     now: context.now ?? new Date(),
-    contest: context.contest ?? null,
     invocation: context.invocation ?? null,
   } as EvalInputFor<ActionId>;
 

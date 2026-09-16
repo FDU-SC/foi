@@ -9,6 +9,7 @@ import { isSettled } from "@/lib/backend/types";
 import { dateFormatter } from "@/lib/format";
 import { submissionsFor } from "@/lib/submissions/access";
 import { locateInQueues } from "@/lib/submissions/queue-position";
+import { PageHeader } from "@/components/ui/page";
 
 const formatter = dateFormatter({ dateStyle: "short", timeStyle: "medium" });
 
@@ -24,15 +25,15 @@ export async function SubmissionListView() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-fg text-2xl font-bold tracking-tight">我的提交</h1>
+      <PageHeader title="我的提交" description="最近 50 条提交记录" />
 
       {rows.length === 0 ? (
-        <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
+        <p className="text-fg-subtle border-border rounded-lg border bg-surface py-10 text-center text-sm">
           还没有提交记录。
         </p>
       ) : (
-        <div className="border-border overflow-x-auto rounded-lg border">
-          <table className="w-full text-sm">
+        <div className="oj-table-frame">
+          <table className="w-full min-w-[560px] text-sm">
             <thead className="bg-surface-2">
               <tr className="text-fg-muted text-xs">
                 <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
@@ -57,6 +58,7 @@ export async function SubmissionListView() {
                   </td>
                   <td className="px-4 py-2.5">
                     <ProblemRef
+                      contestSlug={row.contestSlug}
                       slug={row.problemSlug}
                       fallbackTitle={row.problemTitle}
                       className="text-fg font-medium"

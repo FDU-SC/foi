@@ -1,3 +1,4 @@
+import { AdminNav } from "@/components/admin/admin-nav";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getViewer } from "@/auth";
@@ -5,10 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { adminContestsFor } from "@/lib/admin/access";
 import { describeAudience } from "@/lib/authz/audience";
-import { contestPhase, PHASE_LABEL, PHASE_TONE } from "@/lib/contests/types";
+import {
+  contestHref,
+  isCatalogue,
+  standingsHref,
+} from "@/lib/contests/catalogue";
+import { contestStatus } from "@/lib/contests/types";
 import { dateFormatter } from "@/lib/format";
 import { rulesetFor } from "@/lib/standings/registry";
-
 
 const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
@@ -18,7 +23,7 @@ function participantsLabel(
 ): string {
   switch (mode) {
     case "open":
-      return "开放（谁提交谁上榜）";
+      return "开放参赛";
     case "group":
       return `按用户组，${resolved} 人`;
     case "list":
@@ -27,7 +32,6 @@ function participantsLabel(
 }
 
 export async function AdminContestsView() {
-
   const rows = await adminContestsFor(await getViewer());
   if (!rows) notFound();
 
@@ -37,7 +41,8 @@ export async function AdminContestsView() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <AdminNav />
       <nav className="text-fg-subtle text-xs">
         <Link href="/admin" className="hover:text-fg transition-colors">
           管理
@@ -49,23 +54,17 @@ export async function AdminContestsView() {
       <div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">比赛</h1>
         <p className="text-fg-muted mt-2 text-sm leading-6">
-          比赛定义在{" "}
-          <code className="font-mono">content/contests/&lt;slug&gt;/contest.ts</code>
-          ：时间、赛制、题单、参赛范围都在那一个文件里。新建一场比赛就是新建一个目录，改时间就是改一行——两者都会经过 code
-          review，也都能回滚。
+          查看比赛配置。
         </p>
       </div>
 
       {all.length === 0 ? (
-        <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
-          还没有比赛。在{" "}
-          <code className="font-mono">content/contests/</code>{" "}
-          下新建一个目录，写一份{" "}
-          <code className="font-mono">contest.ts</code> 即可。
+        <p className="text-fg-muted border-border bg-surface rounded-lg border py-10 text-center text-sm">
+          还没有比赛。
         </p>
       ) : (
         all.map((contest) => {
-          const phase = contestPhase(contest);
+          const status = contestStatus(contest);
           const ruleset = rulesetFor(contest.leaderboards[0].ruleset.id);
 
           return (
@@ -74,13 +73,18 @@ export async function AdminContestsView() {
                 title={
                   <span className="flex flex-wrap items-center gap-2">
                     <Link
-                      href={`/contests/${contest.slug}`}
+                      href={contestHref(contest.slug)}
                       className="hover:text-primary transition-colors"
                     >
                       {contest.title}
                     </Link>
-                    <Badge tone={PHASE_TONE[phase]}>{PHASE_LABEL[phase]}</Badge>
+                    <Badge tone={status.tone}>{status.label}</Badge>
                     <Badge>{ruleset?.name ?? "自定义赛制"}</Badge>
+                    {isCatalogue(contest.slug) ? (
+                      <Badge tone="primary">
+                        题库分区{contest.domain ? ` · ${contest.domain}` : ""}
+                      </Badge>
+                    ) : null}
                     {contest.leaderboards.length > 1 ? (
                       <Badge tone="info">
                         {contest.leaderboards.length} 个排行榜
@@ -95,7 +99,7 @@ export async function AdminContestsView() {
                 }
                 actions={
                   <Link
-                    href={`/contests/${contest.slug}/standings`}
+                    href={standingsHref(contest.slug)}
                     className="text-fg-subtle hover:text-primary text-xs transition-colors"
                   >
                     排行榜
@@ -125,20 +129,15 @@ export async function AdminContestsView() {
                     {contest.problems.map((problem) => (
                       <li key={problem.slug}>
                         <Badge tone="primary" mono>
-                          {problem.label}. {problem.slug}
+                          {problem.label
+                            ? `${problem.label}. ${problem.slug}`
+                            : problem.slug}
                           {problem.points ? ` (${problem.points})` : ""}
                         </Badge>
                       </li>
                     ))}
                   </ul>
                 )}
-
-                <p className="text-fg-subtle border-border border-t pt-3 text-xs leading-5">
-                  编辑{" "}
-                  <code className="font-mono">
-                    content/contests/{contest.slug}/contest.ts
-                  </code>
-                </p>
               </CardBody>
             </Card>
           );

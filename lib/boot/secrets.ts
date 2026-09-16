@@ -20,16 +20,6 @@ const ALWAYS_GUARDED = ["AUTH_SECRET", "FOI_BACKEND_SECRET"];
 /** Per-backend overrides. Matched by shape so backends added later are covered. */
 const PER_BACKEND = /^FOI_BACKEND_[A-Z0-9_]+_SECRET$/;
 
-function consequenceOf(name: string): string {
-  if (name === "AUTH_SECRET") {
-    return "任何人都能伪造登录会话，以任意账号（包括管理员）进站";
-  }
-  return (
-    "任何人都能领走评测队列里的提交、读到里面所有人的代码、" +
-    "并写回任意评测结果"
-  );
-}
-
 export function placeholderSecrets(
   env: Record<string, string | undefined> = process.env,
 ): string[] {
@@ -46,8 +36,6 @@ export function placeholderSecrets(
     .sort()
     .map(
       (name) =>
-        `${name} 还是 .env.example 里的占位值。它够长，所以长度检查放行了，` +
-        `但这个值就写在仓库里，谁都看得到——${consequenceOf(name)}。` +
-        `用 openssl rand -hex 32 生成一个换掉`,
+        `${name} 使用的是默认值，用 openssl rand -hex 32 换掉`,
     );
 }

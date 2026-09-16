@@ -1,6 +1,7 @@
 import { createTransport, type Transporter } from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { tier } from "@/lib/boot/deployment";
+import { log } from "@/lib/log";
 import { site } from "@/lib/site";
 import type { MailBody } from "./types";
 
@@ -61,10 +62,7 @@ export function mailDeliveryComplaints(): string[] {
   if (relayOptions() !== null) return [];
 
   return [
-    "FOI_MAIL_DELIVERY 是 smtp（默认），但 FOI_SMTP_HOST 没有设置。" +
-      "请设置 FOI_SMTP_HOST（以及需要的 FOI_SMTP_PORT / FOI_SMTP_USER / FOI_SMTP_PASSWORD），" +
-      '或者设置 FOI_MAIL_DELIVERY=console——后者会把验证码和重置链接打印到服务端日志，' +
-      "只适合本地开发或还没有用户的首次部署。",
+    "FOI_MAIL_DELIVERY 是 smtp，但 FOI_SMTP_HOST 未设置。",
   ];
 }
 
@@ -75,8 +73,7 @@ export function mailSink(): "smtp" | "console" {
 
   if (tier() === "prod") {
     throw new Error(
-      "FOI_MAIL_DELIVERY 是 smtp（默认），但 FOI_SMTP_HOST 没有设置，" +
-        "生产环境拒绝回落到控制台。",
+      "FOI_MAIL_DELIVERY 是 smtp，但 FOI_SMTP_HOST 未设置。",
     );
   }
   return "console";
@@ -92,17 +89,15 @@ export async function deliver(message: MailMessage): Promise<void> {
   const smtp = mailSink() === "smtp" ? transporter() : null;
 
   if (!smtp) {
-    console.log(
+    log.info(
       [
-        "",
-        "──────── [foi] 邮件打印到控制台，未实际投递 ────────",
+        "──────── 邮件打印到控制台，未实际投递 ────────",
         `From:    ${from}`,
         `To:      ${message.to}`,
         `Subject: ${message.subject}`,
         "",
         message.text,
         "────────────────────────────────────────────────────",
-        "",
       ].join("\n"),
     );
     return;

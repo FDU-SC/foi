@@ -2,23 +2,13 @@ import { z } from "zod";
 import { audienceSchema } from "@/lib/authz/audience";
 import { actionRateLimitSchema } from "@/lib/problems/types";
 import { SLUG_PATTERN } from "@/lib/utils";
-
-const ZONED_ISO =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
-
-const zonedDateTime = z
-  .string()
-  .regex(
-    ZONED_ISO,
-    "时间必须是带时区的 ISO 8601，例如 2026-01-15T13:00:00+08:00",
-  )
-  .transform((value) => new Date(value))
-  .refine((date) => !Number.isNaN(date.getTime()), "不是有效的时间");
+import { zonedDateTime } from "@/lib/zoned-date-time";
 
 const contestProblemSchema = z.object({
   slug: z.string().min(1),
 
-  label: z.string().min(1).max(8),
+  /** Contest letter when the round numbers its problems. Omit on a catalogue section. */
+  label: z.string().min(1).max(8).optional(),
 
   points: z.number().positive().optional(),
 
@@ -37,6 +27,19 @@ const participantsSchema = z
     }),
   ])
   .default({ mode: "open" });
+
+/**
+ * Problem access after `endsAt`. Problems are reachable only through contests:
+ * sealing a contest closes its problem statements, while allowing submissions
+ * enables practice without extending the official leaderboard window.
+ */
+const afterEndSchema = z
+  .object({
+    statements: z.boolean().default(true),
+
+    submissions: z.boolean().default(false),
+  })
+  .prefault({});
 
 const leaderboardSchema = z.object({
   id: z.string().min(1),
@@ -58,6 +61,24 @@ export const contestConfigSchema = z
     title: z.string().min(1),
     description: z.string().optional(),
 
+    /**
+     * The heading this contest sits under on the catalogue index.
+     *
+     * A label the platform groups by and never interprets. Headings appear in
+     * the order their first contest appears in `site.catalogue`, so the order
+     * is declared once and in one place.
+     */
+    domain: z.string().min(1).optional(),
+
+    /**
+     * Which of a problem's dimensions this contest's pages offer.
+     *
+     * Names keys out of `ProblemViews.facets`; the platform collects the values
+     * and matches opaque strings. The default empty list hides the filter bar
+     * and problem badges, preventing disclosure of undeclared dimensions.
+     */
+    facets: z.array(z.string()).default([]),
+
     leaderboards: z.array(leaderboardSchema).min(1, "至少需要一个排行榜"),
 
     startsAt: zonedDateTime,
@@ -65,12 +86,23 @@ export const contestConfigSchema = z
 
     freezeAt: zonedDateTime.optional(),
 
+    afterEnd: afterEndSchema,
+
     visibleTo: audienceSchema,
 
     problems: z.array(contestProblemSchema).default([]),
     participants: participantsSchema,
   })
   .superRefine((contest, ctx) => {
+    if (contest.afterEnd.submissions && !contest.afterEnd.statements) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["afterEnd", "statements"],
+        message:
+          "赛后收题却不展示题面是矛盾的：没有人打得开的题目也没有人提交得了。",
+      });
+    }
+
     if (contest.endsAt <= contest.startsAt) {
       ctx.addIssue({
         code: "custom",
@@ -121,7 +153,7 @@ export const contestConfigSchema = z
           message: `题目 "${problem.slug}" 重复`,
         });
       }
-      if (labels.has(problem.label)) {
+      if (problem.label !== undefined && labels.has(problem.label)) {
         ctx.addIssue({
           code: "custom",
           path: ["problems", index, "label"],
@@ -129,18 +161,29 @@ export const contestConfigSchema = z
         });
       }
       slugs.add(problem.slug);
-      labels.add(problem.label);
+      if (problem.label !== undefined) labels.add(problem.label);
     });
   });
 
 export type ContestConfig = z.infer<typeof contestConfigSchema>;
 export type ContestConfigInput = z.input<typeof contestConfigSchema>;
 export type ContestProblemConfig = z.infer<typeof contestProblemSchema>;
+export type ContestAfterEnd = ContestConfig["afterEnd"];
 
 export type ContestClock = Pick<
   ContestConfig,
   "startsAt" | "endsAt" | "freezeAt"
 >;
+
+/**
+ * The contest clock and its post-contest access rules.
+ *
+ * Not `ContestWindow` — `lib/standings/types.ts` already owns that name for the
+ * `startsAt`..`endsAt` pair a ruleset scores, and the two must not be confused:
+ * a ruleset is told the window and nothing about `afterEnd`, precisely so that
+ * a round staying open changes nothing about how it is scored.
+ */
+export type ContestSchedule = ContestClock & { afterEnd: ContestAfterEnd };
 
 export type Participants = ContestConfig["participants"];
 
@@ -200,12 +243,61 @@ export function hasContestEnded(
   return ENDED_PHASES.includes(contestPhase(contest, now));
 }
 
+/**
+ * Whether the contest is showing its problems: the clock has started them, and
+ * it has not sealed them again on its way out.
+ */
+export function showsStatements(
+  contest: ContestSchedule,
+  now = new Date(),
+): boolean {
+  if (!hasContestStarted(contest, now)) return false;
+  return !hasContestEnded(contest, now) || contest.afterEnd.statements;
+}
+
+/**
+ * Whether the contest is taking work: inside its own window, or past it and
+ * still open by its own declaration.
+ *
+ * Late work is practice rather than a second round, because a leaderboard
+ * scores `startsAt`..`endsAt` and nothing else. That is the ruleset's doing —
+ * it runs its submissions through `submissionsInWindow` — so the guarantee is
+ * asserted of every registered ruleset in `lib/standings/window.test.ts`.
+ */
+export function acceptsSubmissions(
+  contest: ContestSchedule,
+  now = new Date(),
+): boolean {
+  if (isContestOpen(contest, now)) return true;
+  return hasContestEnded(contest, now) && contest.afterEnd.submissions;
+}
+
 export const PHASE_LABEL: Record<ContestPhase, string> = {
   upcoming: "未开始",
   running: "进行中",
   frozen: "封榜中",
   ended: "已结束",
 };
+
+/**
+ * What to put on the badge.
+ *
+ * The phase is about the clock alone, so a round that finished and kept its
+ * door open needs the extra half sentence: without it "已结束" would sit above
+ * a submit panel that still works.
+ */
+export function contestStatus(
+  contest: ContestSchedule,
+  now = new Date(),
+): { label: string; tone: (typeof PHASE_TONE)[ContestPhase] } {
+  const phase = contestPhase(contest, now);
+  const collecting = phase === "ended" && contest.afterEnd.submissions;
+
+  return {
+    label: collecting ? "已结束 · 仍可提交" : PHASE_LABEL[phase],
+    tone: PHASE_TONE[phase],
+  };
+}
 
 export const PHASE_TONE = {
   upcoming: "info",

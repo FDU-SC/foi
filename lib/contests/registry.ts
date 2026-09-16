@@ -1,8 +1,8 @@
 import { contestModules } from "@/content/_modules/contests";
-import { audienceCovers, describeAudience } from "@/lib/authz/audience";
 import { problemBySlug } from "@/lib/problems/registry";
 import { slugFromGlobPath } from "@/lib/slug-from-path";
 import { rulesetFor } from "@/lib/standings/registry";
+import { catalogueSlugs } from "./catalogue";
 import { contestConfigSchema, type ContestConfig } from "./types";
 
 function buildRegistry(): Map<string, ContestConfig> {
@@ -34,21 +34,10 @@ function buildRegistry(): Map<string, ContestConfig> {
     }
 
     for (const entry of parsed.data.problems) {
-      const problem = problemBySlug(entry.slug);
-      if (!problem) {
-        throw new Error(
-          `${path} 引用了不存在的题目 "${entry.slug}"，请检查 content/problems/`,
-        );
-      }
-
-      if (!audienceCovers(problem.visibleTo, parsed.data.visibleTo)) {
-        throw new Error(
-          `${path} 对 ${describeAudience(parsed.data.visibleTo)} 可见，` +
-            `但它的题目 "${entry.slug}" 只对 ${describeAudience(problem.visibleTo)} 可见。` +
-            `比赛的受众不能超出它任何一道题的受众——否则比赛页会把这道题的标题给到打不开它的人。` +
-            `请收窄比赛的 visibleTo，或放宽这道题的。`,
-        );
-      }
+      if (problemBySlug(entry.slug)) continue;
+      throw new Error(
+        `${path} 引用了不存在的题目 "${entry.slug}"，请检查 content/problems/`,
+      );
     }
 
     for (const lb of parsed.data.leaderboards) {
@@ -76,4 +65,14 @@ export function allContests(): ContestConfig[] {
 
 export function contestBySlug(slug: string): ContestConfig | undefined {
   return registry.get(slug);
+}
+
+/**
+ * The contests `site.catalogue` names, in the order it names them.
+ *
+ * A name with no contest behind it is skipped rather than reported here — that
+ * is a boot diagnostic, and `lib/contests/warnings.ts` owns it.
+ */
+export function catalogueContests(): ContestConfig[] {
+  return catalogueSlugs().flatMap((slug) => registry.get(slug) ?? []);
 }

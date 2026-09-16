@@ -1,6 +1,6 @@
 # _shared/ — Reusable Template Library
 
-This directory contains **composable building blocks** for problems, contests, and rulesets. These are NOT platform defaults—they are a menu of common implementations that content authors pick from.
+This directory contains **composable building blocks** for problems, contests, and rulesets. Content authors choose these implementations explicitly; they are not platform defaults.
 
 If nothing here fits, write your own component in the problem/contest directory.
 
@@ -15,7 +15,8 @@ _shared/
     flag-input.tsx      Template — single-line input → { flag }
     text-input.tsx      Template — multi-line textarea → { text }
     ui-config.tsx       ProblemUi schema (difficulty, tags, languages, placeholder)
-    problem-badges.tsx  Problem list badges (difficulty + tags + max score)
+    problem-facets.tsx  Which ui fields become filterable dimensions + the difficulty ladder
+    problem-badges.tsx  Problem badges (the offered dimensions + max score)
   views/           Submission detail view templates
     code-payload.tsx    Renders { language, source } payloads
     flag-payload.tsx    Renders { flag } payloads
@@ -68,7 +69,14 @@ Each problem's `views.tsx` picks view templates for displaying submissions:
 - `PayloadView` — how to render the submitted content on the detail page
 - `VerdictDetail` — how to render evaluation details (test cases, messages)
 - `verdicts` — verdict label overrides (typically import from `_shared/verdicts`)
-- `Badges` — problem list badge component (typically import `ProblemBadges` from `_shared/ui/problem-badges`)
+- `Badges` — problem badge component (typically import `ProblemBadges` from `_shared/ui/problem-badges`)
+- `facets` — which dimensions the problem sits on (typically import `problemFacets` from `_shared/ui/problem-facets`)
+
+`facets` and `Badges` are two ends of one mechanism. The platform asks `facets`
+what dimensions a problem holds, keeps the ones the carrying contest named in
+its own `facets`, and passes the selected facets to `Badges`. So a dimension a contest
+withholds disappears from the chips and the badges together, and `Badges`
+renders what it is given rather than reaching back into `ui`.
 
 ## Adding New Templates
 

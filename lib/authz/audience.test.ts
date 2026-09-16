@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { audienceCovers, describeAudience, inAudience } from "./audience";
+import { describeAudience, inAudience } from "./audience";
 import { AS_PLAYER } from "@/test/auth-support";
 import { viewerWith } from "@/test/content-shapes";
 import { viewerFor } from "./viewer";
@@ -48,43 +48,3 @@ describe("describeAudience", () => {
   });
 });
 
-describe("audienceCovers", () => {
-  it("所有人覆盖任何受众", () => {
-    expect(audienceCovers(undefined, undefined)).toBe(true);
-    expect(audienceCovers(undefined, ["校队"])).toBe(true);
-    expect(audienceCovers(undefined, [])).toBe(true);
-  });
-
-  it("只有「所有人」能覆盖「所有人」", () => {
-    expect(audienceCovers(["校队"], undefined)).toBe(false);
-    expect(audienceCovers([], undefined)).toBe(false);
-  });
-
-  it("超集覆盖子集", () => {
-    expect(audienceCovers(["校队", "教练"], ["校队"])).toBe(true);
-    expect(audienceCovers(["校队"], ["校队"])).toBe(true);
-  });
-
-  it("缺一个组就不覆盖", () => {
-    expect(audienceCovers(["校队"], ["校队", "教练"])).toBe(false);
-    expect(audienceCovers(["校队"], ["教练"])).toBe(false);
-  });
-
-  it("空受众只覆盖空受众", () => {
-    expect(audienceCovers([], [])).toBe(true);
-    expect(audienceCovers([], ["校队"])).toBe(false);
-  });
-});
-
-describe("比赛受众不得超出题目受众", () => {
-  it("这正是「公开比赛塞一道校队题」被拒的判据", () => {
-
-    const contestForEveryone = undefined;
-    const problemForTeam = ["校队"];
-    expect(audienceCovers(problemForTeam, contestForEveryone)).toBe(false);
-  });
-
-  it("反过来是允许的：一场校队赛可以用一道公开题", () => {
-    expect(audienceCovers(undefined, ["校队"])).toBe(true);
-  });
-});

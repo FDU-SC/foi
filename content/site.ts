@@ -7,13 +7,33 @@ export const site: SiteConfig = {
   lang: "zh-CN",
   timezone: "Asia/Shanghai",
 
-  tagline:
-    "一个可插拔的竞赛平台。题面、评测机与赛制计分都以代码形式存放在仓库中，可以像写组件一样定制每一道题的页面。",
+  tagline: "在线练习与竞赛",
+
+  // 这些长期开放的比赛作为题库分区，使用 /problems 路径。
+  // 顺序即卡片顺序，分组标题取自各自的 domain。
+  catalogue: [
+    "puzzles",
+    "kernel",
+    "comm",
+    "framework",
+    "inference",
+    "cluster",
+    "graphs",
+    "dynamic-programming",
+    "data-structures",
+    "divide-and-conquer",
+    "ctf",
+    "pwn",
+    "reverse",
+    "crypto",
+    "misc",
+  ],
 
   navigation: [
     { href: "/problems", label: "题库" },
     { href: "/contests", label: "比赛" },
     { href: "/submissions", label: "提交记录" },
+    { href: "/leaderboard", label: "排行榜", visibleWhen: "leaderboard.read" },
     { href: "/judges", label: "评测机", visibleWhen: "judge.readBoard" },
     { href: "/admin", label: "管理", visibleWhen: "admin.enter" },
   ],
@@ -28,17 +48,17 @@ export const site: SiteConfig = {
     {
       href: "/problems",
       title: "题库",
-      description: "浏览全部题目，随时提交练习。",
+      description: "按方向分类的练习题单。",
     },
     {
       href: "/contests",
       title: "比赛",
-      description: "查看进行中与已结束的比赛及其排行榜。",
+      description: "查看赛程与历届比赛。",
     },
     {
       href: "/submissions",
       title: "提交记录",
-      description: "追踪自己的评测结果与得分明细。",
+      description: "查看自己的提交与评测结果。",
     },
   ],
 };

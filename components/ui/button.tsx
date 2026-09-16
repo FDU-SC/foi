@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 const VARIANTS = {
   primary:
-    "bg-primary text-primary-fg hover:bg-primary-hover shadow-sm disabled:hover:bg-primary",
+    "ui-primary bg-primary text-primary-fg hover:bg-primary-hover disabled:hover:bg-primary",
   secondary:
     "bg-surface border border-border text-fg hover:bg-surface-2 hover:border-border-strong",
   ghost: "text-fg-muted hover:bg-surface-2 hover:text-fg",
@@ -31,8 +31,8 @@ export function Button({
     <button
       className={cn(
         "inline-flex items-center justify-center rounded-md font-medium",
-        "transition-colors duration-150",
-        "disabled:pointer-events-none disabled:opacity-50",
+        "transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-200 ease-out",
+        "motion-safe:active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100",
         VARIANTS[variant],
         SIZES[size],
         className,

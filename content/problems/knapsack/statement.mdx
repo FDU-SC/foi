@@ -1,0 +1,93 @@
+import { Callout } from "@/content/_shared/mdx/callout";
+import { Constraints } from "@/content/_shared/mdx/constraints";
+import { Sample } from "@/content/_shared/mdx/sample";
+import { SubmitPanel } from "@/content/_shared/ui/submit-panel";
+import { CodeInput } from "@/content/_shared/ui/code-input";
+
+<Constraints time="1 s" memory="256 MB" extra={{ 子任务: "3" }} />
+
+## 题目描述
+
+有 $n$ 件物品和一个容量为 $W$ 的背包。第 $i$ 件物品的体积是 $w_i$，价值是 $v_i$。
+
+每件物品**要么整件装入，要么不装**，不能只装一部分，也不能装两次。请求出在总体积
+不超过 $W$ 的前提下，能装走的最大总价值。
+
+## 输入格式
+
+第一行两个整数 $n$ 和 $W$。
+
+接下来 $n$ 行，每行两个整数 $w_i$ 和 $v_i$。
+
+## 输出格式
+
+一行一个整数，表示能装走的最大总价值。
+
+<Sample
+  n={1}
+  input={`4 10
+5 10
+4 40
+6 30
+3 50`}
+  output={`90`}
+  note="装第 2 件和第 4 件，体积 4 + 3 = 7 没有超，价值 40 + 50 = 90。"
+/>
+
+<Sample
+  n={2}
+  input={`2 3
+4 100
+5 100`}
+  output={`0`}
+  note="两件物品都塞不进去，只能空着。"
+/>
+
+## 数据范围
+
+对于全部数据，保证 $1 \le n \le 10^3$，$1 \le W \le 10^4$，
+$1 \le w_i \le W$，$1 \le v_i \le 10^9$。
+
+| 子任务 | 分值 | 限制 |
+| --- | --- | --- |
+| 1 | 30 | $n \le 20$ |
+| 2 | 30 | $n \le 100$，$W \le 10^3$ |
+| 3 | 40 | 无特殊限制 |
+
+第一个子任务的规模允许枚举每件物品选或不选，共 $2^n$ 种方案。
+
+<Callout kind="tip" title="解题提示">
+
+设 $f_j$ 为「背包容量恰好不超过 $j$ 时的最大价值」。逐件考虑物品，对第 $i$ 件有
+装或不装两种选择：
+
+$$
+f_j = \max(f_j,\ f_{j - w_i} + v_i)
+$$
+
+这里 $f_j$ 已经是滚动过的一维数组，$f_j$ 表示「还没考虑第 $i$ 件时的结果」。
+要让它保持这个含义，枚举容量时必须**从大到小**。
+
+复杂度 $O(nW)$。
+
+</Callout>
+
+## 参考实现片段
+
+```cpp title="knapsack.cpp" showLineNumbers
+vector<long long> f(W + 1, 0);
+for (int i = 0; i < n; ++i)
+    for (int j = W; j >= w[i]; --j)
+        f[j] = max(f[j], f[j - w[i]] + v[i]);
+cout << f[W] << '\n';
+```
+
+<Callout kind="warning">
+
+容量必须**倒序**枚举。改成正序，第 $i$ 件物品就会被重复计入，题目变成完全背包。
+
+$n$ 与 $v_i$ 都取到上界时总价值可达 $10^{12}$ 量级，用 32 位整数会溢出。
+
+</Callout>
+
+<SubmitPanel><CodeInput /></SubmitPanel>

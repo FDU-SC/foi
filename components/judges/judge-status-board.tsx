@@ -1,8 +1,12 @@
 "use client";
 
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { LAYOUT_SPRING } from "@/components/ui/motion";
+import { PulseDot } from "@/components/ui/pulse-dot";
 import type { BackendQueueStatus, QueueEntry } from "@/lib/backend/board";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +28,7 @@ function Metric({
   tone,
 }: {
   label: string;
-  value: string | number;
+  value: number;
   tone?: "warn" | "err";
 }) {
   return (
@@ -32,14 +36,13 @@ function Metric({
       <div className="text-fg-subtle mb-1.5 text-[11px] tracking-wide uppercase">
         {label}
       </div>
-      <div
+      <AnimatedNumber
+        value={value}
         className={cn(
-          "font-mono text-2xl leading-none font-semibold tabular-nums",
+          "block font-mono text-2xl leading-none font-semibold tabular-nums",
           tone === "warn" ? "text-warn" : tone === "err" ? "text-err" : "text-fg",
         )}
-      >
-        {value}
-      </div>
+      />
     </div>
   );
 }
@@ -55,7 +58,15 @@ function QueueRow({
 }) {
   const judging = item.state === "judging";
   return (
-    <tr className="hover:bg-surface-2/60 align-top">
+    <motion.tr
+      // Keyed by submission id, so a job moving up the queue slides there.
+      layout
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={LAYOUT_SPRING}
+      className="hover:bg-surface-2/60 align-top"
+    >
       <td className="text-fg-subtle px-3 py-1.5 text-right font-mono text-[11px] tabular-nums">
         {judging ? "▶" : index}
       </td>
@@ -85,7 +96,7 @@ function QueueRow({
         ) : null}
         {clock.format(new Date(item.claimedAt ?? item.enqueuedAt))}
       </td>
-    </tr>
+    </motion.tr>
   );
 }
 
@@ -124,7 +135,7 @@ function JudgeCard({
 
         {stranded ? (
           <p className="text-err bg-err-subtle rounded px-2.5 py-1.5 text-xs">
-            队列里有等待评测的提交，但最近一分钟没有任何评测机来领活。
+            有提交等待评测，最近一分钟没有评测机领取任务。
           </p>
         ) : null}
 
@@ -142,17 +153,24 @@ function JudgeCard({
           <div className="border-border overflow-hidden rounded border">
             <table className="w-full">
               <tbody className="divide-border divide-y">
-                {judging.map((item) => (
-                  <QueueRow key={item.submissionId} item={item} index={0} clock={clock} />
-                ))}
-                {queued.map((item, index) => (
-                  <QueueRow
-                    key={item.submissionId}
-                    item={item}
-                    index={index + 1}
-                    clock={clock}
-                  />
-                ))}
+                <AnimatePresence initial={false}>
+                  {judging.map((item) => (
+                    <QueueRow
+                      key={item.submissionId}
+                      item={item}
+                      index={0}
+                      clock={clock}
+                    />
+                  ))}
+                  {queued.map((item, index) => (
+                    <QueueRow
+                      key={item.submissionId}
+                      item={item}
+                      index={index + 1}
+                      clock={clock}
+                    />
+                  ))}
+                </AnimatePresence>
               </tbody>
             </table>
           </div>
@@ -211,31 +229,38 @@ export function JudgeStatusBoard({
     <div className="space-y-4">
       <div className="text-fg-subtle flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
         <span>
-          共 <span className="text-fg font-mono">{statuses.length}</span> 个题目后端
+          共 <span className="text-fg font-mono">{statuses.length}</span> 个评测队列
         </span>
         <span>
-          在线评测机 <span className="text-fg font-mono">{totals.runners}</span>
+          在线评测机{" "}
+          <AnimatedNumber
+            value={totals.runners}
+            className="text-fg font-mono tabular-nums"
+          />
         </span>
         <span>
-          评测中 <span className="text-fg font-mono">{totals.judging}</span>
+          评测中{" "}
+          <AnimatedNumber
+            value={totals.judging}
+            className="text-fg font-mono tabular-nums"
+          />
         </span>
         <span>
-          排队 <span className="text-fg font-mono">{totals.queued}</span>
+          排队{" "}
+          <AnimatedNumber
+            value={totals.queued}
+            className="text-fg font-mono tabular-nums"
+          />
         </span>
         <span className="ml-auto flex items-center gap-1.5">
-          <span
-            className={cn(
-              "inline-block size-1.5 rounded-full",
-              stale ? "bg-err" : "bg-ok animate-pulse",
-            )}
-          />
+          <PulseDot active={!stale} className={stale ? "bg-err" : "bg-ok"} />
           {stale ? "连接中断，重试中" : `每 ${POLL_INTERVAL_MS / 1000} 秒刷新`}
         </span>
       </div>
 
       {statuses.length === 0 ? (
         <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
-          content/backends.ts 中还没有登记题目后端。
+          暂无评测队列。
         </p>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">

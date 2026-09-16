@@ -2,6 +2,7 @@ import { gte, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { runners } from "@/lib/db/schema";
+import { log } from "@/lib/log";
 import { guardRequest } from "@/lib/server/guard";
 import { RUNNER_ONLINE_MS } from "@/lib/runner/queue";
 import { reaperHealth } from "@/lib/runner/reaper";
@@ -35,7 +36,7 @@ export async function GET(request: Request) {
     );
   } catch (error) {
 
-    console.error("[foi] 健康检查失败：数据库不可达", error);
+    log.error("健康检查失败：数据库不可达", error);
     return NextResponse.json(
       { ok: false, database: "down" },
       { status: 503, headers: { "cache-control": "no-store" } },

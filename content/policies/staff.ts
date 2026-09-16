@@ -62,7 +62,7 @@ export const policies = [
   policy({
     id: "proctor:console",
     effect: "permit",
-    describe: "监考能进运维台核对配置漂移与评测队列，但看不到账号目录与邮箱",
+    describe: "允许监考查看管理概况与评测队列，不提供账号列表与邮箱",
     action: ["admin.enter", "judge.readBoard", "backend.read"],
     principal: { group: PROCTOR },
   }),
@@ -70,12 +70,12 @@ export const policies = [
   policy({
     id: "staff:protected-accounts",
     effect: "forbid",
-    describe: "运维组的账号不能在界面上被封禁，改动他们的权限要改 git 里的分流规则",
+    describe: "运维组的账号不能在界面上被封禁",
     action: "account.suspend",
     when: ({ resource }) => resource.groups.includes(STAFF),
     reason: {
       code: "protected",
-      message: "这个账号属于运维组，不能在这里封禁。请改 content/enrollment/ 里的分流规则。",
+      message: "该账号属于运维组，不能在此封禁。",
     },
   }),
 ];

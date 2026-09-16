@@ -1,3 +1,4 @@
+import { AdminNav } from "@/components/admin/admin-nav";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getViewer } from "@/auth";
@@ -66,7 +67,8 @@ export async function AdminAccountsView({
 
   const { accounts: rows, lastSuspensionEvents } = directory;
 
-  const query = typeof params.q === "string" ? params.q.trim().toLowerCase() : "";
+  const query =
+    typeof params.q === "string" ? params.q.trim().toLowerCase() : "";
   const byUid = new Map(rows.map((row) => [row.uid, row]));
 
   // Each button is drawn from the same decision the action itself will make,
@@ -92,7 +94,8 @@ export async function AdminAccountsView({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <AdminNav />
       <nav className="text-fg-subtle text-xs">
         <Link href="/admin" className="hover:text-fg transition-colors">
           管理
@@ -104,28 +107,26 @@ export async function AdminAccountsView({
       <div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">账号</h1>
         <p className="text-fg-muted mt-2 text-sm leading-6">
-          账号由注册产生，这里列出的是数据库里的真实记录。
-          <strong className="text-fg font-medium">用户组不在这张表里</strong>
-          ：它们由{" "}
-          <code className="font-mono">content/enrollment/</code> 的{" "}
+          注册用户列表。用户组由{" "}
           <Link href="/admin/enrollment" className="hover:text-fg underline">
-          分流规则
-        </Link>{" "}
-        现算，一部分按邮箱匹配，一部分按用户名点名。要给谁提权或改分组，提 PR 改那个文件，部署后下一个请求就生效。
+            分流规则
+          </Link>
+          自动分配。
         </p>
       </div>
 
-      <form className="flex gap-2" action="/admin/accounts">
+      <form className="flex flex-wrap items-end gap-2" action="/admin/accounts">
         <Field label="">
           <Input
             name="q"
             defaultValue={query}
-            placeholder="按用户名、显示名、邮箱或标签筛选"
-            className="w-72"
+            placeholder="按用户名、昵称、邮箱或标签筛选"
+            aria-label="按用户名、昵称、邮箱或标签筛选"
+            className="w-64 max-w-full"
             spellCheck={false}
           />
         </Field>
-        <Button type="submit" size="sm" className="self-start">
+        <Button type="submit" size="md">
           筛选
         </Button>
         {query ? (
@@ -138,7 +139,7 @@ export async function AdminAccountsView({
         ) : null}
       </form>
 
-      <div className="border-border overflow-x-auto rounded-lg border">
+      <div className="oj-table-frame">
         <table className="w-full text-sm">
           <thead className="bg-surface-2">
             <tr className="text-fg-muted text-xs">
@@ -146,7 +147,7 @@ export async function AdminAccountsView({
                 用户名
               </th>
               <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
-                显示名
+                昵称
               </th>
               <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
                 邮箱
@@ -155,7 +156,7 @@ export async function AdminAccountsView({
                 状态
               </th>
               <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
-                用户组（派生）
+                用户组
               </th>
               <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
                 凭据
@@ -189,7 +190,10 @@ export async function AdminAccountsView({
                   </td>
                   <td className="px-4 py-2.5">
                     <Badge tone={status.tone}>{status.label}</Badge>
-                    <ModerationNote row={row} lastEvent={lastSuspensionEvents.get(account.uid)} />
+                    <ModerationNote
+                      row={row}
+                      lastEvent={lastSuspensionEvents.get(account.uid)}
+                    />
                   </td>
                   <td className="px-4 py-2.5">
                     {account.groups.length === 0 ? (

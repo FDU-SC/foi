@@ -20,6 +20,7 @@
 import { existsSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { log } from "../lib/log";
 import { CONTENT_ROOTS } from "../test/content-roots.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -133,7 +134,7 @@ export function strip(root = ROOT): void {
       rmSync(join(rootPath, entry), { recursive: true, force: true });
     }
 
-    console.log(`[foi] ${rootName}/ 保留 ${[...keep].sort().join(" ")}`);
+    log.info(`${rootName}/ 保留 ${[...keep].sort().join(" ")}`);
   }
 }
 

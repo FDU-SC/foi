@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
 import { fingerprint as computeFingerprint } from "@/lib/tokens/stateless";
 import ARGON2_OPTIONS from "./argon2-options.cjs";
-import type { DbOrTx } from "./queries";
+import type { DbOrTx } from "@/lib/db/types";
 
 const decoyHash = hash("decoy-for-constant-time-login", ARGON2_OPTIONS);
 

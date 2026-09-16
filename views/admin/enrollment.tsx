@@ -1,3 +1,4 @@
+import { AdminNav } from "@/components/admin/admin-nav";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -16,14 +17,15 @@ export async function AdminEnrollmentView() {
   const {
     policy: enrollmentPolicy,
     rules,
-    known: { groups: allGroups, exhaustive },
+    known: { groups: allGroups },
     ruleMatches,
     groupCounts,
     untagged,
   } = view;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <AdminNav />
       <nav className="text-fg-subtle text-xs">
         <Link href="/admin" className="hover:text-fg transition-colors">
           管理
@@ -35,9 +37,7 @@ export async function AdminEnrollmentView() {
       <div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">分流规则</h1>
         <p className="text-fg-muted mt-2 text-sm leading-6">
-          这是 <code className="font-mono">content/enrollment/</code>{" "}
-          的只读视图。仓库里存的不是人名清单而是分类规则：一条正则比两百个名字更短，不会过时，而且说清了某人为什么属于某个分组。改规则提
-          PR，部署后所有受影响的人在下一个请求就重新分流，不需要回填。
+          查看注册规则与用户分组。
         </p>
       </div>
 
@@ -55,9 +55,7 @@ export async function AdminEnrollmentView() {
             </div>
             <div className="flex justify-between gap-2">
               <dt className="text-fg-muted">验证链接有效期</dt>
-              <dd className="text-fg font-mono text-xs">
-                30 分钟
-              </dd>
+              <dd className="text-fg font-mono text-xs">30 分钟</dd>
             </div>
           </dl>
           <div className="border-border mt-3 border-t pt-3">
@@ -81,12 +79,11 @@ export async function AdminEnrollmentView() {
         <CardHeader title="分流规则" />
         <CardBody className="space-y-3">
           <p className="text-fg-muted text-sm leading-6">
-            规则有两种形态，形态决定了它能不能发权限。按邮箱匹配的规则一条覆盖一整届，但发不出带权限的组——正则覆盖的地址是无穷的，写错一位数就会把权限发给一片人。列出
-            uid 的规则可以发权限，因为 uid 是不可变的唯一标识，命中就意味着这个人正是仓库指的那个人。
+            邮箱规则不能分配特权组；按用户编号指定的规则可以分配任何组。
           </p>
           {rules.length === 0 ? (
             <p className="text-fg-muted text-sm leading-6">
-              还没有任何规则，注册用户不会进入任何用户组，按组划定参赛范围的比赛将没有参赛者。
+              暂无分流规则，注册用户尚未分组。
             </p>
           ) : (
             <div className="border-border overflow-hidden rounded-md border">
@@ -130,7 +127,9 @@ export async function AdminEnrollmentView() {
                             {rule.groups.map((id) => (
                               <Badge
                                 key={id}
-                                tone={isPrivilegedGroup(id) ? "primary" : "neutral"}
+                                tone={
+                                  isPrivilegedGroup(id) ? "primary" : "neutral"
+                                }
                               >
                                 {groupName(id)}
                               </Badge>
@@ -159,19 +158,17 @@ export async function AdminEnrollmentView() {
           )}
           {ruleMatches === null ? (
             <p className="text-fg-subtle text-xs leading-5">
-              命中账号数要读账号目录，需要{" "}
-              <code className="font-mono">account.read</code> 才会显示。
+              需要账号查看权限才能显示命中数。
             </p>
           ) : (
             <p className="text-fg-subtle text-xs leading-5">
-              命中数标黄说明这条规则一个人也没匹配上。邮箱规则多半是位数没跟真实学号对齐；uid
-              规则则是 uid 填错了，或者那个人还没注册。
+              标黄表示该规则未匹配到任何账号。
             </p>
           )}
           {untagged !== null && untagged > 0 ? (
             <p className="text-warn text-xs leading-5">
               有 <span className="font-mono">{untagged}</span>{" "}
-              个账号的邮箱不匹配任何规则，他们进不了任何按用户组划定参赛范围的比赛。
+              个账号的邮箱未匹配分流规则，无法参加限定用户组的比赛。
             </p>
           ) : null}
         </CardBody>
@@ -182,9 +179,7 @@ export async function AdminEnrollmentView() {
         <CardBody>
           {groupCounts === null ? (
             <p className="text-fg-muted text-sm leading-6">
-              分布要按邮箱现算每个账号的用户组，需要{" "}
-              <code className="font-mono">account.read</code>。这里列出的是{" "}
-              {allGroups.length} 个仓库声明或规则产生的用户组名。
+              需要账号查看权限才能统计分布。已知用户组共 {allGroups.length} 个。
             </p>
           ) : groupCounts.size === 0 ? (
             <p className="text-fg-muted text-sm">还没有任何用户组。</p>
@@ -210,15 +205,10 @@ export async function AdminEnrollmentView() {
             </ul>
           )}
           <p className="text-fg-subtle mt-3 text-xs leading-5">
-            比赛用 <code className="font-mono">participants.group</code>{" "}
-            引用这些用户组。
-            {exhaustive
-              ? `仓库能静态枚举出的用户组共 ${allGroups.length} 个，因此引用了不存在用户组的比赛会在启动时告警。`
-              : "有规则的用户组是算出来的，无法静态枚举，因此启动时不会校验比赛引用的用户组是否存在。"}
+            比赛通过用户组限定参赛范围。
           </p>
         </CardBody>
       </Card>
-
     </div>
   );
 }

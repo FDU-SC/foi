@@ -1,4 +1,5 @@
 import type {
+  AnyRuleset,
   ContestProblem,
   Participant,
   StandingsInput,
@@ -96,5 +97,39 @@ export function input(options: {
     problems: options.problems,
     participants: options.participants,
     submissions: options.submissions,
+  };
+}
+
+/**
+ * A contest may keep collecting after `endsAt` — that is what `afterEnd`
+ * declares — and `compute.ts` hands a ruleset every submission attributed to
+ * the round, late ones included. Scoring the window is therefore the ruleset's
+ * job, done by running its submissions through `submissionsInWindow`.
+ *
+ * That makes the platform's promise only as good as each ruleset honouring it,
+ * which is why both the kernel and each deployment assert it rather than
+ * trusting that whoever writes the next ruleset remembers.
+ */
+export function ignoresLateSubmissions(ruleset: AnyRuleset): {
+  onTime: unknown;
+  withLate: unknown;
+} {
+  const base = {
+    participants: participants(1, 2),
+    problems: [problem("a", "A")],
+  };
+
+  /** Well past `END`, which sits five hours after `START`. */
+  const LATE_MINUTES = 999;
+
+  return {
+    onTime: ruleset.compute(input({ ...base, submissions: [solve(1, "a", 10)] }))
+      .rows,
+    withLate: ruleset.compute(
+      input({
+        ...base,
+        submissions: [solve(1, "a", 10), solve(2, "a", LATE_MINUTES)],
+      }),
+    ).rows,
   };
 }

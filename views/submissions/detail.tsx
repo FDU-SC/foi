@@ -9,7 +9,11 @@ import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { PayloadBody, VerdictBody } from "@/components/opaque";
 import { RejudgeForm } from "@/components/submissions/rejudge-form";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { failureReason, isSettled, type SubmissionState } from "@/lib/backend/types";
+import {
+  failureReason,
+  isSettled,
+  type SubmissionState,
+} from "@/lib/backend/types";
 import { problemBySlug } from "@/lib/problems/registry";
 import { submissionFor } from "@/lib/submissions/access";
 import { locateOne } from "@/lib/submissions/queue-position";
@@ -44,7 +48,7 @@ export async function SubmissionDetailView({
   const queue = settled ? null : await locateOne(row.id);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="min-w-0 space-y-4">
       <nav className="text-fg-subtle flex items-center gap-1.5 text-xs">
         <Link href="/submissions" className="hover:text-fg transition-colors">
           提交记录
@@ -56,25 +60,31 @@ export async function SubmissionDetailView({
       <header className="border-border flex flex-wrap items-center gap-3 border-b pb-4">
         <h1 className="text-fg text-xl font-bold">
           <ProblemRef
+            contestSlug={row.contestSlug}
             slug={row.problemSlug}
             fallbackTitle={problem?.title ?? row.problemSlug}
           />
         </h1>
-        <VerdictBadge submission={{ problemSlug: row.problemSlug, state: viewState, result: row.result ?? null }} />
+        <VerdictBadge
+          submission={{
+            problemSlug: row.problemSlug,
+            state: viewState,
+            result: row.result ?? null,
+          }}
+        />
         <QueueBadge queue={queue} showJudge />
         <span className="text-fg-subtle ml-auto font-mono text-xs">
           {formatter.format(row.createdAt)}
         </span>
+        {allows("submission.rejudge", row, viewer) && isRejudgeable(row) ? (
+          <RejudgeForm id={row.id} />
+        ) : null}
       </header>
 
       {reason ? (
         <p className="text-warn bg-warn-subtle rounded-md px-3 py-2 text-sm">
           {reason}
         </p>
-      ) : null}
-
-      {allows("submission.rejudge", row, viewer) && isRejudgeable(row) ? (
-        <RejudgeForm id={row.id} />
       ) : null}
 
       {queueInfo?.runnerStatus && !settled ? (

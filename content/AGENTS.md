@@ -33,6 +33,22 @@ The last three are entry points like the rest: the platform reads them without k
 2. Create `content/problems/<slug>/statement.mdx` — the problem statement, using MDX components
 3. Create `content/problems/<slug>/views.tsx` — export `views` satisfying `ProblemViews` (auto-discovered by glob)
 4. The problem is automatically registered via `_modules/problems.ts` glob
+5. Add it to some contest's `problems` — a problem is reachable only as part of
+   a contest, so one no contest lists has no URL and the boot check reports it
+
+The problem config says nothing about who may open it or when. Its audience is
+the contest's `visibleTo`, its window is the contest's, and access after the
+end is defined by the contest's `afterEnd`. The same problem may sit in several contests
+and be open in one while sealed in another.
+
+Where it answers depends on which contest you added it to: a contest
+`site.catalogue` names serves its problems at `/problems/<contest>/<slug>`,
+every other contest at `/contests/<contest>/problems/<slug>`. Either way it is
+one address.
+
+`ui` carries the presentation metadata — `difficulty`, `tags`, `languages`,
+`placeholder`. Declare whichever apply; the platform stores it without reading
+it, and whether difficulty and tags are shown at all is each contest's call.
 
 In `statement.mdx`, import and compose the submission UI from templates:
 
@@ -54,8 +70,20 @@ import { CodePayloadView } from "@/content/_shared/views/code-payload";
 import { VerdictDetail } from "@/content/_shared/views/tests-table";
 import { verdicts } from "@/content/_shared/verdicts";
 import { ProblemBadges } from "@/content/_shared/ui/problem-badges";
-export const views: ProblemViews = { PayloadView: CodePayloadView, VerdictDetail, verdicts, Badges: ProblemBadges };
+import { problemFacets } from "@/content/_shared/ui/problem-facets";
+
+export const views: ProblemViews = {
+  PayloadView: CodePayloadView,
+  VerdictDetail,
+  verdicts,
+  Badges: ProblemBadges,
+  facets: problemFacets,
+};
 ```
+
+`facets` is what turns `ui` fields into dimensions a contest can filter by.
+`problemFacets` maps `difficulty` and `tags` onto two of them; the platform
+matches the values as strings and never learns what a key means. Without it, the problem has no facets: facet filters do not exclude it, and it shows no badges.
 
 For custom verdict labels, override the `verdicts` field:
 
@@ -88,6 +116,78 @@ export const contest = {
   // ...
 } satisfies ContestConfigInput;
 ```
+
+`label` is the contest letter a round numbers its problems with. A catalogue
+section omits it: the index and the section list treat the array tail as the
+newest problem, and a new one is appended.
+
+`problems` determines which problems are reachable; `afterEnd` determines access after the contest ends:
+
+```typescript
+afterEnd: { statements: true, submissions: false }  // the default: readable, closed
+afterEnd: { statements: true, submissions: true }   // still collecting, outside every board's window
+afterEnd: { statements: false }                     // sealed; the round takes its problems with it
+```
+
+A practice area is a contest whose window is long. Taking a problem out of
+circulation is removing it from `problems`.
+
+`facets` names which of a problem's dimensions this contest's pages offer, as
+both filter chips and badges:
+
+```typescript
+facets: ["difficulty", "tags"],   // the keys `problemFacets` hands back
+```
+
+The default is empty, which draws neither. That is the right default for a
+round: nothing gives away a problem's difficulty or tags while it is being
+solved. A catalogue section names what it wants browsable. The catalogue
+index card chips only the dimensions that did not declare an `order` — an ordered dimension stays on the section page as filters and badges.
+
+### Mounting Contests as the Catalogue
+
+`site.catalogue` in `content/site.ts` names contests, and each answers at
+`/problems/<slug>` instead of `/contests/<slug>` — its problems at
+`/problems/<slug>/<problem>`, its leaderboard at `/problems/<slug>/standings`,
+and it drops out of the `/contests` list. Everything else about it is
+unchanged: the window, the `participants`, the `visibleTo`, and the fact that
+its submissions carry its slug.
+
+```typescript
+catalogue: [
+  "puzzles",
+  "kernel",
+  "comm",
+  "framework",
+  "inference",
+  "cluster",
+  "graphs",
+  "dynamic-programming",
+  "data-structures",
+  "divide-and-conquer",
+  "ctf",
+  "pwn",
+  "reverse",
+  "crypto",
+  "misc",
+],
+```
+
+`/problems` is the index those cards sit on, grouped by each contest's `domain`:
+
+```typescript
+domain: "HPC & AI Infra",
+```
+
+Headings appear in the order their first contest appears in `catalogue`, and a
+contest without one lands in an unlabelled group at the end. A heading is a
+heading, not a page — there is no `/problems/<domain>`.
+
+The boot check refuses a catalogued contest carrying a problem named
+`standings`: the leaderboard page shadows it, so it would have no address at
+all. A slug no contest matches is a warning instead — that card is missing and
+its own addresses answer 404, while the rest of the site is unaffected. Omit
+the field and every contest stays under `/contests`.
 
 ### Adding a Ruleset
 
@@ -185,6 +285,6 @@ import type { SiteViews } from "@/lib/site-views";
 export const views: SiteViews = { Footer: MyFooter };
 ```
 
-Every slot is optional and backed by a platform default, so `{}` is complete. What the slot does not cover keeps following upstream — which is why this beats replacing a page.
+Every slot is optional and has a platform default, so `{}` is complete. Regions outside the override continue to receive upstream updates.
 
-A page whose whole body needs rewriting is a file override: put a same-named file under `views.local/` and it replaces the upstream one. That file then stops tracking upstream changes, so reach for it last. See the README for the slot map.
+A page whose whole body needs rewriting is a file override: put a same-named file under `views.local/` and it replaces the upstream one. That file no longer receives upstream changes automatically; use this option only when shallower overrides are insufficient. See the README for the slot map.

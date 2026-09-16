@@ -160,10 +160,11 @@ describe("guardRequest 的 Content-Type 检查", () => {
 
   it("没有 Content-Type 时放行，因为无参数的 action 就是这么发的", () => {
     const gated = guardRequest(
-      post("http://foi.example.edu/api/problems/some-problem/action/some-action", {
-        origin: "http://foi.example.edu",
-      }),
-      "POST /api/problems/[slug]/action/[action]",
+      post(
+        "http://foi.example.edu/api/contests/a-contest/problems/a-problem/action/some-action",
+        { origin: "http://foi.example.edu" },
+      ),
+      "POST /api/contests/[slug]/problems/[problem]/action/[action]",
     );
 
     expect(gated).toBeNull();

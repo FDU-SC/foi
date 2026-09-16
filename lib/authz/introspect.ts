@@ -5,9 +5,9 @@ import type { CompiledPolicy, Effect } from "./types";
 /**
  * Reading the policy set as data.
  *
- * Because a policy's scope is declarative, the platform can answer questions
- * about who holds power without running anything — which is what keeps the
- * enrollment guard honest and lets the admin console show the whole picture.
+ * Declarative policy scopes let the platform identify privileged groups
+ * without evaluating predicates. Enrollment validation and the admin console
+ * use this information.
  */
 
 let privileged: Set<string> | null = null;
@@ -101,7 +101,6 @@ export function policyMatrix(): {
 export function policyWarnings(): string[] {
   return actionsWithoutPermit().map(
     (action) =>
-      `没有任何策略放行 "${action}"（${ACTIONS[action].describe}），它对所有人永远是拒绝。` +
-      `如果这是有意的，用一条 forbid 写明；否则请在 content/policies/ 里补一条 permit。`,
+      `动作 "${action}"（${ACTIONS[action].describe}）没有任何 permit。`,
   );
 }

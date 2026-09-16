@@ -1,4 +1,5 @@
 import { assertEnv } from "@/lib/env";
+import { log, refuse } from "@/lib/log";
 import { releaseSha, tier, TIERS, type Tier } from "./deployment";
 import { placeholderSecrets } from "./secrets";
 
@@ -21,7 +22,6 @@ async function loadChecks(): Promise<Check[]> {
     mailTemplates,
     enrollment,
     contests,
-    problems,
     policies,
     authz,
   ] = await Promise.all([
@@ -31,7 +31,6 @@ async function loadChecks(): Promise<Check[]> {
     import("@/lib/mail/registry"),
     import("@/lib/enrollment/registry"),
     import("@/lib/contests/warnings"),
-    import("@/lib/problems/warnings"),
     import("@/lib/authz/registry"),
     import("@/lib/authz/introspect"),
   ]);
@@ -52,16 +51,20 @@ async function loadChecks(): Promise<Check[]> {
 
     { complaints: backend.backendsMissingActionUrl, fatalIn: ONLY_PROD },
 
+    { complaints: contests.catalogueComplaints, fatalIn: ALWAYS },
+
+    { complaints: contests.orphanedProblemComplaints, fatalIn: ONLY_PROD },
+
     { complaints: enrollment.enrollmentWarnings, fatalIn: NEVER },
+    { complaints: contests.catalogueWarnings, fatalIn: NEVER },
     { complaints: contests.contestWarnings, fatalIn: NEVER },
-    { complaints: problems.problemGateWarnings, fatalIn: NEVER },
     { complaints: authz.policyWarnings, fatalIn: NEVER },
     {
       complaints: () =>
         access.undeclaredBackends().map(
           (id) =>
-            `题目 ${access.problemsServedBy(id).join("、")} 指向了没有登记的题目后端 "${id}"，` +
-            `提交到这些题会失败。在 content/backends.ts 里补一个条目，或改掉题目的 backend.id`,
+            `题目 ${access.problemsServedBy(id).join("、")} 指向的题目后端 "${id}"，` +
+            `没有登记。`,
         ),
       fatalIn: NEVER,
     },
@@ -82,9 +85,7 @@ export async function assertBootConfiguration(): Promise<void> {
 
   const current = tier();
   const sha = releaseSha();
-  console.log(
-    `[foi] 环境 ${current}，构建自 ${sha ?? "未知 commit（非 CI 构建）"}`,
-  );
+  log.info(`环境 ${current}，构建自 ${sha ?? "未知 commit"}`);
 
   const refusals: string[] = [];
   const warnings: string[] = [];
@@ -96,12 +97,9 @@ export async function assertBootConfiguration(): Promise<void> {
 
   globalThis.__foiBootWarnings = warnings;
 
-  for (const warning of warnings) console.warn(`[foi] ${warning}`);
+  for (const warning of warnings) log.warn(warning);
 
   if (refusals.length === 0) return;
 
-  throw new Error(
-    `配置不完整，拒绝启动（环境 ${current}）:\n` +
-      refusals.map((refusal) => `  - ${refusal}`).join("\n"),
-  );
+  refuse(`配置不完整（环境 ${current}）:`, refusals);
 }

@@ -61,8 +61,8 @@ const FALLBACK: EmailTemplates = {
       `${input.displayName}，你好：`,
       `你的${what}已于 ${formatAt(input.changedAt)} 变更。`,
       ...(input.detail ? [input.detail] : []),
-      "如果这是你本人操作，无需理会这封邮件。",
-      "如果不是，请立即打开下面的地址重置密码，并联系管理员。",
+      "若为本人操作，无需处理此邮件。",
+      "若非本人操作，请立即打开以下地址重置密码，并联系管理员。",
       input.recoverUrl,
     ]);
   },
@@ -101,7 +101,6 @@ export const emailTemplates: EmailTemplates = registry.templates;
 export function mailTemplateWarnings(): string[] {
   if (registry.source) return [];
   return [
-    "没有找到邮件文案，验证链接和重置链接会以内置的纯文本样式发出。" +
-      `补一个 content/emails/index.ts，导出 ${METHODS.join("、")}。`,
+    "没有找到邮件文案。",
   ];
 }

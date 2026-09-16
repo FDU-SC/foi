@@ -1,4 +1,7 @@
-import type { ContestConfig } from "@/lib/contests/types";
+import type {
+  ContestConfig,
+  ContestProblemConfig,
+} from "@/lib/contests/types";
 import type { AccountStatus } from "@/lib/db/schema";
 import type { ProblemConfig } from "@/lib/problems/types";
 
@@ -8,6 +11,22 @@ import type { ProblemConfig } from "@/lib/problems/types";
  * Every import here is type-only on purpose: the catalog must not pull the
  * domain registries into the policy engine's module graph.
  */
+
+/**
+ * A problem as it is reachable: inside a contest, never on its own.
+ *
+ * Attribution is structural rather than claimed. There is no way to ask
+ * whether someone may open or submit to a problem without naming the contest
+ * it is being worked on as part of, so there is nothing to cross-check.
+ */
+export interface ContestProblemRef {
+  contest: ContestConfig;
+
+  /** The contest's own entry for it: label, points, rate limit, config. */
+  entry: ContestProblemConfig;
+
+  problem: ProblemConfig;
+}
 
 /** Enough of an account for policies to reason about it as a target. */
 export interface AccountRef {
@@ -22,7 +41,7 @@ export interface SubmissionRef {
   id: string;
   uid: number;
   problemSlug: string;
-  contestSlug: string | null;
+  contestSlug: string;
 }
 
 export interface BackendRef {
@@ -30,7 +49,7 @@ export interface BackendRef {
 }
 
 export interface ResourceMap {
-  problem: ProblemConfig;
+  problem: ContestProblemRef;
   contest: ContestConfig;
   submission: SubmissionRef;
   account: AccountRef;

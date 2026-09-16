@@ -11,6 +11,7 @@ import { emailSchema, normalizeEmail } from "@/lib/accounts/types";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
 import { enrollmentPolicy } from "@/lib/enrollment/registry";
+import { log } from "@/lib/log";
 import { sendEmailChangeLink } from "@/lib/mail/notify";
 import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
@@ -77,7 +78,7 @@ export async function requestEmailChangeAction(
       fp,
     );
   } catch (error) {
-    console.error("[foi] 换绑邮箱邮件发送失败", error);
+    log.error("换绑邮箱邮件发送失败", error);
     return { error: "邮件发送失败，请稍后再试。" };
   }
 

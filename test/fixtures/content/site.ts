@@ -7,6 +7,11 @@ export const site: SiteConfig = {
   lang: "zh-CN",
   timezone: "Asia/Shanghai",
 
+  // Three catalogued rounds across two headings, so kernel tests reach every
+  // side of the split: a heading holding one card, a heading holding two, and
+  // the contests that stay under `/contests`.
+  catalogue: ["fixture-open", "fixture-archived", "fixture-upsolve"],
+
   navigation: [
     { href: "/problems", label: "题库" },
     { href: "/contests", label: "比赛" },
@@ -15,7 +20,5 @@ export const site: SiteConfig = {
 
   passwordMinLength: 8,
 
-  homeEntries: [
-    { href: "/problems", title: "题库", description: "浏览题目。" },
-  ],
+  homeEntries: [{ href: "/contests", title: "比赛", description: "浏览比赛。" }],
 };

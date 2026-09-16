@@ -1,5 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import type { ReactNode } from "react";
+import { MotionProvider } from "@/components/ui/motion-provider";
 import { site } from "@/lib/site";
 
 const geistSans = Geist({
@@ -35,7 +36,9 @@ export function RootShell({ children }: { children: ReactNode }) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        <MotionProvider>{children}</MotionProvider>
+      </body>
     </html>
   );
 }

@@ -1,18 +1,19 @@
 import { policy } from "@/lib/authz/types";
 
 /**
- * 每个人对自己拥有的东西的权利，以及不需要身份就能做的事。
+ * 账号自助操作与公开访问策略。
  *
  * 这里的每一条都是 permit：平台默认拒绝，凡是没有被任何策略放行的动作都做不了。
- * 想要收紧其中一条，不是删掉它，而是补一条 forbid——forbid 压过 permit。
+ * 需在保留许可的基础上增加限制时，添加 forbid；匹配的 forbid 优先于 permit。
  */
 export const policies = [
   policy({
     id: "self-service",
     effect: "permit",
-    describe: "每个人都可以改自己的昵称、用户名、邮箱与密码",
+    describe: "每个人都可以改自己的昵称、头像、用户名、邮箱与密码",
     action: [
       "account.changeNickname",
+      "account.changeAvatar",
       "account.changeUsername",
       "account.changeEmail",
       "account.changePassword",
@@ -21,9 +22,16 @@ export const policies = [
   }),
 
   policy({
+    id: "public-profiles",
+    effect: "permit",
+    describe: "允许所有人查看选手主页",
+    action: "account.viewProfile",
+  }),
+
+  policy({
     id: "own-submissions",
     effect: "permit",
-    describe: "每个人都看得到自己交过什么，以及它被判成了什么",
+    describe: "允许用户查看自己的提交内容与评测结果",
     action: "submission.read",
     principal: { self: true },
   }),
@@ -31,7 +39,7 @@ export const policies = [
   policy({
     id: "registration-open",
     effect: "permit",
-    describe: "开放注册。要关站，删掉这条策略即可；域名白名单在 content/enrollment/",
+    describe: "允许注册账号，邮箱域名仍受注册规则限制",
     action: "account.register",
   }),
 
@@ -46,7 +54,7 @@ export const policies = [
   policy({
     id: "password-reset-by-link",
     effect: "permit",
-    describe: "持有找回链接的人可以为这个账号设置新密码；链接本身的验签不在策略层",
+    describe: "允许通过找回链接重置账号密码，链接验证由重置流程完成",
     action: "account.resetPassword",
   }),
 ];

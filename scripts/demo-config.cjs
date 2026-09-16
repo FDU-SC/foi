@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 "use strict";
 
-// 把工作区改成公开 demo 站的样子。
+// 将工作区配置为公开 demo 站。
 //
 // 每夜由 demo-nightly.yml 在 main 之上重新执行一次，结果强推到 nightly 分支。用
-// 重放而不是长期分支合并：那份差异始终只有这里写的这几处，不会随时间累积冲突。
+// 每次重新应用以下修改，避免长期分支合并累积冲突。
 //
-// 改不动就退出非零，绝不"尽力而为"。打不上的补丁意味着 main 动了这几处结构，
-// 那需要人来看，不该让一个半改过的配置上线。
+// 补丁无法应用时以非零状态退出。main 的相关结构可能已变化，
+// 需人工更新补丁，避免部署仅完成部分修改的配置。
 
 const { readFileSync, writeFileSync } = require("node:fs");
 const { join } = require("node:path");
@@ -15,10 +15,11 @@ const { join } = require("node:path");
 const ROOT = join(__dirname, "..");
 
 const SITE = "content/site.ts";
-const LEAKY_BUCKET = "content/problems/leaky-bucket/problem.ts";
+const CTF_ROUND = "content/contests/demo-ctf/contest.ts";
+const ENROLLMENT = "content/enrollment/example.ts";
 
 function fail(message) {
-  console.error(`demo 配置补丁打不上：${message}`);
+  console.error(`demo 配置补丁应用失败：${message}`);
   process.exit(1);
 }
 
@@ -94,20 +95,42 @@ function patchSite(source, what) {
   return next;
 }
 
-function patchLeakyBucket(source, what) {
-  // 这道题要选手打一台真靶机才能拿到 flag，demo 上没有靶机编排器，流程走不完。
+function patchCtfRound(source, what) {
+  // 这场比赛需要真实靶机，demo 未配置靶机编排器，无法完成题目流程。
+  // 题目仅通过比赛访问，封存比赛即可关闭访问。
   return replaceOnce(
     source,
-    "^(  maxScore: \\d+,)$",
-    "$1\n  retired: true,",
+    "^  afterEnd: \\{ statements: true, submissions: true \\},$",
+    "  afterEnd: { statements: false, submissions: false },",
     what,
   );
+}
+
+/** One entry of a top-level array literal, from its brace to its comma. */
+const RULE = /^ {2}\{[\s\S]*?^ {2}\},\n/gm;
+
+/** A rule that names accounts by uid instead of by address. */
+const UID_KEYED = /^\s*uids:/m;
+
+function patchEnrollment(source, what) {
+  // The nightly rebuild drops the database before seeding, so demo1 lands on
+  // uid 1. A rule keyed by uid hands whatever it grants to an account whose
+  // password is printed on the front page.
+  const next = source.replace(RULE, (rule) => (UID_KEYED.test(rule) ? "" : rule));
+
+  if (next === source) fail(`在 ${what} 里找不到按 uid 分配的用户组`);
+  // Removal is textual, so a rule laid out differently slips through it.
+  // Checking the postcondition is what makes that loud instead of silent.
+  if (UID_KEYED.test(next)) fail(`${what} 里还留着按 uid 分配的用户组`);
+
+  return next;
 }
 
 function main() {
   console.log("套用 demo 配置补丁：");
   edit(SITE, patchSite);
-  edit(LEAKY_BUCKET, patchLeakyBucket);
+  edit(CTF_ROUND, patchCtfRound);
+  edit(ENROLLMENT, patchEnrollment);
   console.log("完成。");
 }
 

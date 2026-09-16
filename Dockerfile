@@ -1,4 +1,4 @@
-FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS base
+FROM node:24-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS base
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
 
@@ -37,8 +37,8 @@ LABEL org.opencontainers.image.source="https://github.com/FDU-SC/foi" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.revision="$FOI_RELEASE_SHA"
 
-RUN addgroup --system --gid 1001 nodejs \
- && adduser --system --uid 1001 --ingroup nodejs foi
+RUN groupadd --system --gid 1001 nodejs \
+ && useradd --system --uid 1001 --gid nodejs foi
 
 COPY --from=builder --chown=foi:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=foi:nodejs /app/.next/static ./.next/static

@@ -11,7 +11,7 @@ export async function ForgotPasswordView() {
     <AuthShell
       footer={
         <>
-          想起来了？直接{" "}
+          返回{" "}
           <Link href="/login" className="hover:text-fg underline">
             登录
           </Link>

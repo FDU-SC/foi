@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { rateLimitBySource } from "@/lib/ratelimit";
-import { ROUTE_LIMITS, type RouteKey } from "@/lib/ratelimit/policy";
+import {
+  ROUTE_LIMITS,
+  type RouteKey,
+  type RouteRule,
+} from "@/lib/ratelimit/policy";
 import { sourceFrom } from "./source";
 
+/** The default bound, for routes a page calls once. Overridable per route. */
 export const SOURCE_GATE = { max: 300, windowSeconds: 60 } as const;
 
 export function guardRequest(
@@ -16,12 +21,14 @@ export function guardRequest(
 }
 
 function floodGate(request: Request, route: RouteKey): NextResponse | null {
+  const rule: RouteRule = ROUTE_LIMITS[route];
+  const bound = rule.flood ?? SOURCE_GATE;
 
   const verdict = rateLimitBySource(
     `gate:${route}`,
     sourceFrom(request.headers),
-    SOURCE_GATE.max,
-    SOURCE_GATE.windowSeconds * 1000,
+    bound.max,
+    bound.windowSeconds * 1000,
   );
   if (verdict.ok) return null;
 

@@ -1,19 +1,21 @@
+import { AnimatedNumber } from "@/components/ui/animated-number";
+import { Avatar } from "@/components/ui/avatar";
+import { MotionTr } from "@/components/ui/motion";
 import type { BoardProps } from "@/lib/standings/types";
 
 function DefaultCell({ cell }: { cell: unknown }) {
   if (cell === undefined || cell === null) {
     return <span className="text-fg-subtle">·</span>;
   }
-  return (
-    <span className="text-fg font-mono text-xs tabular-nums">✓</span>
-  );
+  return <span className="text-fg font-mono text-xs tabular-nums">✓</span>;
 }
 
 function DefaultTotal({ row }: { row: { total: number } }) {
   return (
-    <span className="text-fg font-mono font-semibold tabular-nums">
-      {Math.round(row.total)}
-    </span>
+    <AnimatedNumber
+      value={Math.round(row.total)}
+      className="text-fg font-mono font-semibold tabular-nums"
+    />
   );
 }
 
@@ -31,14 +33,14 @@ export function ProblemGridBoard({ board, problems }: BoardProps) {
   }
 
   return (
-    <div className="border-border overflow-x-auto rounded-lg border">
+    <div className="oj-table-frame">
       <table className="w-full text-sm">
         <thead className="bg-surface-2">
           <tr className="text-fg-muted text-xs">
             <th className="border-border w-12 border-b px-3 py-2.5 text-right font-semibold">
               #
             </th>
-            <th className="border-border border-b px-3 py-2.5 text-left font-semibold">
+            <th className="border-border bg-surface-2 sticky left-0 z-10 min-w-36 border-r border-b px-3 py-2.5 text-left font-semibold">
               选手
             </th>
             <th className="border-border w-20 border-b px-3 py-2.5 text-center font-semibold">
@@ -57,14 +59,22 @@ export function ProblemGridBoard({ board, problems }: BoardProps) {
         </thead>
         <tbody className="divide-border divide-y">
           {standings.rows.map((row) => (
-            <tr key={row.participant.uid} className="hover:bg-surface-2/60">
+            // Keyed by competitor, so a refresh that reorders the board moves
+            // each row to its new place instead of rewriting the cells in it.
+            <MotionTr
+              key={row.participant.uid}
+              className="hover:bg-surface-2/60"
+            >
               <td className="text-fg-muted px-3 py-2 text-right font-mono text-xs tabular-nums">
-                {row.rank}
+                <AnimatedNumber value={row.rank} />
               </td>
-              <td className="px-3 py-2">
-                <span className="text-fg font-medium">
-                  {row.participant.nickname}
-                </span>
+              <td className="bg-surface border-border sticky left-0 z-10 border-r px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <Avatar of={row.participant} />
+                  <span className="text-fg font-medium">
+                    {row.participant.nickname}
+                  </span>
+                </div>
               </td>
               <td className="px-3 py-2 text-center">
                 <Total row={row} />
@@ -74,7 +84,7 @@ export function ProblemGridBoard({ board, problems }: BoardProps) {
                   <Cell cell={row.cells[problem.slug]} problem={problem} />
                 </td>
               ))}
-            </tr>
+            </MotionTr>
           ))}
         </tbody>
       </table>

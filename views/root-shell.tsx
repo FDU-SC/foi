@@ -30,6 +30,7 @@ export function RootShell({ children }: { children: ReactNode }) {
   return (
     <html
       lang={site.lang}
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >

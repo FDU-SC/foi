@@ -1,6 +1,6 @@
 import { Client } from "pg";
 import { sql } from "drizzle-orm";
-import type { DbOrTx } from "@/lib/accounts/queries";
+import type { DbOrTx } from "@/lib/db/types";
 import { log } from "@/lib/log";
 
 declare global {

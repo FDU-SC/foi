@@ -1,11 +1,33 @@
-import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CONTENT_ROOTS } from "../test/content-roots.mjs";
-import { entrySpecifiers, keepIn, reachableFiles } from "./strip-content";
+import { entrySpecifiers, keepIn, reachableFiles, strip } from "./strip-content";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
+const temporaryRoots: string[] = [];
+
+function writeFixture(root: string, path: string, source: string): void {
+  const file = join(root, path);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, source);
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  for (const root of temporaryRoots.splice(0)) {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 /**
  * Verify discovery and retention properties without duplicating the entry-point
@@ -71,5 +93,25 @@ describe("内容移除后的保留文件由 lib/ 的 import 决定", () => {
     for (const root of absent) {
       expect(keepIn(root).size).toBe(0);
     }
+  });
+
+  it("实际抽空时只删除两个 content 根中不可达的顶层条目", () => {
+    const root = mkdtempSync(join(tmpdir(), "foi-strip-content-"));
+    temporaryRoots.push(root);
+    const contentEntry = ["@", "content", "entry"].join("/");
+
+    writeFixture(root, "lib/registry.ts", `export { entry } from "${contentEntry}";`);
+    writeFixture(root, "content/entry.ts", 'export { shared } from "./shared";');
+    writeFixture(root, "content/shared.ts", "export const shared = true;");
+    writeFixture(root, "content/problems/demo.ts", "export const demo = true;");
+    writeFixture(root, "content.local/entry.ts", 'export { local } from "./local";');
+    writeFixture(root, "content.local/local/index.ts", "export const local = true;");
+    writeFixture(root, "content.local/unreachable.ts", "export const unreachable = true;");
+
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    strip(root);
+
+    expect(readdirSync(join(root, "content")).sort()).toEqual(["entry.ts", "shared.ts"]);
+    expect(readdirSync(join(root, "content.local")).sort()).toEqual(["entry.ts", "local"]);
   });
 });

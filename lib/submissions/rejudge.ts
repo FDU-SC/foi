@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import {
   INLINE_BACKEND_ID,
   TERMINAL_RECORD_STATES,
@@ -48,7 +48,8 @@ export async function rejudgeSubmissions(
   };
   if (ids.length === 0) return empty;
 
-  const rows = await db
+  const result = await db.transaction(async (tx) => {
+  const rows = await tx
     .select()
     .from(submissions)
     .where(
@@ -56,7 +57,9 @@ export async function rejudgeSubmissions(
         inArray(submissions.id, ids),
         inArray(submissions.state, TERMINAL_RECORD_STATES),
       ),
-    );
+    )
+    .orderBy(asc(submissions.id))
+    .for("update");
 
   const inline = rows.filter((row) => row.backendId === INLINE_BACKEND_ID);
   const external = rows.filter((row) => row.backendId !== INLINE_BACKEND_ID);
@@ -79,12 +82,13 @@ export async function rejudgeSubmissions(
       skippedByFilter: filtered.length,
       skippedInline: inline.length,
       skippedNotDispatched: notDispatched.length,
+      contests: [],
     };
   }
 
   const targetIds = targets.map((row) => row.id);
 
-  const requeued = await db
+  const requeued = await tx
     .update(submissions)
     .set({
       state: "pending" satisfies SubmissionRecordState,
@@ -95,17 +99,11 @@ export async function rejudgeSubmissions(
       error: null,
       judgedAt: null,
     })
-    .where(
-      and(
-        inArray(submissions.id, targetIds),
-        inArray(submissions.state, TERMINAL_RECORD_STATES),
-        ne(submissions.backendId, INLINE_BACKEND_ID),
-      ),
-    )
+    .where(inArray(submissions.id, targetIds))
     .returning();
 
   if (requeued.length > 0) {
-    await db.insert(judgingQueue).values(
+    await tx.insert(judgingQueue).values(
       requeued.map((row) => ({
         submissionId: row.id,
         backendId: row.backendId,
@@ -114,23 +112,27 @@ export async function rejudgeSubmissions(
         attempts: 0,
         queuedAt: new Date(),
       })),
-    ).onConflictDoNothing();
+    );
   }
 
   const contests = new Set<string>();
   for (const row of requeued) {
-    await publish(db, row.id, { state: "queued" });
+    await publish(tx, row.id, { state: "queued" });
     contests.add(row.contestSlug);
   }
-
-  for (const slug of contests) invalidateStandings(slug);
 
   return {
     requeued: requeued.length,
     skippedByFilter: filtered.length,
     skippedInline: inline.length,
     skippedNotDispatched: notDispatched.length,
+    contests: [...contests],
   };
+  });
+
+  const { contests, ...counts } = result;
+  for (const slug of contests) invalidateStandings(slug);
+  return counts;
 }
 
 export function isRejudgeable(row: {

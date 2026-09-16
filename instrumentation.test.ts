@@ -101,4 +101,34 @@ describe("instrumentation 运行时隔离", () => {
     expect(mocks.startReaping).toHaveBeenCalledWith(15_000);
     expect(globalThis.__foiReaper).toBe(stopCurrent);
   });
+
+  it("部署 journal 存在时先迁移平台，再迁移部署表", async () => {
+    mocks.existsSync.mockReturnValue(true);
+
+    vi.stubEnv("NEXT_RUNTIME", "nodejs");
+    vi.stubEnv("FOI_AUTO_MIGRATE", "true");
+
+    await register();
+
+    expect(mocks.migrate).toHaveBeenNthCalledWith(1, db, {
+      migrationsFolder: "drizzle",
+    });
+    expect(mocks.migrate).toHaveBeenNthCalledWith(2, db, {
+      migrationsFolder: "drizzle.local",
+    });
+  });
+
+  it("部署 journal 不存在时只迁移平台表", async () => {
+    mocks.existsSync.mockReturnValue(false);
+    vi.stubEnv("NEXT_RUNTIME", "nodejs");
+    vi.stubEnv("FOI_AUTO_MIGRATE", "true");
+
+    await register();
+
+    expect(mocks.existsSync).toHaveBeenCalledWith("drizzle.local/meta/_journal.json");
+    expect(mocks.migrate).toHaveBeenCalledTimes(1);
+    expect(mocks.migrate).toHaveBeenCalledWith(db, {
+      migrationsFolder: "drizzle",
+    });
+  });
 });

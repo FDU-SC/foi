@@ -23,7 +23,7 @@ import { problemsFor } from "@/lib/problems/access";
 import { summarizeProgress } from "@/lib/problems/selection";
 import { progressFor } from "@/lib/problems/progress";
 
-const leaderboardButton = "inline-flex min-h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-border px-2.5 text-xs font-medium text-fg-muted transition-colors hover:border-border-strong hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
+const catalogueActionClassName = "inline-flex min-h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-border px-2.5 text-xs font-medium text-fg-muted transition-colors hover:border-border-strong hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
 const UNGROUPED = Symbol("ungrouped");
 interface SectionCard {
@@ -52,7 +52,7 @@ export async function CatalogueIndexView() {
     <div className="space-y-5">
       <PageHeader
         title="题库"
-        actions={<NavigationLinks viewer={viewer} location="catalogue" className={leaderboardButton} />}
+        actions={<NavigationLinks viewer={viewer} location="catalogue" className={catalogueActionClassName} />}
       />
       {groups.length === 0 ? <EmptyState>题库还没有分区。</EmptyState> : null}
       <div className="grid items-start gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -94,7 +94,7 @@ function DirectionLink({ card }: { card: SectionCard }) {
     <Link
       href={leaderboardHref(board.id)}
       aria-label={`${board.title}排行榜`}
-      className={leaderboardButton}
+      className={catalogueActionClassName}
     >
       排行榜 →
     </Link>
@@ -125,7 +125,7 @@ function SectionMeta({ card }: { card: SectionCard }) {
       {!catalogueBoardFor(card.contest.slug) && <Link
         href={standingsHref(card.contest.slug)}
         aria-label={`${card.contest.title}排行榜`}
-        className={leaderboardButton}
+        className={catalogueActionClassName}
       >
         排行榜
       </Link>}
@@ -190,25 +190,22 @@ function FeaturedSection({
             {contest.description}
           </p>
         ) : null}
-        <div className="mt-2 flex items-center justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <SectionMeta card={card} />
-          </div>
+        <div className="mt-2">
+          <SectionMeta card={card} />
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Link
+            href={contestHref(contest.slug)}
+            className={catalogueActionClassName}
+          >
+            全部题目 →
+          </Link>
           <DirectionLink card={card} />
         </div>
       </div>
       {featuredProblems.length > 0 ? (
         <div className="border-border/70 min-w-0 border-t pt-3 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
-          <div className="mb-2 flex items-center justify-between gap-3 text-xs">
-            <span className="text-fg-muted">题目直达</span>
-            <Link
-              href={contestHref(contest.slug)}
-              className="text-fg-subtle hover:text-primary rounded-sm hover:underline"
-            >
-              全部题目 →
-            </Link>
-          </div>
-          <ul className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
+          <ul className="grid gap-x-4 gap-y-1 sm:grid-cols-2 lg:content-center lg:h-full">
             {featuredProblems.map((problem) => (
               <li key={problem.slug}>
                 <Link

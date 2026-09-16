@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { SubmitProvider } from "./submit-context";
 
 export function SubmitPanel({ children }: { children: ReactNode }) {
-  const { config, canAct, blocked } = useProblem();
+  const { config, permissions } = useProblem();
   const { submit, submission, submitting, error } = useSubmit();
 
   return (
@@ -31,9 +31,9 @@ export function SubmitPanel({ children }: { children: ReactNode }) {
         }
       />
       <CardBody>
-        {!canAct ? (
+        {!permissions.submit.allowed ? (
           <p className="text-fg-muted text-sm">
-            {blocked?.code === "unauthenticated" ? (
+            {permissions.submit.reason.code === "unauthenticated" ? (
               <>
                 请先
                 <a
@@ -45,7 +45,7 @@ export function SubmitPanel({ children }: { children: ReactNode }) {
                 后提交。
               </>
             ) : (
-              (blocked?.message ?? "这道题现在不接受提交。")
+              permissions.submit.reason.message
             )}
           </p>
         ) : (

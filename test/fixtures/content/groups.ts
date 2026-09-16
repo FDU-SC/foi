@@ -21,3 +21,8 @@ export const AUDIENCE = "夹具-受众组";
 
 /** Entry list for the fixture contest. Carries no privilege. */
 export const ENTRANTS = "夹具-参赛组";
+
+/** Exercise independent submission and per-action restrictions. */
+export const SUBMIT_ONLY = "夹具-仅提交组";
+export const INVOKE_ONLY = "夹具-仅交互组";
+export const PARTIAL_INVOKE = "夹具-部分交互组";

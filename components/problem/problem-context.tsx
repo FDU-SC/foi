@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, use, type ReactNode } from "react";
+import type { Permission } from "@/lib/authz/adapters";
 import type { PublicProblemConfig } from "@/lib/problems/types";
 
 export interface ProblemContextValue {
@@ -9,13 +10,11 @@ export interface ProblemContextValue {
   /** The contest this problem is being worked on as part of. */
   contestSlug: string;
 
-  canAct: boolean;
-
-  /**
-   * Why not, when `canAct` is false. It is the refusal the submit endpoint
-   * would give, so the panel never has to guess at a reason.
-   */
-  blocked: { code: string; message: string } | null;
+  /** Render-time preflight; execution always authorizes again. */
+  permissions: {
+    submit: Permission;
+    actions: Partial<Record<string, Permission>>;
+  };
 }
 
 const ProblemContext = createContext<ProblemContextValue | null>(null);

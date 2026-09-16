@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { FIXTURE_CONTENT } from "@/test/fixture-content.mjs";
+import { independentProblemPermissions } from "@/test/content-shapes";
 import { site } from "@/lib/site";
 import { listGroups } from "@/lib/authz/groups";
 import { privilegedGroups } from "@/lib/authz/introspect";
@@ -33,6 +34,9 @@ import {
  * a deployment group or contest does not cause unrelated kernel failures.
  */
 describe("夹具供给了内核测试要的形状", () => {
+  it("提交权限与每个交互动作权限可以独立变化", () => {
+    expect(() => independentProblemPermissions()).not.toThrow();
+  });
   it("一场按 group 限制参赛、且第一道题覆盖了 rateLimit 的比赛", () => {
     const round = allContests().find(
       (contest) =>

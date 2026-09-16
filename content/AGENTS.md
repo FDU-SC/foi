@@ -239,8 +239,7 @@ The `result` may be any non-null JSON value. Its meaning is your decision. The p
 `SiteViews.Leaderboard` supplies the full leaderboard; `HomeLeaderboard` supplies
 the home summary. The platform checks `leaderboard.read` before mounting either.
 An absent full leaderboard returns 404. Content owns querying, ranking and display.
-The sample shares a server-only query between both slots; its rules are documented
-in [the migration guide](../docs/result-interpretation-migration.md).
+The sample shares a server-only query between both slots.
 
 ### Adding an Authorization Policy
 

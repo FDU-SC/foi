@@ -279,7 +279,3 @@ docker compose up -d              # 想连模拟评测机一起，加 --profile 
 
 分流规则中的用户编号需要对应已有账号。账号未分配用户组时，检查
 `content/enrollment/` 中的匹配规则；这类账号无法参加限定用户组的比赛。
-
-### 结果解释与练习榜升级
-
-派生部署迁移题目视图、题库页面覆盖和排行榜时，参见[迁移说明](docs/result-interpretation-migration.md)。

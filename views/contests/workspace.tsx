@@ -1,11 +1,9 @@
 import type { ReactNode } from "react";
 import { getViewer } from "@/auth";
-import { ContestNav } from "@/components/contests/contest-nav";
 import { ContestWorkspace } from "@/components/contests/workspace";
-import { PageHeader } from "@/components/ui/page";
 import { Badge } from "@/components/ui/badge";
 import { contestFor, isContestProblemSetVisibleTo } from "@/lib/contests/access";
-import { contestHref, problemHref } from "@/lib/contests/catalogue";
+import { contestHref, problemHref, standingsHref } from "@/lib/contests/catalogue";
 import { contestPhase, contestStatus } from "@/lib/contests/types";
 import { dateFormatter } from "@/lib/format";
 import { problemsFor } from "@/lib/problems/access";
@@ -34,22 +32,22 @@ export async function ContestWorkspaceView({ params, children }: {
     : "这场比赛暂无题目。";
 
   return (
-    <div className="space-y-4">
-      <PageHeader title={contest.title} actions={<Badge tone={status.tone}>{status.label}</Badge>} />
-      <ContestNav slug={slug} />
-      <ContestWorkspace
-        overviewHref={contestHref(slug)}
-        empty={empty}
-        preview={visible && contestPhase(contest, now) === "upcoming"}
-        problems={problems.map(({ ref: { entry, problem } }) => ({
-          href: problemHref(slug, problem.slug),
-          label: entry.label ?? problem.slug,
-          title: problem.title,
-          points: entry.points ?? problem.maxScore,
-        }))}
-      >
-        {children}
-      </ContestWorkspace>
-    </div>
+    <ContestWorkspace
+      title={contest.title}
+      status={<Badge tone={status.tone}>{status.label}</Badge>}
+      standingsHref={standingsHref(slug)}
+      overviewHref={contestHref(slug)}
+      empty={empty}
+      showCount={visible}
+      preview={visible && contestPhase(contest, now) === "upcoming"}
+      problems={problems.map(({ ref: { entry, problem } }) => ({
+        href: problemHref(slug, problem.slug),
+        label: entry.label ?? problem.slug,
+        title: problem.title,
+        points: entry.points ?? problem.maxScore,
+      }))}
+    >
+      {children}
+    </ContestWorkspace>
   );
 }

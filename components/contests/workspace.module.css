@@ -1,0 +1,67 @@
+.root {
+  --contest-header-height: 0px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  min-height: 2.75rem;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.workspace {
+  display: grid;
+  min-width: 0;
+  align-items: start;
+  gap: 1rem;
+}
+
+.panel {
+  min-width: 0;
+}
+
+.statement {
+  box-shadow: none;
+}
+
+/* Limit prose, not the space available to content-owned interactive views. */
+.statement > :where(p, ul, ol, blockquote) {
+  max-width: 80ch;
+}
+
+.problemLink {
+  display: grid;
+  grid-template-columns: fit-content(5rem) minmax(0, 1fr);
+  align-items: start;
+  gap: 0.5rem;
+}
+
+.content {
+  scroll-margin-top: calc(var(--contest-header-height) + 1rem);
+}
+
+@media (min-width: 1024px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .expanded {
+    grid-template-columns: minmax(0, 1fr) 224px;
+  }
+
+  .sidebar {
+    position: sticky;
+    top: calc(var(--contest-header-height) + 1rem);
+    max-height: calc(100dvh - var(--contest-header-height) - 2rem);
+    border-left: 1px solid var(--border);
+    padding-left: 0.5rem;
+  }
+
+  .sidebar[hidden] {
+    display: none;
+  }
+}

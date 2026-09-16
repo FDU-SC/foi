@@ -102,11 +102,13 @@ function Crumbs({ contest }: { contest: ContestConfig }) {
   );
 }
 
-function UpcomingNotice({ contest }: { contest: ContestConfig }) {
+function UpcomingNotice({ contest, embedded }: { contest: ContestConfig; embedded: boolean }) {
   return (
-    <div className="space-y-5">
-      <Crumbs contest={contest} />
-      <ContestNav slug={contest.slug} />
+    <div className={embedded ? "min-w-0 space-y-5 p-4 sm:p-6" : "space-y-5"}>
+      {!embedded ? <>
+        <Crumbs contest={contest} />
+        <ContestNav slug={contest.slug} />
+      </> : null}
 
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-fg text-2xl font-bold tracking-tight">排行榜</h1>
@@ -125,7 +127,7 @@ export async function StandingsView({
   params,
 }: PageProps<"/contests/[slug]/standings">) {
   const { slug } = await params;
-  return <Standings contestSlug={slug} />;
+  return <Standings contestSlug={slug} embedded />;
 }
 
 export async function CatalogueStandingsView({
@@ -140,7 +142,7 @@ export async function CatalogueStandingsView({
   return <Standings contestSlug={section} />;
 }
 
-async function Standings({ contestSlug }: { contestSlug: string }) {
+async function Standings({ contestSlug, embedded = false }: { contestSlug: string; embedded?: boolean }) {
   const viewer = await getViewer();
 
   const view = contestFor(contestSlug, viewer);
@@ -149,7 +151,7 @@ async function Standings({ contestSlug }: { contestSlug: string }) {
   const contest = view.config;
 
   if (!isContestProblemSetVisibleTo(contest, viewer)) {
-    return <UpcomingNotice contest={contest} />;
+    return <UpcomingNotice contest={contest} embedded={embedded} />;
   }
 
   const data = await standingsFor(contest.slug, viewer);
@@ -159,9 +161,11 @@ async function Standings({ contestSlug }: { contestSlug: string }) {
   const phase = contestPhase(contest);
 
   return (
-    <div className="space-y-5">
-      <Crumbs contest={contest} />
-      <ContestNav slug={contest.slug} />
+    <div className={embedded ? "min-w-0 space-y-5 p-4 sm:p-6" : "space-y-5"}>
+      {!embedded ? <>
+        <Crumbs contest={contest} />
+        <ContestNav slug={contest.slug} />
+      </> : null}
 
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-fg text-2xl font-bold tracking-tight">排行榜</h1>
@@ -173,7 +177,7 @@ async function Standings({ contestSlug }: { contestSlug: string }) {
       </div>
 
       {data.boards.map((board) => (
-        <section key={board.leaderboard.id} className="space-y-3">
+        <section key={board.leaderboard.id} className="min-w-0 space-y-3">
           {data.boards.length > 1 ? (
             <div className="flex items-center gap-2">
               <h2 className="text-fg text-lg font-semibold">
@@ -188,7 +192,7 @@ async function Standings({ contestSlug }: { contestSlug: string }) {
           )}
           {(() => {
             const Board = board.renderers.Board ?? DefaultBoard;
-            return <Board board={board} problems={data.problems} />;
+            return <div className="overflow-x-auto"><Board board={board} problems={data.problems} /></div>;
           })()}
         </section>
       ))}

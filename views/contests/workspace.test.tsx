@@ -1,18 +1,20 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { viewerFor } from "@/lib/authz/viewer";
-import { contestHref, problemHref } from "@/lib/contests/catalogue";
+import { contestHref, problemHref, standingsHref } from "@/lib/contests/catalogue";
 import { openContestProblem, upcomingProblem, sealedProblem, stagedProblem, viewerWith } from "@/test/content-shapes";
 import { ContestWorkspaceView } from "./workspace";
 import { ContestDetailView } from "./detail";
+import * as problemAccess from "@/lib/problems/access";
 
 const auth = vi.hoisted(() => ({ getViewer: vi.fn() }));
+const navigation = vi.hoisted(() => ({ pathname: "" }));
 vi.mock("@/auth", () => auth);
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/contests/test",
+  usePathname: () => navigation.pathname,
   notFound: () => { throw new Error("not-found"); },
 }));
-afterEach(() => { vi.restoreAllMocks(); });
+afterEach(() => { vi.restoreAllMocks(); navigation.pathname = ""; });
 
 async function render(slug: string) {
   return renderToStaticMarkup(await ContestWorkspaceView({
@@ -21,6 +23,20 @@ async function render(slug: string) {
 }
 
 describe("比赛工作区权限", () => {
+  it("工具栏不重复主标题和赛程，题单按钮关联默认展开的侧栏", async () => {
+    auth.getViewer.mockResolvedValue(viewerWith("contest.read"));
+    const { contest } = openContestProblem();
+    const html = await render(contest.slug);
+    expect(html).not.toContain("<h1");
+    expect(html).not.toContain("开始时间");
+    expect(html).not.toContain("结束时间");
+    const button = html.match(/<button[^>]*aria-expanded="true"[^>]*aria-controls="([^"]+)"[^>]*>[\s\S]*?收起题单<\/button>/);
+    expect(button).not.toBeNull();
+    expect(html).toContain(`<aside id="${button![1]}"`);
+    expect(html).not.toMatch(/<aside[^>]*hidden=""/);
+  });
+
+
   it("可读比赛的题单链接使用规范地址", async () => {
     auth.getViewer.mockResolvedValue(viewerWith("contest.read"));
     const { contest, problem } = openContestProblem();
@@ -30,11 +46,12 @@ describe("比赛工作区权限", () => {
     expect(html).toContain("题目内容");
   });
 
-  it("未开赛和已封闭比赛不泄露题目链接", async () => {
+  it("未开赛和已封闭比赛不泄露题目链接或数量", async () => {
     auth.getViewer.mockResolvedValue(viewerFor(null));
     for (const { contest, problem } of [upcomingProblem(), sealedProblem()]) {
       const html = await render(contest.slug);
       expect(html).not.toContain(problemHref(contest.slug, problem.slug));
+      expect(html).not.toContain('aria-label="可见题目数量"');
       expect(html).toContain("题目内容");
     }
   });
@@ -44,7 +61,49 @@ describe("比赛工作区权限", () => {
     const { contest, problem } = upcomingProblem();
     const html = await render(contest.slug);
     expect(html).toContain("预览");
+    expect(html).toContain('aria-label="可见题目数量"');
     expect(html).toContain(problemHref(contest.slug, problem.slug));
+  });
+
+  it("题数来自可见题单而非比赛配置，空题单显示零题", async () => {
+    auth.getViewer.mockResolvedValue(viewerWith("contest.read"));
+    const ref = openContestProblem();
+    const visible = vi.spyOn(problemAccess, "problemsFor");
+    for (const problems of [[{ ref, preview: false }], []]) {
+      visible.mockReturnValue(problems);
+      const html = await render(ref.contest.slug);
+      expect(html).toMatch(new RegExp(`aria-label="可见题目数量"[^>]*>${problems.length} 题</span>`));
+    }
+  });
+
+  it("题单只标记当前入口，移动端摘要包含当前题号与题名", async () => {
+    auth.getViewer.mockResolvedValue(viewerWith("contest.read"));
+    const { contest, entry, problem } = openContestProblem();
+    const problemUrl = problemHref(contest.slug, problem.slug);
+    for (const current of [contestHref(contest.slug), standingsHref(contest.slug), problemUrl]) {
+      navigation.pathname = current;
+      const html = await render(contest.slug);
+      const navs = html.match(/<nav aria-label="比赛题单"[\s\S]*?<\/nav>/g) ?? [];
+      expect(navs).toHaveLength(2);
+      for (const nav of navs) {
+        const activeLinks = nav.match(/<a[^>]*aria-current="page"[^>]*>/g) ?? [];
+        expect(activeLinks).toHaveLength(current === problemUrl ? 1 : 0);
+        if (current === problemUrl) expect(activeLinks[0]).toContain(`href="${current}"`);
+        expect(nav).not.toContain("比赛概览");
+      }
+      const contestNavs = html.match(/<nav aria-label="比赛导航"[\s\S]*?<\/nav>/g) ?? [];
+      expect(contestNavs).toHaveLength(2);
+      for (const nav of contestNavs) {
+        const activeLinks = nav.match(/<a[^>]*aria-current="page"[^>]*>/g) ?? [];
+        expect(activeLinks).toHaveLength(current === problemUrl ? 0 : 1);
+        if (current !== problemUrl) expect(activeLinks[0]).toContain(`href="${current}"`);
+      }
+      if (current === problemUrl) {
+        const summary = html.match(/<summary[\s\S]*?<\/summary>/)?.[0];
+        expect(summary).toContain(entry.label ?? problem.slug);
+        expect(summary).toContain(problem.title);
+      }
+    }
   });
 
   it("不能读取比赛时布局不拦截子页面，也不泄露比赛信息", async () => {

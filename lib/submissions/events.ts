@@ -3,11 +3,6 @@ import { sql } from "drizzle-orm";
 import type { DbOrTx } from "@/lib/db/types";
 import { log } from "@/lib/log";
 
-declare global {
-  var __foiPgListener: Client | undefined;
-  var __foiPgListenerReady: Promise<void> | undefined;
-}
-
 const CHANNEL_PREFIX = "foi:sub:";
 
 export interface NotifyPayload {
@@ -29,99 +24,126 @@ export async function publish(
   await on.execute(sql`select pg_notify(${channel}, ${body})`);
 }
 
-type Handler = (payload: NotifyPayload) => void;
-
-interface Subscription {
-  channel: string;
-  handler: Handler;
+interface Subscriber {
+  change: () => void;
+  error: (error: unknown) => void;
 }
 
-const subscriptions = new Map<string, Set<Subscription>>();
+interface Channel {
+  subscribers: Set<Subscriber>;
+  ready: Promise<void>;
+}
 
-function getListenerClient(): Client {
-  if (globalThis.__foiPgListener) return globalThis.__foiPgListener;
+interface Listener {
+  client: Client;
+  ready: Promise<void>;
+  channels: Map<string, Channel>;
+  closed: boolean;
+}
 
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error("缺少环境变量 DATABASE_URL");
+declare global {
+  // Keep the connection and its subscribers together across development reloads.
+  var __foiSubmissionListener: Listener | undefined;
+}
+
+function fail(listener: Listener, error: unknown) {
+  if (listener.closed) return;
+  listener.closed = true;
+  if (globalThis.__foiSubmissionListener === listener) {
+    globalThis.__foiSubmissionListener = undefined;
   }
+  const subscribers = [...listener.channels.values()].flatMap((c) => [...c.subscribers]);
+  listener.channels.clear();
+  log.error("提交事件监听失败", error);
+  for (const sub of subscribers) report(sub, error);
+  void listener.client.end().catch(() => {});
+}
 
-  const client = new Client({ connectionString });
-  globalThis.__foiPgListener = client;
+function report(sub: Subscriber, error: unknown) {
+  try {
+    sub.error(error);
+  } catch (error) {
+    log.error("提交事件订阅者退出失败", error);
+  }
+}
 
-  globalThis.__foiPgListenerReady = client.connect().then(() => {
-    client.on("notification", (msg) => {
-      if (!msg.channel.startsWith(CHANNEL_PREFIX)) return;
-      const subs = subscriptions.get(msg.channel);
-      if (!subs || subs.size === 0) return;
-      let parsed: NotifyPayload;
-      try {
-        parsed = JSON.parse(msg.payload ?? "{}") as NotifyPayload;
-      } catch {
-        return;
-      }
-      for (const sub of subs) {
-        try {
-          sub.handler(parsed);
-        } catch {
-          // swallow subscriber errors
-        }
-      }
-    });
+function listenerFor(): Listener {
+  const existing = globalThis.__foiSubmissionListener;
+  if (existing) return existing;
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) throw new Error("缺少环境变量 DATABASE_URL");
 
-    client.on("error", (err) => {
-      log.error("提交事件监听失败", err);
-    });
+  const client = new Client({
+    connectionString, connectionTimeoutMillis: 5000,
+    statement_timeout: 5000, query_timeout: 10_000,
   });
-
-  return client;
+  const listener: Listener = {
+    client, channels: new Map(), closed: false, ready: Promise.resolve(),
+  };
+  globalThis.__foiSubmissionListener = listener;
+  client.on("error", (error) => fail(listener, error));
+  client.on("end", () => fail(listener, new Error("提交事件连接已关闭")));
+  client.on("notification", (message) => {
+    const channel = listener.channels.get(message.channel);
+    if (!channel) return;
+    // Notifications invalidate a snapshot; their payload is not a readable view.
+    for (const sub of [...channel.subscribers]) {
+      try {
+        void Promise.resolve(sub.change()).catch((error) => report(sub, error));
+      } catch (error) {
+        report(sub, error);
+      }
+    }
+  });
+  listener.ready = client.connect().then(() => {});
+  void listener.ready.catch((error) => fail(listener, error));
+  return listener;
 }
 
-async function ensureReady(): Promise<Client> {
-  const client = getListenerClient();
-  await globalThis.__foiPgListenerReady;
-  return client;
-}
-
-/**
- * Subscribe to notifications for a specific submission.
- * Returns an unsubscribe function.
- */
+/** The channel is ready only after Postgres acknowledges LISTEN. */
 export function subscribe(
   submissionId: string,
-  handler: Handler,
-): () => void {
-  const channel = `${CHANNEL_PREFIX}${submissionId}`;
-
-  const sub: Subscription = { channel, handler };
-  let set = subscriptions.get(channel);
-  if (!set) {
-    set = new Set();
-    subscriptions.set(channel, set);
+  change: () => void,
+  error: (error: unknown) => void,
+): { ready: Promise<void>; unsubscribe: () => void } {
+  const listener = listenerFor();
+  const name = `${CHANNEL_PREFIX}${submissionId}`;
+  let channel = listener.channels.get(name);
+  if (!channel) {
+    channel = {
+      subscribers: new Set(),
+      ready: listener.ready.then(async () => {
+        if (listener.closed) throw new Error("提交事件连接已关闭");
+        await listener.client.query(`LISTEN ${quoteIdent(name)}`);
+      }),
+    };
+    listener.channels.set(name, channel);
+    void channel.ready.catch((error) => fail(listener, error));
   }
-  set.add(sub);
+  const held = channel;
+  const sub = { change, error };
+  held.subscribers.add(sub);
 
-  const needsListen = set.size === 1;
-  if (needsListen) {
-    void ensureReady().then((client) => {
-      if (subscriptions.get(channel)?.has(sub)) {
-        client.query(`LISTEN ${quoteIdent(channel)}`).catch((err) => {
-          log.error("订阅提交事件失败", err);
-        });
-      }
-    });
-  }
-
-  return () => {
-    set!.delete(sub);
-    if (set!.size === 0) {
-      subscriptions.delete(channel);
-      void ensureReady().then((client) => {
-        if (!subscriptions.has(channel)) {
-          client.query(`UNLISTEN ${quoteIdent(channel)}`).catch(() => {});
+  return {
+    ready: held.ready,
+    unsubscribe() {
+      if (!held.subscribers.delete(sub)) return;
+      // Reuse a pending LISTEN if another observer joins before it completes.
+      void held.ready.then(async () => {
+        if (listener.closed || held.subscribers.size > 0 || listener.channels.get(name) !== held) return;
+        listener.channels.delete(name);
+        if (listener.channels.size === 0) {
+          listener.closed = true;
+          if (globalThis.__foiSubmissionListener === listener) {
+            globalThis.__foiSubmissionListener = undefined;
+          }
+          await listener.client.end();
+        } else {
+          // pg serializes queries, so a subsequent LISTEN follows this UNLISTEN.
+          await listener.client.query(`UNLISTEN ${quoteIdent(name)}`);
         }
-      });
-    }
+      }).catch((error) => fail(listener, error));
+    },
   };
 }
 

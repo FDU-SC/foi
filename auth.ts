@@ -5,6 +5,7 @@ import { z } from "zod";
 import { authConfig } from "./auth.config";
 import { resolveUser, resolveUserByUsername } from "@/lib/accounts/resolve";
 import type { ResolvedUser } from "@/lib/accounts/types";
+import { readSnapshot } from "@/lib/db/read";
 import {
   passwordSetAt,
   sessionMatchesPassword,
@@ -107,13 +108,15 @@ export async function getResolvedUser(): Promise<ResolvedUser | null> {
   const uid = session?.user?.uid;
   if (!uid) return null;
 
-  const user = await resolveUser(uid);
-  if (!user || user.disabled) return null;
+  return readSnapshot(async (on) => {
+    const user = await resolveUser(uid, on);
+    if (!user || user.disabled) return null;
 
-  const setAt = await passwordSetAt(uid);
-  if (!sessionMatchesPassword(setAt, session.user.passwordAt)) return null;
+    const setAt = await passwordSetAt(uid, on);
+    if (!sessionMatchesPassword(setAt, session.user.passwordAt)) return null;
 
-  return user;
+    return user;
+  });
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {

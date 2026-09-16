@@ -4,6 +4,7 @@ import { GET } from "@/app/api/submissions/stream/route";
 import { db } from "@/lib/db";
 import { accounts, contests, judgingQueue, problems, submissions } from "@/lib/db/schema";
 import { externallyJudged } from "@/lib/problems/registry";
+import { publish, subscribe } from "./events";
 import {
   MAX_STREAMS_PER_UID,
   streamConcurrency,
@@ -115,5 +116,31 @@ describeDb("提交事件流的清理", () => {
     const again = await openStream();
     expect(again.status).toBe(200);
     await again.body?.cancel();
+  });
+
+  it("事务提交后的通知送达终态，并释放并发额度", async () => {
+    await openEstablished();
+    const reader = readers.at(-1)!;
+    // Wait for the shared channel, not a duplicate snapshot that may be coalesced.
+    const listening = subscribe(SUBMISSION, () => {}, () => {});
+    try { await listening.ready; } finally { listening.unsubscribe(); }
+
+    await db.transaction(async (tx) => {
+      await tx.update(submissions).set({
+        state: "completed", result: { opaque: "test" }, judgedAt: new Date(),
+      }).where(eq(submissions.id, SUBMISSION));
+      await tx.delete(judgingQueue).where(eq(judgingQueue.submissionId, SUBMISSION));
+      await publish(tx, SUBMISSION, { state: "completed" });
+    });
+
+    let data = "";
+    for (;;) {
+      const next = await reader.read();
+      if (next.done) break;
+      data += new TextDecoder().decode(next.value);
+    }
+    expect(data).toContain('"state":"completed"');
+    expect(data).toContain('"result":{"opaque":"test"}');
+    expect(streamConcurrency.held(`stream:${ACCOUNT_UID}`)).toBe(0);
   });
 });

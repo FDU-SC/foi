@@ -3,18 +3,12 @@ import { allows } from "@/lib/authz/engine";
 import { rowScope } from "@/lib/authz/filter";
 import type { Viewer } from "@/lib/authz/viewer";
 import { isSettled } from "@/lib/backend/types";
-import { db } from "@/lib/db";
+import { readSnapshot } from "@/lib/db/read";
 import type { SubmissionRow } from "@/lib/db/schema";
 import type { DbOrTx } from "@/lib/db/types";
 import { getSubmissionRow, getQueueInfo, listSubmissions, toView } from "./queries";
 import { locateInQueues } from "./queue-position";
 import type { SubmissionListItem, SubmissionView } from "./types";
-
-// Record, queue state and rank must describe the same committed snapshot.
-const SNAPSHOT = {
-  isolationLevel: "repeatable read",
-  accessMode: "read only",
-} as const;
 
 export interface ReadSubmission {
   record: SubmissionRow;
@@ -37,21 +31,23 @@ async function withPositions<T extends SubmissionView>(
 function readSubmission(
   id: string,
   readable: (record: SubmissionRow) => boolean,
+  signal?: AbortSignal,
 ): Promise<ReadSubmission | undefined> {
-  return db.transaction(async (tx) => {
+  return readSnapshot(async (tx) => {
     const record = await getSubmissionRow(id, tx);
     if (!record || !readable(record)) return undefined;
     const queue = record.state === "pending" ? await getQueueInfo(id, tx) : null;
     const [view] = await withPositions([toView(record, queue)], tx);
     return { record, view };
-  }, SNAPSHOT);
+  }, signal);
 }
 
 export async function submissionFor(
   id: string,
   viewer: Viewer,
+  signal?: AbortSignal,
 ): Promise<ReadSubmission | undefined> {
-  return readSubmission(id, (record) => allows("submission.read", record, viewer));
+  return readSubmission(id, (record) => allows("submission.read", record, viewer), signal);
 }
 
 /** Creation acknowledges its author without adding a submission.read prerequisite. */
@@ -81,11 +77,11 @@ export function submissionsFor(
   const scope = rowScope("submission.read", viewer);
   if (scope.kind === "none") return Promise.resolve([]);
 
-  return db.transaction(async (tx) => {
+  return readSnapshot(async (tx) => {
     const rows = await listSubmissions({
       ...options,
       scope: scope.kind === "where" ? scope.sql : undefined,
     }, tx);
     return withPositions(rows, tx);
-  }, SNAPSHOT);
+  });
 }

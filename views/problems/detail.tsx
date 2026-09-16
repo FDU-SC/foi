@@ -77,7 +77,7 @@ export async function cataloguedProblemMetadata({
 
 export async function ProblemDetailView({ params }: Props) {
   const { slug, problem } = await params;
-  return <ProblemDetail contestSlug={slug} problemSlug={problem} />;
+  return <ProblemDetail contestSlug={slug} problemSlug={problem} embedded />;
 }
 
 export async function CataloguedProblemView({ params }: CatalogueProps) {
@@ -93,9 +93,11 @@ export async function CataloguedProblemView({ params }: CatalogueProps) {
 async function ProblemDetail({
   contestSlug,
   problemSlug,
+  embedded = false,
 }: {
   contestSlug: string;
   problemSlug: string;
+  embedded?: boolean;
 }) {
   const viewer = viewerFor(await getResolvedUser());
 
@@ -152,34 +154,36 @@ async function ProblemDetail({
           </div>
         ) : null}
 
-        <nav className="text-fg-subtle mb-4 flex items-center gap-1.5 text-xs">
-          {isCatalogue(contest.slug) ? (
-            <>
-              <Link
-                href={catalogueHref()}
-                className="hover:text-fg transition-colors"
-              >
-                题库
-              </Link>
-              <span>/</span>
-            </>
-          ) : null}
-          <Link
-            href={contestHref(contest.slug)}
-            className="hover:text-fg transition-colors"
-          >
-            {contest.title}
-          </Link>
-          {entry.label ? (
-            <>
-              <span>/</span>
-              <span className="font-mono">{entry.label}</span>
-            </>
-          ) : null}
-          <Badge tone={status.tone} className="ml-1">
-            {status.label}
-          </Badge>
-        </nav>
+        {!embedded ? (
+          <nav className="text-fg-subtle mb-4 flex items-center gap-1.5 text-xs">
+            {isCatalogue(contest.slug) ? (
+              <>
+                <Link
+                  href={catalogueHref()}
+                  className="hover:text-fg transition-colors"
+                >
+                  题库
+                </Link>
+                <span>/</span>
+              </>
+            ) : null}
+            <Link
+              href={contestHref(contest.slug)}
+              className="hover:text-fg transition-colors"
+            >
+              {contest.title}
+            </Link>
+            {entry.label ? (
+              <>
+                <span>/</span>
+                <span className="font-mono">{entry.label}</span>
+              </>
+            ) : null}
+            <Badge tone={status.tone} className="ml-1">
+              {status.label}
+            </Badge>
+          </nav>
+        ) : null}
 
         <header className="border-border mb-6 border-b pb-5">
           <h1 className="text-fg text-2xl font-bold tracking-tight">
@@ -190,49 +194,55 @@ async function ProblemDetail({
           </div>
         </header>
 
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <aside className="oj-sidebar lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1">
-            <h2 className="mb-3 text-sm font-semibold">所属比赛</h2>
-            <Link
-              href={contestHref(contest.slug)}
-              className="text-primary text-sm font-medium hover:underline"
-            >
-              {contest.title}
-            </Link>
-            <dl className="mt-3 grid-cols-2 lg:grid-cols-1">
-              <div>
-                <dt>开始时间</dt>
-                <dd>{gateFormatter.format(contest.startsAt)}</dd>
-              </div>
-              <div>
-                <dt>结束时间</dt>
-                <dd>{gateFormatter.format(contest.endsAt)}</dd>
-              </div>
-              <div>
-                <dt>状态</dt>
-                <dd>
-                  <Badge tone={status.tone}>{status.label}</Badge>
-                </dd>
-              </div>
-            </dl>
-            <nav
-              aria-label="题目相关页面"
-              className="mt-4 flex gap-4 border-t pt-3 text-sm"
-            >
+        <div
+          className={embedded
+            ? "min-w-0"
+            : "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px]"}
+        >
+          {!embedded ? (
+            <aside className="oj-sidebar lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1">
+              <h2 className="mb-3 text-sm font-semibold">所属比赛</h2>
               <Link
-                className="text-primary hover:underline"
                 href={contestHref(contest.slug)}
+                className="text-primary text-sm font-medium hover:underline"
               >
-                返回题单
+                {contest.title}
               </Link>
-              <Link
-                className="text-primary hover:underline"
-                href={standingsHref(contest.slug)}
+              <dl className="mt-3 grid-cols-2 lg:grid-cols-1">
+                <div>
+                  <dt>开始时间</dt>
+                  <dd>{gateFormatter.format(contest.startsAt)}</dd>
+                </div>
+                <div>
+                  <dt>结束时间</dt>
+                  <dd>{gateFormatter.format(contest.endsAt)}</dd>
+                </div>
+                <div>
+                  <dt>状态</dt>
+                  <dd>
+                    <Badge tone={status.tone}>{status.label}</Badge>
+                  </dd>
+                </div>
+              </dl>
+              <nav
+                aria-label="题目相关页面"
+                className="mt-4 flex gap-4 border-t pt-3 text-sm"
               >
-                排行榜
-              </Link>
-            </nav>
-          </aside>
+                <Link
+                  className="text-primary hover:underline"
+                  href={contestHref(contest.slug)}
+                >
+                  返回题单
+                </Link>
+                <Link
+                  className="text-primary hover:underline"
+                  href={standingsHref(contest.slug)}
+                >
+                  排行榜
+                </Link>
+              </nav>
+            </aside>
+          ) : null}
           <div className="oj-statement bg-surface border-border rounded-lg border p-4 sm:p-6 lg:col-start-1 lg:row-start-1">
             <Statement />
           </div>

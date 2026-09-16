@@ -70,14 +70,15 @@ In `views.tsx`, compose display templates:
 ```typescript
 import { CodePayloadView } from "@/content/_shared/views/code-payload";
 import { VerdictDetail } from "@/content/_shared/views/tests-table";
-import { verdicts } from "@/content/_shared/verdicts";
+import { describeResult, progress } from "@/content/_shared/verdicts";
 import { ProblemBadges } from "@/content/_shared/ui/problem-badges";
 import { problemFacets } from "@/content/_shared/ui/problem-facets";
 
 export const views: ProblemViews = {
   PayloadView: CodePayloadView,
   VerdictDetail,
-  verdicts,
+  describeResult,
+  progress,
   Badges: ProblemBadges,
   facets: problemFacets,
 };
@@ -87,19 +88,22 @@ export const views: ProblemViews = {
 `problemFacets` maps `difficulty` and `tags` onto two of them; the platform
 matches the values as strings and never learns what a key means. Without it, the problem has no facets: facet filters do not exclude it, and it shows no badges.
 
-For custom verdict labels, override the `verdicts` field:
+`describeResult(result: unknown)` returns a `VerdictPreset`. It owns all result
+field access, including unknown-status fallback. Without it the platform shows
+“已评测” with a neutral tone.
 
-```typescript
-export const views: ProblemViews = {
-  PayloadView: CodePayloadView,
-  VerdictDetail,
-  verdicts: {
-    ...standardVerdicts,
-    optimal: { label: "最优解", short: "OPT", tone: "ok" },
-  },
-  Badges: ProblemBadges,
-};
-```
+`progress(history)` returns `{ state, verdict }`, where `state` is `untouched`,
+`attempted` or `solved` and `verdict` is a preset or null. The history contains
+`id`, record `state`, opaque `result`, `createdAt` and `judgedAt`, ordered by
+creation time and id. It includes every readable submission by the current user
+for this contest/problem pair, including pending and disrupted records.
+The content function decides which records count. The sample requires a
+completed record with boolean `accepted: true` and keeps any previous success.
+
+Both functions are pure and client-safe: the problem views registry is used in
+the browser. Keep database imports in server-only content modules. Without
+`progress`, the problem has no progress display; section filters and totals
+require every visible problem to support it.
 
 ### Adding a Contest
 
@@ -228,14 +232,14 @@ judge({ payload, config, user }) {
 }
 ```
 
-The `result` object shape is your decision. The platform stores it as opaque JSONB. Your ruleset interprets it; your VerdictDetail renders the detail.
+The `result` may be any non-null JSON value. Its meaning is your decision. The platform stores it as opaque JSONB. Your ruleset interprets it; your VerdictDetail renders the detail.
 
-## Verdict Translation
+## Practice Leaderboard
 
-`result.status` (by convention) is mapped to human-readable labels. Lookup order:
-
-1. Problem-level `verdicts` in `views.tsx`
-2. Fallback: display raw status string
+`SiteViews.Leaderboard` supplies the full leaderboard; `HomeLeaderboard` supplies
+the home summary. The platform checks `leaderboard.read` before mounting either.
+An absent full leaderboard returns 404. Content owns querying, ranking and display.
+The sample shares a server-only query between both slots.
 
 ### Adding an Authorization Policy
 
@@ -286,6 +290,6 @@ import type { SiteViews } from "@/lib/site-views";
 export const views: SiteViews = { Footer: MyFooter };
 ```
 
-Every slot is optional and has a platform default, so `{}` is complete. Regions outside the override continue to receive upstream updates.
+Every slot is optional, so `{}` is complete. Chrome slots have defaults; optional content regions may be absent, and an absent `Leaderboard` returns 404. Regions outside the override continue to receive upstream updates.
 
 A page whose whole body needs rewriting is a file override: put a same-named file under `views.local/` and it replaces the upstream one. That file no longer receives upstream changes automatically; use this option only when shallower overrides are insufficient. See [the README](../README.md#派生一份自己的部署) for the slot map.

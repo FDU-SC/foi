@@ -30,11 +30,14 @@ export const TERMINAL_RECORD_STATES: SubmissionRecordState[] = [
 ];
 
 export const verdictSchema = z.object({
-  result: z.record(z.string(), z.unknown()),
+  result: z.json().refine((value) => value !== null, "result 不能为 null"),
   detail: z.unknown().optional(),
 });
 
-export type Verdict = z.infer<typeof verdictSchema>;
+export interface Verdict {
+  result: unknown;
+  detail?: unknown;
+}
 
 export interface BackendUser {
   uid: number;

@@ -14,7 +14,6 @@ import {
   standingsHref,
 } from "@/lib/contests/catalogue";
 import { contestPhase, contestStatus } from "@/lib/contests/types";
-import { describeVerdict } from "@/lib/presentation";
 import { problemsFor, type ProblemView } from "@/lib/problems/access";
 import {
   collectFacets,
@@ -24,8 +23,8 @@ import {
 } from "@/lib/problems/facets";
 import type { ProblemConfig } from "@/lib/problems/types";
 import { readAll, readOne } from "@/lib/query";
-import { computeProblemStatuses, type ProblemStatus } from "@/lib/stats";
-import { submissionsFor } from "@/lib/submissions/access";
+import { progressFor } from "@/lib/problems/progress";
+import type { ProblemProgress } from "@/lib/problems/views";
 import { TableFrame } from "@/components/ui/page";
 
 type Props = PageProps<"/problems/[section]">;
@@ -38,9 +37,6 @@ const SEARCH = "q";
 const STATUS = "status";
 const SORT = "sort";
 const FACET = "f.";
-
-/** How far back the status column looks. Beyond this the oldest attempts drop out. */
-const STATUS_DEPTH = 5000;
 
 const STATUSES = [
   { value: "solved", label: "已通过" },
@@ -72,11 +68,9 @@ function matchesQuery(config: ProblemConfig, query: string): boolean {
 
 function matchesStatus(
   status: string | undefined,
-  mine: ProblemStatus | undefined,
+  mine: ProblemProgress | undefined,
 ): boolean {
-  if (status === "solved") return mine?.accepted === true;
-  if (status === "attempted") return mine !== undefined && !mine.accepted;
-  if (status === "untouched") return mine === undefined;
+  if (status) return mine?.state === status;
   return true;
 }
 
@@ -132,14 +126,9 @@ export async function ProblemListView({ params, searchParams }: Props) {
   const catalogue = problemsFor(contest.slug, viewer);
   const path = contestHref(contest.slug);
 
-  const statuses: Map<string, ProblemStatus> | null = viewer.authenticated
-    ? computeProblemStatuses(
-        await submissionsFor(viewer, {
-          contestSlug: contest.slug,
-          limit: STATUS_DEPTH,
-        }),
-      )
-    : null;
+  const statuses = viewer.authenticated ? await progressFor(contest.slug, viewer) : null;
+  const completeProgress = statuses !== null && catalogue.every(({ ref }) => statuses.has(ref.problem.slug));
+  const showProgress = statuses !== null && statuses.size > 0;
 
   const offered = contest.facets;
   const groups = collectFacets(
@@ -152,7 +141,7 @@ export async function ProblemListView({ params, searchParams }: Props) {
   );
 
   const text = readOne(query, SEARCH)?.trim().toLowerCase() ?? "";
-  const status = statuses ? pick(readOne(query, STATUS), STATUSES) : undefined;
+  const status = completeProgress ? pick(readOne(query, STATUS), STATUSES) : undefined;
   const sort = pick(readOne(query, SORT), SORTS) ?? NEWEST;
 
   // Counts answer "how many would this choice leave", so each dimension is
@@ -194,7 +183,7 @@ export async function ProblemListView({ params, searchParams }: Props) {
     })),
   }));
 
-  if (statuses) {
+  if (completeProgress) {
     rows.push({
       key: STATUS,
       label: "状态",
@@ -217,8 +206,8 @@ export async function ProblemListView({ params, searchParams }: Props) {
   });
 
   const narrowed = problems.length !== catalogue.length;
-  const solved = statuses
-    ? catalogue.filter(({ ref }) => statuses.get(ref.problem.slug)?.accepted)
+  const solved = completeProgress
+    ? catalogue.filter(({ ref }) => statuses.get(ref.problem.slug)?.state === "solved")
         .length
     : null;
 
@@ -270,7 +259,7 @@ export async function ProblemListView({ params, searchParams }: Props) {
       {catalogue.length > 0 ? (
         <ProblemFilters
           path={path}
-          params={query}
+          params={completeProgress ? query : Object.fromEntries(Object.entries(query).filter(([key]) => key !== STATUS))}
           rows={rows}
           searchKey={SEARCH}
           searchValue={readOne(query, SEARCH) ?? ""}
@@ -305,15 +294,13 @@ export async function ProblemListView({ params, searchParams }: Props) {
                 {offered.length > 0 ? (
                   <th className="hidden sm:table-cell">标签</th>
                 ) : null}
-                {statuses ? <th className="w-28">我的状态</th> : null}
+                {showProgress ? <th className="w-28">我的状态</th> : null}
               </tr>
             </thead>
             <tbody>
               {problems.map(({ ref: { problem, entry }, preview }) => {
                 const mine = statuses?.get(problem.slug);
-                const preset = mine
-                  ? describeVerdict(problem.slug, { status: mine.status })
-                  : null;
+                const preset = mine?.verdict;
                 return (
                   <tr key={problem.slug}>
                     <td className="text-fg-muted font-mono text-xs">
@@ -348,12 +335,12 @@ export async function ProblemListView({ params, searchParams }: Props) {
                         </div>
                       </td>
                     ) : null}
-                    {statuses ? (
+                    {showProgress ? (
                       <td>
                         {preset ? (
                           <Badge tone={preset.tone}>{preset.label}</Badge>
                         ) : (
-                          <span className="text-fg-subtle text-xs">未尝试</span>
+                          <span className="text-fg-subtle text-xs">{mine?.state === "untouched" ? "未尝试" : mine?.state === "attempted" ? "尝试过" : mine?.state === "solved" ? "已通过" : "—"}</span>
                         )}
                       </td>
                     ) : null}

@@ -1,22 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { describeVerdict } from "./presentation";
+import { viewsFor } from "./problems/views";
+vi.mock("./problems/views", () => ({ viewsFor: vi.fn(() => ({})) }));
 
-describe("describeVerdict 对没有登记的 status", () => {
-  it("原样显示 status，未注册的给中性色调", () => {
-    expect(
-      describeVerdict(undefined, {
-        status: "kernel-probe-unnamed",
-        score: 40,
-        maxScore: 100,
-      }),
-    ).toMatchObject({ label: "kernel-probe-unnamed", tone: "neutral" });
+describe("内容结果解释", () => {
+  it("未提供解释时不读取结果字段", () => {
+    expect(describeVerdict(undefined, { status: "secret" })).toEqual({ label: "已评测", short: "已评测", tone: "neutral" });
   });
-
-  it("没有 status 时给一个通用标签", () => {
-    expect(describeVerdict(undefined, { score: 100 }).label).toBe("已评测");
-  });
-
-  it("result 为 null 时给通用标签", () => {
-    expect(describeVerdict(undefined, null).label).toBe("已评测");
+  it.each([false, 0, "value", [1, 2], { custom: true }].map((result) => ({ result })))("原样传递结果 $result", ({ result }) => {
+    const preset = { label: "内容决定", short: "X", tone: "ok" as const };
+    const describeResult = vi.fn(() => preset);
+    vi.mocked(viewsFor).mockReturnValue({ describeResult });
+    expect(describeVerdict("test", result)).toBe(preset);
+    expect(describeResult).toHaveBeenCalledWith(result);
   });
 });

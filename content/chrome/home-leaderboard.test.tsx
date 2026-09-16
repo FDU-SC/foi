@@ -3,12 +3,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { getViewer } from "@/auth";
 import { allows } from "@/lib/authz/engine";
 import { ANONYMOUS, viewerFor } from "@/lib/authz/viewer";
-import { leaderboardRows, type LeaderboardRow } from "@/lib/stats";
+import { leaderboardRows, type LeaderboardRow } from "./leaderboard-data";
 import { FoiHomeLeaderboard } from "./home-leaderboard";
 
 vi.mock("@/auth", () => ({ getViewer: vi.fn() }));
 vi.mock("@/lib/authz/engine", () => ({ allows: vi.fn() }));
-vi.mock("@/lib/stats", () => ({ leaderboardRows: vi.fn() }));
+vi.mock("./leaderboard-data", () => ({ leaderboardRows: vi.fn() }));
 
 const VIEWER = viewerFor({ uid: 7, groups: [] });
 const ROWS: LeaderboardRow[] = [
@@ -17,7 +17,6 @@ const ROWS: LeaderboardRow[] = [
     username: "alice",
     nickname: "Alice",
     submissions: 3,
-    accepted: 2,
     solved: 2,
     firstBloods: 1,
   },
@@ -26,7 +25,6 @@ const ROWS: LeaderboardRow[] = [
     username: "bob",
     nickname: "Bob",
     submissions: 2,
-    accepted: 1,
     solved: 1,
     firstBloods: 0,
   },

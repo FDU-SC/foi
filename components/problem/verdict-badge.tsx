@@ -6,7 +6,7 @@ import { describeVerdict } from "@/lib/presentation";
 export interface VerdictBadgeSubject {
   problemSlug: string;
   state: SubmissionState;
-  result: Record<string, unknown> | null;
+  result: unknown;
 }
 
 export function VerdictBadge({

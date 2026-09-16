@@ -33,7 +33,7 @@ function stillDispatched(problemSlug: string): boolean {
 export type RejudgeSkipFilter = (row: {
   id: string;
   state: SubmissionRecordState;
-  result: Record<string, unknown> | null;
+  result: unknown;
 }) => boolean;
 
 export async function rejudgeSubmissions(

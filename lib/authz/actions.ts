@@ -157,7 +157,7 @@ export const ACTIONS = {
   },
   "leaderboard.read": {
     resource: "site",
-    describe: "查看全局排行榜（解题数、提交数、首杀数）",
+    describe: "查看内容提供的排行榜",
     denial: { code: "not-found", message: "页面不存在" },
   },
 

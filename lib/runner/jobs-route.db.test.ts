@@ -20,6 +20,7 @@ import {
   submissions,
 } from "@/lib/db/schema";
 import { openExternalProblem } from "@/test/content-shapes";
+import { toView } from "@/lib/submissions/queries";
 import { jobPath } from "./auth";
 
 const USERNAME = "runner-route-alice";
@@ -270,6 +271,23 @@ describeDb("评测机作业接口", () => {
       expect(response.status).toBe(401);
       expect(await response.json()).toEqual({ error: "签名不匹配" });
     });
+  });
+
+
+  it.each([false, 0, "", "text", [null, 2], { opaque: true }].map((result, index) => ({ result, index })))
+    ("外部结果原样往返 $index", async ({ result, index }) => {
+      const id = await holding(`sub_jr_json_${index}`, "lease-json");
+      const response = await report(id, { lease: "lease-json", state: "done", verdict: { result }, backendVersion: VERSION });
+      expect(response.status).toBe(200);
+      const stored = await rowOf(id);
+      expect(stored.result).toEqual(result);
+      expect(toView(stored).result).toEqual(result);
+    });
+
+  it.each([{ result: null }, {}])("拒绝无结果的外部完成报告 %j", async (verdict) => {
+    const response = await report("sub_jr_mine", { lease: "lease-held-by-me", state: "done", verdict, backendVersion: VERSION });
+    expect(response.status).toBe(400);
+    expect((await rowOf("sub_jr_mine")).state).toBe("pending");
   });
 
   describe("上报评测进展", () => {

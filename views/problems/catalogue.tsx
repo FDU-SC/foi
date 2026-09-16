@@ -17,10 +17,8 @@ import {
   type ContestConfig,
 } from "@/lib/contests/types";
 import { problemsFor } from "@/lib/problems/access";
-import { computeProblemStatuses } from "@/lib/stats";
-import { submissionsFor } from "@/lib/submissions/access";
+import { progressFor } from "@/lib/problems/progress";
 
-const STATUS_DEPTH = 5000;
 const UNGROUPED = Symbol("ungrouped");
 interface SectionCard {
   contest: ContestConfig;
@@ -237,14 +235,13 @@ async function cardFor(
 
   if (!viewer.authenticated) return card;
 
-  const statuses = computeProblemStatuses(
-    await submissionsFor(viewer, { contestSlug: slug, limit: STATUS_DEPTH }),
-  );
+  const statuses = await progressFor(slug, viewer);
+  if (!problems.every(({ ref }) => statuses.has(ref.problem.slug))) return card;
 
   return {
     ...card,
     solved: problems.filter(
-      ({ ref }) => statuses.get(ref.problem.slug)?.accepted,
+      ({ ref }) => statuses.get(ref.problem.slug)?.state === "solved",
     ).length,
   };
 }

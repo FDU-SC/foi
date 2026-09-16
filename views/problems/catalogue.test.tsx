@@ -21,8 +21,7 @@ import {
   problemConfigSchema,
   type ProblemConfig,
 } from "@/lib/problems/types";
-import { submissionsFor } from "@/lib/submissions/access";
-import type { SubmissionListItem } from "@/lib/submissions/types";
+import { progressFor } from "@/lib/problems/progress";
 import { ANONYMOUS, viewerFor } from "@/lib/authz/viewer";
 import { CatalogueIndexView } from "./catalogue";
 
@@ -37,7 +36,7 @@ vi.mock("@/lib/contests/catalogue", () => ({
   standingsHref: (slug: string) => `/problems/${slug}/standings`,
 }));
 vi.mock("@/lib/problems/access", () => ({ problemsFor: vi.fn() }));
-vi.mock("@/lib/submissions/access", () => ({ submissionsFor: vi.fn() }));
+vi.mock("@/lib/problems/progress", () => ({ progressFor: vi.fn() }));
 
 const NOW = new Date("2030-01-01T00:00:00Z");
 const VIEWER = viewerFor({ uid: 7, groups: [] });
@@ -87,27 +86,6 @@ function problemViews(
   }));
 }
 
-function submission(
-  contestSlug: string,
-  problemSlug: string,
-): SubmissionListItem {
-  return {
-    id: `${contestSlug}-${problemSlug}`,
-    contestSlug,
-    problemSlug,
-    problemTitle: problemSlug,
-    uid: VIEWER.uid!,
-    nickname: "测试用户",
-    state: "completed",
-    result: { accepted: true },
-    detail: null,
-    reason: null,
-    runnerStatus: null,
-    createdAt: NOW.toISOString(),
-    judgedAt: NOW.toISOString(),
-  };
-}
-
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
@@ -116,7 +94,7 @@ beforeEach(() => {
   vi.mocked(catalogueSlugs).mockReturnValue([]);
   vi.mocked(contestFor).mockReturnValue(undefined);
   vi.mocked(problemsFor).mockReturnValue([]);
-  vi.mocked(submissionsFor).mockResolvedValue([]);
+  vi.mocked(progressFor).mockResolvedValue(new Map());
 });
 
 afterEach(() => vi.useRealTimers());
@@ -150,7 +128,7 @@ describe("题库首页访问边界", () => {
     expect(problemsFor).toHaveBeenCalledOnce();
     expect(problemsFor).toHaveBeenCalledWith(visible.slug, ANONYMOUS);
     expect(problemHref).toHaveBeenCalledTimes(4);
-    expect(submissionsFor).not.toHaveBeenCalled();
+    expect(progressFor).not.toHaveBeenCalled();
   });
 
   it("同题跨分区时分别查询并计算登录用户的通过进度", async () => {
@@ -172,25 +150,16 @@ describe("题库首页访问边界", () => {
       const config = sections.get(slug);
       return config ? problemViews(config, [shared]) : [];
     });
-    vi.mocked(submissionsFor).mockImplementation(
-      async (_viewer, options) =>
-        options?.contestSlug === first.slug
-          ? [submission(first.slug, shared.slug)]
-          : [],
-    );
+    vi.mocked(progressFor).mockImplementation(async (slug) => new Map([
+      [shared.slug, { state: slug === first.slug ? "solved" : "untouched", verdict: null }],
+    ]));
 
     const html = renderToStaticMarkup(await CatalogueIndexView());
 
     expect(html).toContain("已通过 1 / 1");
     expect(html).toContain("已通过 0 / 1");
-    expect(submissionsFor).toHaveBeenCalledTimes(2);
-    expect(submissionsFor).toHaveBeenCalledWith(VIEWER, {
-      contestSlug: first.slug,
-      limit: 5000,
-    });
-    expect(submissionsFor).toHaveBeenCalledWith(VIEWER, {
-      contestSlug: second.slug,
-      limit: 5000,
-    });
+    expect(progressFor).toHaveBeenCalledTimes(2);
+    expect(progressFor).toHaveBeenCalledWith(first.slug, VIEWER);
+    expect(progressFor).toHaveBeenCalledWith(second.slug, VIEWER);
   });
 });

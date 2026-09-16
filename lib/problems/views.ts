@@ -1,3 +1,4 @@
+import type { SubmissionRecordState } from "@/lib/backend/types";
 import type { ComponentType } from "react";
 import { problemViews } from "@/content/_modules/problem-views";
 import type { VerdictPreset } from "@/lib/presentation";
@@ -26,13 +27,29 @@ export interface ProblemFacet {
   order?: string[];
 }
 
+export interface ProgressSubmission {
+  id: string;
+  state: SubmissionRecordState;
+  result: unknown;
+  createdAt: Date;
+  judgedAt: Date | null;
+}
+
+export interface ProblemProgress {
+  state: "untouched" | "attempted" | "solved";
+  verdict: VerdictPreset | null;
+}
+
 export interface ProblemViews {
 
   PayloadView?: ComponentType<{ payload: unknown }>;
 
   VerdictDetail?: ComponentType<{ detail: unknown }>;
 
-  verdicts?: Record<string, VerdictPreset>;
+  describeResult?: (result: unknown) => VerdictPreset;
+
+  /** Complete readable history for one viewer, contest and problem. */
+  progress?: (history: readonly ProgressSubmission[]) => ProblemProgress;
 
   /**
    * The badges beside a problem's title.

@@ -221,6 +221,31 @@ describeDb("内联判题的提交", () => {
 
     expect(fetchMock.mock.calls.length).toBe(before);
   });
+  it.each([false, 0, "", "text", [1, null], { custom: true }].map((result) => ({ result })))("内联结果原样往返 $result", async ({ result }) => {
+    const backend = INLINE.problem.backend as InlineBackend;
+    const original = backend.judge;
+    try {
+      backend.judge = () => ({ result });
+      const response = await postSubmission(INLINE);
+      expect(response.status).toBe(201);
+      const body = await response.json();
+      expect(body).toMatchObject({ state: "completed", result });
+      const [stored] = await db.select().from(submissions).where(eq(submissions.id, body.id));
+      expect(stored.result).toEqual(result);
+    } finally { backend.judge = original; }
+  });
+
+  it.each([null, undefined, NaN])("无效内联结果转为中断 %j", async (result) => {
+    const backend = INLINE.problem.backend as InlineBackend;
+    const original = backend.judge;
+    try {
+      backend.judge = () => ({ result });
+      const response = await postSubmission(INLINE);
+      expect(response.status).toBe(201);
+      expect(await response.json()).toMatchObject({ state: "disrupted", result: null });
+    } finally { backend.judge = original; }
+  });
+
 });
 
 describeDb("内联判题说自己判不了", () => {

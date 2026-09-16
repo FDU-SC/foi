@@ -5,7 +5,7 @@ import type { ResolvedUser } from "@/lib/accounts/types";
 import type { Denial } from "@/lib/authz/adapters";
 import { viewerFor } from "@/lib/authz/viewer";
 import { resolveBackend, type ResolvedBackend } from "@/lib/backend/resolve";
-import { INLINE_BACKEND_ID, INLINE_BACKEND_VERSION } from "@/lib/backend/types";
+import { INLINE_BACKEND_ID, INLINE_BACKEND_VERSION, verdictSchema } from "@/lib/backend/types";
 import { releaseSha } from "@/lib/boot/deployment";
 import { db } from "@/lib/db";
 import { ensureContest, ensureProblem } from "@/lib/db/mirror";
@@ -40,10 +40,11 @@ function settleInline(
     if (isInlineUnavailable(judgement)) {
       return { state: "disrupted", error: judgement.reason, judgedAt: new Date() };
     }
+    const verdict = verdictSchema.parse(judgement);
     return {
       state: "completed",
-      result: judgement.result,
-      detail: judgement.detail ?? null,
+      result: verdict.result,
+      detail: verdict.detail ?? null,
       backendVersion: INLINE_BACKEND_VERSION,
       judgedAt: new Date(),
     };

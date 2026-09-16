@@ -9,15 +9,8 @@ import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { PayloadBody, VerdictBody } from "@/components/opaque";
 import { RejudgeForm } from "@/components/submissions/rejudge-form";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import {
-  failureReason,
-  isSettled,
-  type SubmissionState,
-} from "@/lib/backend/types";
 import { problemBySlug } from "@/lib/problems/registry";
 import { submissionFor } from "@/lib/submissions/access";
-import { locateOne } from "@/lib/submissions/queue-position";
-import { getQueueInfo } from "@/lib/submissions/queries";
 import { dateFormatter } from "@/lib/format";
 import { isRejudgeable } from "@/lib/submissions/rejudge";
 
@@ -32,20 +25,10 @@ export async function SubmissionDetailView({
 
   const viewer = viewerFor(user);
 
-  const row = await submissionFor(id, viewer);
-  if (!row) notFound();
-
+  const read = await submissionFor(id, viewer);
+  if (!read) notFound();
+  const { record: row, view } = read;
   const problem = problemBySlug(row.problemSlug);
-  const queueInfo = row.state === "pending" ? await getQueueInfo(row.id) : null;
-  const viewState: SubmissionState =
-    row.state !== "pending"
-      ? row.state
-      : queueInfo?.state === "claimed"
-        ? "judging"
-        : "queued";
-  const reason = failureReason({ state: viewState, error: row.error });
-  const settled = isSettled(viewState);
-  const queue = settled ? null : await locateOne(row.id);
 
   return (
     <div className="min-w-0 space-y-4">
@@ -65,14 +48,8 @@ export async function SubmissionDetailView({
             fallbackTitle={problem?.title ?? row.problemSlug}
           />
         </h1>
-        <VerdictBadge
-          submission={{
-            problemSlug: row.problemSlug,
-            state: viewState,
-            result: row.result ?? null,
-          }}
-        />
-        <QueueBadge queue={queue} showJudge />
+        <VerdictBadge submission={view} />
+        <QueueBadge queue={view.queue} showJudge />
         <span className="text-fg-subtle ml-auto font-mono text-xs">
           {formatter.format(row.createdAt)}
         </span>
@@ -81,23 +58,23 @@ export async function SubmissionDetailView({
         ) : null}
       </header>
 
-      {reason ? (
+      {view.reason ? (
         <p className="text-warn bg-warn-subtle rounded-md px-3 py-2 text-sm">
-          {reason}
+          {view.reason}
         </p>
       ) : null}
 
-      {queueInfo?.runnerStatus && !settled ? (
+      {view.runnerStatus ? (
         <p className="text-fg-muted bg-surface-2 rounded-md px-3 py-2 font-mono text-xs">
-          {queueInfo.runnerStatus}
+          {view.runnerStatus}
         </p>
       ) : null}
 
-      {row.detail ? (
+      {view.detail ? (
         <Card>
           <CardHeader title="评测详情" />
           <CardBody>
-            <VerdictBody problemSlug={row.problemSlug} detail={row.detail} />
+            <VerdictBody problemSlug={view.problemSlug} detail={view.detail} />
           </CardBody>
         </Card>
       ) : null}

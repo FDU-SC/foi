@@ -21,8 +21,6 @@ import { problemFor } from "@/lib/problems/access";
 import { dateFormatter } from "@/lib/format";
 import { publishedAnnouncements } from "@/lib/announcements";
 import { homeSubmissions, recentPractice, recentContests } from "@/lib/home";
-import { locateInQueues } from "@/lib/submissions/queue-position";
-import { isSettled } from "@/lib/backend/types";
 import type { SubmissionListItem } from "@/lib/submissions/types";
 
 const formatter = dateFormatter({
@@ -84,9 +82,6 @@ async function Practice({ rows, viewer, now }: PersonalProps) {
 
 async function Submissions({ rows, viewer, now }: PersonalProps) {
   const latest = (await rows).slice(0, 5);
-  const positions = await locateInQueues(
-    latest.filter((row) => !isSettled(row.state)).map((row) => row.id),
-  );
   return (
     <HomePanel title="近期提交" href="/submissions" className="order-3">
       {latest.length ? (
@@ -117,7 +112,7 @@ async function Submissions({ rows, viewer, now }: PersonalProps) {
                 </div>
                 <span className="flex flex-wrap items-center gap-1.5">
                   <VerdictBadge submission={row} />
-                  <QueueBadge queue={positions.get(row.id)} />
+                  <QueueBadge queue={row.queue} />
                 </span>
                 <time
                   dateTime={row.createdAt}

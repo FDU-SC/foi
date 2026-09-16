@@ -50,6 +50,7 @@ describe("主页数据", () => {
       runnerStatus: null,
       createdAt: now.toISOString(),
       judgedAt: null,
+      queue: null,
     });
     vi.mocked(problemFor).mockImplementation((contest, problem) =>
       problem === first.problem.slug

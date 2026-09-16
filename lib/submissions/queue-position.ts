@@ -1,5 +1,6 @@
 import { and, eq, inArray, lt } from "drizzle-orm";
 import { db } from "@/lib/db";
+import type { DbOrTx } from "@/lib/db/types";
 import { judgingQueue } from "@/lib/db/schema";
 import { MAX_ATTEMPTS } from "@/lib/runner/queue";
 
@@ -12,11 +13,12 @@ export interface QueuePosition {
 
 export async function locateInQueues(
   submissionIds: string[],
+  on: DbOrTx = db,
 ): Promise<Map<string, QueuePosition>> {
   const found = new Map<string, QueuePosition>();
   if (submissionIds.length === 0) return found;
 
-  const wanted = await db
+  const wanted = await on
     .select({
       submissionId: judgingQueue.submissionId,
       backendId: judgingQueue.backendId,
@@ -30,7 +32,7 @@ export async function locateInQueues(
 
   const backendIds = [...new Set(wanted.map((row) => row.backendId))];
 
-  const queued = await db
+  const queued = await on
     .select({
       backendId: judgingQueue.backendId,
       queuedAt: judgingQueue.queuedAt,

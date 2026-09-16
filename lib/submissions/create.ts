@@ -8,6 +8,7 @@ import { resolveBackend, type ResolvedBackend } from "@/lib/backend/resolve";
 import { INLINE_BACKEND_ID, INLINE_BACKEND_VERSION, verdictSchema } from "@/lib/backend/types";
 import { releaseSha } from "@/lib/boot/deployment";
 import { db } from "@/lib/db";
+import { log } from "@/lib/log";
 import { ensureContest, ensureProblem } from "@/lib/db/mirror";
 import { judgingQueue, submissions } from "@/lib/db/schema";
 import { isInlineBackend, isInlineUnavailable, type InlineBackend } from "@/lib/problems/types";
@@ -16,7 +17,8 @@ import { ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { invalidateStandings } from "@/lib/standings/cache";
 import { publish } from "./events";
 import { submitFor } from "./gate";
-import { findSubmissionByNonce, toView } from "./queries";
+import { findSubmissionByNonce } from "./queries";
+import { createdSubmissionView } from "./access";
 import type { CreateSubmission, SubmissionView } from "./types";
 
 export type CreateSubmissionResult =
@@ -24,6 +26,19 @@ export type CreateSubmissionResult =
   | { kind: "denied"; denial: Denial }
   | { kind: "limited"; retryAfterMs: number }
   | { kind: "configuration-error" | "failed"; error: string };
+
+async function acknowledge(
+  kind: "created" | "existing",
+  id: string,
+  uid: number,
+): Promise<CreateSubmissionResult> {
+  try {
+    return { kind, submission: await createdSubmissionView(id, uid) };
+  } catch (error) {
+    log.error(`提交 ${id} 读取失败`, error);
+    return { kind: "failed", error: "提交读取失败，请重试" };
+  }
+}
 
 function settleInline(
   backend: InlineBackend,
@@ -68,7 +83,7 @@ export async function createSubmission(
   const { clientNonce } = input;
   if (clientNonce) {
     const existing = await findSubmissionByNonce(user.uid, clientNonce);
-    if (existing) return { kind: "existing", submission: toView(existing) };
+    if (existing) return acknowledge("existing", existing.id, user.uid);
   }
 
   const gate = submitFor(input.contestSlug, input.problemSlug, viewerFor(user));
@@ -145,9 +160,9 @@ export async function createSubmission(
       ? await findSubmissionByNonce(user.uid, clientNonce)
       : undefined;
     return existing
-      ? { kind: "existing", submission: toView(existing) }
+      ? acknowledge("existing", existing.id, user.uid)
       : { kind: "failed", error: "提交失败，请重试" };
   }
   if (created.state === "completed") invalidateStandings(contest.slug);
-  return { kind: "created", submission: toView(created) };
+  return acknowledge("created", created.id, user.uid);
 }

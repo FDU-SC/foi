@@ -33,11 +33,7 @@ export function useSubmit() {
     let attempt = 0;
 
     const finish = (next: SubmissionView) => {
-      setSubmission((previous) => {
-
-        if (next.queue !== undefined || isSettled(next.state)) return next;
-        return { ...next, queue: previous?.queue ?? null };
-      });
+      setSubmission(next);
       if (isSettled(next.state)) stop();
     };
 

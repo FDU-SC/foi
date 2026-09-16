@@ -4,13 +4,10 @@ import { denialFor } from "@/lib/authz/actions";
 import { denied, UNAUTHENTICATED } from "@/lib/authz/adapters";
 import { apiDeny } from "@/lib/authz/http";
 import { viewerFor } from "@/lib/authz/viewer";
-import { isSettled } from "@/lib/backend/types";
 import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest, tooManyRequests } from "@/lib/server/guard";
 import { ROUTE_LIMITS } from "@/lib/ratelimit/policy";
 import { submissionFor } from "@/lib/submissions/access";
-import { getQueueInfo, toView } from "@/lib/submissions/queries";
-import { locateOne } from "@/lib/submissions/queue-position";
 
 export const runtime = "nodejs";
 
@@ -36,13 +33,7 @@ export async function GET(
   const row = await submissionFor(id, viewerFor(user));
   if (!row) return apiDeny(denied(denialFor("submission.read")));
 
-  const queueInfo = row.state === "pending" ? await getQueueInfo(row.id) : null;
-  const view = toView(row, queueInfo);
-  if (!isSettled(view.state)) {
-    view.queue = await locateOne(row.id);
-  }
-
-  return NextResponse.json(view, {
+  return NextResponse.json(row.view, {
     headers: { "cache-control": "no-store" },
   });
 }

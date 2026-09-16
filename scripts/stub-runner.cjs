@@ -35,14 +35,14 @@ const CAPACITY = positiveInt(process.env.FOI_STUB_CAPACITY, 2);
 const POLL_INTERVAL_MS = positiveInt(process.env.FOI_STUB_POLL_INTERVAL, 1000);
 const HEARTBEAT_INTERVAL_MS = positiveInt(process.env.FOI_STUB_HEARTBEAT_INTERVAL, 20_000);
 
-/** 假装在评测的时长。太快了不像真的，页面上的状态流转也看不清。 */
+/** 模拟评测时长，便于观察页面状态变化。 */
 const JUDGE_DELAY_MS = positiveInt(process.env.FOI_STUB_DELAY, 1500);
 
-/** 上报的版本号。运维台的评测机状态板会显示它，一眼能看出接的是模拟评测机。 */
+/** 上报版本号，用于在状态板标识模拟评测机。 */
 const BACKEND_VERSION = "stub-demo";
 
 const SIMULATION_NOTE =
-  "这是模拟评测机：它不会编译或运行你提交的代码，上面的结果是按提交内容的哈希预设的。";
+  "模拟评测结果，按提交内容的哈希生成；未编译或运行代码。";
 
 /**
  * 这个评测机可能产出的判定状态。

@@ -126,7 +126,7 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       severity: "warn",
       title: "近期有评测中断的提交",
       detail:
-        "这些提交没有评测结果，不计入选手成绩。可查看提交详情中的中断原因，修复后重新评测。",
+        "这些提交没有评测结果，不计入成绩。查看中断原因，修复后重新评测。",
       items: [`最近一小时 ${disrupted} 条`],
     });
   }
@@ -147,7 +147,7 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
       severity: "info",
       title: "有已移除题目或比赛的历史记录",
       detail:
-        "这些记录用于保留历史提交的题目和比赛归属，属于正常保留数据。",
+        "正常保留数据，用于记录历史提交的题目和比赛归属。",
       items: orphanMirrors,
     });
   }

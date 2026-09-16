@@ -101,14 +101,9 @@ export function input(options: {
 }
 
 /**
- * A contest may keep collecting after `endsAt` — that is what `afterEnd`
- * declares — and `compute.ts` hands a ruleset every submission attributed to
- * the round, late ones included. Scoring the window is therefore the ruleset's
- * job, done by running its submissions through `submissionsInWindow`.
- *
- * That makes the platform's promise only as good as each ruleset honouring it,
- * which is why both the kernel and each deployment assert it rather than
- * trusting that whoever writes the next ruleset remembers.
+ * `compute.ts` passes all contest submissions, including those accepted after
+ * `endsAt`. Rulesets must filter with `submissionsInWindow`; kernel and deployment
+ * tests both verify that late practice submissions do not affect rankings.
  */
 export function ignoresLateSubmissions(ruleset: AnyRuleset): {
   onTime: unknown;

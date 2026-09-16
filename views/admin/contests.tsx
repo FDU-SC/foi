@@ -51,12 +51,7 @@ export async function AdminContestsView() {
         <span>比赛</span>
       </nav>
 
-      <div>
-        <h1 className="text-fg text-2xl font-bold tracking-tight">比赛</h1>
-        <p className="text-fg-muted mt-2 text-sm leading-6">
-          查看比赛配置。
-        </p>
-      </div>
+      <h1 className="text-fg text-2xl font-bold tracking-tight">比赛</h1>
 
       {all.length === 0 ? (
         <p className="text-fg-muted border-border bg-surface rounded-lg border py-10 text-center text-sm">

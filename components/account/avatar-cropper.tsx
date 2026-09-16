@@ -33,11 +33,8 @@ export interface AvatarCropperProps {
 }
 
 /**
- * A fixed round frame with the picture moving underneath it.
- *
- * `showModal` is what buys the focus trap, the Escape key and the backdrop, so
- * none of that is reimplemented here. The panel is mounted per picture, which
- * is also how pan and zoom reset — no effect has to undo the previous one.
+ * Fixed round crop frame. `showModal` supplies focus trapping, Escape handling
+ * and the backdrop. Mounting per image resets pan and zoom.
  */
 export function AvatarCropper({
   image,

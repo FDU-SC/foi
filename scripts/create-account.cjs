@@ -24,11 +24,8 @@ const USAGE = `用法:
 密码从 stdin 读取，不给则自动生成并打印一次：
   printf '%s' 'correct horse battery staple' | node scripts/create-account.cjs ...
 
-这个脚本只用于开局和救援：第一个管理员没法通过注册页产生，因为给谁提权是
-content/enrollment/ 里的一次提交，而提交没法引用一个还不存在的账号的 uid。
-建完之后把返回的 uid 写进一条 uids 规则，重新部署即可。
-
-它只负责创建。改已有账号的密码用 scripts/set-password.cjs。`;
+用于初始账号创建与账号恢复，授权步骤见 README 的「管理与排查」。
+修改已有账号的密码用 scripts/set-password.cjs。`;
 
 async function conflictMessage(client, constraint, values) {
   if (constraint === "accounts_username_key") {
@@ -112,11 +109,6 @@ async function main() {
 
   console.log(`已创建账号 uid=${uid}（${username}，${nick}，${values.email}）`);
   reportPassword(generated, password);
-  console.log(
-    `\n它现在还没有任何权限。在 content/enrollment/ 加一条规则，把它放进一个被` +
-      ` content/policies/ 放行了 admin.enter 的用户组，然后重新部署：\n` +
-      `  { label: "…", uids: [${uid}], groups: ["…"] }`,
-  );
 }
 
 run(main);

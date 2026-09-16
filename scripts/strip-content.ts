@@ -1,20 +1,12 @@
 /**
- * Strip every content root down to what the platform actually imports.
+ * Strip content roots to the entry points imported by `lib/` and their relative
+ * dependencies. Building and booting the result checks that platform code does
+ * not depend on deployment-specific problems, contests or policies.
  *
- * The platform reaches content through a fixed set of entry points and nothing
- * else. Deleting the rest and then building proves it: if the platform still
- * compiles and boots with no problems, contests or policies present, then no
- * content semantics leaked into `lib/`, `app/` or `views/`.
+ * Derive entry points from `@/content/...` imports rather than a separate list.
+ * Relative imports retain discovery files such as `_globs.ts` automatically.
  *
- * What survives is derived, never listed. The entry points are whatever `lib/`
- * imports from `@/content/...`, and from each of those this follows relative
- * imports to whatever else inside a content root it needs — `_modules/*.ts`
- * reaches `_globs.ts` that way, so the discovery files are kept without being
- * named here. Adding an entry point therefore needs no edit to this file, which
- * is the point: a hand-written list would drift the moment one is added, and
- * every fork carrying its own copy would drift twice.
- *
- * Run it against a throwaway checkout — it deletes files.
+ * Run only against a throwaway checkout: this deletes files.
  */
 
 import { existsSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";

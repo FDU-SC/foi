@@ -15,7 +15,6 @@ import {
 import { FormMessage } from "@/components/form";
 import { Avatar, type AvatarSize, type AvatarSubject } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { AVATAR_LIMITS } from "@/lib/accounts/avatar";
 import { cn } from "@/lib/utils";
 import { AvatarCropper } from "./avatar-cropper";
 import { ACCEPTED_TYPES, sourceRejection } from "./encode";
@@ -43,10 +42,7 @@ export interface AvatarEditorProps {
 }
 
 /**
- * The avatar, and the whole path to replacing it: pick, crop, upload.
- *
- * The same component serves the settings page and a viewer's own profile, so
- * clicking a face means the same thing wherever it is shown.
+ * Shared avatar picker, cropper and uploader for settings and the user's profile.
  */
 export function AvatarEditor({
   current,
@@ -134,8 +130,7 @@ export function AvatarEditor({
         {withControls ? (
           <div className="min-w-0 space-y-2">
             <p className="text-fg-muted text-sm leading-6">
-              点击头像选择图片，裁剪后保存为{" "}
-              {AVATAR_LIMITS.edge}×{AVATAR_LIMITS.edge} 的 WebP。
+              点击头像选择图片并裁剪。
             </p>
             {current.avatarUpdatedAt ? (
               <Button

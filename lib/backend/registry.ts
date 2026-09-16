@@ -8,15 +8,13 @@ function validate(
   for (const id of Object.keys(exported)) {
     if (!SLUG_PATTERN.test(id)) {
       throw new Error(
-        `content/backends.ts 里的后端 id "${id}" 只能包含小写字母、数字和连字符：` +
-          `这个名字会拼进 FOI_BACKEND_<名字>_SECRET`,
+        `后端 id "${id}" 只能包含小写字母、数字和连字符`,
       );
     }
 
     if (id === INLINE_BACKEND_ID) {
       throw new Error(
-        `content/backends.ts 声明了名为 "${INLINE_BACKEND_ID}" 的后端，这个名字被内核占用了：` +
-          `内联判题的提交就记在这个 backendId 下。换一个名字。`,
+        `后端 id "${INLINE_BACKEND_ID}" 为内联判题保留，不可声明`,
       );
     }
   }

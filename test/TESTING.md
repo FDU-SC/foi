@@ -12,8 +12,6 @@
 - **依赖**：无数据库，无网络；`@/content/*` 重定向到 `test/fixtures/content/`
 - **职责**：验证内核模块的业务规则——给什么输入，得什么输出
 
-典型模式：构造入参 → 调用函数 → 断言返回值。
-
 ### db — 数据库集成测试
 
 - **匹配**：`**/*.db.test.ts`
@@ -43,7 +41,7 @@
 
 - 放在被测模块旁边：`lib/submissions/gate.ts` → `lib/submissions/gate.test.ts`
 - 使用 `test/content-shapes.ts` 获取真实的 content 形状（而不是手写假 fixture）
-- 每个 `it()` 回答一个问题，用中文命名，让测试列表本身就是需求文档
+- 每个 `it()` 验证一个行为，用中文写明条件与预期结果
 
 ```typescript
 it("比赛已结束时是 contest-mismatch", () => {

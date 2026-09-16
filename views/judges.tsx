@@ -18,10 +18,7 @@ export async function JudgesView() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="评测机"
-        description="各队列的排队情况与评测机在线状态。"
-      />
+      <PageHeader title="评测机" />
 
       {visible.length === 0 ? (
         <p className="text-fg-subtle border-border rounded-lg border bg-surface py-10 text-center text-sm">

@@ -1,11 +1,8 @@
 import { cn } from "@/lib/utils";
 
 /**
- * A steady dot with a ring expanding away from it: "this is still happening".
- *
- * The dot stays put so it still reads as a status light; only the ring moves.
- * Colour defaults to `bg-current`, which picks up whatever the surrounding text
- * colour is, and the animation is CSS so nothing here needs client JavaScript.
+ * CSS status indicator with a stationary dot and expanding ring.
+ * Defaults to `bg-current` to inherit the surrounding text colour.
  */
 export function PulseDot({
   active = true,

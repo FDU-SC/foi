@@ -12,13 +12,8 @@ export interface NavLink {
 }
 
 /**
- * The header navigation, with a highlight that slides to whichever entry the
- * reader is on.
- *
- * A shared indicator connects the old and new active links during navigation.
- *
- * Which entries appear is decided on the server, before this list arrives —
- * gating belongs where `authorize` can be asked, not in the browser.
+ * Header navigation with a shared active-link indicator.
+ * Entries are authorized on the server before reaching this client component.
  */
 export function SiteNav({ items }: { items: NavLink[] }) {
   const pathname = usePathname();

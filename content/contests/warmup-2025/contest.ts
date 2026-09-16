@@ -1,11 +1,8 @@
 import type { ContestConfigInput } from "@/lib/contests/types";
 
 /**
- * A finished round that keeps its statements and closes its door.
- *
- * This is the default afterlife: `afterEnd.statements` stays true so whoever
- * competed can still read what they solved, while `afterEnd.submissions` stays
- * false so the round takes no more work.
+ * Default post-contest access: statements remain readable and submissions close
+ * (`afterEnd.statements: true`, `afterEnd.submissions: false`).
  */
 export const contest = {
   slug: "warmup-2025",

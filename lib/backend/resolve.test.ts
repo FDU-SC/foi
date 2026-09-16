@@ -23,13 +23,15 @@ describe("密钥优先级", () => {
     expect(resolveBackend(id).secret).toBe("dedicated-key");
   });
 
-  it("没有专属密钥时回落到共享的，本机开发才能一把跑起来", () => {
+  it("没有专属密钥时回落到共享密钥", () => {
     backends[id] = { ...saved, secret: undefined };
 
     expect(resolveBackend(id).secret).toBe("test-secret");
   });
 
   it("未登记的后端解析不出来", () => {
-    expect(() => resolveBackend("no-such-backend")).toThrow(/content\/backends/);
+    expect(() => resolveBackend("no-such-backend")).toThrow(
+      '未知的题目后端 "no-such-backend"',
+    );
   });
 });

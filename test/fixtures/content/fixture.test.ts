@@ -28,12 +28,9 @@ import {
 } from "@/test/standings-support";
 
 /**
- * What the kernel tests assume about the content behind them.
- *
- * They resolve to this fixture, not to `content/`, so that a deployment may
- * delete a group or a contest without breaking tests that are about the
- * platform. That freedom costs this file: whoever edits the fixture has to keep
- * these shapes alive, and finds out here rather than in an unrelated suite.
+ * Validate the content shapes required by kernel tests, which resolve to this
+ * fixture rather than deployment content. Report missing shapes here so removing
+ * a deployment group or contest does not cause unrelated kernel failures.
  */
 describe("夹具供给了内核测试要的形状", () => {
   it("一场按 group 限制参赛、且第一道题覆盖了 rateLimit 的比赛", () => {

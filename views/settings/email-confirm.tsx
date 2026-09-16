@@ -19,7 +19,7 @@ export async function EmailConfirmView({
           确认修改邮箱
         </h1>
         <p className="text-err bg-err-subtle rounded-md px-3 py-2 text-sm">
-          链接不完整，缺少验证参数。
+          链接不完整。
         </p>
         <Link
           href="/settings/email"

@@ -58,12 +58,7 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      <div>
-        <h1 className="text-fg text-2xl font-bold tracking-tight">个人设置</h1>
-        <p className="text-fg-muted mt-2 text-sm leading-6">
-          修改个人资料、邮箱和密码。
-        </p>
-      </div>
+      <h1 className="text-fg text-2xl font-bold tracking-tight">个人设置</h1>
 
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <section className="min-w-0 space-y-4">

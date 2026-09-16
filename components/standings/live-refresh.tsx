@@ -8,14 +8,8 @@ import { cn } from "@/lib/utils";
 const INTERVAL_MS = 15_000;
 
 /**
- * Re-fetches the standings on a timer, so a board left open keeps up.
- *
- * `router.refresh()` rather than an endpoint of its own: it re-runs the page on
- * the server, which means the same authorization and the same freeze masking
- * decide what comes back. A dedicated API would have to reproduce both.
- *
- * Defaults on only while the contest can still move, and skips ticks for a
- * hidden tab — a board left open in a background tab should cost nothing.
+ * Refresh through `router.refresh()` to reuse page authorization and freeze
+ * masking. Enable by default while standings can change; skip hidden-tab ticks.
  */
 export function StandingsLiveRefresh({ defaultOn }: { defaultOn: boolean }) {
   const router = useRouter();

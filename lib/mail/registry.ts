@@ -39,7 +39,7 @@ const FALLBACK: EmailTemplates = {
   resetPassword(input: PasswordResetMail): MailBody {
     return plain("重置你的密码", [
       `${input.displayName}，你好：`,
-      "我们收到了重置密码的请求。打开下面的地址设置一个新密码。",
+      "收到密码重置请求，请通过下方链接设置新密码。",
       input.url,
       `此链接在 ${formatAt(input.expiresAt)} 前有效，只能使用一次。`,
       "如果不是你本人操作，忽略这封邮件即可。",
@@ -48,7 +48,7 @@ const FALLBACK: EmailTemplates = {
   emailChange(input: EmailChangeMail): MailBody {
     return plain("确认更换邮箱", [
       `${input.displayName}，你好：`,
-      `我们收到了将邮箱更换为 ${input.newEmail} 的请求。打开下面的地址确认更换。`,
+      `收到将邮箱更换为 ${input.newEmail} 的请求，请通过下方链接确认。`,
       input.url,
       `此链接在 ${formatAt(input.expiresAt)} 前有效。`,
       "如果不是你本人操作，忽略这封邮件即可。",

@@ -19,7 +19,7 @@ export interface NoticeMail {
 
   intro: string[];
 
-  /** Rendered as an inline link, not a button — a notice should not train users to click through. */
+  /** Inline recovery link; notices should not imply that routine action is required. */
   link?: { label: string; url: string };
 
   footnote?: string[];

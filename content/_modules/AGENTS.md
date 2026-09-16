@@ -1,6 +1,6 @@
 # _modules/ — Registry Entries
 
-This directory, plus `content/site.ts`, `site-views.tsx`, `backends.ts`, `schema.ts` and `theme.css`, is the **only interface** between the platform (`lib/`) and content. Those twelve entry points are the whole surface; the platform never imports from `content/` anywhere else.
+This directory, plus `content/site.ts`, `site-views.tsx`, `backends.ts`, `schema.ts` and `theme.css`, is the **only interface** between the platform (`lib/`) and content. The platform must not import other `content/` paths.
 
 Each file here re-exports one slice of content discovery. The platform's registries in `lib/` import from here and validate the shape.
 
@@ -34,13 +34,13 @@ The remaining five entry points need no discovery, so they have no file here —
 
 ## Conventions
 
-- **Glob patterns may only descend.** Turbopack silently returns `{}` for any pattern containing `..` — no error, no warning, `next build` still succeeds ([vercel/next.js#95496](https://github.com/vercel/next.js/issues/95496)). Vite handles `..` fine, so such a pattern passes the whole test suite and discovers nothing in the real app. This is why all globs live at the content root; add new ones to `_globs.ts` instead of globbing from a subdirectory
+- **Glob patterns may only descend.** Add server-side globs to `_globs.ts` at the content root. Turbopack silently returns `{}` for patterns containing `..`, even when builds and Vite tests pass ([vercel/next.js#95496](https://github.com/vercel/next.js/issues/95496))
 - `_globs.ts` is `server-only`; `_view-globs.ts` is not. Keep them separate — merging them puts problem configs and inline judges in the browser bundle
 - Files re-exporting from `_globs.ts` are marked `server-only` (except `problem-views.ts`, which needs client-side rendering)
 - Parse slugs by anchoring on the directory name (`/problems\/([^/]+)\//`), never on a leading `./`, so key formatting stays a bundler detail
 - Glob-discovered modules must export a specific named constant (`problem`, `contest`, `ruleset`, `views`, `policies`, etc.)
 - The slug/id must match the directory or file name (enforced by the platform registry)
-- Validation errors throw at boot time, not at request time. The policy registry is the one exception to *when* that happens: it builds on first use, because the builtin policies call back into the engine that reads it. `lib/boot/checks.ts` forces the build during boot, so the timing stays the same from the outside
+- Validation errors must throw at boot. The policy registry builds lazily to avoid an engine dependency cycle; `lib/boot/checks.ts` forces its first build during boot
 
 ## Adding a New Registry
 

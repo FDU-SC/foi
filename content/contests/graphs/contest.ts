@@ -1,14 +1,8 @@
 import type { ContestConfigInput } from "@/lib/contests/types";
 
 /**
- * A catalogue section: a contest whose window never closes.
- *
- * A problem is reachable only as part of a contest, so "just let people work on
- * these whenever" is expressed the same way everything else is — as a round
- * that happens to run for a very long time. `site.catalogue` names this one, so
- * its problems answer at `/problems/graphs/<slug>` rather than under
- * `/contests`, and `domain` groups its card with the other 算法与数据结构
- * sections there.
+ * Long-running practice contest, mounted by `site.catalogue` at
+ * `/problems/graphs/<slug>`. Its `domain` groups the card under 算法与数据结构.
  */
 export const contest = {
   slug: "graphs",

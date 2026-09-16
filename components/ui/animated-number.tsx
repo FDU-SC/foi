@@ -4,12 +4,8 @@ import { motion, useReducedMotion, useSpring, useTransform } from "motion/react"
 import { useEffect } from "react";
 
 /**
- * A number that travels to its new value instead of jumping.
- *
- * On a board that refreshes on a timer, a changed figure is easy to miss; the
- * movement is what draws the eye to it. The spring starts at the first value,
- * so the server and the client render the same text and nothing counts up on
- * page load.
+ * Animate value changes. Initialize the spring at the first value to match
+ * server and client text and avoid counting up on page load.
  */
 export function AnimatedNumber({
   value,

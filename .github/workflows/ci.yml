@@ -1,7 +1,6 @@
 name: CI
 
-# 跑在 GitHub 托管 runner 上。公开仓库的用量不计费，而任何人都可以 fork 后提 PR，
-# 依赖安装脚本会随之执行——这类工作负载不应落在自己的机器上。
+# 使用 GitHub 托管 runner（公开仓库免费），避免在自有机器执行不可信 PR 的依赖安装脚本。
 on:
   pull_request:
   push:
@@ -9,8 +8,7 @@ on:
   workflow_call:
 
 concurrency:
-  # 带上调用方的名字：被每夜重建复用时，它不该和 main 上的推送检查抢同一个组，
-  # 否则谁先跑谁被取消。
+  # 按调用方区分并发组，避免每夜重建与 main 推送检查互相取消。
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
@@ -23,9 +21,7 @@ env:
 jobs:
   check:
     name: 检查
-    # 只在上游仓库运行。下游部署把这份文件一并继承下去，但那边有自己的流水线，
-    # 跑两遍只是白白吃掉额度。fork 的 PR 不受影响——pull_request 事件里
-    # github.repository 是接收 PR 的仓库，不是 fork。
+    # 仅在上游运行，避免与下游流水线重复。fork PR 的 github.repository 是接收仓库，仍会运行。
     if: github.repository == 'FDU-SC/foi'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -148,8 +144,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: content 根仅保留入口
-        # 保留哪些由 lib/ 的 import 算出，不在这里列——列了就会在加入口时过期，
-        # 而每个自带一份副本的 fork 会过期两次。见 scripts/strip-content.ts。
+        # scripts/strip-content.ts 从 lib/ 的 import 推导保留项，无需维护入口列表。
         run: node --import tsx scripts/strip-content.ts
 
       - name: 类型检查

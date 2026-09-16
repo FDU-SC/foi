@@ -10,15 +10,8 @@ import { POP_SPRING } from "@/components/ui/motion";
 import { describeVerdict } from "@/lib/presentation";
 
 /**
- * A verdict badge that reacts when the verdict changes.
- *
- * For a submission being watched live, the badge is the thing the reader is
- * waiting on, and a silent swap is easy to miss. Each state gets its own key,
- * so the old badge leaves and the new one springs in.
- *
- * The reaction is chosen from the verdict's *tone*, never from the verdict
- * itself. Tone is what the content already declared for display purposes; what
- * counts as a pass is its call, not the platform's.
+ * Animate verdict changes using keyed badges. Choose effects from the
+ * content-provided tone; the platform must not interpret verdicts as pass/fail.
  */
 export function VerdictReveal({
   submission,

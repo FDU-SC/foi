@@ -100,5 +100,5 @@ export async function rejudgeSubmissionAction(
   }
 
   revalidatePath(`/submissions/${parsed.data.id}`);
-  return { message: "已重新排队，评测机领取后会重新评测。" };
+  return { message: "已重新排队，等待评测。" };
 }

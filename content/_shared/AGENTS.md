@@ -72,11 +72,9 @@ Each problem's `views.tsx` picks view templates for displaying submissions:
 - `Badges` — problem badge component (typically import `ProblemBadges` from `_shared/ui/problem-badges`)
 - `facets` — which dimensions the problem sits on (typically import `problemFacets` from `_shared/ui/problem-facets`)
 
-`facets` and `Badges` are two ends of one mechanism. The platform asks `facets`
-what dimensions a problem holds, keeps the ones the carrying contest named in
-its own `facets`, and passes the selected facets to `Badges`. So a dimension a contest
-withholds disappears from the chips and the badges together, and `Badges`
-renders what it is given rather than reaching back into `ui`.
+The platform filters problem facets by the contest's `facets` and passes them
+to `Badges`. Render the supplied facets without reading `ui`, so hidden
+dimensions stay absent from both filters and badges.
 
 ## Adding New Templates
 

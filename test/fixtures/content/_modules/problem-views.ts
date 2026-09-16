@@ -26,10 +26,6 @@ export const problemViews: Record<string, ProblemViews> = {
     ],
   },
   "fixture-inline": {
-    verdicts: {
-      accepted: { label: "通过", short: "AC", tone: "ok" },
-      wrong_answer: { label: "答案错误", short: "WA", tone: "err" },
-    },
     facets: () => [
       { key: "ranked", label: "分级", values: ["低"], order: LADDER },
       { key: "marked", label: "标记", values: ["甲", "乙"] },
@@ -43,3 +39,13 @@ export const problemViews: Record<string, ProblemViews> = {
     ],
   },
 };
+
+// Numeric results deliberately differ from the sample deployment's result shape.
+for (const views of Object.values(problemViews)) {
+  views.describeResult = (result) => ({ label: String(result), short: String(result), tone: "neutral" });
+  views.progress = (history) => ({
+    state: history.some((row) => row.state === "completed" && row.result === 7)
+      ? "solved" : history.length ? "attempted" : "untouched",
+    verdict: null,
+  });
+}

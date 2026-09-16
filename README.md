@@ -124,7 +124,9 @@ import { Footer } from "./ui/footer";
 export const views: SiteViews = { Footer };
 ```
 
-插槽均可选，未覆盖的部分使用平台默认实现并继续接收上游更新；`{}` 是有效配置。
+插槽均可选，未覆盖的上述部分使用平台默认实现并继续接收上游更新；`{}` 是有效配置。
+`Leaderboard`、`HomeLeaderboard` 和 `AnnouncementBody` 提供可选内容区域；未配置
+`Leaderboard` 时排行榜页返回 404，其他未配置内容区域按各自的缺省行为显示。
 
 **三、整文件替换。** `components/` 与 `views/` 下的任何文件，都能被 `.local` 目录里
 的同名文件整个换掉。想重做整个题目页，就写一份 `views.local/problems/detail.tsx`。
@@ -277,3 +279,7 @@ docker compose up -d              # 想连模拟评测机一起，加 --profile 
 
 分流规则中的用户编号需要对应已有账号。账号未分配用户组时，检查
 `content/enrollment/` 中的匹配规则；这类账号无法参加限定用户组的比赛。
+
+### 结果解释与练习榜升级
+
+派生部署迁移题目视图、题库页面覆盖和排行榜时，参见[迁移说明](docs/result-interpretation-migration.md)。

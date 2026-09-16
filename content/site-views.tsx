@@ -1,6 +1,7 @@
 import type { SiteViews } from "@/lib/site-views";
 import { FoiAuthShell } from "./chrome/auth-shell";
 import { FoiBrand } from "./chrome/brand";
+import { FoiLeaderboard } from "./chrome/leaderboard";
 import { FoiHomeLeaderboard } from "./chrome/home-leaderboard";
 import { FoiHomeHero } from "./chrome/home-hero";
 
@@ -13,5 +14,6 @@ export const views: SiteViews = {
   Brand: FoiBrand,
   HomeHero: FoiHomeHero,
   HomeLeaderboard: FoiHomeLeaderboard,
+  Leaderboard: FoiLeaderboard,
   AuthShell: FoiAuthShell,
 };

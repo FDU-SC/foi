@@ -18,7 +18,7 @@ export function VerdictReveal({
 }: {
   submission: VerdictBadgeSubject;
 }) {
-  const preset = submission.result
+  const preset = submission.result != null
     ? describeVerdict(submission.problemSlug, submission.result)
     : null;
 

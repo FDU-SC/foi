@@ -8,7 +8,7 @@ export interface SubmissionView {
   contestSlug: string;
   state: SubmissionState;
 
-  result: Record<string, unknown> | null;
+  result: unknown;
   detail: unknown;
 
   reason: string | null;

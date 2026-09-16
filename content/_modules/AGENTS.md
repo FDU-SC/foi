@@ -11,7 +11,7 @@ The `import.meta.glob` calls themselves live one level up, in `content/_globs.ts
 | File | Discovery | What it provides | Platform consumer |
 |---|---|---|---|
 | `problems.ts` | glob `./problems/*/problem.ts` | Problem configs + statement MDX | `lib/problems/registry.ts` |
-| `problem-views.ts` | glob `./problems/*/views.tsx` | Per-problem PayloadView / VerdictDetail / verdicts | `lib/problems/views.ts` |
+| `problem-views.ts` | glob `./problems/*/views.tsx` | Per-problem PayloadView / VerdictDetail / describeResult / progress | `lib/problems/views.ts` |
 | `contests.ts` | glob `./contests/*/contest.ts` | Contest configs | `lib/contests/registry.ts` |
 | `rulesets.ts` | glob `./rulesets/*.tsx` | Ruleset compute functions + renderers | `lib/standings/registry.ts` |
 | `enrollment.ts` | glob `./enrollment/*.ts` | Group labels, registration policy, routing rules | `lib/enrollment/modules.ts` |

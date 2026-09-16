@@ -155,7 +155,7 @@ export const submissions = pgTable(
       .notNull()
       .default("pending"),
 
-    result: jsonb("result").$type<Record<string, unknown>>(),
+    result: jsonb("result").$type<unknown>(),
 
     detail: jsonb("detail").$type<unknown>(),
 

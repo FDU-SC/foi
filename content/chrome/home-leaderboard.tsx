@@ -1,6 +1,6 @@
 import { getViewer } from "@/auth";
 import { allows } from "@/lib/authz/engine";
-import { leaderboardRows } from "@/lib/stats";
+import { leaderboardRows } from "./leaderboard-data";
 import { HomePanel } from "@/components/ui/home-panel";
 
 export async function FoiHomeLeaderboard() {
@@ -9,7 +9,7 @@ export async function FoiHomeLeaderboard() {
     return null;
   const rows = await leaderboardRows(5);
   return (
-    <HomePanel title="排行榜" href="/leaderboard">
+    <HomePanel title="练习排行榜" href="/leaderboard">
       <ol className="divide-y divide-border">
         {rows.map((row, i) => (
           <li

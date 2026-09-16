@@ -11,13 +11,16 @@ type Slot<P = object> = (props: P) => ReactNode | Promise<ReactNode>;
 /**
  * The chrome around every page, as replaceable parts.
  *
- * Each slot has a platform default, so an empty object is a complete
- * implementation. Filling one replaces that part outright — this is for
- * changing a region's structure. Wording and links that fit the default
+ * Every slot is optional. Chrome slots have defaults; optional content
+ * regions are omitted and an absent Leaderboard returns 404. Filling one
+ * replaces that region's structure. Wording and links that fit the default
  * structure belong in `SiteConfig` instead, and a page whose whole body needs
  * rewriting is a `views.local/` override.
  */
 export interface SiteViews {
+  /** Optional full leaderboard; the platform authorizes before mounting it. */
+  Leaderboard?: Slot;
+
   /** Optional home summary, mounted only when leaderboard.read is allowed. */
   HomeLeaderboard?: Slot;
 

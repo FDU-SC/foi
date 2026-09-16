@@ -26,7 +26,7 @@ export interface InlineUnavailable {
 }
 
 export interface InlineResult {
-  result: Record<string, unknown>;
+  result: unknown;
   detail?: unknown;
 }
 

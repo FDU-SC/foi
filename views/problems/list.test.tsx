@@ -13,13 +13,11 @@ import {
   collectFacets,
   matchesFacets,
 } from "@/lib/problems/facets";
-import { submissionsFor } from "@/lib/submissions/access";
+import { progressFor } from "@/lib/problems/progress";
 import { ProblemListView } from "./list";
 
 vi.mock("@/auth", () => ({ getViewer: vi.fn() }));
-vi.mock("@/lib/submissions/access", () => ({
-  submissionsFor: vi.fn().mockResolvedValue([]),
-}));
+vi.mock("@/lib/problems/progress", () => ({ progressFor: vi.fn() }));
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("not-found");
@@ -76,7 +74,7 @@ beforeEach(() => {
   vi.setSystemTime(NOW);
   vi.clearAllMocks();
   vi.mocked(getViewer).mockResolvedValue(ANONYMOUS);
-  vi.mocked(submissionsFor).mockResolvedValue([]);
+  vi.mocked(progressFor).mockImplementation(async (slug) => new Map(problemsFor(slug, ANONYMOUS, NOW).map(({ ref }) => [ref.problem.slug, { state: "untouched", verdict: null }])));
 });
 
 afterEach(() => vi.useRealTimers());
@@ -92,7 +90,7 @@ describe("题库分区页边界", () => {
       "not-found",
     );
     expect(getViewer).not.toHaveBeenCalled();
-    expect(submissionsFor).not.toHaveBeenCalled();
+    expect(progressFor).not.toHaveBeenCalled();
   });
 
   it("游客按分面收窄题目，不查询或展示个人状态", async () => {
@@ -112,7 +110,7 @@ describe("题库分区页边界", () => {
       expect(html).not.toContain(view.ref.problem.title);
     }
     expect(html).not.toContain("我的状态");
-    expect(submissionsFor).not.toHaveBeenCalled();
+    expect(progressFor).not.toHaveBeenCalled();
   });
 
   it("登录用户的个人状态查询限定在当前比赛", async () => {
@@ -123,11 +121,8 @@ describe("题库分区页边界", () => {
       await ProblemListView(props(contest.slug)),
     );
 
-    expect(submissionsFor).toHaveBeenCalledOnce();
-    expect(submissionsFor).toHaveBeenCalledWith(VIEWER, {
-      contestSlug: contest.slug,
-      limit: 5000,
-    });
+    expect(progressFor).toHaveBeenCalledOnce();
+    expect(progressFor).toHaveBeenCalledWith(contest.slug, VIEWER);
     expect(html).toContain("我的状态");
     expect(html).toContain(`已通过 0 / ${problems.length} 题`);
   });
@@ -137,3 +132,27 @@ function excluded(all: ProblemView[], included: ProblemView[]) {
   const slugs = new Set(included.map(({ ref }) => ref.problem.slug));
   return all.filter(({ ref }) => !slugs.has(ref.problem.slug));
 }
+
+it("缺少进度解释时不展示总计或状态筛选", async () => {
+  const { contest } = filterableSection();
+  vi.mocked(getViewer).mockResolvedValue(VIEWER);
+  vi.mocked(progressFor).mockResolvedValue(new Map());
+  const html = renderToStaticMarkup(await ProblemListView(props(contest.slug, { status: "solved" })));
+  expect(html).not.toContain("我的状态");
+  expect(html).not.toContain("已通过 0 /");
+  expect(html).not.toContain('name="status"');
+});
+
+it("部分题目支持进度时保留单题显示，隐藏总计及状态筛选", async () => {
+  const { contest, problems } = filterableSection();
+  vi.mocked(getViewer).mockResolvedValue(VIEWER);
+  vi.mocked(progressFor).mockResolvedValue(new Map([
+    [problems[0].ref.problem.slug, { state: "solved", verdict: { label: "内容进度", short: "X", tone: "neutral" } }],
+  ]));
+  const html = renderToStaticMarkup(await ProblemListView(props(contest.slug, { status: "solved" })));
+  expect(html).toContain("我的状态");
+  expect(html).toContain("内容进度");
+  expect(html).not.toContain("已通过 1 /");
+  expect(html).not.toContain('name="status"');
+  for (const problem of problems) expect(html).toContain(problem.ref.problem.title);
+});

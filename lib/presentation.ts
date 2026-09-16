@@ -15,22 +15,11 @@ export interface VerdictPreset {
   tone: BadgeTone;
 }
 
-/** Lookup order: problem-level verdicts → raw status string. */
+/** Content interprets the result; missing interpreters receive a neutral label. */
 export function describeVerdict(
   problemSlug: string | undefined,
-  result: Record<string, unknown> | null,
+  result: unknown,
 ): VerdictPreset {
-  const status =
-    result && typeof result.status === "string" ? result.status : null;
-  const label = status ?? "已评测";
-
-  if (status) {
-    const problemVerdicts = problemSlug
-      ? viewsFor(problemSlug).verdicts
-      : undefined;
-    const preset = problemVerdicts?.[status];
-    if (preset) return preset;
-  }
-
-  return { label, short: label, tone: "neutral" };
+  const describe = problemSlug ? viewsFor(problemSlug).describeResult : undefined;
+  return describe?.(result) ?? { label: "已评测", short: "已评测", tone: "neutral" };
 }

@@ -33,7 +33,7 @@ _shared/
     copy-button.tsx     Copy-to-clipboard button
   leaderboards/    Leaderboard display templates (passed to platform via renderers.Board)
     problem-grid.tsx  "Rank | Name | Total | per-problem columns" table
-  verdicts.ts      Standard verdict translation table (AC/WA/TLE/MLE/RE/CE/...)
+  verdicts.ts      Result interpretation, verdict labels and personal progress
 ```
 
 ## Shell + Template Pattern
@@ -68,7 +68,8 @@ Each problem's `views.tsx` picks view templates for displaying submissions:
 
 - `PayloadView` — how to render the submitted content on the detail page
 - `VerdictDetail` — how to render evaluation details (test cases, messages)
-- `verdicts` — verdict label overrides (typically import from `_shared/verdicts`)
+- `describeResult` — interpret opaque results as verdict labels
+- `progress` — interpret the complete personal history for one contest/problem pair
 - `Badges` — problem badge component (typically import `ProblemBadges` from `_shared/ui/problem-badges`)
 - `facets` — which dimensions the problem sits on (typically import `problemFacets` from `_shared/ui/problem-facets`)
 

@@ -279,3 +279,15 @@ docker compose up -d              # 想连模拟评测机一起，加 --profile 
 
 分流规则中的用户编号需要对应已有账号。账号未分配用户组时，检查
 `content/enrollment/` 中的匹配规则；这类账号无法参加限定用户组的比赛。
+
+### 题面权限契约迁移
+
+`useProblem()` 的 `canAct`、`blocked` 已移除。提交入口读取
+`permissions.submit`，交互入口读取 `permissions.actions[action]`：
+`allowed: true` 表示预检通过，拒绝时从 `reason.code`、`reason.message`
+取得原因。动作不存在时值为 `undefined`，不得当作允许。
+`useSubmit()` 返回的 `canAct` 同步替换为 `permission`。
+
+自定义题面和 `.local` 覆盖文件需同步迁移。提交、启动、查询、销毁等动作
+分别判断；不要用提交权限控制交互入口。页面权限是渲染时的快照，执行端
+会重新授权，调用方仍需处理请求被拒绝的情况。

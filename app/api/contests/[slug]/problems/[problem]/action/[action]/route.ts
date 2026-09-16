@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
 import { getResolvedUser } from "@/auth";
 import { UNAUTHENTICATED } from "@/lib/authz/adapters";
-import { authorize } from "@/lib/authz/engine";
 import { apiDeny } from "@/lib/authz/http";
 import { viewerFor } from "@/lib/authz/viewer";
 import { callBackendAction } from "@/lib/backend/client";
 import { resolveBackend } from "@/lib/backend/resolve";
 import { readJsonBody } from "@/lib/body-limit";
-import { contestEntryFor } from "@/lib/contests/access";
 import { log } from "@/lib/log";
-import { declaredAction } from "@/lib/problems/actions";
+import { invokeFor } from "@/lib/problems/actions";
 import { rateLimit } from "@/lib/ratelimit";
 import { guardRequest, tooManyRequests } from "@/lib/server/guard";
 
@@ -34,20 +32,13 @@ export async function POST(
 
   const { slug, problem: problemSlug, action } = await params;
 
-  const round = contestEntryFor(slug, problemSlug, viewer);
-  if (!round.ok) return apiDeny(round.denial);
-
-  const { ref } = round;
-
-  const decision = authorize("problem.invoke", ref, viewer, {
-    invocation: action,
-  });
-  if (!decision.allow) return apiDeny(decision);
-
-  const resolved = declaredAction(ref.problem, action);
-  if (!resolved) {
+  const gate = invokeFor(slug, problemSlug, action, viewer);
+  if (gate.kind === "denied") return apiDeny(gate.denial);
+  if (gate.kind === "missing") {
     return NextResponse.json({ error: "题目不存在" }, { status: 404 });
   }
+
+  const { ref, resolved } = gate;
 
   const verdict = rateLimit(
     `action:${user.uid}:${slug}:${problemSlug}:${action}`,

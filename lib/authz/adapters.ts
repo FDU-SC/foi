@@ -54,3 +54,14 @@ export function assertAllowed(
 ): asserts decision is Allowance {
   if (!decision.allow) throw new ForbiddenError(decision);
 }
+
+/** Serializable display projection; authorization remains on the server. */
+export type Permission =
+  | { allowed: true }
+  | { allowed: false; reason: { code: string; message: string } };
+
+export function permissionFor(denial: Denial | null): Permission {
+  if (!denial) return { allowed: true };
+  const { code, message } = denial.reason;
+  return { allowed: false, reason: { code, message } };
+}

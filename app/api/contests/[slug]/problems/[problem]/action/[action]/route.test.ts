@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { invokeFor } from "@/lib/problems/actions";
+import { callBackendAction } from "@/lib/backend/client";
+import { viewerFor } from "@/lib/authz/viewer";
 import type { ProblemBackend } from "@/lib/backend/types";
 import { backends } from "@/lib/backend/registry";
 import {
+  independentProblemPermissions,
   archivedProblem,
   contestWithGroupEntry,
   openExternalProblem,
@@ -14,6 +18,8 @@ const session = vi.hoisted(() => ({
 vi.mock("@/auth", () => ({
   getResolvedUser: () => Promise.resolve(session.user),
 }));
+
+vi.mock("@/lib/backend/client", () => ({ callBackendAction: vi.fn() }));
 
 const { POST } = await import("./route");
 
@@ -184,5 +190,43 @@ describe("交互端点的配置错误不回传原文", () => {
       expect.stringContaining("题目后端配置错误"),
       expect.objectContaining({ message: expect.stringContaining("FOI_") }),
     );
+  });
+});
+
+describe("页面预检与交互执行共享 gate", () => {
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
+
+  it("逐动作拒绝沿用 gate 原因且不调用后端", async () => {
+    const { ref, partial, deniedAction } = independentProblemPermissions();
+    const user = authenticated([...partial.groups]);
+    const gate = invokeFor(ref.contest.slug, ref.problem.slug, deniedAction, viewerFor(user));
+    expect(gate.kind).toBe("denied");
+    if (gate.kind !== "denied") throw new Error("需要拒绝的动作");
+    vi.mocked(callBackendAction).mockClear();
+    const response = await post(deniedAction, { contest: ref.contest.slug, problem: ref.problem.slug, user });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: gate.denial.reason.message, code: gate.denial.reason.code });
+    expect(callBackendAction).not.toHaveBeenCalled();
+  });
+
+  it("未声明的动作保持原有 404 响应，且不调用后端", async () => {
+    vi.mocked(callBackendAction).mockClear();
+    const response = await post("no-such-action");
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "题目不存在" });
+    expect(callBackendAction).not.toHaveBeenCalled();
+  });
+
+  it("不能提交的人仍能执行获准的交互动作", async () => {
+    const { ref, invokeOnly, allowedAction } = independentProblemPermissions();
+    const backend = backends[ref.problem.backend.id];
+    const original = backend.secret;
+    backend.secret = "test-action-secret";
+    vi.mocked(callBackendAction).mockResolvedValue({ status: 200, contentType: "application/json", body: '{"ok":true}' });
+    try {
+      const response = await post(allowedAction, { contest: ref.contest.slug, problem: ref.problem.slug, user: authenticated([...invokeOnly.groups]) });
+      expect(response.status).toBe(200);
+      expect(callBackendAction).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ action: allowedAction, contestSlug: ref.contest.slug }));
+    } finally { backend.secret = original; }
   });
 });

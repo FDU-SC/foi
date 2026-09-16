@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import type { Permission } from "@/lib/authz/adapters";
 import { useProblem } from "@/components/problem/problem-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,53 +15,68 @@ type InstanceView =
 
 const POLL_INTERVAL_MS = 1500;
 
+function PermissionNotice({ permission }: { permission: Permission | undefined }) {
+  if (permission?.allowed) return null;
+  return <span className="text-fg-muted text-xs">
+    {permission?.reason.code === "unauthenticated"
+      ? <><Link href="/login" className="text-primary hover:underline">登录</Link>后可执行此操作。</>
+      : permission?.reason.message ?? "这道题未提供此操作。"}
+  </span>;
+}
+
 export function InstanceControl() {
-  const { config, contestSlug, canAct, blocked } = useProblem();
+  const { config, contestSlug, permissions } = useProblem();
   const [view, setView] = useState<InstanceView | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [remaining, setRemaining] = useState(0);
+  const [pollDenied, setPollDenied] = useState(false);
+  const { spawn: spawnPermission, poll: pollPermission, destroy: destroyPermission } = permissions.actions;
 
   const ready = view?.status === "ready" ? view : null;
   const pulling = view?.status === "pulling";
 
-  const call = async (action: string): Promise<InstanceView | null> => {
-    const res = await fetch(
-      `/api/contests/${contestSlug}/problems/${config.slug}/action/${action}`,
-      { method: "POST" },
-    );
-
-    const body = await res.json().catch(() => null);
-    if (!res.ok) {
-      const message =
-        typeof (body as { error?: unknown })?.error === "string"
-          ? (body as { error: string }).error
-          : `请求失败（${res.status}）`;
-      setError(message);
+  const call = useCallback(async (action: "spawn" | "poll" | "destroy", signal?: AbortSignal): Promise<InstanceView | null> => {
+    const permission = permissions.actions[action];
+    if (!permission?.allowed) {
+      setError(permission?.reason.message ?? "这道题未提供此操作。");
       return null;
     }
-
-    setError(null);
-    return body as InstanceView;
-  };
+    try {
+      const res = await fetch(
+        `/api/contests/${contestSlug}/problems/${config.slug}/action/${action}`,
+        { method: "POST", signal },
+      );
+      const body = await res.json().catch(() => null);
+      if (signal?.aborted) return null;
+      if (!res.ok) {
+        const message = typeof body?.error === "string" ? body.error : `请求失败（${res.status}）`;
+        setError(message);
+        if (action === "poll" && [401, 403, 404].includes(res.status)) setPollDenied(true);
+        return null;
+      }
+      setError(null);
+      return action === "destroy" ? { status: "gone" } : body as InstanceView;
+    } catch {
+      if (!signal?.aborted) setError("无法连接题目后端");
+      return null;
+    }
+  }, [config.slug, contestSlug, permissions.actions]);
 
   useEffect(() => {
-    if (!pulling) return;
-
-    let cancelled = false;
+    if (!pulling || !pollPermission?.allowed || pollDenied) return;
+    const request = new AbortController();
     const timer = setInterval(async () => {
-      const next = await call("poll");
-      if (cancelled || !next) return;
+      const next = await call("poll", request.signal);
+      if (request.signal.aborted || !next) return;
       if (next.status === "gone") setView(null);
       else setView(next);
     }, POLL_INTERVAL_MS);
-
     return () => {
-      cancelled = true;
+      request.abort();
       clearInterval(timer);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pulling, config.slug, contestSlug]);
+  }, [pulling, pollPermission?.allowed, pollDenied, call]);
 
   useEffect(() => {
     if (!ready) return;
@@ -78,7 +94,10 @@ export function InstanceControl() {
     setBusy(true);
     try {
       const next = await call("spawn");
-      if (next) setView(next);
+      if (next) {
+        setPollDenied(false);
+        setView(next);
+      }
     } finally {
       setBusy(false);
     }
@@ -87,9 +106,8 @@ export function InstanceControl() {
   const destroy = async () => {
     setBusy(true);
     try {
-
-      await call("destroy");
-      setView(null);
+      const next = await call("destroy");
+      if (next) setView(null);
     } finally {
       setBusy(false);
     }
@@ -112,38 +130,30 @@ export function InstanceControl() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-        {!canAct ? (
-          <span className="text-fg-muted text-xs">
-            {blocked?.code === "unauthenticated" ? (
-              <>
-                <Link href="/login" className="text-primary hover:underline">
-                  登录
-                </Link>
-                后即可启动属于你的靶机实例。
-              </>
-            ) : (
-              (blocked?.message ?? "这道题现在不能启动靶机实例。")
-            )}
-          </span>
-        ) : ready ? (
+        {ready ? (
           <>
             <code className="border-border bg-surface-2 text-fg rounded border px-2 py-1 font-mono text-xs">
               {ready.endpoint}
             </code>
             <CopyButton value={ready.endpoint} />
-            <Button size="sm" variant="danger" onClick={destroy} disabled={busy}>
+            <Button size="sm" variant="danger" onClick={destroy} disabled={busy || !destroyPermission?.allowed}>
               销毁实例
             </Button>
+            <PermissionNotice permission={destroyPermission} />
           </>
         ) : pulling ? (
           <>
             <span className="text-fg-muted text-xs">
               实例正在启动，就绪后显示访问地址。
             </span>
-            <Button size="sm" variant="danger" onClick={destroy} disabled={busy}>
+            <Button size="sm" variant="danger" onClick={destroy} disabled={busy || !destroyPermission?.allowed}>
               取消
             </Button>
+            <PermissionNotice permission={destroyPermission} />
+            <PermissionNotice permission={pollPermission} />
           </>
+        ) : !spawnPermission?.allowed ? (
+          <PermissionNotice permission={spawnPermission} />
         ) : (
           <>
             <Button size="sm" variant="primary" onClick={spawn} disabled={busy}>

@@ -1,4 +1,6 @@
 import type { ActionId } from "@/lib/authz/actions";
+import { allows } from "@/lib/authz/engine";
+import { listGroups } from "@/lib/authz/groups";
 import { allPolicies } from "@/lib/authz/registry";
 import type { ContestProblemRef } from "@/lib/authz/resources";
 import type { CompiledPolicy } from "@/lib/authz/types";
@@ -135,14 +137,14 @@ export interface ExternalProblemRef extends ContestProblemRef {
   problem: ExternallyJudged;
 }
 
-export function openExternalProblem(now = new Date()): ExternalProblemRef {
+export function openExternalProblem(now = new Date(), minimumActions = 1): ExternalProblemRef {
   const ref = refWhere(
     (candidate) =>
       candidate.contest.visibleTo === undefined &&
       candidate.contest.participants.mode === "open" &&
       acceptsSubmissions(candidate.contest, now) &&
       !isInlineBackend(candidate.problem.backend) &&
-      Object.keys(candidate.problem.backend.actions).length > 0,
+      Object.keys(candidate.problem.backend.actions).length >= minimumActions,
     "一场此刻开放的比赛里、一道由后端评测且声明了交互动作的题",
   );
 
@@ -206,4 +208,21 @@ export function inlineProblem(now = new Date()): ContestProblemRef {
       isInlineBackend(ref.problem.backend),
     "一场此刻开放的比赛里的一道内联判题的题",
   );
+}
+
+/** Actual policy outcomes, including forbids, rather than group naming. */
+export function independentProblemPermissions() {
+  const ref = openExternalProblem(new Date(), 2);
+  const actions = Object.keys(ref.problem.backend.actions);
+  const viewers = listGroups().map(({ id }, index) => viewerFor({ uid: 500 + index, groups: [id] }));
+  const submits = (viewer: Viewer) => allows("problem.submit", ref, viewer);
+  const invokes = (viewer: Viewer, action: string) => allows("problem.invoke", ref, viewer, { invocation: action });
+  const submitOnly = required(viewers.find((viewer) => submits(viewer) && actions.every((action) => !invokes(viewer, action))), "能提交但不能交互的视角");
+  const invokeOnly = required(viewers.find((viewer) => !submits(viewer) && actions.every((action) => invokes(viewer, action))), "不能提交但能交互的视角");
+  const partial = required(viewers.find((viewer) => actions.some((action) => invokes(viewer, action)) && actions.some((action) => !invokes(viewer, action))), "同题不同交互动作权限不同的视角");
+  return {
+    ref, submitOnly, invokeOnly, partial,
+    allowedAction: required(actions.find((action) => invokes(partial, action)), "允许的交互动作"),
+    deniedAction: required(actions.find((action) => !invokes(partial, action)), "拒绝的交互动作"),
+  };
 }

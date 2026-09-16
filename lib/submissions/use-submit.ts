@@ -14,7 +14,7 @@ function newNonce(): string {
 }
 
 export function useSubmit() {
-  const { config, contestSlug, canAct } = useProblem();
+  const { config, contestSlug, permissions } = useProblem();
   const [submission, setSubmission] = useState<SubmissionView | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +30,10 @@ export function useSubmit() {
 
   const submit = useCallback(
     async (payload: unknown) => {
+      if (!permissions.submit.allowed) {
+        setError(permissions.submit.reason.message);
+        return null;
+      }
       const generation = ++generationRef.current;
       cleanupRef.current?.();
       cleanupRef.current = null;
@@ -74,8 +78,8 @@ export function useSubmit() {
         if (generation === generationRef.current) setSubmitting(false);
       }
     },
-    [config.slug, contestSlug],
+    [config.slug, contestSlug, permissions.submit],
   );
 
-  return { submit, submission, submitting, error, canAct };
+  return { submit, submission, submitting, error, permission: permissions.submit };
 }

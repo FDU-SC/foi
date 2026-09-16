@@ -5,7 +5,7 @@ import { getResolvedUser } from "@/auth";
 import { ProblemBadgesSlot } from "@/components/problem/badges-slot";
 import { ProblemProvider } from "@/components/problem/problem-context";
 import { Badge } from "@/components/ui/badge";
-import { authorize } from "@/lib/authz/engine";
+import { permissionFor, type Permission } from "@/lib/authz/adapters";
 import { viewerFor } from "@/lib/authz/viewer";
 import {
   catalogueHref,
@@ -20,8 +20,10 @@ import {
   showsStatements,
 } from "@/lib/contests/types";
 import { loadStatement, problemFor } from "@/lib/problems/access";
+import { invokeFor } from "@/lib/problems/actions";
 import { dateFormatter } from "@/lib/format";
-import { toPublicConfig } from "@/lib/problems/types";
+import { isInlineBackend, toPublicConfig } from "@/lib/problems/types";
+import { submitFor } from "@/lib/submissions/gate";
 import { cn } from "@/lib/utils";
 import workspaceStyles from "@/components/contests/workspace.module.css";
 
@@ -79,7 +81,7 @@ export async function cataloguedProblemMetadata({
 
 export async function ProblemDetailView({ params }: Props) {
   const { slug, problem } = await params;
-  return <ProblemDetail contestSlug={slug} problemSlug={problem} embedded />;
+  return ProblemDetail({ contestSlug: slug, problemSlug: problem, embedded: true });
 }
 
 export async function CataloguedProblemView({ params }: CatalogueProps) {
@@ -89,7 +91,7 @@ export async function CataloguedProblemView({ params }: CatalogueProps) {
   // here — otherwise the pair would hold a second URL beside its `/contests` one.
   if (!isCatalogue(section)) notFound();
 
-  return <ProblemDetail contestSlug={section} problemSlug={problem} />;
+  return ProblemDetail({ contestSlug: section, problemSlug: problem });
 }
 
 async function ProblemDetail({
@@ -103,7 +105,8 @@ async function ProblemDetail({
 }) {
   const viewer = viewerFor(await getResolvedUser());
 
-  const view = problemFor(contestSlug, problemSlug, viewer);
+  const now = new Date();
+  const view = problemFor(contestSlug, problemSlug, viewer, now);
   if (!view) notFound();
 
   const { contest, entry, problem } = view.ref;
@@ -112,17 +115,27 @@ async function ProblemDetail({
 
   // The panel is enabled by the same question the submit endpoint will ask,
   // and when it refuses, it explains itself in the same words.
-  const submittable = authorize("problem.submit", view.ref, viewer);
-  const canAct = submittable.allow;
+  const submittable = submitFor(contestSlug, problemSlug, viewer, now);
+  const submit = permissionFor(submittable.ok ? null : submittable.denial);
+  const declaredActions = isInlineBackend(problem.backend)
+    ? []
+    : Object.keys(problem.backend.actions);
+  const actions: Partial<Record<string, Permission>> = Object.fromEntries(
+    declaredActions.flatMap((action) => {
+      const gate = invokeFor(contestSlug, problemSlug, action, viewer, now);
+      if (gate.kind === "missing") return [];
+      return [[action, permissionFor(gate.kind === "denied" ? gate.denial : null)]];
+    }),
+  );
 
-  const status = contestStatus(contest);
+  const status = contestStatus(contest, now);
 
   // Preview means the audience policy did not let this person in, and there are
   // exactly three ways that happens. Naming the wrong one is worse than saying
   // nothing: "你不在其中" reads as a mistake to someone who is in the audience.
-  const why = !hasContestStarted(contest)
+  const why = !hasContestStarted(contest, now)
     ? `将在比赛「${contest.title}」于 ${gateFormatter.format(contest.startsAt)} 开始时公开。`
-    : !showsStatements(contest)
+    : !showsStatements(contest, now)
       ? `比赛「${contest.title}」已经结束，并且不再公开它的题面。`
       : "你不在这场比赛的参赛范围内。";
 
@@ -131,13 +144,7 @@ async function ProblemDetail({
       value={{
         config: toPublicConfig(problem),
         contestSlug: contest.slug,
-        canAct,
-        blocked: submittable.allow
-          ? null
-          : {
-              code: submittable.reason.code,
-              message: submittable.reason.message,
-            },
+        permissions: { submit, actions },
       }}
     >
       <article className="min-w-0">
@@ -151,7 +158,7 @@ async function ProblemDetail({
             </div>
             <p className="text-fg-muted mt-1.5 text-xs leading-5">
               {why}
-              {canAct ? null : "仅管理员可预览，提交暂未开放。"}
+              {submit.allowed ? null : submit.reason.message}
             </p>
           </div>
         ) : null}

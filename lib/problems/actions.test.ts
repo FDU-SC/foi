@@ -1,21 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/test/auth-support";
-import { allows } from "@/lib/authz/engine";
 import type { ContestProblemRef } from "@/lib/authz/resources";
 import { viewerFor, type Viewer } from "@/lib/authz/viewer";
 import {
   archivedProblem,
+  contestWithGroupEntry,
+  independentProblemPermissions,
   upcomingProblem,
   viewerWith,
 } from "@/test/content-shapes";
 import { contestProblemRefs } from "@/lib/contests/refs";
 import { problemFor } from "@/lib/problems/access";
+import { submitFor } from "@/lib/submissions/gate";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
 import {
   DEFAULT_ACTION_RATE_LIMIT,
   isInlineBackend,
 } from "@/lib/problems/types";
-import { declaredAction } from "./actions";
+import { declaredAction, invokeFor } from "./actions";
 
 const PREVIEW = viewerWith("problem.read", 100);
 const PLAYER = viewerFor({ uid: 1, groups: ["一个普通分组"] });
@@ -38,10 +40,7 @@ function invocable(
   viewer: Viewer,
   now = new Date(),
 ): boolean {
-  if (!allows("problem.invoke", ref, viewer, { now, invocation: action })) {
-    return false;
-  }
-  return declaredAction(ref.problem, action) !== undefined;
+  return invokeFor(ref.contest.slug, ref.problem.slug, action, viewer, now).kind === "allowed";
 }
 
 describe("declaredAction 白名单", () => {
@@ -154,7 +153,7 @@ describe("problem.invoke", () => {
 
   it("正在收题的比赛里，登录的人调得动它声明过的 action", () => {
     const live = declared.filter(({ ref }) =>
-      allows("problem.submit", ref, PLAYER),
+      submitFor(ref.contest.slug, ref.problem.slug, PLAYER).ok,
     );
     expect(live.length).toBeGreaterThan(0);
 
@@ -163,23 +162,27 @@ describe("problem.invoke", () => {
     }
   });
 
-  it("能调 action 与能提交是同一组前提", () => {
-    const viewers: Viewer[] = [AS_PLAYER, PLAYER, PREVIEW];
-    const moments = [
-      new Date(),
-      before(upcomingProblem().contest.startsAt),
-      new Date("2000-01-01"),
-    ];
+  it("提交与交互独立，同一题的交互动作也分别授权", () => {
+    const { ref, submitOnly, invokeOnly, partial, allowedAction, deniedAction } = independentProblemPermissions();
+    expect(submitFor(ref.contest.slug, ref.problem.slug, submitOnly).ok).toBe(true);
+    expect(invocable(ref, allowedAction, submitOnly)).toBe(false);
+    expect(submitFor(ref.contest.slug, ref.problem.slug, invokeOnly).ok).toBe(false);
+    expect(invocable(ref, deniedAction, invokeOnly)).toBe(true);
+    expect(invocable(ref, allowedAction, partial)).toBe(true);
+    expect(invocable(ref, deniedAction, partial)).toBe(false);
+  });
 
-    for (const viewer of viewers) {
-      for (const now of moments) {
-        for (const { ref, action } of declared) {
-          expect(
-            invocable(ref, action, viewer, now),
-            `${ref.contest.slug}/${ref.problem.slug}/${action}`,
-          ).toBe(allows("problem.submit", ref, viewer, { now }));
-        }
-      }
+  it("参赛名单先于交互动作检查", () => {
+    const { contest, entry } = contestWithGroupEntry();
+    const gate = invokeFor(contest.slug, entry.slug, "no-such-action", PLAYER, new Date(contest.startsAt.getTime() + 60_000));
+    expect(gate).toMatchObject({ kind: "denied", denial: { reason: { code: "not-entered" } } });
+  });
+
+  it("授权先于声明检查，继承属性也不是声明的动作", () => {
+    const { ref, invokeOnly, submitOnly } = independentProblemPermissions();
+    for (const action of ["no-such-action", "toString", "constructor", "__proto__"]) {
+      expect(invokeFor(ref.contest.slug, ref.problem.slug, action, invokeOnly)).toEqual({ kind: "missing" });
+      expect(invokeFor(ref.contest.slug, ref.problem.slug, action, submitOnly)).toMatchObject({ kind: "denied" });
     }
   });
 });

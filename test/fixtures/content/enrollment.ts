@@ -3,13 +3,16 @@ import type {
   EnrollmentPolicyInput,
   EnrollmentRuleInput,
 } from "@/lib/enrollment/types";
-import { AUDIENCE, CONSOLE, ENTRANTS, FULL } from "./groups";
+import { AUDIENCE, CONSOLE, ENTRANTS, FULL, SUBMIT_ONLY, INVOKE_ONLY, PARTIAL_INVOKE } from "./groups";
 
 export const policy: EnrollmentPolicyInput = {
   emailDomains: ["example.test"],
 };
 
 export const groups: GroupInput[] = [
+  { id: SUBMIT_ONLY, description: "可提交，不可交互。" },
+  { id: INVOKE_ONLY, description: "可交互，不可提交。" },
+  { id: PARTIAL_INVOKE, description: "交互动作分别授权。" },
   { id: FULL, description: "夹具的全权组。" },
   { id: CONSOLE, description: "夹具的只读控制台组。" },
   { id: AUDIENCE, description: "限定受众题目的受众。" },

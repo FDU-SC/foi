@@ -1,5 +1,5 @@
 import { policy } from "@/lib/authz/types";
-import { CONSOLE, FULL } from "./groups";
+import { CONSOLE, FULL, SUBMIT_ONLY, INVOKE_ONLY, PARTIAL_INVOKE } from "./groups";
 
 /**
  * Every action in the catalogue is permitted by something here or by a builtin,
@@ -9,6 +9,19 @@ import { CONSOLE, FULL } from "./groups";
  * `groupWith(action)` takes the first group an unconditional permit names.
  */
 export const policies = [
+  policy({
+    id: "fixture:submit-only", effect: "forbid", describe: "仅提交组不能交互",
+    action: "problem.invoke", principal: { group: SUBMIT_ONLY },
+  }),
+  policy({
+    id: "fixture:invoke-only", effect: "forbid", describe: "仅交互组不能提交",
+    action: "problem.submit", principal: { group: INVOKE_ONLY },
+  }),
+  policy({
+    id: "fixture:partial-invoke", effect: "forbid", describe: "部分交互组不能启动实例",
+    action: "problem.invoke", principal: { group: PARTIAL_INVOKE },
+    when: ({ invocation }) => invocation === "spawn",
+  }),
   policy({
     id: "fixture:full",
     effect: "permit",

@@ -6,7 +6,7 @@ export function ContestNav({ slug }: { slug: string }) {
     <SectionNav
       label="比赛导航"
       items={[
-        { href: contestHref(slug), label: "题目" },
+        { href: contestHref(slug), label: "题目", matchNested: true },
         { href: standingsHref(slug), label: "排行榜" },
       ]}
     />

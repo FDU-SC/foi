@@ -24,6 +24,7 @@ import {
   reportFailed,
 } from "./queue";
 import { reaperHealth, reapOnce, startReaping } from "./reaper";
+import { withLockedRow } from "@/test/db-concurrency";
 
 const USERNAME = "runner-reaper-alice";
 let ACCOUNT_UID = 0;
@@ -122,6 +123,39 @@ describeDb("失联回收", () => {
   });
 
   afterAll(cleanup);
+
+  it("回收等待行锁时已更新的心跳不会被旧查询覆盖", async () => {
+    const id = await enqueue("sub_reaper_heartbeat_race");
+    const ticket = (await claimJob(BACKEND, "r-heartbeat-race"))!;
+    await goSilent(id);
+    const result = await withLockedRow("judging_queue", id, reapOnce, async (client) => {
+      await client.query(
+        "UPDATE judging_queue SET heartbeat_at = now() WHERE submission_id = $1",
+        [id],
+      );
+    });
+    expect(result).toEqual({ exhausted: 0, requeued: 0, fused: 0 });
+    expect(await queueRowOf(id)).toMatchObject({ state: "claimed", lease: ticket.lease });
+  });
+
+  it("回收与完成上报竞争不覆盖已提交的终态", async () => {
+    const id = await enqueue("sub_reaper_done_race");
+    const ticket = (await claimJob(BACKEND, "r-done-race"))!;
+    await goSilent(id);
+    const [reaped, accepted] = await withLockedRow("judging_queue", id, () =>
+      Promise.all([reapOnce(), reportDone(id, ticket.lease, VERDICT, VERSION)]),
+    );
+    const row = await rowOf(id);
+    if (accepted) {
+      expect(reaped).toEqual({ exhausted: 0, requeued: 0, fused: 0 });
+      expect(row.state).toBe("completed");
+      expect(await queueRowOf(id)).toBeUndefined();
+    } else {
+      expect(reaped).toEqual({ exhausted: 0, requeued: 1, fused: 0 });
+      expect(row.state).toBe("pending");
+      expect(await queueRowOf(id)).toMatchObject({ state: "waiting", lease: null });
+    }
+  });
 
   it("心跳过期的行回到队列，lease 一并作废", async () => {
     const id = await enqueue("sub_rr_lapsed");

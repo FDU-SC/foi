@@ -41,7 +41,8 @@ export async function claimJob(
 ): Promise<JobTicket | null> {
   await markRunnerSeen(backendId, runnerId);
 
-  const next = db
+  return db.transaction(async (tx) => {
+  const next = tx
     .select({ submissionId: judgingQueue.submissionId })
     .from(judgingQueue)
     .where(
@@ -58,7 +59,7 @@ export async function claimJob(
   const lease = mintLease();
   const now = new Date();
 
-  const [claimed] = await db
+  const [claimed] = await tx
     .update(judgingQueue)
     .set({
       state: "claimed",
@@ -74,16 +75,17 @@ export async function claimJob(
 
   if (!claimed) return null;
 
-  await db.insert(judgingAttempts).values({
+  await tx.insert(judgingAttempts).values({
     submissionId: claimed.submissionId,
     backendId,
     runnerId,
     claimedAt: now,
   });
 
-  await publish(db, claimed.submissionId, { state: "judging" });
+  await publish(tx, claimed.submissionId, { state: "judging" });
 
   return { id: claimed.submissionId, lease };
+  });
 }
 
 export async function jobDetails(
@@ -130,6 +132,7 @@ function heldBy(id: string, lease: string) {
   return and(
     eq(judgingQueue.submissionId, id),
     eq(judgingQueue.lease, lease),
+    eq(judgingQueue.state, "claimed"),
   );
 }
 
@@ -138,7 +141,8 @@ export async function reportAlive(
   lease: string,
   status?: string,
 ): Promise<boolean> {
-  const [updated] = await db
+  return db.transaction(async (tx) => {
+  const [updated] = await tx
     .update(judgingQueue)
     .set({
       heartbeatAt: new Date(),
@@ -150,8 +154,70 @@ export async function reportAlive(
   if (!updated) return false;
 
   if (status !== undefined) {
-    await publish(db, id, { state: "judging", runnerStatus: status });
+    await publish(tx, id, { state: "judging", runnerStatus: status });
   }
+  return true;
+  });
+}
+
+async function settleJob(
+  id: string,
+  lease: string,
+  backendVersion: string,
+  outcome: { kind: "completed"; verdict: Verdict } | { kind: "failed"; reason: string },
+): Promise<boolean> {
+  const settled = await db.transaction(async (tx) => {
+    const [queueRow] = await tx
+      .select()
+      .from(judgingQueue)
+      .where(heldBy(id, lease))
+      .for("update");
+    if (!queueRow) return undefined;
+
+    const now = new Date();
+    const [sub] = await tx
+      .update(submissions)
+      .set({
+        ...(outcome.kind === "completed"
+          ? {
+              state: "completed" as const,
+              result: outcome.verdict.result,
+              detail: outcome.verdict.detail ?? null,
+              error: null,
+            }
+          : { state: "disrupted" as const, error: outcome.reason }),
+        backendVersion,
+        judgedAt: now,
+      })
+      .where(eq(submissions.id, id))
+      .returning({ contestSlug: submissions.contestSlug });
+
+    await tx
+      .update(judgingAttempts)
+      .set({
+        finishedAt: now,
+        outcome: outcome.kind,
+        lastStatus: queueRow.runnerStatus,
+        ...(outcome.kind === "failed" ? { error: outcome.reason } : {}),
+      })
+      .where(
+        and(
+          eq(judgingAttempts.submissionId, id),
+          eq(judgingAttempts.runnerId, queueRow.runnerId!),
+          eq(judgingAttempts.claimedAt, queueRow.claimedAt!),
+          isNull(judgingAttempts.outcome),
+        ),
+      );
+
+    await tx.delete(judgingQueue).where(heldBy(id, lease));
+    await publish(tx, id, {
+      state: outcome.kind === "completed" ? "completed" : "disrupted",
+    });
+    return sub;
+  });
+
+  if (!settled) return false;
+  if (outcome.kind === "completed") invalidateStandings(settled.contestSlug);
   return true;
 }
 
@@ -161,58 +227,7 @@ export async function reportDone(
   verdict: Verdict,
   backendVersion: string,
 ): Promise<boolean> {
-  const [queueRow] = await db
-    .select({
-      submissionId: judgingQueue.submissionId,
-      runnerId: judgingQueue.runnerId,
-      runnerStatus: judgingQueue.runnerStatus,
-    })
-    .from(judgingQueue)
-    .where(heldBy(id, lease))
-    .limit(1);
-
-  if (!queueRow) return false;
-
-  const [sub] = await db
-    .select({
-      problemSlug: submissions.problemSlug,
-      contestSlug: submissions.contestSlug,
-    })
-    .from(submissions)
-    .where(eq(submissions.id, id))
-    .limit(1);
-  if (!sub) return false;
-
-  await db
-    .update(submissions)
-    .set({
-      state: "completed",
-      result: verdict.result,
-      detail: verdict.detail ?? null,
-      backendVersion,
-      error: null,
-      judgedAt: new Date(),
-    })
-    .where(eq(submissions.id, id));
-
-  await db
-    .delete(judgingQueue)
-    .where(eq(judgingQueue.submissionId, id));
-
-  await db
-    .update(judgingAttempts)
-    .set({ finishedAt: new Date(), outcome: "completed", lastStatus: queueRow.runnerStatus })
-    .where(
-      and(
-        eq(judgingAttempts.submissionId, id),
-        eq(judgingAttempts.runnerId, queueRow.runnerId!),
-        isNull(judgingAttempts.outcome),
-      ),
-    );
-
-  await publish(db, id, { state: "completed" });
-  if (sub.contestSlug) invalidateStandings(sub.contestSlug);
-  return true;
+  return settleJob(id, lease, backendVersion, { kind: "completed", verdict });
 }
 
 export async function reportFailed(
@@ -221,44 +236,5 @@ export async function reportFailed(
   reason: string,
   backendVersion: string,
 ): Promise<boolean> {
-  const [queueRow] = await db
-    .select({
-      submissionId: judgingQueue.submissionId,
-      runnerId: judgingQueue.runnerId,
-      runnerStatus: judgingQueue.runnerStatus,
-    })
-    .from(judgingQueue)
-    .where(heldBy(id, lease))
-    .limit(1);
-
-  if (!queueRow) return false;
-
-  await db
-    .update(submissions)
-    .set({
-      state: "disrupted",
-      backendVersion,
-      error: reason,
-      judgedAt: new Date(),
-    })
-    .where(eq(submissions.id, id));
-
-  await db
-    .delete(judgingQueue)
-    .where(eq(judgingQueue.submissionId, id));
-
-  await db
-    .update(judgingAttempts)
-    .set({ finishedAt: new Date(), outcome: "failed", error: reason, lastStatus: queueRow.runnerStatus })
-    .where(
-      and(
-        eq(judgingAttempts.submissionId, id),
-        eq(judgingAttempts.runnerId, queueRow.runnerId!),
-        isNull(judgingAttempts.outcome),
-      ),
-    );
-
-  await publish(db, id, { state: "disrupted" });
-
-  return true;
+  return settleJob(id, lease, backendVersion, { kind: "failed", reason });
 }

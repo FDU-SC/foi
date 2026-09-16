@@ -30,6 +30,8 @@ export const createSubmissionSchema = z.object({
   clientNonce: z.string().min(1).max(64).optional(),
 });
 
+export type CreateSubmission = z.infer<typeof createSubmissionSchema>;
+
 export interface SubmissionListItem extends SubmissionView {
   uid: number;
 

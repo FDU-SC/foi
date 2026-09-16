@@ -1,6 +1,4 @@
 import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
-import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
-import type { PgDatabase } from "drizzle-orm/pg-core";
 import { ulid } from "ulid";
 import { db } from "@/lib/db";
 import {
@@ -9,7 +7,7 @@ import {
   accounts,
   accountSuspensions,
 } from "@/lib/db/schema";
-import type * as schema from "@/lib/db/schema";
+import type { DbOrTx } from "@/lib/db/types";
 import type {
   AccountAvatarRow,
   AccountRow,
@@ -19,7 +17,7 @@ import type {
 import { invalidateAccounts } from "./cache";
 import { normalizeUsername } from "./types";
 
-export type DbOrTx = PgDatabase<NodePgQueryResultHKT, typeof schema>;
+export type { DbOrTx } from "@/lib/db/types";
 
 export async function getAccount(
   uid: number,

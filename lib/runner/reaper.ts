@@ -1,4 +1,4 @@
-import { and, eq, gte, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { judgingAttempts, judgingQueue, submissions } from "@/lib/db/schema";
 import { log } from "@/lib/log";
@@ -14,47 +14,65 @@ export async function reapOnce(): Promise<{
 }> {
   const lapsedBefore = new Date(Date.now() - HEARTBEAT_LAPSE_MS);
 
-  const lapsedRows = await db
-    .select({
-      submissionId: judgingQueue.submissionId,
-      attempts: judgingQueue.attempts,
-      runnerId: judgingQueue.runnerId,
-      runnerStatus: judgingQueue.runnerStatus,
-    })
+  const fused = and(
+    eq(judgingQueue.state, "waiting"),
+    lt(judgingQueue.queuedAt, sql`now() - ${QUEUE_FUSE_INTERVAL}::interval`),
+  )!;
+  const eligible = or(
+    and(
+      eq(judgingQueue.state, "claimed"),
+      lt(judgingQueue.heartbeatAt, lapsedBefore),
+    ),
+    fused,
+    and(eq(judgingQueue.state, "waiting"), gte(judgingQueue.attempts, MAX_ATTEMPTS)),
+  );
+  const candidates = await db
+    .select({ submissionId: judgingQueue.submissionId })
     .from(judgingQueue)
-    .where(
-      and(
-        eq(judgingQueue.state, "claimed"),
-        lt(judgingQueue.heartbeatAt, lapsedBefore),
-      ),
-    );
+    .where(eligible);
 
-  let exhaustedCount = 0;
-  let requeuedCount = 0;
+  const counts = { exhausted: 0, requeued: 0, fused: 0 };
+  for (const candidate of candidates) {
+    const outcome = await db.transaction(async (tx) => {
+      // Recheck after acquiring the lock: a heartbeat or report may have won.
+      const [locked] = await tx
+        .select({ row: judgingQueue, fused: sql<boolean>`${fused}` })
+        .from(judgingQueue)
+        .where(and(eq(judgingQueue.submissionId, candidate.submissionId), eligible))
+        .for("update");
+      if (!locked) return undefined;
 
-  for (const row of lapsedRows) {
-    const isExhausted = row.attempts >= MAX_ATTEMPTS;
-
-    if (isExhausted) {
-      await db
-        .update(submissions)
-        .set({
+      const { row } = locked;
+      const outcome = locked.fused
+        ? "fused"
+        : row.attempts >= MAX_ATTEMPTS ? "exhausted" : "requeued";
+      const now = new Date();
+      if (outcome !== "requeued") {
+        await tx.update(submissions).set({
           state: "disrupted",
-          error: `评测机连续 ${MAX_ATTEMPTS} 次领取后都失去了联系，已停止重试`,
-          judgedAt: new Date(),
-        })
-        .where(eq(submissions.id, row.submissionId));
+          error: outcome === "fused"
+            ? `排队超过 ${Math.round(QUEUE_FUSE_MS / 3_600_000)} 小时仍无评测机领取`
+            : `评测机连续 ${MAX_ATTEMPTS} 次领取后都失去了联系，已停止重试`,
+          judgedAt: now,
+        }).where(eq(submissions.id, row.submissionId));
+      }
 
-      await db
-        .delete(judgingQueue)
-        .where(eq(judgingQueue.submissionId, row.submissionId));
+      if (row.state === "claimed" && row.runnerId && row.claimedAt) {
+        await tx.update(judgingAttempts).set({
+          finishedAt: now,
+          outcome: "expired",
+          lastStatus: row.runnerStatus,
+          error: "心跳超时",
+        }).where(and(
+          eq(judgingAttempts.submissionId, row.submissionId),
+          eq(judgingAttempts.runnerId, row.runnerId),
+          eq(judgingAttempts.claimedAt, row.claimedAt),
+          isNull(judgingAttempts.outcome),
+        ));
+      }
 
-      await publish(db, row.submissionId, { state: "disrupted" });
-      exhaustedCount++;
-    } else {
-      await db
-        .update(judgingQueue)
-        .set({
+      if (outcome === "requeued") {
+        await tx.update(judgingQueue).set({
           state: "waiting",
           runnerId: null,
           lease: null,
@@ -62,93 +80,19 @@ export async function reapOnce(): Promise<{
           heartbeatAt: null,
           claimedAt: null,
           queuedAt: sql`now()`,
-        })
-        .where(eq(judgingQueue.submissionId, row.submissionId));
-
-      await publish(db, row.submissionId, { state: "queued" });
-      requeuedCount++;
-    }
-
-    if (row.runnerId) {
-      await db
-        .update(judgingAttempts)
-        .set({
-          finishedAt: new Date(),
-          outcome: "expired",
-          lastStatus: row.runnerStatus,
-          error: "心跳超时",
-        })
-        .where(
-          and(
-            eq(judgingAttempts.submissionId, row.submissionId),
-            eq(judgingAttempts.runnerId, row.runnerId),
-            isNull(judgingAttempts.outcome),
-          ),
-        );
-    }
+        }).where(eq(judgingQueue.submissionId, row.submissionId));
+      } else {
+        await tx.delete(judgingQueue).where(eq(judgingQueue.submissionId, row.submissionId));
+      }
+      await publish(tx, row.submissionId, {
+        state: outcome === "requeued" ? "queued" : "disrupted",
+      });
+      return outcome;
+    });
+    if (outcome) counts[outcome]++;
   }
 
-  // Fuse: queued too long without any runner picking it up
-  const fusedRows = await db
-    .select({ submissionId: judgingQueue.submissionId })
-    .from(judgingQueue)
-    .where(
-      and(
-        eq(judgingQueue.state, "waiting"),
-        lt(judgingQueue.queuedAt, sql`now() - ${QUEUE_FUSE_INTERVAL}::interval`),
-      ),
-    );
-
-  for (const row of fusedRows) {
-    await db
-      .update(submissions)
-      .set({
-        state: "disrupted",
-        error: `排队超过 ${Math.round(QUEUE_FUSE_MS / 3_600_000)} 小时仍无评测机领取`,
-        judgedAt: new Date(),
-      })
-      .where(eq(submissions.id, row.submissionId));
-
-    await db
-      .delete(judgingQueue)
-      .where(eq(judgingQueue.submissionId, row.submissionId));
-
-    await publish(db, row.submissionId, { state: "disrupted" });
-  }
-
-  // Also mark waiting items that have exhausted attempts
-  const stuckRows = await db
-    .select({ submissionId: judgingQueue.submissionId })
-    .from(judgingQueue)
-    .where(
-      and(
-        eq(judgingQueue.state, "waiting"),
-        gte(judgingQueue.attempts, MAX_ATTEMPTS),
-      ),
-    );
-
-  for (const row of stuckRows) {
-    await db
-      .update(submissions)
-      .set({
-        state: "disrupted",
-        error: `评测机连续 ${MAX_ATTEMPTS} 次领取后都失去了联系，已停止重试`,
-        judgedAt: new Date(),
-      })
-      .where(eq(submissions.id, row.submissionId));
-
-    await db
-      .delete(judgingQueue)
-      .where(eq(judgingQueue.submissionId, row.submissionId));
-
-    await publish(db, row.submissionId, { state: "disrupted" });
-  }
-
-  return {
-    exhausted: exhaustedCount + stuckRows.length,
-    requeued: requeuedCount,
-    fused: fusedRows.length,
-  };
+  return counts;
 }
 
 declare global {

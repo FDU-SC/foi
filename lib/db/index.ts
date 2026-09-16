@@ -24,7 +24,7 @@ function createPool(): Pool {
   if (!connectionString) {
     throw new Error("缺少环境变量 DATABASE_URL");
   }
-  return new Pool({ connectionString, max: 10 });
+  return new Pool({ connectionString, max: 10, connectionTimeoutMillis: 5000 });
 }
 
 function lazy<T extends object>(resolve: () => T): T {

@@ -30,7 +30,7 @@ export async function GET(
   if (!limited.ok) return tooManyRequests(limited.retryAfterMs);
 
   const { id } = await params;
-  const row = await submissionFor(id, viewerFor(user));
+  const row = await submissionFor(id, viewerFor(user), request.signal);
   if (!row) return apiDeny(denied(denialFor("submission.read")));
 
   return NextResponse.json(row.view, {

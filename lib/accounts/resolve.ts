@@ -2,6 +2,7 @@ import type { AccountRef } from "@/lib/authz/resources";
 import type { AccountRow } from "@/lib/db/schema";
 import { groupsFor } from "@/lib/enrollment/registry";
 import { getAccount, getAccountByUsername } from "./queries";
+import type { DbOrTx } from "@/lib/db/types";
 import type { ResolvedUser } from "./types";
 
 export function resolveFromRow(account: AccountRow): ResolvedUser {
@@ -20,8 +21,9 @@ export function resolveFromRow(account: AccountRow): ResolvedUser {
 
 export async function resolveUser(
   uid: number,
+  on?: DbOrTx,
 ): Promise<ResolvedUser | null> {
-  const account = await getAccount(uid);
+  const account = await getAccount(uid, on);
   return account ? resolveFromRow(account) : null;
 }
 

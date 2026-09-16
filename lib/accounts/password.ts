@@ -36,8 +36,8 @@ export async function verifyPassword(
   return matched ? { ok: true, setAt: row.passwordSetAt } : { ok: false };
 }
 
-export async function passwordSetAt(uid: number): Promise<Date | null> {
-  const [row] = await db
+export async function passwordSetAt(uid: number, on: DbOrTx = db): Promise<Date | null> {
+  const [row] = await on
     .select({ passwordSetAt: accounts.passwordSetAt })
     .from(accounts)
     .where(eq(accounts.uid, uid))

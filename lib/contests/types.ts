@@ -125,8 +125,7 @@ export const contestConfigSchema = z
         ctx.addIssue({
           code: "custom",
           path: ["freezeAt"],
-          message:
-            "封榜时间不能等于结束时间：那是一个空的封榜窗口，比赛永远不会进入封榜相位。请提前 freezeAt，或去掉它。",
+          message: "封榜时间不能等于结束时间",
         });
       }
     }
@@ -256,13 +255,10 @@ export function showsStatements(
 }
 
 /**
- * Whether the contest is taking work: inside its own window, or past it and
- * still open by its own declaration.
- *
- * Late work is practice rather than a second round, because a leaderboard
- * scores `startsAt`..`endsAt` and nothing else. That is the ruleset's doing —
- * it runs its submissions through `submissionsInWindow` — so the guarantee is
- * asserted of every registered ruleset in `lib/standings/window.test.ts`.
+ * Accept submissions during the contest window, or after it ends when
+ * `afterEnd.submissions` is true.
+ * Late submissions are practice: rulesets restrict scoring to `startsAt`..`endsAt`
+ * with `submissionsInWindow`, enforced by `lib/standings/window.test.ts`.
  */
 export function acceptsSubmissions(
   contest: ContestSchedule,
@@ -280,11 +276,8 @@ export const PHASE_LABEL: Record<ContestPhase, string> = {
 };
 
 /**
- * What to put on the badge.
- *
- * The phase is about the clock alone, so a round that finished and kept its
- * door open needs the extra half sentence: without it "已结束" would sit above
- * a submit panel that still works.
+ * Append the submission status when an ended contest still accepts work.
+ * The phase itself depends only on the clock.
  */
 export function contestStatus(
   contest: ContestSchedule,

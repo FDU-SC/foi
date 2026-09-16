@@ -2,11 +2,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 /**
- * Placeholder shapes shared by the route skeletons.
- *
- * The point of each is to occupy the space the real content will, so the page
- * does not jump when it arrives. Column widths are passed in per route rather
- * than guessed here.
+ * Shared loading placeholders sized to reduce layout shifts.
+ * Routes supply column widths.
  */
 
 export function PageHeading({ width = "w-28" }: { width?: string }) {

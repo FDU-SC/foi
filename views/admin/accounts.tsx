@@ -107,7 +107,7 @@ export async function AdminAccountsView({
       <div>
         <h1 className="text-fg text-2xl font-bold tracking-tight">账号</h1>
         <p className="text-fg-muted mt-2 text-sm leading-6">
-          注册用户列表。用户组由{" "}
+          用户组由{" "}
           <Link href="/admin/enrollment" className="hover:text-fg underline">
             分流规则
           </Link>

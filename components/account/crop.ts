@@ -1,13 +1,7 @@
 /**
- * Where the crop frame sits over a source image.
- *
- * The frame is fixed and square; the picture moves underneath it. That is the
- * cheaper half of the two usual croppers — no resize handles, no aspect ratio
- * to police — and it is the one that suits a round avatar, because the output
- * is whatever the frame currently shows.
- *
- * Pure arithmetic, so the awkward cases are settled by tests rather than by
- * dragging things around in a browser.
+ * Pure crop geometry for a fixed square frame with a movable image.
+ * The frame matches the round avatar preview; there are no resize handles or
+ * aspect-ratio controls. Tests cover geometry edge cases.
  */
 
 export interface Size {

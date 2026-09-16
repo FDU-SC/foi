@@ -7,7 +7,7 @@ import ARGON2_OPTIONS from "../lib/accounts/argon2-options.cjs";
 
 if (process.env.NODE_ENV === "production") {
   console.error(
-    "seed 会写入统一弱密码的账号，仅限本地开发；检测到 NODE_ENV=production（三套部署环境都会命中），拒绝运行。",
+    "seed 仅限本地开发，会写入统一弱密码；NODE_ENV=production 时拒绝运行。",
   );
   process.exit(1);
 }
@@ -77,8 +77,7 @@ async function main() {
   }
 
   console.log(
-    `\n已创建 ${SEED_ACCOUNTS.length} 个账号，密码统一为: ${password}` +
-      `\n用户组由 content/enrollment/ 的规则计算，不存入数据库：admin 按 uids 规则分配，其余三个账号按邮箱分组。`,
+    `\n已创建 ${SEED_ACCOUNTS.length} 个账号，密码统一为: ${password}`,
   );
   await pool.end();
 }

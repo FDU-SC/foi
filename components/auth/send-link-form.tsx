@@ -29,7 +29,7 @@ export function SendLinkForm({ invalidToken }: { invalidToken?: boolean }) {
 
   return (
     <div className="space-y-4">
-      <Field label="邮箱" hint="用于验证身份和分配用户组">
+      <Field label="邮箱" hint="用于验证身份">
         <Input
           type="email"
           autoComplete="email"

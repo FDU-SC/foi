@@ -34,12 +34,7 @@ export async function AdminEnrollmentView() {
         <span>分流规则</span>
       </nav>
 
-      <div>
-        <h1 className="text-fg text-2xl font-bold tracking-tight">分流规则</h1>
-        <p className="text-fg-muted mt-2 text-sm leading-6">
-          查看注册规则与用户分组。
-        </p>
-      </div>
+      <h1 className="text-fg text-2xl font-bold tracking-tight">分流规则</h1>
 
       <Card>
         <CardHeader title="注册策略" />
@@ -78,9 +73,6 @@ export async function AdminEnrollmentView() {
       <Card>
         <CardHeader title="分流规则" />
         <CardBody className="space-y-3">
-          <p className="text-fg-muted text-sm leading-6">
-            邮箱规则不能分配特权组；按用户编号指定的规则可以分配任何组。
-          </p>
           {rules.length === 0 ? (
             <p className="text-fg-muted text-sm leading-6">
               暂无分流规则，注册用户尚未分组。
@@ -204,9 +196,6 @@ export async function AdminEnrollmentView() {
                 ))}
             </ul>
           )}
-          <p className="text-fg-subtle mt-3 text-xs leading-5">
-            比赛通过用户组限定参赛范围。
-          </p>
         </CardBody>
       </Card>
     </div>

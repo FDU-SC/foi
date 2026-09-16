@@ -52,7 +52,7 @@ FOI_STUB_RUNNER=yes-fake-verdicts node scripts/stub-runner.cjs
 
 ## 增加自定义内容
 
-完整指南见 `content/AGENTS.md`。常见操作如下。
+完整指南见 [内容开发指南](content/AGENTS.md)。常见操作如下。
 
 加一道内联判题的题目，建 `content/problems/<slug>/`，放三个文件：`problem.ts` 声明
 配置与判题函数，`statement.mdx` 写题面，`views.tsx` 决定提交内容和判定详情怎么显示。
@@ -64,12 +64,12 @@ glob 会自动发现它，不需要注册。
 加一个比赛，建 `content/contests/<slug>/contest.ts`。比赛持有自己的排行榜，每个排行榜
 引用一套计分规则。想让一批题长期开放，就让这场比赛的窗口足够长。
 
-`content/site.ts` 的 `catalogue` 指定作为题库分区的比赛，使用 `/problems` 路径。
-比赛在 `/problems/<比赛>`，题目在 `/problems/<比赛>/<题目>`，排行榜在
-`/problems/<比赛>/standings`，并且不再出现在 `/contests` 列表里。除了地址，它们和别的
-比赛没有任何区别，各自有窗口、受众与排行榜。`/problems` 是它们的索引页，一场比赛一张
-卡片，按各自的 `domain` 分组。其余比赛照旧是 `/contests/<比赛>/problems/<题目>`，
-一对「比赛 + 题目」始终只有一个 URL。`content/contests/graphs/` 是现成的例子。
+`content/site.ts` 的 `catalogue` 指定作为题库分区的比赛：索引为 `/problems`，
+比赛、题目和排行榜分别使用 `/problems/<比赛>`、`/problems/<比赛>/<题目>`、
+`/problems/<比赛>/standings`，不再出现在 `/contests` 列表中。索引按比赛的 `domain`
+分组，每场比赛一张卡片。比赛的窗口、受众与排行榜不变；其余比赛的题目仍使用
+`/contests/<比赛>/problems/<题目>`。每对「比赛 + 题目」只有一个 URL，
+示例见 `content/contests/graphs/`。
 
 难度与标签写在题目的 `ui` 里，平台不读取其字段。`views.tsx` 的 `facets` 将它们提供为
 筛选维度，比赛的 `facets` 决定显示哪些维度。默认不显示筛选项及对应徽章，避免赛中泄露标签。
@@ -91,8 +91,8 @@ glob 会自动发现它，不需要注册。
 "@/views/*":      ["./views.local/*",      "./views/*"],
 ```
 
-同名文件覆盖对应的上游文件，其余文件继续使用上游版本。无需修改 `tsconfig.json` 或
-`vitest.config.mts`，也不必直接修改上游文件。
+同名文件覆盖上游文件，其余文件沿用上游版本。无需修改 `tsconfig.json` 或
+`vitest.config.mts`。
 
 ### 选择定制方式
 
@@ -121,8 +121,7 @@ import { Footer } from "./ui/footer";
 export const views: SiteViews = { Footer };
 ```
 
-每个插槽都是可选的，都有平台默认实现，所以 `{}` 就是一份完整实现。上游后续对页面
-其余部分的改进仍会生效。
+插槽均可选，未覆盖的部分使用平台默认实现并继续接收上游更新；`{}` 是有效配置。
 
 **三、整文件替换。** `components/` 与 `views/` 下的任何文件，都能被 `.local` 目录里
 的同名文件整个换掉。想重做整个题目页，就写一份 `views.local/problems/detail.tsx`。
@@ -252,9 +251,24 @@ docker compose up -d              # 想连模拟评测机一起，加 --profile 
 与 `content/enrollment/` 中维护。运维组账号的权限也需在仓库中调整，不能在界面上封禁。
 没有已验证邮箱的账号无法收取重置邮件，可在服务器上使用 `scripts/set-password.cjs` 设置密码。
 
-管理页提示评测任务回收未按时完成时，检查应用日志中的「回收失败」，以及进程是否阻塞在
-没有超时的调用上。回收任务负责将失联评测机的提交重新排队，并处理重试次数耗尽和排队
-超时；页面、提交接口和数据库检查正常，并不代表回收任务正常。
+用户组由分流规则计算，不存入数据库；权限由授权策略决定。默认拒绝，匹配的禁止规则
+优先于放行规则。邮箱规则不能分配特权组，按用户编号指定的规则可以分配任何组。
+比赛可通过用户组限定参赛范围。
+
+创建初始管理员账号时：
+
+1. 设置 `DATABASE_URL`，运行 `node scripts/create-account.cjs <username> --nick <昵称> --email <邮箱>`。
+   密码从 stdin 读取；未提供时自动生成并打印一次。
+2. 将返回的 uid 加入 `content/enrollment/` 的 `uids` 规则，分配一个已被
+   `content/policies/` 放行 `admin.enter` 的用户组，再重新部署。
+
+示例规则为 `{ label: "…", uids: [<返回的 uid>], groups: ["<目标用户组>"] }`。
+账号创建成功不代表已授予管理权限，实际权限取决于匹配的分流规则与授权策略。
+本地种子账号中，admin 按 uids 规则分组，其余三个账号按邮箱分组。
+
+管理页提示评测任务回收未按时完成时，检查日志中的「回收失败」及进程是否阻塞在
+没有超时的调用上。回收任务处理失联评测机的提交、重试耗尽与排队超时，需单独检查；
+页面、提交接口和数据库正常不代表回收任务正常。
 
 评测中断可能由评测机上报失败或失联后的回收处理触发，不计入选手成绩。若持续出现，
 查看提交详情的错误原因与评测机日志，修复后重新评测。未关联题目的后端应核对是否为

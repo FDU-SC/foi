@@ -1,11 +1,9 @@
 import { policy } from "@/lib/authz/types";
 
 /**
- * 运维组的特权。
- *
- * 这个组名同时出现在 content/enrollment/ 的 groups 与分流规则里。平台把
- * 「被某条 permit 点名的用户组」判定为特权组，因此它只能由列出 uid 的规则授予，
- * 按邮箱匹配的规则给不了——正则写错就会把运维台发给一片人。
+ * 运维组在 content/enrollment/ 的 groups 与分流规则中声明。
+ * 被 permit 引用的组是特权组，只能按 uid 分配，禁止按邮箱匹配授予，
+ * 以免正则匹配范围错误造成提权。
  */
 const STAFF = "管理员";
 

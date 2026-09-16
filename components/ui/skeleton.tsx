@@ -10,11 +10,8 @@ export function Skeleton({
 }
 
 /**
- * Wraps a whole `loading.tsx` body.
- *
- * The shapes say "content is coming" to anyone looking at the screen and
- * nothing at all to a screen reader, so the wait is announced once in words and
- * the placeholders are hidden.
+ * Route loading screen: announce loading once and hide decorative placeholders
+ * from screen readers.
  */
 export function SkeletonScreen({
   label = "加载中",

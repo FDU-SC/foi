@@ -1,18 +1,12 @@
 import { site } from "@/lib/site";
 
 /**
- * Where each contest's pages live.
+ * Build all contest, problem and standings links. `site.catalogue` moves named
+ * contests under `/problems/<contest>`; all others use `/contests`. Each pair
+ * retains one URL.
  *
- * `site.catalogue` names the contests this deployment presents as a catalogue,
- * and those names decide everything here: the pairs they carry answer under
- * `/problems/<contest>`, the pairs every other contest carries answer under
- * `/contests`. A pair still has exactly one URL — naming a catalogue moves
- * where that URL starts, it does not add a second one.
- *
- * Every link to a contest, a problem or a leaderboard is built here, so the two
- * namespaces cannot drift apart. Path decisions only: this reads one list out
- * of the site config and answers in strings, which is what lets the proxy
- * consult it without pulling the contest registry into the edge bundle.
+ * Read only site config so the proxy can import this without bundling the
+ * contest registry.
  */
 
 const CATALOGUE = "/problems";
@@ -57,14 +51,10 @@ export function standingsHref(contestSlug: string): string {
 }
 
 /**
- * Where a `/contests/...` path went, or null if it stayed.
- *
- * A catalogued contest keeps no address under `/contests`, and the proxy is the
- * only place that can say so before a layout starts streaming — refusing in a
- * page body would answer 200 with a meta refresh, which is not what "this
- * moved" means. The contest slug survives into the new path, so every old
- * address has a counterpart; anything unrecognised under the prefix lands on
- * that contest's own page.
+ * Map catalogued `/contests/...` paths to their new URLs; return null otherwise.
+ * Run in the proxy before layouts stream, since page-level redirects can return
+ * 200 with a meta refresh. Preserve the contest slug; unrecognised suffixes
+ * redirect to the contest page.
  */
 export function catalogueRedirect(pathname: string): string | null {
   for (const slug of named) {

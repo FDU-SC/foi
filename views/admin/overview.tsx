@@ -24,12 +24,7 @@ export async function AdminOverviewView() {
   return (
     <div className="space-y-4">
       <AdminNav />
-      <div>
-        <h1 className="text-fg text-2xl font-bold tracking-tight">管理</h1>
-        <p className="text-fg-muted mt-2 text-sm leading-6">
-          查看平台概况与账号状态。
-        </p>
-      </div>
+      <h1 className="text-fg text-2xl font-bold tracking-tight">管理</h1>
 
       <div className="grid gap-3 sm:grid-cols-4">
         {stats.map((stat) => {
@@ -112,9 +107,6 @@ export async function AdminOverviewView() {
       <Card>
         <CardHeader title="用户组" />
         <CardBody className="space-y-3">
-          <p className="text-fg-muted text-sm leading-6">
-            用户组由分流规则分配，权限由授权策略决定。
-          </p>
           <ul className="space-y-2">
             {listGroups().map((group) => (
               <li key={group.id}>
@@ -139,10 +131,7 @@ export async function AdminOverviewView() {
         <CardHeader title="授权策略" />
         <CardBody className="space-y-3">
           <p className="text-fg-muted text-sm leading-6">
-            未被放行的操作一律拒绝，
-            <strong className="text-fg font-medium">禁止</strong>规则优先于
-            <strong className="text-fg font-medium">放行</strong>
-            规则。「有条件」表示该策略还取决于资源本身的属性。
+            默认拒绝；禁止优先于放行。「有条件」表示还需满足资源条件。
           </p>
           <div className="border-border overflow-hidden rounded-md border">
             <table className="w-full text-sm">

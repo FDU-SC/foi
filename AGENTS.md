@@ -45,12 +45,10 @@ content/        All contest-specific code — see content/AGENTS.md
 test/           Kernel test support: fixture content, shape helpers — see test/AGENTS.md
 ```
 
-`app/` holds what Next discovers from the filesystem and nothing else. A route
-file declares its segment config and forwards to `views/`; a page body that
-grows back into `app/` is somewhere a fork cannot override, so a guard test in
-`test/slots.test.ts` fails on it. Server Actions stay in `app/` too, and for a
-second reason: `lib/ratelimit/policy.test.ts` finds them by scanning that tree,
-and behaviour must not sit in a layer a deployment can replace.
+`app/` contains only Next.js filesystem entry points. Route files declare segment
+config and forward to `views/`, keeping page bodies overridable; `test/slots.test.ts`
+enforces this. Server Actions must stay in `app/`: deployments must not replace
+behaviour, and `lib/ratelimit/policy.test.ts` scans this tree for rate-limit coverage.
 
 ## Platform → Content Boundary
 
@@ -70,7 +68,9 @@ Tests enforce the same boundary. The `unit` and `db` vitest projects resolve all
 "@/views/*":      ["./views.local/*",      "./views/*"],
 ```
 
-A deployment overrides selected files and inherits the rest, reducing conflicts when merging upstream changes. `test/content-roots.mjs` is the single list of slots; no `.local` root exists in this repository, and resolution, the deployment test project and every source scanner tolerate their absence.
+Deployments override selected files and inherit the rest. `test/content-roots.mjs`
+is the single slot list. This repository has no `.local` roots; resolution,
+deployment tests and source scanners must tolerate their absence.
 
 Depth of customization, shallowest first — **prefer the shallowest that works**, because each step down gives up more of the upstream's future changes:
 
@@ -112,7 +112,8 @@ A problem has exactly one URL, and it is not addressable without the contest it 
 interface ContestProblemRef { contest: ContestConfig; entry: ContestProblemConfig; problem: ProblemConfig }
 ```
 
-Attribution is therefore structural rather than claimed. There is nothing to cross-check and no `context.contest`. `lib/contests/refs.ts` is where the pairs come from; a problem no contest lists has no URL, and a boot check says so.
+`lib/contests/refs.ts` constructs the pairs; attribution needs no cross-check or
+`context.contest`. A problem absent from every contest has no URL and triggers a boot diagnostic.
 
 A problem config carries no visibility of its own. Who may open it is `contest.visibleTo`, when is the contest window, and what survives `endsAt` is the contest's `afterEnd`:
 
@@ -135,9 +136,13 @@ Retiring a problem is removing it from `contest.problems`.
 | Problem | `/problems/[section]/[problem]` | `/contests/[slug]/problems/[problem]` |
 | Standings | `/problems/[section]/standings` | `/contests/[slug]/standings` |
 
-`[section]` is the contest slug, so each catalogued contest is one card on `/problems` — with its own window, audience, leaderboard and participants. Long-running practice is a contest whose window is long; mounting it here is what makes it read as a section instead of a round. Nothing about authorization or submission changes, and a submission still carries its slug in `contest_slug`. The API is untouched too: `/api/contests/[slug]/problems/[problem]/action/[action]` serves both.
+`[section]` is the contest slug. Each catalogued contest gets one `/problems` card
+and retains its window, audience, leaderboard and participants. Practice uses a
+long contest window. Authorization and submission behaviour are unchanged:
+`contest_slug` and `/api/contests/[slug]/problems/[problem]/action/[action]` serve both namespaces.
 
-`contest.domain` is the heading a card sits under on that index. A label the platform groups by and never interprets; headings appear in the order their first contest appears in `site.catalogue`, so the order is declared once. A domain is a heading, not a page — there is no `/problems/[domain]`.
+`contest.domain` is an opaque grouping label on the index. Headings follow the
+first occurrence of each domain in `site.catalogue`. There is no `/problems/[domain]` page.
 
 `lib/contests/catalogue.ts` builds every such link and is the only place that reads `site.catalogue`. Never write a contest or problem path by hand — `problemHref`, `contestHref` and `standingsHref` are what keep the two namespaces from both claiming a pair.
 

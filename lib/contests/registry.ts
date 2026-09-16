@@ -36,7 +36,7 @@ function buildRegistry(): Map<string, ContestConfig> {
     for (const entry of parsed.data.problems) {
       if (problemBySlug(entry.slug)) continue;
       throw new Error(
-        `${path} 引用了不存在的题目 "${entry.slug}"，请检查 content/problems/`,
+        `${path} 引用了不存在的题目 "${entry.slug}"`,
       );
     }
 
@@ -44,7 +44,7 @@ function buildRegistry(): Map<string, ContestConfig> {
       const ruleset = rulesetFor(lb.ruleset.id);
       if (!ruleset) {
         throw new Error(
-          `${path} 的排行榜 "${lb.id}" 引用了未知的赛制 "${lb.ruleset.id}"，请检查 content/rulesets/`,
+          `${path} 的排行榜 "${lb.id}" 引用了未知的赛制 "${lb.ruleset.id}"`,
         );
       }
     }

@@ -46,7 +46,7 @@ export async function CatalogueIndexView() {
   const groups = groupByDomain(cards);
   return (
     <div className="space-y-5">
-      <PageHeader title="题库" description="按方向浏览题目与分区排行榜。" />
+      <PageHeader title="题库" />
       {groups.length === 0 ? <EmptyState>题库还没有分区。</EmptyState> : null}
       <div className="grid items-start gap-5 md:grid-cols-2 xl:grid-cols-3">
         {groups.map((group) => {

@@ -131,7 +131,7 @@ describe("freezeAt 的加载期校验", () => {
     expect(issues(FREEZES)).toEqual([]);
   });
 
-  it("freezeAt 等于 endsAt 被拒：那是一个空的封榜窗口", () => {
+  it("freezeAt 等于 endsAt 时拒绝空封榜窗口", () => {
     expect(issues(ENDS)).toEqual(["freezeAt"]);
   });
 
@@ -140,7 +140,7 @@ describe("freezeAt 的加载期校验", () => {
     expect(issues("2026-01-15T19:00:00+08:00")).toEqual(["freezeAt"]);
   });
 
-  it("freezeAt 等于 startsAt 是允许的：全程封榜是一种赛制选择", () => {
+  it("freezeAt 等于 startsAt 时允许全程封榜", () => {
     expect(issues(STARTS)).toEqual([]);
   });
 });

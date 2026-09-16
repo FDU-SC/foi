@@ -1,11 +1,8 @@
 import type { ContestConfigInput } from "@/lib/contests/types";
 
 /**
- * A finished round that keeps collecting.
- *
- * `afterEnd.submissions` reopens the problems once the clock runs out. Every
- * leaderboard still covers the official window alone, so late work is practice:
- * it never moves the ranking this round produced.
+ * `afterEnd.submissions` allows post-contest practice without affecting
+ * leaderboards, which score only the official contest window.
  */
 export const contest = {
   slug: "demo-ctf",

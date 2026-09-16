@@ -29,17 +29,12 @@ The redirect covers the twelve entry points the platform discovers content
 through — the seven `_modules/` registries plus `site.ts`, `site-views.tsx`,
 `backends.ts`, `schema.ts` and `theme.css`.
 
-The reason: a kernel test asks whether the platform is correct. If it also
-required this deployment to keep a particular group or contest around, then
-retiring either one downstream would fail tests that have nothing to do with the
-change. Deployment facts are asserted in `content/deployment.test.ts`, which a
-fork owns along with the rest of `content/`.
+Kernel tests must remain valid when deployments remove groups or contests.
+Assert deployment facts in `content/deployment.test.ts`, which the fork owns.
 
-`tools` exists for the same reason one step removed. `scripts/stub-runner.cjs`
-serves the nightly demo site, and `scripts/mock-runner.ts` stands in for a judge
-locally; neither is the platform, so their tests do not belong in a suite that
-gates it. They also must not name a real problem, backend or group — supply a
-placeholder, as `stub-runner.test.ts` does.
+Tests for `scripts/stub-runner.cjs` and `scripts/mock-runner.ts` belong to `tools`.
+Use placeholders instead of actual problem, backend or group names, as in
+`stub-runner.test.ts`.
 
 ## Writing a Kernel Test
 

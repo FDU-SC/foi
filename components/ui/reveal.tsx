@@ -2,21 +2,15 @@ import type { CSSProperties, HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Entrance animation, driven by CSS rather than JavaScript.
- *
- * A JS-driven entrance has to render its "before" state into the server HTML,
- * which leaves the content invisible until hydration finishes. These pages are
- * server-rendered and mostly free of client JavaScript; keeping the entrance in
- * CSS is what preserves that. `motion-safe:` drops the whole thing when the
- * viewer asked for less motion, leaving the element plainly visible.
+ * CSS entrance animation works without waiting for hydration.
+ * `motion-safe:` leaves content visible when reduced motion is requested.
  */
 export const revealClass = "motion-safe:animate-fade-up";
 
 const STEP_MS = 35;
 
 /**
- * Capped on purpose. Past a dozen rows the ramp stops reading as sequence and
- * starts reading as lag, so the tail of a long list arrives together.
+ * Cap stagger delays so long lists do not keep increasing the wait.
  */
 const MAX_STEPS = 12;
 

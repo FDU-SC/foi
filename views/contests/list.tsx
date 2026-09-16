@@ -178,7 +178,7 @@ export async function ContestListView({
   const remaining = visible.filter((item) => item !== focus);
   return (
     <div className="space-y-5">
-      <PageHeader title="比赛" description="查看赛程与历届比赛。" />
+      <PageHeader title="比赛" />
       <nav
         aria-label="比赛状态"
         className="flex flex-wrap gap-1 border-b border-border pb-3"

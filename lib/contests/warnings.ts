@@ -5,11 +5,7 @@ import { orphanedProblems } from "./refs";
 import { allContests, catalogueContests, contestBySlug } from "./registry";
 
 /**
- * Problems no contest carries.
- *
- * A problem is reachable only as part of a contest, so one nothing references
- * has no URL, no audience and no way to be submitted to — it is a directory
- * that ships without being part of the site.
+ * Report problems absent from every contest: they have no URL or submission entry.
  */
 export function orphanedProblemComplaints(): string[] {
   const orphans = orphanedProblems(

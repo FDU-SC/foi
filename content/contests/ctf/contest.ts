@@ -1,11 +1,8 @@
 import type { ContestConfigInput } from "@/lib/contests/types";
 
 /**
- * The CTF section for web challenges.
- *
- * Its problem also belongs to the `demo-ctf` round, so the same problem holds
- * two URLs — one per pair. That is the intended shape: a round's copy is scored
- * inside that round's window, and this one stays open for practice.
+ * Web CTF practice. The problem also belongs to `demo-ctf`, with one URL per
+ * contest/problem pair. The round scores its own window; this section stays open.
  */
 export const contest = {
   slug: "ctf",

@@ -7,12 +7,8 @@ import { SLOTS } from "@/test/content-roots.mjs";
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 /**
- * What makes a fork's merges conflict-free.
- *
- * Every slot is the same mechanism: an alias resolving to the deployment's root
- * first and the upstream's second, per file. These guards keep the three halves
- * of that in agreement — the alias table, the layer that may be overridden, and
- * the layer that may not reach past its entry points.
+ * Check that slot aliases resolve local-first with per-file fallback, only
+ * allowed layers are overridable, and platform imports use content entry points.
  */
 
 function walk(directory: string): string[] {

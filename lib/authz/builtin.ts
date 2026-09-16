@@ -10,22 +10,12 @@ import { allows } from "./engine";
 import { policy, type CompiledPolicy } from "./types";
 
 /**
- * The policies the platform always carries.
+ * Builtin policies have exactly two roles:
+ * - `permit` defines platform resource attributes such as `visibleTo`.
+ * - `forbid` enforces invariants content cannot override, including contest
+ *   submission windows and entry restrictions.
  *
- * They come in exactly two kinds, and the split is the rule for what belongs
- * here at all:
- *
- * - `permit` — what a platform-declared resource attribute *means*. `visibleTo`
- *   would be an inert array of strings if nothing read it; these policies are
- *   its definition, so every deployment reads it the same way.
- *
- * - `forbid` — invariants content must not be able to grant around. Because a
- *   forbid beats every permit, no policy in `content/policies/` can hand out
- *   submissions outside a contest's collecting window or a seat in a closed
- *   contest.
- *
- * Nothing here grants power to a principal. Every "who may do what" decision
- * lives in `content/policies/`, where a deployment can see and change it.
+ * Principal-specific grants belong exclusively in `content/policies/`.
  */
 export function builtinPolicies(): CompiledPolicy[] {
   return [

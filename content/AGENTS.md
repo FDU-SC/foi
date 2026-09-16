@@ -23,7 +23,9 @@ content/
   theme.css       Colour tokens, loaded after globals.css
 ```
 
-The last three are entry points like the rest: the platform reads them without knowing what is in them. `site-views.tsx` returns components, `schema.ts` returns drizzle tables, `theme.css` is a stylesheet — and in every case the platform provides a default and asks no questions about what replaces it.
+`site-views.tsx`, `schema.ts` and `theme.css` provide components, drizzle tables
+and styles respectively. Each has a platform default; their deployment-specific
+contents remain opaque to the platform.
 
 ## Creating Content
 
@@ -139,10 +141,10 @@ both filter chips and badges:
 facets: ["difficulty", "tags"],   // the keys `problemFacets` hands back
 ```
 
-The default is empty, which draws neither. That is the right default for a
-round: nothing gives away a problem's difficulty or tags while it is being
-solved. A catalogue section names what it wants browsable. The catalogue
-index card chips only the dimensions that did not declare an `order` — an ordered dimension stays on the section page as filters and badges.
+The default is empty: neither filters nor badges reveal difficulty or tags.
+Catalogue sections declare the dimensions they offer. Index cards show only
+dimensions without an `order`; ordered dimensions appear as filters and badges
+on the section page.
 
 ### Mounting Contests as the Catalogue
 
@@ -274,9 +276,8 @@ Navigation entries gate on the same action their destination enforces:
 
 ## Changing How a Page Looks
 
-Three depths, and the shallowest that works is the right one.
-
-Wording and links that fit the existing layout are `site.ts`; colours are `theme.css`. Neither needs code.
+Prefer the shallowest customization: wording and links in `site.ts`, colours
+in `theme.css`, then chrome slots or file overrides for structural changes.
 
 A region whose *structure* differs is a slot in `content/site-views.tsx`:
 
@@ -287,4 +288,4 @@ export const views: SiteViews = { Footer: MyFooter };
 
 Every slot is optional and has a platform default, so `{}` is complete. Regions outside the override continue to receive upstream updates.
 
-A page whose whole body needs rewriting is a file override: put a same-named file under `views.local/` and it replaces the upstream one. That file no longer receives upstream changes automatically; use this option only when shallower overrides are insufficient. See the README for the slot map.
+A page whose whole body needs rewriting is a file override: put a same-named file under `views.local/` and it replaces the upstream one. That file no longer receives upstream changes automatically; use this option only when shallower overrides are insufficient. See [the README](../README.md#派生一份自己的部署) for the slot map.

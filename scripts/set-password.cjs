@@ -21,10 +21,9 @@ const USAGE = `用法:
 密码从 stdin 读取，不给则自动生成并打印一次：
   printf '%s' 'correct horse battery staple' | node scripts/set-password.cjs alice
 
-这个脚本用于救援：邮件发不出去、忘记密码流程走不通时，从服务器上直接改密码。
-改完之后该账号所有已登录的会话立即失效，需要重新登录。
+用于无法通过邮件重置密码时的账号恢复。修改后所有登录会话失效，需要重新登录。
 
-username 允许纯数字，所以按 uid 定位必须显式写 --uid，不会去猜。
+username 允许纯数字；按 uid 定位须使用 --uid。
 新建账号用 scripts/create-account.cjs。`;
 
 async function findAccount(client, { username, uid }) {
@@ -92,7 +91,7 @@ async function main() {
 
   if (account.status !== "active") {
     console.log(
-      `注意：这个账号当前是 ${account.status}，改了密码也登不进去，还得先解封。`,
+      `账号 uid=${account.uid} 当前为 ${account.status}，解封后才能登录。`,
     );
   }
 }

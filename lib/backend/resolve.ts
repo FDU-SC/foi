@@ -17,7 +17,7 @@ export function effectiveSecret(id: string): string | undefined {
 export function resolveBackend(id: string): ResolvedBackend {
   const entry = backends[id];
   if (!entry) {
-    throw new Error(`未知的题目后端 "${id}"，请检查 content/backends.ts`);
+    throw new Error(`未知的题目后端 "${id}"`);
   }
 
   const secret = effectiveSecret(id);

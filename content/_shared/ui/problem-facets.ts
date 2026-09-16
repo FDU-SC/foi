@@ -3,13 +3,8 @@ import type { ProblemFacet } from "@/lib/problems/views";
 import { problemUi } from "./ui-config";
 
 /**
- * The difficulty ladder, easiest first. A page lists the values in this order;
- * a problem carrying anything else lands after them.
- *
- * Three rungs rather than a competition ladder: difficulty is a judgement call,
- * and the more rungs there are the less two people agree on which one a problem
- * sits on. It spans every domain this deployment carries, so it says how hard
- * the problem is and nothing about what kind of problem it is.
+ * Three difficulty levels shared across domains, easiest first. Values absent
+ * from this list sort last. Difficulty describes complexity, not problem type.
  */
 export const DIFFICULTIES = ["入门", "进阶", "挑战"];
 

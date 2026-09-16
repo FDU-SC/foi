@@ -6,11 +6,8 @@ const COUNT = 16;
 const DURATION = 0.7;
 
 /**
- * Deterministic stand-in for randomness.
- *
- * The scatter has to be irregular enough not to read as a clock face, but
- * `Math.random()` during render is neither pure nor stable between the server
- * and the client. Hashing the index gives the same irregularity every time.
+ * Hash indices for irregular particle positions without `Math.random()` during
+ * render, keeping server and client output deterministic.
  */
 function hash(index: number, salt: number): number {
   const value = Math.sin(index * 12.9898 + salt * 78.233) * 43758.5453;
@@ -30,14 +27,8 @@ const BITS = Array.from({ length: COUNT }, (_, index) => {
 });
 
 /**
- * A one-shot burst of particles, centred on whatever it is placed inside.
- *
- * Plays on mount and never again, so the caller keys it to the event worth
- * marking. It says nothing about *why* it is celebrating — the caller decides
- * that from the verdict's tone, which is the content's word on the matter.
- *
- * Purely decorative, and skipped outright for a reader who asked for less
- * motion: a burst of moving confetti is exactly what that preference is about.
+ * Decorative particle burst on mount; callers key it to events selected by
+ * content-provided verdict tone. Skip when reduced motion is requested.
  */
 export function Celebrate({ className }: { className?: string }) {
   const reduced = useReducedMotion();

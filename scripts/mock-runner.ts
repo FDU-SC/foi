@@ -13,6 +13,10 @@ import {
 import { effectiveSecretFromEnv } from "../lib/backend/env";
 import type { JobDetails, JobTicket, Verdict } from "../lib/backend/types";
 import { backends } from "../content/backends";
+import {
+  parallelOutputMatches,
+  parallelScore,
+} from "./mock-runner-hpc";
 
 if (process.env.NODE_ENV === "production") {
   throw new Error(
@@ -758,6 +762,8 @@ interface ParallelPerfConfig {
   compare?: "float" | "exact";
   /** 覆盖默认输入（String(n)）。实现题的程序可能不需要 stdin 输入。 */
   input?: string;
+  /** Override the default serial baseline; an explicit baseline runs as MPI. */
+  baseline?: string;
 }
 
 /** π 的矩形法数值积分（串行参考），OpenMP / MPI 两道题共用。 */
@@ -774,14 +780,6 @@ int main() {
   cout << fixed << setprecision(10) << sum * h << endl;
   return 0;
 }`;
-
-/** 浮点结果容差比对：|a - b| <= tol * max(1, |b|)。 */
-function floatClose(a: string, b: string, tolerance: number): boolean {
-  const x = Number(a.trim());
-  const y = Number(b.trim());
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
-  return Math.abs(x - y) <= tolerance * Math.max(1, Math.abs(y));
-}
 
 async function judgeOpenmp(
   config: unknown,
@@ -844,7 +842,7 @@ async function judgeOpenmp(
 
     const expected = baselineRun.stdout.toString();
     const got = best.stdout.toString();
-    if (!floatClose(got, expected, tolerance)) {
+    if (!parallelOutputMatches(got, expected, "float", tolerance)) {
       return {
         result: { status: "wrong_answer", score: 0, maxScore: 100, accepted: false },
         detail: { message: `输出与参考不一致（|差| 超过容差 ${tolerance}）` },
@@ -852,7 +850,7 @@ async function judgeOpenmp(
     }
 
     const timeMs = Math.max(1, best.timeMs);
-    const score = Math.min(100, Math.floor((50 * baselineMs) / timeMs));
+    const score = parallelScore(baselineMs, timeMs, "speedup");
     return {
       result: { status: score >= 100 ? "accepted" : score > 0 ? "partial" : "wrong_answer", score, maxScore: 100, accepted: score >= 100 },
       detail: {
@@ -881,8 +879,8 @@ async function judgeMpi(
   const source = String((payload as { source?: unknown })?.source ?? "");
   // 评分基线：默认串行参考；题目可提供自己的基线源码（如「祖传低效 MPI 版」），
   // 这时对比的是优化前后，而不是 MPI 对串行。
-  const baselineSource =
-    (config as { baseline?: string })?.baseline ?? PI_INTEGRAL_SOURCE;
+  const hasExplicitBaseline = cfg.baseline !== undefined;
+  const baselineSource = cfg.baseline ?? PI_INTEGRAL_SOURCE;
   const input = cfg.input ?? String(n) + "\n";
   const dir = mkdtempSync(join(tmpdir(), "foi-mpi-"));
 
@@ -916,9 +914,20 @@ async function judgeMpi(
     const runMpi = (exe: string) =>
       run(launcher, ["-np", String(np), exe], { input, timeout: timeLimitMs, maxBuffer: 16 * 1024 * 1024, env: mpiEnv });
 
-    say("测量基线耗时（mpirun -np " + String(np) + "）");
+    say(
+      hasExplicitBaseline
+        ? "测量基线耗时（mpirun -np " + String(np) + "）"
+        : "测量基线耗时（串行单进程）",
+    );
     const baselineStart = process.hrtime.bigint();
-    const baselineRun = await runMpi(baseline);
+    const baselineRun = hasExplicitBaseline
+      ? await runMpi(baseline)
+      : await run(baseline, [], {
+          input,
+          timeout: timeLimitMs,
+          maxBuffer: 16 * 1024 * 1024,
+          env: mpiEnv,
+        });
     const baselineMs = Math.max(1, Number(process.hrtime.bigint() - baselineStart) / 1e6);
     if (baselineRun.killed) throw new Error("基线评测超时");
 
@@ -950,10 +959,12 @@ async function judgeMpi(
 
     const expected = baselineRun.stdout.toString();
     const got = best.stdout.toString();
-    const correct =
-      cfg.compare === "exact"
-        ? got.trim() === expected.trim()
-        : floatClose(got, expected, tolerance);
+    const correct = parallelOutputMatches(
+      got,
+      expected,
+      cfg.compare,
+      tolerance,
+    );
     if (!correct) {
       return {
         result: { status: "wrong_answer", score: 0, maxScore: 100, accepted: false },
@@ -967,10 +978,7 @@ async function judgeMpi(
     }
 
     const timeMs = Math.max(1, best.timeMs);
-    const score =
-      cfg.scoring === "correctness"
-        ? 100
-        : Math.min(100, Math.floor((50 * baselineMs) / timeMs));
+    const score = parallelScore(baselineMs, timeMs, cfg.scoring);
     return {
       result: { status: score >= 100 ? "accepted" : score > 0 ? "partial" : "wrong_answer", score, maxScore: 100, accepted: score >= 100 },
       detail: {

@@ -60,7 +60,7 @@ export async function leaderboardRows(limit = 50): Promise<LeaderboardRow[]> {
         a.nickname,
         count(s.id)::int as submissions,
         count(s.id) filter (where s.result->>'accepted' = 'true')::int as accepted,
-        count(distinct s.problem_slug) filter (where s.result->>'accepted' = 'true')::int as solved
+        count(distinct (s.contest_slug, s.problem_slug)) filter (where s.result->>'accepted' = 'true')::int as solved
       from accounts a
       join submissions s on s.uid = a.uid
       group by a.uid, a.username, a.nickname
@@ -70,10 +70,10 @@ export async function leaderboardRows(limit = 50): Promise<LeaderboardRow[]> {
     db.execute(sql`
       select uid, count(*)::int as first_bloods
       from (
-        select distinct on (s.problem_slug) s.uid
+        select distinct on (s.contest_slug, s.problem_slug) s.uid
         from submissions s
         where s.result->>'accepted' = 'true'
-        order by s.problem_slug, s.judged_at asc nulls last, s.created_at asc
+        order by s.contest_slug, s.problem_slug, s.judged_at asc nulls last, s.created_at asc
       ) f
       group by uid
     `),

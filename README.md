@@ -237,7 +237,6 @@ export const problemConfigModules = { ...upstream, ...local };
 镜像里是一个 Next.js standalone 产物，配一个 PostgreSQL 就能跑：
 
 ```bash
-cp docker-compose.example.yml docker-compose.yml
 cp .env.example .env              # 改掉 AUTH_SECRET 与 FOI_BACKEND_SECRET
 docker compose up -d              # 想连模拟评测机一起，加 --profile demo
 ```
@@ -246,7 +245,6 @@ docker compose up -d              # 想连模拟评测机一起，加 --profile 
 
 生产环境会检查启动配置。例如 `AUTH_SECRET` 仍为示例占位值，或多个评测队列使用同一
 密钥时，应用会拒绝启动。
-
 
 ## 管理与排查
 

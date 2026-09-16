@@ -1,19 +1,11 @@
-# 平台与一个 PostgreSQL。
+# 开箱即用的 Docker Compose～
 #
 #   cp .env.example .env
 #   docker compose up -d
 #
-# 服务监听 http://localhost:3000 。数据库自建，表结构在应用启动时迁移。
+# 默认监听 http://localhost:3000 。数据库自建，表结构在应用启动时迁移。
 #
-# .env 里的密钥是占位值。对外的部署必须换掉，否则应用拒绝启动，见 lib/boot/secrets.ts。
-#
-# 两个可选的 profile：
-#
-#   docker compose --profile demo up -d      # 加一台模拟评测机
-#   docker compose --profile tunnel up -d    # 经 Cloudflare Tunnel 对外，不开放端口
-#
-# 要改这里的任何一项，不要直接编辑本文件——写一份 docker-compose.override.yml，
-# compose 会自动读取并合并，那个文件不进版本控制。
+# 要改这里的任何一项，不要直接编辑本文件——写一份 docker-compose.override.yml
 
 services:
   app:
@@ -28,7 +20,6 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      # 走 Cloudflare Tunnel 时把 FOI_BIND 设成 127.0.0.1，宿主上就只剩一个本地端口。
       - "${FOI_BIND:-0.0.0.0}:${FOI_PORT:-3000}:3000"
     networks:
       - internal
@@ -41,9 +32,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-foi_dev_password}
       POSTGRES_DB: ${POSTGRES_DB:-foi}
     volumes:
-      # 挂在 /var/lib/postgresql 而不是它下面的数据目录：PG18 起，镜像把数据放进
-      # 按大版本命名的子目录（/var/lib/postgresql/18/docker），挂在旧路径上镜像会拒绝启动。
-      # 整个目录一个挂载点，pg_upgrade --link 也就不会跨挂载点边界。
       - pgdata:/var/lib/postgresql
     networks:
       - internal
@@ -57,11 +45,7 @@ services:
       timeout: 5s
       retries: 12
 
-  # 模拟评测机。同一个镜像换一个入口，走完整的领取任务协议，但不编译也不运行任何代码
-  # ——判定按提交内容的哈希预设，每条判定都会在详情页说明这一点。
-  #
-  # 有了它，那些声明了外部后端的题目才不会停在队列里。真实评测需要独立部署的评测机，
-  # 实现不在本仓库。
+  # 模拟评测机
   stub-runner:
     profiles: [demo]
     image: ${FOI_IMAGE:-ghcr.io/fdu-sc/foi:latest}
@@ -70,27 +54,10 @@ services:
     environment:
       FOI_STUB_RUNNER: yes-fake-verdicts
       FOI_KERNEL_URL: http://app:3000
-      # 同 tunnel：不用 :? 强制，否则未激活这个 profile 的部署也会在解析时失败。
-      # 值为空时 stub-runner 自己会在启动检查里报出来。
       FOI_BACKEND_SECRET: ${FOI_BACKEND_SECRET:-}
       FOI_STUB_BACKENDS: ${FOI_STUB_BACKENDS:-traditional,interactive,performance}
     depends_on:
       - app
-    networks:
-      - internal
-
-  # 经 Cloudflare Tunnel 对外：连接由 cloudflared 主动向外建立，宿主不必开放任何
-  # 入站端口，也不需要公网 IP 或证书。启用它时把 app 的端口映射收回本地环回地址，
-  # 隧道走的是容器网络里的 app:3000。
-  tunnel:
-    profiles: [tunnel]
-    image: cloudflare/cloudflared:latest@sha256:51c9cefcb4569df44e1ad403ab1d3d8065aa8e84339bcfc6aee75502e1140339
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run
-    environment:
-      # 不用 :? 强制：即使 profile 没激活，compose 也会解析整个文件，那样每一个
-      # 不走隧道的部署都会在这里失败。启用 tunnel profile 时它必须有值。
-      TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN:-}
     networks:
       - internal
 

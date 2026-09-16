@@ -1,9 +1,9 @@
 "use client";
 
-import { motion } from "motion/react";
+import { useId } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LAYOUT_SPRING } from "@/components/ui/motion";
+import { NavigationIndicator } from "@/components/ui/navigation-indicator";
 import { cn } from "@/lib/utils";
 
 export interface NavLink {
@@ -15,15 +15,14 @@ export interface NavLink {
  * The header navigation, with a highlight that slides to whichever entry the
  * reader is on.
  *
- * A shared `layoutId` is what makes it one pill moving rather than two pills
- * swapping: Motion pairs the element leaving one link with the one arriving at
- * the next and animates between their boxes.
+ * A shared indicator connects the old and new active links during navigation.
  *
  * Which entries appear is decided on the server, before this list arrives —
  * gating belongs where `authorize` can be asked, not in the browser.
  */
 export function SiteNav({ items }: { items: NavLink[] }) {
   const pathname = usePathname();
+  const id = useId();
 
   return (
     <nav className="order-last flex w-full min-w-0 items-center gap-1 overflow-x-auto pb-2 text-sm lg:order-none lg:w-auto lg:flex-1 lg:pb-0">
@@ -46,9 +45,8 @@ export function SiteNav({ items }: { items: NavLink[] }) {
             )}
           >
             {active ? (
-              <motion.span
-                layoutId="site-nav-active"
-                transition={LAYOUT_SPRING}
+              <NavigationIndicator
+                name={`site-nav-active-${id}`}
                 className="bg-surface-2 absolute inset-0 rounded-md"
               />
             ) : null}

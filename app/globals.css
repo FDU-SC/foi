@@ -465,7 +465,78 @@
   }
 }
 
-/* Only the contest workspace uses the full page width. */
-.oj-page:has([data-contest-workspace]) {
-  max-width: none;
+/* The default header and page share geometry, including streamed workspaces. */
+.site-container {
+  max-width: var(--site-content-width, 1280px);
+}
+
+body:has(.oj-page [data-contest-workspace]) {
+  --site-content-width: 100%;
+}
+
+/* Animate only opted-in regions, not the viewport or persistent chrome. */
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-group(root),
+::view-transition-group(.page-stable) {
+  animation: none;
+}
+
+::view-transition-old(root),
+::view-transition-old(.page-stable),
+::view-transition-old(.header-move) {
+  display: none;
+}
+
+::view-transition-new(root),
+::view-transition-new(.page-stable),
+::view-transition-new(.header-move) {
+  animation: none;
+}
+
+::view-transition-group(.header-move),
+::view-transition-group(.page-fade),
+::view-transition-group(.navigation-marker) {
+  animation-duration: 240ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+::view-transition-group(.header-move) {
+  z-index: 40;
+}
+
+/* Resizing a snapshot must not stretch text or the logo. */
+::view-transition-new(.header-move),
+::view-transition-old(.page-fade),
+::view-transition-new(.page-fade) {
+  height: 100%;
+  object-fit: none;
+  object-position: top left;
+}
+
+::view-transition-old(.page-fade) {
+  animation: page-fade-out 180ms ease-out both;
+}
+
+::view-transition-new(.page-fade) {
+  animation: page-fade-in 180ms ease-out both;
+}
+
+@keyframes page-fade-out {
+  to { opacity: 0; }
+}
+
+@keyframes page-fade-in {
+  from { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
 }

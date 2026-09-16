@@ -1,9 +1,8 @@
 import { site } from "@/lib/site";
-import { revealClass } from "@/components/ui/reveal";
 
 export function FoiHomeHero() {
   return (
-    <section className={`foi-home-hero px-5 py-5 sm:px-7 ${revealClass}`}>
+    <section className="foi-home-hero px-5 py-5 sm:px-7">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 overflow-hidden"

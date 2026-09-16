@@ -25,9 +25,10 @@ export function PageTransition({ children }: { children: ReactNode }) {
     });
     if (geometryChanged) return;
 
-    // Filters, form actions and live refreshes should not fade the whole page.
-    // Finish only this boundary's snapshots, leaving nested transitions intact.
+    // Same-page reveals and refreshes must not animate the page's height either.
+    // Finish this boundary's group and snapshots, leaving nested transitions intact.
     const snapshots = new Set([
+      `::view-transition-group(${name})`,
       `::view-transition-old(${name})`,
       `::view-transition-new(${name})`,
     ]);

@@ -1,8 +1,30 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
-import { describe, expect, it } from "vitest";
+import {
+  getRedirectUrl,
+  unstable_doesMiddlewareMatch,
+} from "next/experimental/testing/server";
+import {
+  type NextFetchEvent,
+  NextRequest,
+  type NextResponse,
+} from "next/server";
+import { describe, expect, it, vi } from "vitest";
+
+const catalogueRedirect = vi.hoisted(() => vi.fn());
+
+vi.mock("next-auth", () => ({
+  default: () => ({ auth: (handler: unknown) => handler }),
+}));
+
+vi.mock("@/lib/contests/catalogue", () => ({ catalogueRedirect }));
+
+const { default: wrappedProxy } = await import("./proxy");
+const proxy = wrappedProxy as unknown as (
+  request: NextRequest,
+  event: NextFetchEvent,
+) => NextResponse | Promise<NextResponse>;
 
 function proxyMatcher(): string[] {
   const source = readFileSync(join(import.meta.dirname, "proxy.ts"), "utf8");
@@ -75,5 +97,30 @@ describe("proxy matcher 覆盖面", () => {
     expect(matches("/_next/static/chunks/main.js")).toBe(false);
     expect(matches("/_next/image")).toBe(false);
     expect(matches("/favicon.ico")).toBe(false);
+  });
+});
+
+describe("题库旧地址跳转", () => {
+  it("目标参数优先，并保留来源地址的其他参数", async () => {
+    catalogueRedirect.mockReturnValueOnce("/leaderboard?board=direction");
+
+    const response = await proxy(
+      new NextRequest(
+        "https://example.test/contests/section/standings?board=stale&filter=solved&filter=attempted",
+      ),
+      {} as NextFetchEvent,
+    );
+    const destination = new URL(getRedirectUrl(response)!);
+
+    expect(catalogueRedirect).toHaveBeenCalledWith(
+      "/contests/section/standings",
+    );
+    expect(response.status).toBe(307);
+    expect(destination.pathname).toBe("/leaderboard");
+    expect(destination.searchParams.getAll("board")).toEqual(["direction"]);
+    expect(destination.searchParams.getAll("filter")).toEqual([
+      "solved",
+      "attempted",
+    ]);
   });
 });

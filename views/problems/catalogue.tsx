@@ -69,11 +69,14 @@ export async function CatalogueIndexView() {
               key={group.heading ?? "ungrouped"}
               className="ui-panel border-border bg-surface min-w-0 overflow-hidden rounded-xl border"
             >
-              <header className="border-border bg-surface-2/60 flex items-center justify-between gap-3 border-b px-4 py-3.5">
-                <h2 className="text-fg text-sm font-semibold">
-                  {group.heading ?? "其他分区"}
-                </h2>
-                <DirectionLink card={group.cards[0]} />
+              <header className="border-border bg-surface-2/60 space-y-3 border-b px-4 py-3.5">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-fg text-sm font-semibold">
+                    {group.heading ?? "其他分区"}
+                  </h2>
+                  <DirectionLink card={group.cards[0]} />
+                </div>
+                <DirectionProgress cards={group.cards} label={group.heading ?? "其他分区"} />
               </header>
               <ul className="divide-border/70 divide-y">
                 {group.cards.map((card) => (
@@ -83,6 +86,38 @@ export async function CatalogueIndexView() {
             </section>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function DirectionProgress({ cards, label, showSummary = true }: {
+  cards: SectionCard[];
+  label: string;
+  showSummary?: boolean;
+}) {
+  if (cards.some((card) => card.solved === null)) return null;
+  const total = cards.reduce((sum, card) => sum + card.total, 0);
+  if (total === 0) return null;
+  const solved = cards.reduce((sum, card) => sum + (card.solved ?? 0), 0);
+  const percent = Math.round((solved / total) * 100);
+
+  return (
+    <div className="space-y-1.5">
+      {showSummary && <div className="text-fg-muted flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs tabular-nums">
+        <span>{solved} / {total}</span>
+        <span className="font-mono">{percent}%</span>
+      </div>}
+      <div
+        role="progressbar"
+        aria-label={`${label}完成进度`}
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={solved}
+        aria-valuetext={`${solved} / ${total}`}
+        className="bg-surface-3 h-1.5 overflow-hidden rounded-full"
+      >
+        <div className="bg-primary h-full rounded-full" style={{ width: `${(solved / total) * 100}%` }} />
       </div>
     </div>
   );
@@ -119,7 +154,7 @@ function SectionMeta({ card }: { card: SectionCard }) {
     <div className="text-fg-subtle flex flex-wrap items-center justify-between gap-2 text-xs">
       <span className="font-mono tabular-nums">
         {card.solved !== null
-          ? `已通过 ${card.solved} / ${card.total}`
+          ? `${card.solved} / ${card.total}`
           : `${card.total} 题`}
       </span>
       {!catalogueBoardFor(card.contest.slug) && <Link
@@ -155,8 +190,9 @@ function SectionRow({ card }: { card: SectionCard }) {
           </p>
         ) : null}
       </Link>
-      <div className="mt-2">
+      <div className="mt-2 space-y-1.5">
         <SectionMeta card={card} />
+        <DirectionProgress cards={[card]} label={card.contest.title} showSummary={false} />
       </div>
     </li>
   );
@@ -190,8 +226,9 @@ function FeaturedSection({
             {contest.description}
           </p>
         ) : null}
-        <div className="mt-2">
+        <div className="mt-2 space-y-1.5">
           <SectionMeta card={card} />
+          <DirectionProgress cards={[card]} label={heading ?? contest.title} showSummary={false} />
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Link

@@ -133,6 +133,7 @@ describe("题库首页访问边界", () => {
     expect(problemsFor).toHaveBeenCalledWith(visible.slug, ANONYMOUS);
     expect(problemHref).toHaveBeenCalledTimes(4);
     expect(progressFor).not.toHaveBeenCalled();
+    expect(html).not.toContain('role="progressbar"');
   });
 
   it("同题跨分区时分别查询并计算登录用户的通过进度", async () => {
@@ -163,10 +164,60 @@ describe("题库首页访问边界", () => {
 
     expect(html.match(/href="\/leaderboard\?board=direction"/g)).toHaveLength(1);
     expect(html).not.toContain("/standings");
-    expect(html).toContain("已通过 1 / 1");
-    expect(html).toContain("已通过 0 / 1");
+    expect(html).toContain("1 / 1");
+    expect(html).toContain("0 / 1");
+    expect(html.match(/role="progressbar"/g)).toHaveLength(3);
+    expect(html).not.toContain("已通过");
+    expect(html).toContain('aria-label="第一分区完成进度"');
+    expect(html).toContain('aria-label="第二分区完成进度"');
+    expect(html).toContain('aria-label="同题方向完成进度"');
+    expect(html).toContain('aria-valuemax="2" aria-valuenow="1"');
+    expect(html).toContain('width:50%');
     expect(progressFor).toHaveBeenCalledTimes(2);
     expect(progressFor).toHaveBeenCalledWith(first.slug, VIEWER);
     expect(progressFor).toHaveBeenCalledWith(second.slug, VIEWER);
+  });
+
+  it.each([
+    { state: "solved" as const, expected: 1 },
+    { state: "untouched" as const, expected: 0 },
+  ])("单分区方向显示 $state 进度并保留排行榜", async ({ state, expected }) => {
+    const item = problem("one");
+    const config = section("single", "单一分区", "单一方向", [item]);
+    vi.mocked(getViewer).mockResolvedValue(VIEWER);
+    vi.mocked(catalogueSlugs).mockReturnValue([config.slug]);
+    vi.mocked(contestFor).mockReturnValue(contestView(config));
+    vi.mocked(problemsFor).mockReturnValue(problemViews(config, [item]));
+    vi.mocked(progressFor).mockResolvedValue(new Map([[item.slug, { state, verdict: null }]]));
+
+    const html = renderToStaticMarkup(await CatalogueIndexView());
+
+    expect(html.match(/role="progressbar"/g)).toHaveLength(1);
+    expect(html).toContain('aria-label="单一方向完成进度"');
+    expect(html).toContain(`aria-valuemax="1" aria-valuenow="${expected}"`);
+    expect(html).toContain(`width:${expected * 100}%`);
+    expect(html).toContain('/problems/single/standings');
+  });
+
+  it.each([false, true])("隐藏无法统计或没有题目的方向进度（空分区：%s）", async (empty) => {
+    const items = empty ? [] : [problem("one")];
+    const first = section("first", "第一分区", "方向", items);
+    const second = section("second", "第二分区", "方向", items);
+    vi.mocked(getViewer).mockResolvedValue(VIEWER);
+    vi.mocked(catalogueSlugs).mockReturnValue([first.slug, second.slug]);
+    vi.mocked(contestFor).mockImplementation((slug) => contestView(slug === first.slug ? first : second));
+    vi.mocked(problemsFor).mockImplementation((slug) => problemViews(slug === first.slug ? first : second, items));
+    vi.mocked(progressFor).mockImplementation(async (slug) =>
+      slug === first.slug && !empty
+        ? new Map([["one", { state: "solved", verdict: null }]])
+        : new Map(),
+    );
+
+    const html = renderToStaticMarkup(await CatalogueIndexView());
+
+    expect(html).not.toContain('aria-label="方向完成进度"');
+    expect(html).not.toContain('aria-label="第二分区完成进度"');
+    expect(html.match(/role="progressbar"/g) ?? []).toHaveLength(empty ? 0 : 1);
+    expect(html).not.toContain("NaN");
   });
 });

@@ -13,6 +13,7 @@ export function CatalogueIndexSkeleton() {
             <Skeleton className="h-6 w-24" />
             <Skeleton className="h-4 w-20" />
             <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-1.5 w-full rounded-full" />
           </div>
           <div className="border-border/70 border-t pt-3 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
             <Skeleton className="mb-2 h-4 w-20" />
@@ -30,6 +31,10 @@ export function CatalogueIndexSkeleton() {
           >
             <div className="bg-surface-2/60 border-b px-4 py-3.5">
               <Skeleton className="h-5 w-32" />
+              <div className="mt-3 space-y-1.5">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-1.5 w-full rounded-full" />
+              </div>
             </div>
             <div className="divide-border/70 divide-y">
               {Array.from({ length: count }, (_, index) => (
@@ -38,6 +43,7 @@ export function CatalogueIndexSkeleton() {
                   <Skeleton className="h-4 w-full" />
                   <Skeleton className="h-4 w-3/4" />
                   <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-1.5 w-full rounded-full" />
                 </div>
               ))}
             </div>

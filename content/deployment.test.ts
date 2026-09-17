@@ -5,7 +5,11 @@ import { listGroups } from "@/lib/authz/groups";
 import { actionsWithoutPermit, privilegedGroups } from "@/lib/authz/introspect";
 import type { AccountRef } from "@/lib/authz/resources";
 import { groupsFor } from "@/lib/enrollment/registry";
-import { isCatalogue } from "@/lib/contests/catalogue";
+import {
+  catalogueRedirect,
+  isCatalogue,
+  standingsHref,
+} from "@/lib/contests/catalogue";
 import {
   allContests,
   catalogueContests,
@@ -47,6 +51,18 @@ describe("这套 content 自身自洽", () => {
       expect(domains.has(undefined)).toBe(false);
     }
   });
+
+  it("每个分区的排行榜入口与旧地址都收敛到所属方向", () => {
+    for (const board of site.catalogueLeaderboards!) {
+      const expected = `/leaderboard?board=${encodeURIComponent(board.id)}`;
+      for (const slug of board.sections) {
+        expect(standingsHref(slug)).toBe(expected);
+        expect(catalogueRedirect(`/problems/${slug}/standings`)).toBe(expected);
+        expect(catalogueRedirect(`/contests/${slug}/standings/`)).toBe(expected);
+      }
+    }
+  });
+
   it("每道外挂题指向的后端都登记过", () => {
     expect(undeclaredBackends()).toEqual([]);
   });

@@ -5,6 +5,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StandingsLiveRefresh } from "./live-refresh";
 
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
 const refresh = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({

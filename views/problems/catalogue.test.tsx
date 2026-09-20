@@ -136,6 +136,45 @@ describe("题库首页访问边界", () => {
     expect(html).not.toContain('role="progressbar"');
   });
 
+  it("方向进度只汇总有权读取的分区", async () => {
+    const item = problem("shared");
+    const first = section("first", "第一分区", "同一方向", [item]);
+    const second = section("second", "第二分区", "同一方向", [item]);
+    const hidden = section("hidden", "隐藏分区", "同一方向", [item]);
+    const visible = new Map([
+      [first.slug, first],
+      [second.slug, second],
+    ]);
+
+    vi.mocked(getViewer).mockResolvedValue(VIEWER);
+    vi.mocked(catalogueSlugs).mockReturnValue([
+      first.slug,
+      hidden.slug,
+      second.slug,
+    ]);
+    vi.mocked(contestFor).mockImplementation((slug) => {
+      const config = visible.get(slug);
+      return config ? contestView(config) : undefined;
+    });
+    vi.mocked(problemsFor).mockImplementation((slug) => {
+      const config = visible.get(slug);
+      return config ? problemViews(config, [item]) : [];
+    });
+    vi.mocked(progressFor).mockResolvedValue(
+      new Map([[item.slug, { state: "solved", verdict: null }]]),
+    );
+
+    const html = renderToStaticMarkup(await CatalogueIndexView());
+
+    expect(html).not.toContain("隐藏分区");
+    expect(html).toContain('aria-label="同一方向完成进度"');
+    expect(html).toContain('aria-valuemax="2" aria-valuenow="2"');
+    expect(problemsFor).toHaveBeenCalledTimes(2);
+    expect(progressFor).toHaveBeenCalledTimes(2);
+    expect(progressFor).toHaveBeenCalledWith(first.slug, VIEWER);
+    expect(progressFor).toHaveBeenCalledWith(second.slug, VIEWER);
+  });
+
   it("同题跨分区时分别查询并计算登录用户的通过进度", async () => {
     const shared = problem("shared", "共享题目");
     const first = section("first", "第一分区", "同题方向", [shared]);
@@ -197,6 +236,24 @@ describe("题库首页访问边界", () => {
     expect(html).toContain(`aria-valuemax="1" aria-valuenow="${expected}"`);
     expect(html).toContain(`width:${expected * 100}%`);
     expect(html).toContain('/problems/single/standings');
+  });
+
+  it("进度未覆盖全部可见题目时隐藏比例", async () => {
+    const items = [problem("one"), problem("two")];
+    const config = section("partial", "部分进度分区", "部分进度方向", items);
+    vi.mocked(getViewer).mockResolvedValue(VIEWER);
+    vi.mocked(catalogueSlugs).mockReturnValue([config.slug]);
+    vi.mocked(contestFor).mockReturnValue(contestView(config));
+    vi.mocked(problemsFor).mockReturnValue(problemViews(config, items));
+    vi.mocked(progressFor).mockResolvedValue(
+      new Map([[items[0].slug, { state: "solved", verdict: null }]]),
+    );
+
+    const html = renderToStaticMarkup(await CatalogueIndexView());
+
+    expect(html).toContain("2 题");
+    expect(html).not.toContain("1 / 2");
+    expect(html).not.toContain('role="progressbar"');
   });
 
   it.each([false, true])("隐藏无法统计或没有题目的方向进度（空分区：%s）", async (empty) => {

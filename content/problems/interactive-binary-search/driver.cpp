@@ -1,0 +1,73 @@
+#include <cstdio>
+#include <cstdlib>
+
+namespace {
+    int g_lo = 1;
+    int g_hi = 2;
+    int g_n = 0;
+    int q_cnt = 0;
+    int g_submit = 0;
+    int g_answer = 0;
+}
+
+int query(int x);
+void answer(int x);
+
+void solve(int n);
+
+int query(int x) {
+    int mid = (g_lo + g_hi) / 2;
+    ++q_cnt;
+    if (x < g_lo) {
+        return 1;
+    }
+    else if (x >= g_hi) {
+        return 0;
+    }
+    else if (x <= mid) {
+        g_lo = x + 1;
+        return 1;
+    } else {
+        g_hi = x;
+        return 0;
+    }
+}
+
+void answer(int x) {
+    g_submit = 1;
+    g_answer = x;
+}
+
+int main(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <n>\n", argv[0]);
+        return 2;
+    }
+    g_n = atoi(argv[1]);
+    q_cnt = 0;
+    g_lo = 1;
+    g_hi = g_n;
+    g_submit = 0;
+    g_answer = 0;
+    solve(g_n);
+    bool correct = true;
+    if (!g_submit) {
+        correct = false;
+    }
+    if (g_lo != g_hi) {
+        correct = false;
+    }
+    if (g_answer != g_lo) {
+        correct = false;
+    }
+    int score = correct ? (q_cnt <= 30 ? 100 : 50) : 0;
+    const char *status = score >= 100 ? "accepted" : score > 0 ? "partial" : "wrong_answer";
+    const char *what = !g_submit ? "solve() 结束时没有调用 answer()"
+                       : correct   ? "答案正确"
+                                   : "答案错误";
+    printf("FOI_RESULT {\"score\":%d,\"maxScore\":100,\"status\":\"%s\","
+           "\"message\":\"%s，用了 %d 次查询（上限 %d）\"}\n",
+           score, status, what, q_cnt, 30);
+
+    return 0;
+}

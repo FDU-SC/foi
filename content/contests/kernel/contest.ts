@@ -4,8 +4,9 @@ import type { ContestConfigInput } from "@/lib/contests/types";
  * The HPC & AI Infra heading's first section: single-node, single-device performance.
  *
  * Its problems are scored against a baseline rather than checked for
- * correctness alone, which is why the section boundary and the judging
- * environment line up — everything here goes through the `performance` backend.
+ * correctness alone. Each one ships its own driver through the `interactive`
+ * backend, so the baseline, the scoring formula and the compile flags all live
+ * in the problem's own config.
  */
 export const contest = {
   slug: "kernel",
@@ -26,7 +27,7 @@ export const contest = {
   startsAt: "2025-01-01T00:00:00+08:00",
   endsAt: "2099-12-31T23:59:59+08:00",
 
-  problems: [{ slug: "perf-optimize" }],
+  problems: [{ slug: "perf-optimize" }, { slug: "openmp-pi" }, { slug: "sssp-hpc" }],
 
   participants: { mode: "open" },
 } satisfies ContestConfigInput;

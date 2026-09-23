@@ -37,11 +37,11 @@ export async function leaderboardRows(
     const contest = contestFor(slug, ANONYMOUS, now)?.config;
     if (!contest || contestPhase(contest, now) === "frozen") return [];
     return problemsFor(slug, ANONYMOUS, now).map(({ ref }) =>
-      sql`(${slug}::text, ${ref.problem.slug}::text, ${ref.entry.points ?? ref.problem.maxScore}::numeric, ${contest.startsAt.toISOString()}::timestamptz)`);
+      sql`(${slug}::text, ${ref.problem.slug}::text, ${ref.entry.points ?? ref.problem.maxScore}::numeric, ${contest.startsAt.toISOString()}::timestamptz, ${contest.endsAt.toISOString()}::timestamptz)`);
   });
   if (pairs.length === 0 || limit <= 0) return [];
   const rows = await db.execute(sql`
-    with pairs(contest_slug, problem_slug, worth, starts_at) as (values ${sql.join(pairs, sql`, `)}),
+    with pairs(contest_slug, problem_slug, worth, starts_at, ends_at) as (values ${sql.join(pairs, sql`, `)}),
     eligible as (
       select s.id, s.uid, s.contest_slug, s.problem_slug, s.created_at,
         case when jsonb_typeof(s.result -> 'score') = 'number' then
@@ -56,6 +56,7 @@ export async function leaderboardRows(
       where a.status = 'active' and s.state = 'completed'
         and s.created_at <= ${now.toISOString()}::timestamptz
         and s.created_at >= p.starts_at
+        and s.created_at <= p.ends_at
     ), counts as (
       select uid, count(*)::int as submissions from eligible group by uid
     ), solved_problems as (

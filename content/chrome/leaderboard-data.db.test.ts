@@ -53,7 +53,7 @@ describeDb("练习排行榜数据库聚合", () => {
     });
     await db.insert(submissions).values([
       row("a-p", 0, 0, 1), row("a-p-again", 0, 0, 2, { accepted: true, score: 100, maxScore: 100 }, slugs[1]),
-      row("a-q", 0, 1, 40), // after-end practice; reaches two later than b
+      row("a-q", 0, 1, 40), // Post-end practice stays outside leaderboard windows.
       row("b-p", 1, 0, 3), row("b-q", 1, 1, 4),
       row("c-fail", 2, 0, 5, { accepted: "true" }), row("d-fail", 3, 0, 6, false),
       row("e-earliest", 4, 0, 0),
@@ -77,12 +77,33 @@ describeDb("练习排行榜数据库聚合", () => {
   it("按分区与题目去重并按分数排序，只统计公开、已完成和 active 账号", async () => {
     const rows = await leaderboardRows(50, NOW);
     expect(rows.map(({ uid, solved, submissions, firstBloods }) => ({ uid, solved, submissions, firstBloods }))).toEqual([
-      { uid: uids[0], solved: 3, submissions: 3, firstBloods: 2 },
+      { uid: uids[0], solved: 2, submissions: 2, firstBloods: 2 },
       { uid: uids[1], solved: 2, submissions: 2, firstBloods: 1 },
       { uid: uids[2], solved: 0, submissions: 1, firstBloods: 0 },
       { uid: uids[3], solved: 0, submissions: 1, firstBloods: 0 },
     ]);
     expect(await leaderboardRows(1, NOW)).toEqual(rows.slice(0, 1));
+  });
+  it("结束时间为闭区间，赛后提交不计入总分、解题数与首杀数", async () => {
+    const accepted = { accepted: true, score: 100, maxScore: 100 };
+    state.boards = [{ id: "main", title: "练习", sections: [slugs[0]], includeInTotal: true }];
+    try {
+      await db.update(submissions).set({ result: null, state: "pending" }).where(eq(submissions.id, "practice-test-b-q"));
+      const late = (await leaderboardRows(50, NOW)).find(({ uid }) => uid === uids[0])!;
+      await db.update(submissions).set({ result: null, state: "pending" }).where(eq(submissions.id, "practice-test-a-q"));
+      const absent = (await leaderboardRows(50, NOW)).find(({ uid }) => uid === uids[0])!;
+      await db.update(submissions).set({ result: accepted, state: "completed", createdAt: at(30) }).where(eq(submissions.id, "practice-test-a-q"));
+      const atEnd = (await leaderboardRows(50, NOW)).find(({ uid }) => uid === uids[0])!;
+      expect(late).toMatchObject({ total: 100, solved: 1, firstBloods: 1 });
+      expect(late).toMatchObject({ total: absent.total, solved: absent.solved, firstBloods: absent.firstBloods });
+      expect(atEnd).toMatchObject({ total: 200, solved: 2, firstBloods: 2 });
+    } finally {
+      await db.update(submissions).set({ result: accepted, state: "completed", createdAt: at(40) })
+        .where(eq(submissions.id, "practice-test-a-q"));
+      await db.update(submissions).set({ result: accepted, state: "completed" })
+        .where(eq(submissions.id, "practice-test-b-q"));
+      state.boards = [];
+    }
   });
   it("方向隔离，总榜排除不计入的方向，未知方向为空", async () => {
     state.boards = [
@@ -93,7 +114,7 @@ describeDb("练习排行榜数据库聚合", () => {
       const total = await leaderboardRows(50, NOW);
       expect(total).toEqual(await leaderboardRows(50, NOW, "main"));
       expect(total[0]).toMatchObject({ uid: uids[1], total: 200, rank: 1 });
-      expect(total.find((r) => r.uid === uids[0])).toMatchObject({ total: 200, solved: 2, submissions: 2, firstBloods: 1 });
+      expect(total.find((r) => r.uid === uids[0])).toMatchObject({ total: 100, solved: 1, submissions: 1, firstBloods: 1 });
       expect(await leaderboardRows(50, NOW, "toy")).toEqual([expect.objectContaining({ uid: uids[0], total: 100, solved: 1, submissions: 1, firstBloods: 1 })]);
       expect(await leaderboardRows(50, NOW, "missing")).toEqual([]);
     } finally { state.boards = []; }

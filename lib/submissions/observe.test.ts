@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ResolvedUser } from "@/lib/accounts/types";
 import { viewerFor } from "@/lib/authz/viewer";
 import { resolveUser } from "@/lib/accounts/resolve";
 import type { SubmissionRow } from "@/lib/db/schema";
@@ -27,6 +28,23 @@ const initial: SubmissionView = {
 // The observer uses only the authorized view, not the storage record.
 function read(view = initial) {
   return { record: {} as SubmissionRow, view };
+}
+
+function account(
+  groups: string[] = [],
+  disabled = false,
+): ResolvedUser {
+  return {
+    uid: 7,
+    username: "observer",
+    nickname: "Observer",
+    avatarUpdatedAt: null,
+    email: null,
+    emailVerified: false,
+    groups,
+    status: disabled ? "suspended" : "active",
+    disabled,
+  };
 }
 
 let ready: ReturnType<typeof held<void>>;
@@ -144,14 +162,40 @@ describe("提交观察", () => {
     expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
-  it("账号消失时心跳结束观察", async () => {
-    vi.mocked(resolveUser).mockResolvedValue(null);
+  it.each([
+    ["消失", null],
+    ["停用", account([], true)],
+  ] as const)("账号%s时心跳结束观察", async (_state, resolved) => {
+    vi.mocked(resolveUser).mockResolvedValue(resolved);
     const watching = observe();
     ready.resolve();
     await vi.advanceTimersByTimeAsync(20_000);
     await watching.done;
     expect(watching.onHeartbeat).not.toHaveBeenCalled();
+    expect(submissionFor).toHaveBeenCalledTimes(1);
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("心跳使用最新权限组重新授权，失去读取权限后结束观察", async () => {
+    vi.mocked(resolveUser).mockResolvedValue(account(["revoked"]));
+    vi.mocked(submissionFor)
+      .mockResolvedValueOnce(read())
+      .mockResolvedValueOnce(undefined);
+    const watching = observe();
+    ready.resolve();
+    await vi.advanceTimersByTimeAsync(20_000);
+    await watching.done;
+
+    expect(submissionFor).toHaveBeenCalledTimes(2);
+    expect(submissionFor).toHaveBeenNthCalledWith(
+      2,
+      initial.id,
+      expect.objectContaining({ uid: 7, groups: ["revoked"] }),
+      expect.any(AbortSignal),
+    );
+    expect(watching.onHeartbeat).not.toHaveBeenCalled();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("初始快照已完成时不建立订阅", async () => {

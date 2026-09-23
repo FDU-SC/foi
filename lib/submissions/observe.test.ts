@@ -154,6 +154,38 @@ describe("提交观察", () => {
     expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
+  it("心跳使用最新用户组重查权限，权限撤销后结束观察", async () => {
+    vi.mocked(resolveUser).mockResolvedValue({
+      uid: 7,
+      username: "user",
+      nickname: "用户",
+      avatarUpdatedAt: null,
+      email: null,
+      emailVerified: false,
+      groups: ["updated"],
+      status: "active",
+      disabled: false,
+    });
+    vi.mocked(submissionFor)
+      .mockResolvedValueOnce(read())
+      .mockResolvedValueOnce(undefined);
+
+    const watching = observe();
+    ready.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(20_000);
+    await watching.done;
+
+    expect(submissionFor).toHaveBeenNthCalledWith(
+      2,
+      initial.id,
+      expect.objectContaining({ groups: ["updated"] }),
+      expect.any(AbortSignal),
+    );
+    expect(watching.onHeartbeat).not.toHaveBeenCalled();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
   it("初始快照已完成时不建立订阅", async () => {
     const watching = observe({ ...initial, state: "completed" });
     await watching.done;

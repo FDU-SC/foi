@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { viewerFor } from "@/lib/authz/viewer";
 import { resolveUser } from "@/lib/accounts/resolve";
+import type { ResolvedUser } from "@/lib/accounts/types";
 import type { SubmissionRow } from "@/lib/db/schema";
 import { submissionFor } from "./access";
 import { subscribe } from "./events";
@@ -27,6 +28,20 @@ const initial: SubmissionView = {
 // The observer uses only the authorized view, not the storage record.
 function read(view = initial) {
   return { record: {} as SubmissionRow, view };
+}
+
+function account(groups: string[] = [], disabled = false): ResolvedUser {
+  return {
+    uid: 7,
+    username: "observer",
+    nickname: "Observer",
+    avatarUpdatedAt: null,
+    email: null,
+    emailVerified: false,
+    groups,
+    status: disabled ? "suspended" : "active",
+    disabled,
+  };
 }
 
 let ready: ReturnType<typeof held<void>>;
@@ -144,14 +159,37 @@ describe("提交观察", () => {
     expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
-  it("账号消失时心跳结束观察", async () => {
-    vi.mocked(resolveUser).mockResolvedValue(null);
+  it.each([
+    { state: "消失", resolved: null },
+    { state: "停用", resolved: account([], true) },
+  ])("账号$state时心跳结束观察", async ({ resolved }) => {
+    vi.mocked(resolveUser).mockResolvedValue(resolved);
     const watching = observe();
     ready.resolve();
     await vi.advanceTimersByTimeAsync(20_000);
     await watching.done;
     expect(watching.onHeartbeat).not.toHaveBeenCalled();
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("心跳按最新分组复查读取权限，失权后结束观察", async () => {
+    vi.mocked(resolveUser).mockResolvedValue(account(["current-membership"]));
+    vi.mocked(submissionFor)
+      .mockResolvedValueOnce(read())
+      .mockResolvedValueOnce(undefined);
+    const watching = observe();
+    ready.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(submissionFor).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(20_000);
+    await watching.done;
+
+    expect(vi.mocked(submissionFor).mock.calls.map(([, viewer]) => viewer.groups))
+      .toEqual([[], ["current-membership"]]);
+    expect(watching.onHeartbeat).not.toHaveBeenCalled();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("初始快照已完成时不建立订阅", async () => {

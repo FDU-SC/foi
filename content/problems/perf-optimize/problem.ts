@@ -307,16 +307,18 @@ export const problem = {
           argv: ["./perf-optimize", String(N), String(SEED), String(BASE)],
           // 单线程：填 1 才会按 1 核算 CPU 时间预算。
           threads: 1,
-          // 驱动要跑 4 次基线（预热 1 次 + 计时 3 次）加 4 次选手程序。实测三个
-          // 可执行文件各约 70 ms、整轮约 0.5 秒，5 秒足够拦住真正的超时提交。
-          timeLimitMs: 5000,
+          // 必须与题面声明的 <Constraints time="8 s"> 一致。实测正确提交整轮
+          // 约 0.5 秒，8 秒足够同时容纳"选手慢但不超限"和拦住真正失控的提交。
+          timeLimitMs: 8000,
           maxScore: 100,
         },
       ],
       // 这道题没有隐藏值，seed 只是通过配置校验。随机性来自 argv 里的 seed。
       seed: 1,
-      // 驱动与它的子进程同时存活，而 RLIMIT_AS 是按进程算的：驱动本身要放
-      // 三份 n×n 的矩阵（约 6 MB），子进程还要各自再放一份。给足 1 GB。
+      // RLIMIT_AS 是按进程算的，而驱动和它 fork 出的子进程各自独立拿到这个预算：
+      // 驱动要放三份 n×n 矩阵（约 24 MB）加期望输出，选手进程还要再放一份。
+      // 取 1 GB 是为了让"选手侧实际可用"明显高于题面声明的 256 MB，
+      // 而不是压着那个数给（压着给会被驱动的开销吃掉一部分）。
       memoryLimitMb: 1024,
       stackLimitMb: 8,
     },

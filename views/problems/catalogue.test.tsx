@@ -136,6 +136,30 @@ describe("题库首页访问边界", () => {
     expect(html).not.toContain('role="progressbar"');
   });
 
+  it.each([
+    { label: "空", partial: false },
+    { label: "部分", partial: true },
+  ])("登录用户只有$label进度时隐藏不完整汇总", async ({ partial }) => {
+    const items = [problem("one"), problem("two")];
+    const config = section("incomplete", "不完整分区", "不完整方向", items);
+    const statuses = partial
+      ? new Map([[items[0].slug, { state: "solved" as const, verdict: null }]])
+      : new Map();
+    vi.mocked(getViewer).mockResolvedValue(VIEWER);
+    vi.mocked(catalogueSlugs).mockReturnValue([config.slug]);
+    vi.mocked(contestFor).mockReturnValue(contestView(config));
+    vi.mocked(problemsFor).mockReturnValue(problemViews(config, items));
+    vi.mocked(progressFor).mockResolvedValue(statuses);
+
+    const html = renderToStaticMarkup(await CatalogueIndexView());
+
+    expect(progressFor).toHaveBeenCalledWith(config.slug, VIEWER);
+    expect(html).toContain("2 题");
+    expect(html).not.toContain('role="progressbar"');
+    expect(html).not.toContain("0 / 2");
+    expect(html).not.toContain("1 / 2");
+  });
+
   it("同题跨分区时分别查询并计算登录用户的通过进度", async () => {
     const shared = problem("shared", "共享题目");
     const first = section("first", "第一分区", "同题方向", [shared]);

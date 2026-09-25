@@ -61,8 +61,8 @@ export async function AdminOverviewView() {
       </div>
 
       <Card>
-        <CardHeader title="仓库与数据库一致性" />
-        <CardBody className="space-y-3">
+        <CardHeader title="配置检查" />
+        <CardBody>
           {overview.findings.length === 0 ? (
             <p className="text-fg-muted text-sm leading-6">
               未发现配置问题。
@@ -79,9 +79,6 @@ export async function AdminOverviewView() {
                       {finding.title}
                     </span>
                   </div>
-                  <p className="text-fg-muted mt-1 text-xs leading-5">
-                    {finding.detail}
-                  </p>
                   <ul className="mt-1.5 flex flex-wrap gap-1.5">
                     {finding.items.map((item) => (
                       <li key={item}>
@@ -93,19 +90,6 @@ export async function AdminOverviewView() {
               ))}
             </ul>
           )}
-
-          <div className="border-border border-t pt-3">
-            <p className="text-fg-subtle text-xs leading-5">
-              数据库中有{" "}
-              <span className="font-mono">{overview.mirroredProblems}</span>{" "}
-              道题、
-              <span className="font-mono">{overview.mirroredContests}</span>{" "}
-              场比赛的提交记录，仓库共{" "}
-              <span className="font-mono">{overview.problemCount}</span> 道题、
-              <span className="font-mono">{overview.contestCount}</span>{" "}
-              场比赛。差额是尚无人提交的。
-            </p>
-          </div>
         </CardBody>
       </Card>
 
@@ -134,10 +118,7 @@ export async function AdminOverviewView() {
 
       <Card>
         <CardHeader title="授权策略" />
-        <CardBody className="space-y-3">
-          <p className="text-fg-muted text-sm leading-6">
-            默认拒绝；禁止优先于放行。「有条件」表示还需满足资源条件。
-          </p>
+        <CardBody>
           <div className="border-border overflow-hidden rounded-md border">
             <table className="w-full text-sm">
               <thead className="bg-surface-2">
@@ -164,7 +145,7 @@ export async function AdminOverviewView() {
                     <td className="px-3 py-2">
                       {entry.policies.length === 0 ? (
                         <span className="text-fg-subtle text-xs">
-                          未配置策略，所有人均无权操作
+                          未配置
                         </span>
                       ) : (
                         <ul className="space-y-1.5">

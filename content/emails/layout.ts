@@ -84,7 +84,7 @@ export function actionMail(mail: ActionMail): MailBody {
       <a href="${escapeHtml(mail.action.url)}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;font-size:14px;font-weight:500;padding:10px 20px;border-radius:8px;">${escapeHtml(mail.action.label)}</a>
     </p>`,
       `    <p style="margin:0 0 12px;font-size:12px;line-height:1.7;color:#6b7280;">
-      按钮打不开时，请复制以下地址到浏览器：<br />
+      或复制以下地址：<br />
       <span style="word-break:break-all;color:#374151;">${escapeHtml(mail.action.url)}</span>
     </p>`,
       note(expiry, true),

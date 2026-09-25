@@ -322,7 +322,7 @@ export function GameOfLifeBoard({
             </div>
           ) : (
             <p className="text-fg-subtle text-xs leading-relaxed">
-              点击格子绘制图案，播放观察演化；进入循环时自动停下并报告周期。
+              点击格子绘制图案。
             </p>
           )}
 
@@ -350,13 +350,13 @@ export function GameOfLifeBoard({
               onClick={() => void copyPattern()}
               disabled={!alive}
             >
-              {copied ? "已复制 ✓" : "复制图案（裁剪后）"}
+              {copied ? "已复制 ✓" : "复制图案"}
             </Button>
           </div>
 
           <details className="pt-1 text-xs">
             <summary className="text-fg-subtle cursor-pointer">
-              导入图案（粘贴 . / O 文本）
+              导入图案
             </summary>
             <textarea
               value={importText}

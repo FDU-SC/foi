@@ -11,9 +11,6 @@ export function FoiHomeHero() {
         <div className="foi-orb foi-orb-b" />
       </div>
       <div className="relative">
-        <p className="text-primary mb-2 text-xs font-medium tracking-[0.22em]">
-          竞赛平台
-        </p>
         <h1 className="foi-display w-fit text-3xl leading-none font-bold tracking-tight sm:text-4xl">
           {site.name}
         </h1>

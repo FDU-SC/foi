@@ -134,10 +134,10 @@ async function ProblemDetail({
   // exactly three ways that happens. Naming the wrong one is worse than saying
   // nothing: "你不在其中" reads as a mistake to someone who is in the audience.
   const why = !hasContestStarted(contest, now)
-    ? `将在比赛「${contest.title}」于 ${gateFormatter.format(contest.startsAt)} 开始时公开。`
+    ? `将于 ${gateFormatter.format(contest.startsAt)} 公开。`
     : !showsStatements(contest, now)
-      ? `比赛「${contest.title}」已经结束，并且不再公开它的题面。`
-      : "你不在这场比赛的参赛范围内。";
+      ? "比赛已结束，题面不再公开。"
+      : "你不在参赛范围内。";
 
   return (
     <ProblemProvider
@@ -152,14 +152,8 @@ async function ProblemDetail({
           <div className={cn("border-warn/40 bg-warn/10 mb-4 rounded-lg border px-4 py-3", embedded && "mx-4 mt-4 sm:mx-6 sm:mt-6")}>
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone="warn">预览</Badge>
-              <span className="text-fg text-sm font-medium">
-                这道题目尚未对选手公开
-              </span>
+              <span className="text-fg text-sm">{why}</span>
             </div>
-            <p className="text-fg-muted mt-1.5 text-xs leading-5">
-              {why}
-              {submit.allowed ? null : submit.reason.message}
-            </p>
           </div>
         ) : null}
 
@@ -229,12 +223,6 @@ async function ProblemDetail({
                 <div>
                   <dt>结束时间</dt>
                   <dd>{gateFormatter.format(contest.endsAt)}</dd>
-                </div>
-                <div>
-                  <dt>状态</dt>
-                  <dd>
-                    <Badge tone={status.tone}>{status.label}</Badge>
-                  </dd>
                 </div>
               </dl>
               <nav

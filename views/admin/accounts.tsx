@@ -104,16 +104,7 @@ export async function AdminAccountsView({
         <span>账号</span>
       </nav>
 
-      <div>
-        <h1 className="text-fg text-2xl font-bold tracking-tight">账号</h1>
-        <p className="text-fg-muted mt-2 text-sm leading-6">
-          用户组由{" "}
-          <Link href="/admin/enrollment" className="hover:text-fg underline">
-            分流规则
-          </Link>
-          自动分配。
-        </p>
-      </div>
+      <h1 className="text-fg text-2xl font-bold tracking-tight">账号</h1>
 
       <form className="flex flex-wrap items-end gap-2" action="/admin/accounts">
         <Field label="">

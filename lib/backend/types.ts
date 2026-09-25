@@ -107,8 +107,7 @@ export const STATE_PRESETS: Record<
   disrupted: { label: "评测中断", tone: "warn" },
 };
 
-const DEFAULT_DISRUPTED_REASON =
-  "评测未能完成，这不是你这次提交的问题。请联系管理员重判。";
+const DEFAULT_DISRUPTED_REASON = "评测未完成，请联系管理员重判。";
 
 export function failureReason(submission: {
   state: SubmissionState;

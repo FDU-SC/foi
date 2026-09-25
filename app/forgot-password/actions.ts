@@ -23,7 +23,7 @@ const schema = z.object({
   identifier: z.string().trim().min(1, "请填写用户名或邮箱"),
 });
 
-const SENT = "如果该账号存在且已验证邮箱，我们已经发送了重置链接，请查收。";
+const SENT = "如果该账号可以找回密码，重置邮件已发出。";
 
 export async function requestPasswordReset(
   _prev: ForgotState,

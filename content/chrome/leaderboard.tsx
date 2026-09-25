@@ -25,10 +25,7 @@ export async function FoiLeaderboard({ board }: { board?: string }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-baseline justify-between">
-        <h1 className="text-fg text-2xl font-bold tracking-tight">{title}</h1>
-        <span className="text-fg-subtle text-sm">每题取最高分，按总分排序</span>
-      </div>
+      <h1 className="text-fg text-2xl font-bold tracking-tight">{title}</h1>
 
       <nav aria-label="排行榜" className="flex flex-wrap gap-3 text-sm">
         {[{ id: undefined, title: "总榜" }, ...boards].map((item) => (

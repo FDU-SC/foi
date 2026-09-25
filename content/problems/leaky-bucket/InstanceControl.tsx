@@ -144,7 +144,7 @@ export function InstanceControl() {
         ) : pulling ? (
           <>
             <span className="text-fg-muted text-xs">
-              实例正在启动，就绪后显示访问地址。
+              实例正在启动。
             </span>
             <Button size="sm" variant="danger" onClick={destroy} disabled={busy || !destroyPermission?.allowed}>
               取消
@@ -160,7 +160,7 @@ export function InstanceControl() {
               {busy ? "启动中…" : "启动实例"}
             </Button>
             <span className="text-fg-subtle text-xs">
-              实例有效期 30 分钟，到期自动回收。
+              有效期 30 分钟。
             </span>
           </>
         )}

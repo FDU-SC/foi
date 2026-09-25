@@ -69,12 +69,7 @@ async function Practice({ rows, viewer, now }: PersonalProps) {
           ))}
         </ul>
       ) : (
-        <p className="text-fg-muted px-4 py-5 text-sm">
-          还没有练习记录。
-          <Link href="/problems" className="text-primary ml-2">
-            浏览题库 →
-          </Link>
-        </p>
+        <p className="text-fg-muted px-4 py-5 text-sm">还没有练习记录。</p>
       )}
     </HomePanel>
   );
@@ -277,7 +272,7 @@ export async function HomeView() {
         ))}
         {viewer.uid === null && (
           <Link href="/login?next=/" className="text-primary ml-auto text-xs">
-            登录，查看我的练习 →
+            登录
           </Link>
         )}
       </nav>

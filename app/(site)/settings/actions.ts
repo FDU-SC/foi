@@ -17,10 +17,7 @@ import {
 } from "@/lib/accounts/queries";
 import type { ResolvedUser } from "@/lib/accounts/types";
 import { nicknameSchema, usernameSchema } from "@/lib/accounts/types";
-import {
-  USERNAME_CHANGE_COOLDOWN_DAYS,
-  usernameChangeAvailableAt,
-} from "@/lib/accounts/username";
+import { usernameChangeAvailableAt } from "@/lib/accounts/username";
 import { log } from "@/lib/log";
 import { sendSecurityNotice } from "@/lib/mail/notify";
 import type { SecurityChangeKind } from "@/lib/mail/types";
@@ -189,11 +186,7 @@ export async function updateUsernameAction(
 
   const availableAt = usernameChangeAvailableAt(account.usernameChangedAt);
   if (availableAt && availableAt.getTime() > Date.now()) {
-    return {
-      error:
-        `用户名每 ${USERNAME_CHANGE_COOLDOWN_DAYS} 天只能修改一次，` +
-        `${formatMoment(availableAt)} 之后才能再次修改。`,
-    };
+    return { error: `${formatMoment(availableAt)} 之后才能再改用户名。` };
   }
 
   if (!(await verifyPassword(viewer.uid, currentPassword)).ok) {
@@ -217,7 +210,7 @@ export async function updateUsernameAction(
 
   await notify(viewer, "username", `新用户名：${username}`);
 
-  return { message: `用户名已更新为 ${username}，下次登录请使用新用户名。` };
+  return { message: `用户名已更新为 ${username}。` };
 }
 
 const MIN_PASSWORD = site.passwordMinLength ?? 8;

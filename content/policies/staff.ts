@@ -22,7 +22,7 @@ export const policies = [
   policy({
     id: "staff:preview",
     effect: "permit",
-    describe: "校对尚未公开的题目与比赛：题面、题单、封榜期间的真实排名",
+    describe: "预览未公开的题目与比赛，查看封榜期间的真实排名",
     action: [
       "problem.read",
       "contest.read",

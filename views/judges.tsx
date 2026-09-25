@@ -22,7 +22,7 @@ export async function JudgesView() {
 
       {visible.length === 0 ? (
         <p className="text-fg-subtle border-border rounded-lg border bg-surface py-10 text-center text-sm">
-          目前没有你可以查看的评测机。
+          暂无评测机。
         </p>
       ) : (
         <JudgeStatusBoard

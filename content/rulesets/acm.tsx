@@ -76,7 +76,7 @@ export const renderers = { Cell: AcmCellView, Total: AcmTotalView, Board: Proble
 export const ruleset: Ruleset<AcmCell> = {
   id: "acm",
   name: "ACM / ICPC",
-  description: "按通过题数排名，同数按罚时（解题时间 + 错误提交罚分）排序。",
+  description: "按通过题数排名，同数比罚时。",
 
   compute(input: StandingsInput) {
     const { penaltyMinutes } = configSchema.parse(input.config ?? {});

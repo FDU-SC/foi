@@ -7,7 +7,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "dynamic-programming",
   title: "动态规划",
-  description: "状态定义与转移，涵盖序列和背包问题。",
+  description: "最长上升子序列与背包。",
 
   domain: "算法与数据结构",
   facets: ["difficulty", "tags"],

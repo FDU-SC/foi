@@ -173,7 +173,7 @@ function CropPanel({
       onCropped(await encodeAvatar(image, cropOf(image, FRAME, state)));
     } catch (error) {
       onFailed(
-        error instanceof Error ? error.message : "图片处理失败，请选择其他图片。",
+        error instanceof Error ? error.message : "图片处理失败。",
       );
     } finally {
       setBusy(false);
@@ -182,12 +182,7 @@ function CropPanel({
 
   return (
     <div className="w-fit space-y-4 p-5">
-      <div>
-        <h2 className="text-fg text-base font-semibold">调整头像</h2>
-        <p className="text-fg-muted mt-1 text-xs leading-5">
-          拖动图片调整位置，使用滚轮或滑块缩放。圆形区域为头像预览。
-        </p>
-      </div>
+      <h2 className="text-fg text-base font-semibold">调整头像</h2>
 
       <div
         className="bg-surface-3 relative overflow-hidden rounded-lg"

@@ -11,7 +11,6 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "puzzles",
   title: "玩具箱",
-  description: "Just4Fun",
 
   domain: "娱乐",
   facets: ["difficulty", "tags"],

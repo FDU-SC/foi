@@ -29,7 +29,7 @@ export async function RegisterView({
         }
       >
         <p className="text-fg-muted bg-surface-2 rounded-md px-3 py-2 text-sm leading-6">
-          当前未开放注册。如需账号，请联系管理员。
+          当前未开放注册。
         </p>
       </AuthShell>
     );

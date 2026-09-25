@@ -222,7 +222,7 @@ export function MazeVisualizer() {
             </dd>
           </div>
           <p className="text-fg-subtle pt-1 text-xs leading-relaxed">
-            点击格子可以切换墙壁，图会立即重新计算。
+            点击格子切换墙壁。
           </p>
         </dl>
       </div>

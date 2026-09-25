@@ -31,7 +31,7 @@ function usernameHint(changedAt: Date | null): string {
     return `可在 ${formatMoment(availableAt)} 之后再次修改。`;
   }
 
-  return `登录时使用，只能包含字母、数字、下划线和连字符。每 ${USERNAME_CHANGE_COOLDOWN_DAYS} 天只能修改一次。`;
+  return `字母、数字、下划线或连字符，每 ${USERNAME_CHANGE_COOLDOWN_DAYS} 天可改一次。`;
 }
 
 /** Stands in for a form the viewer may not submit. */
@@ -104,26 +104,14 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
           <Card>
             <CardHeader title="邮箱" />
             <CardBody className="space-y-4">
-              <div className="bg-surface-2 rounded-md px-4 py-3">
-                <p className="text-fg-muted text-xs">当前邮箱</p>
-                <p className="text-fg mt-0.5 font-mono text-sm">
-                  {user.email ?? "未设置"}
-                </p>
-              </div>
+              <p className="bg-surface-2 text-fg rounded-md px-4 py-3 font-mono text-sm">
+                {user.email ?? "未设置"}
+              </p>
               {!emailGate.allow ? (
                 <Unavailable>{emailGate.reason.message}</Unavailable>
               ) : user.email ? (
-                <>
-                  <p className="text-fg-muted text-sm leading-6">
-                    验证链接会发到新邮箱，确认后生效。
-                  </p>
-                  <EmailChangeForm />
-                </>
-              ) : (
-                <Unavailable>
-                  当前账号没有设置邮箱，无法使用修改邮箱功能。
-                </Unavailable>
-              )}
+                <EmailChangeForm />
+              ) : null}
             </CardBody>
           </Card>
 
@@ -132,7 +120,7 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
             <CardBody className="space-y-4">
               {password === "updated" ? (
                 <FormMessage tone="ok">
-                  密码已更新，其他设备上的登录状态已全部失效。
+                  密码已更新，其他设备已退出登录。
                 </FormMessage>
               ) : null}
               {passwordGate.allow ? (

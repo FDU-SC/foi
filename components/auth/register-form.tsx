@@ -9,9 +9,7 @@ import { registerAction, type RegisterState } from "@/app/register/actions";
 function NeedsLogin() {
   return (
     <div className="space-y-4">
-      <FormMessage tone="ok">
-        账号已创建，自动登录失败，请登录。
-      </FormMessage>
+      <FormMessage tone="ok">账号已创建，请登录。</FormMessage>
       <Link
         href="/login"
         className="bg-primary text-primary-fg hover:bg-primary-hover block rounded-md px-3 py-2 text-center text-sm font-medium transition-colors"
@@ -40,9 +38,7 @@ export function RegisterForm({
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="token" value={token} />
 
-      <FormMessage tone="ok">
-        邮箱已验证，请填写以下信息完成注册。
-      </FormMessage>
+      <FormMessage tone="ok">邮箱已验证。</FormMessage>
 
       <Field label="用户名" hint="2-32 位字母、数字、下划线或连字符">
         <Input
@@ -57,7 +53,7 @@ export function RegisterForm({
         />
       </Field>
 
-      <Field label="昵称" hint="排行榜上展示的名字">
+      <Field label="昵称">
         <Input name="nickname" autoComplete="name" required maxLength={64} />
       </Field>
 

@@ -53,20 +53,8 @@ export const site: SiteConfig = {
   },
 
   homeEntries: [
-    {
-      href: "/problems",
-      title: "题库",
-      description: "按方向分类的练习题单。",
-    },
-    {
-      href: "/contests",
-      title: "比赛",
-      description: "查看赛程与历届比赛。",
-    },
-    {
-      href: "/submissions",
-      title: "我的提交",
-      description: "查看自己的提交与评测结果。",
-    },
+    { href: "/problems", title: "题库" },
+    { href: "/contests", title: "比赛" },
+    { href: "/submissions", title: "我的提交" },
   ],
 };

@@ -168,7 +168,7 @@ export async function ProblemListView({ params, searchParams }: Props) {
           rows={rows}
           searchKey={SEARCH}
           searchValue={searchValue}
-          searchPlaceholder="按题目名或标识搜索"
+          searchPlaceholder="搜索题目"
           filtered={filtered}
         />
       ) : null}

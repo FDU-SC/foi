@@ -11,43 +11,31 @@ export async function ResetPasswordView({
     searchParams,
   ]);
 
+  const footer = (
+    <>
+      链接已失效？{" "}
+      <Link href="/forgot-password" className="hover:text-fg underline">
+        重新申请
+      </Link>
+    </>
+  );
+
   if (typeof token !== "string" || token.length === 0) {
     return (
-      <AuthShell
-        footer={
-          <>
-            重新获取重置邮件：{" "}
-            <Link href="/forgot-password" className="hover:text-fg underline">
-              重新申请
-            </Link>
-            。
-          </>
-        }
-      >
+      <AuthShell footer={footer}>
         <p className="text-err bg-err-subtle rounded-md px-3 py-2 text-sm leading-6">
-          链接不完整。请直接点击邮件中的按钮，或把完整地址复制到浏览器。
+          链接不完整。
         </p>
       </AuthShell>
     );
   }
 
   return (
-    <AuthShell
-      footer={
-        <>
-          链接已失效？{" "}
-          <Link href="/forgot-password" className="hover:text-fg underline">
-            重新申请
-          </Link>
-          。
-        </>
-      }
-    >
-
+    <AuthShell footer={footer}>
       {session ? (
         <p className="text-warn bg-warn-subtle mb-4 rounded-md px-3 py-2 text-sm leading-6">
-          你正以 <span className="font-mono">{session.username}</span>{" "}
-          登录。若重置的是当前账号的密码，重置后将立即退出登录。
+          已登录为 <span className="font-mono">{session.username}</span>
+          ，重置该账号密码会退出登录。
         </p>
       ) : null}
       <ResetForm token={token} />

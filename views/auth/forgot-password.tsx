@@ -16,8 +16,6 @@ export async function ForgotPasswordView() {
             登录
           </Link>
           。
-          <br />
-          账号没有邮箱时请联系管理员。
         </>
       }
     >

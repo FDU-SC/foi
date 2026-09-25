@@ -77,7 +77,7 @@ export function builtinPolicies(): CompiledPolicy[] {
     policy({
       id: "builtin:problem-not-collecting",
       effect: "forbid",
-      describe: "题目仅在所属比赛接受提交期间开放提交与交互",
+      describe: "比赛不收提交时，题目不能提交或交互",
       action: ["problem.submit", "problem.invoke"],
       when: ({ resource, now }) => !acceptsSubmissions(resource.contest, now),
       reason: {
@@ -89,8 +89,7 @@ export function builtinPolicies(): CompiledPolicy[] {
     policy({
       id: "builtin:contest-window",
       effect: "forbid",
-      describe:
-        "比赛开始前不接受参赛操作，赛后仅在允许继续提交时开放",
+      describe: "比赛不收提交时不能参赛",
       action: "contest.enter",
       when: ({ resource, now }) => !acceptsSubmissions(resource, now),
       reason: {
@@ -102,8 +101,7 @@ export function builtinPolicies(): CompiledPolicy[] {
     policy({
       id: "builtin:not-in-participants",
       effect: "forbid",
-      describe:
-        "参赛范围由比赛的参赛名单或用户组决定，其他策略不能绕过此限制",
+      describe: "不在参赛范围内的账号不能参赛",
       action: "contest.enter",
       when: ({ resource, viewer }) =>
         !matchesParticipants(resource.participants, viewer),
@@ -116,7 +114,7 @@ export function builtinPolicies(): CompiledPolicy[] {
     policy({
       id: "builtin:suspended-account",
       effect: "forbid",
-      describe: "被封禁的账号不能改动自己的凭据，也不能通过找回流程拿回访问权",
+      describe: "封禁账号不能改昵称、凭据或找回密码",
       action: [
         "account.changeEmail",
         "account.changeUsername",

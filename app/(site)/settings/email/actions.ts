@@ -82,7 +82,7 @@ export async function requestEmailChangeAction(
     return { error: "邮件发送失败，请稍后再试。" };
   }
 
-  return { message: `验证链接已发送到 ${newEmail}，请查收并点击确认。` };
+  return { message: `验证链接已发送到 ${newEmail}。` };
 }
 
 export interface ConfirmEmailChangeState {
@@ -122,7 +122,7 @@ export async function confirmEmailChangeAction(
 
   const fp = await getEmailFingerprint(viewer.uid);
   if (!fp || fp !== payload.fp) {
-    return { error: "链接已失效（邮箱已被修改），请重新申请。" };
+    return { error: "链接已失效。" };
   }
 
   if (await findAccountByEmail(data.newEmail)) {

@@ -18,16 +18,8 @@ export interface ActionState {
   message?: string;
 }
 
-/**
- * A bare "forbidden" usually means the button outlived the permission behind
- * it. Denials that name a specific rule speak for themselves.
- */
 function refused(denial: Denial): ActionState {
-  const stale =
-    denial.reason.code === "forbidden"
-      ? " 请刷新页面后重试。"
-      : "";
-  return { error: `${denial.reason.message}${stale}` };
+  return { error: denial.reason.message };
 }
 
 const issueSchema = z.object({
@@ -64,15 +56,12 @@ export async function resendPasswordResetAction(
   if (!decision.allow) return refused(decision);
 
   if (!user.email || !user.emailVerified) {
-    return {
-      error:
-        "该账号没有已验证的邮箱，无法发送重置邮件。",
-    };
+    return { error: "该账号没有已验证的邮箱。" };
   }
 
   const fp = await getPasswordFingerprint(user.uid);
   if (!fp) {
-    return { error: "该账号尚未设置密码，无法发送重置链接。" };
+    return { error: "该账号尚未设置密码。" };
   }
 
   try {
@@ -82,14 +71,12 @@ export async function resendPasswordResetAction(
     );
   } catch (error) {
     log.error("重置密码邮件发送失败", error);
-    return {
-      error: `邮件发送失败：${error instanceof Error ? error.message : "未知错误"}`,
-    };
+    return { error: "邮件发送失败。" };
   }
 
   revalidatePath("/admin/accounts");
   return {
-    message: `已向 ${user.username} 的邮箱发送重置链接，1 小时内有效。`,
+    message: `已向 ${user.username} 发送重置邮件。`,
   };
 }
 
@@ -125,7 +112,7 @@ export async function suspendAccountAction(
   );
 
   revalidatePath("/admin/accounts");
-  return { message: `已封禁 ${target.username}，其已登录的会话在下一个请求即失效。` };
+  return { message: `已封禁 ${target.username}。` };
 }
 
 export async function reinstateAccountAction(
@@ -148,7 +135,7 @@ export async function reinstateAccountAction(
   if (target.status !== "suspended") {
     revalidatePath("/admin/accounts");
     return {
-      error: `${target.username} 当前未被封禁，本次未作修改。请刷新页面。`,
+      error: `${target.username} 当前未被封禁。`,
     };
   }
 

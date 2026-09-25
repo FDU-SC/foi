@@ -62,7 +62,7 @@ export const renderers = { Cell: OiCellView, Total: OiTotalView, Board: ProblemG
 export const ruleset: Ruleset<OiCell> = {
   id: "oi",
   name: "OI",
-  description: "每题取最高分（或最后一次提交），按总分排名。",
+  description: "按总分排名。",
 
   compute(input: StandingsInput) {
     const { take } = configSchema.parse(input.config ?? {});

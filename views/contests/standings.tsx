@@ -116,8 +116,7 @@ function UpcomingNotice({ contest, embedded }: { contest: ContestConfig; embedde
       </div>
 
       <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
-        比赛将于 {formatter.format(contest.startsAt)}{" "}
-        开始，届时这里会出现排行榜。
+        比赛将于 {formatter.format(contest.startsAt)} 开始。
       </p>
     </div>
   );

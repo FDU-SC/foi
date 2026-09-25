@@ -1,0 +1,87 @@
+import { Callout } from "@/content/_shared/mdx/callout";
+import { Constraints } from "@/content/_shared/mdx/constraints";
+import { SubmitPanel } from "@/content/_shared/ui/submit-panel";
+import { CodeInput } from "@/content/_shared/ui/code-input";
+
+<Constraints time="30 s" memory="512 MB" extra={{ 语言: "C++ (mpicxx)", 进程: "4", 评测: "容差比对 + 加速比" }} />
+
+## 题目描述
+
+在 4 个 MPI 进程上计算 $\pi$（数值积分，公式见《OpenMP 优化 · π 的数值积分》）。
+给定 $n = 2 \times 10^8$。
+
+下面的**祖传 MPI 实现**正确但低效：每个进程算完自己的局部和后，用**点对点**
+`MPI_Send` / `MPI_Recv` 逐块把结果传给 `rank 0` 累加。你的任务：优化它——
+通信越少、越快越好（保证结果正确）。
+
+**输入**：只有 `rank 0` 能读 stdin——第一行一个整数 $n$，其余进程通过广播拿到。
+**输出**：`rank 0` 输出一行，$\pi$ 的近似值，保留 10 位小数。
+
+## 祖传实现（低效）
+
+```cpp
+#include <mpi.h>
+#include <bits/stdc++.h>
+using namespace std;
+int main(int argc, char** argv) {
+    MPI_Init(&argc, &argv);
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    long long n = 0;
+    if (rank == 0) { cin >> n; }
+    MPI_Bcast(&n, 1, MPI_LONG_LONG, 0, MPI_COMM_WORLD);
+
+    double h = 1.0 / n, local = 0.0;
+    for (long long i = rank; i < n; i += size) {       // 按 rank 分块（strided）
+        double x = (i + 0.5) * h;
+        local += 4.0 / (1.0 + x * x);
+    }
+
+    if (rank == 0) {
+        double total = local;
+        for (int src = 1; src < size; src++) {          // 逐块点对点收，串行累加
+            double part;
+            MPI_Recv(&part, 1, MPI_DOUBLE, src, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            total += part;
+        }
+        cout << fixed << setprecision(10) << total * h << endl;
+    } else {
+        MPI_Send(&local, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+    }
+
+    MPI_Finalize();
+    return 0;
+}
+```
+
+## 评测方式
+
+- 用 `mpicxx -O3 -std=c++20 -march=x86-64-v4` 编译，`mpirun -np 4` 运行
+- 与**祖传实现**（上面的低效版）在同一输入上比对输出：相对误差不超过 $10^{-5}$
+- 正确前提下按加速比给分：`score = min(100, floor(50 × 祖传版耗时 / 你的耗时))`——
+  对比的是优化前后，不是 MPI 对串行
+- **每个 rank 内部不允许再开线程**（没有 `-fopenmp` / `-pthread`）。并行只能来自
+  MPI rank；`#pragma omp` 会被编译器直接忽略，写了不会报错但也不会并行
+
+<Callout kind="tip" title="怎么做">
+
+- **`MPI_Reduce`** 一行搞定收集：把 `Send/Recv` 循环换成
+  `MPI_Reduce(&local, &total, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD)`
+- 想更快？试试**树形规约**（每次通信让一半进程归并）——不过 `MPI_Reduce`
+  内部本来就是树形的
+- `MPI_Bcast` 广播 `n` 是必要的，不算冗余通信；要省的是**点对点逐块传输**
+- 编译开了 AVX-512（`-march=x86-64-v4`），rank 内部可以手工向量化
+
+</Callout>
+
+<Callout kind="warning" title="注意 MPI 的坑">
+
+- **只有 rank 0 读 stdin**，其他进程读不到——`n` 必须先 `Bcast`
+- 输出只有 rank 0 打，别让每个进程都 `cout`
+- 求和顺序不同会导致浮点尾数差异，评测有 $10^{-5}$ 容差
+
+</Callout>
+
+<SubmitPanel><CodeInput /></SubmitPanel>

@@ -11,7 +11,7 @@ import { CodeInput } from "@/content/_shared/ui/code-input";
 
 ## 交互协议
 
-你的代码需要实现一个函数 `void solve()`。评测机（grader）会调用它，并在
+你的代码需要实现一个函数 `void solve(int n)`。评测机（grader）会调用它，并在
 其中向你提供两个函数：
 
 - `int query(int x)`：询问「答案是否大于 $x$」。若答案 $> x$ 返回 `1`，否则返回 `0`。**每调用一次计一次查询。**
@@ -31,14 +31,15 @@ import { CodeInput } from "@/content/_shared/ui/code-input";
 ## 示例（C++）
 
 ```cpp
-void solve() {
-  int lo = 1, hi = 1000000;
-  while (lo < hi) {
-    int mid = (lo + hi) / 2;
-    if (query(mid)) lo = mid + 1;
-    else hi = mid;
+void solve(int n) {
+  int res = 0;
+  for (int i = 1; i <= n; ++i) {
+    if (!query(i)) {
+      res = i;
+      break;
+    }
   }
-  answer(lo);
+  answer(res);
 }
 ```
 

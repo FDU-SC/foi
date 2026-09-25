@@ -1,0 +1,85 @@
+import { Callout } from "@/content/_shared/mdx/callout";
+import { Constraints } from "@/content/_shared/mdx/constraints";
+import { SubmitPanel } from "@/content/_shared/ui/submit-panel";
+import { CodeInput } from "@/content/_shared/ui/code-input";
+
+<Constraints time="按测试点" memory="1 GB" extra={{ 线程: "16", 评测: "基数分 + 加速比", 题源: "hpcgame-problems-3rd" }} />
+
+## 题目描述
+
+给定一张 $n$ 个点、$m$ 条边的**有向图**，边的权值为 $[1, 10^7]$ 中的整数。
+保证从源点 $0$ 出发**所有点都可达**；数据中可能存在**重边和自环**。
+
+请计算从源点 $0$ 到每个点的最短路径长度。
+
+这题不考算法——Dijkstra 就是正解。**考的是性能**：评测机先跑一遍参考实现测出
+基线耗时，再跑你的代码；在结果正确的前提下，你的程序越快，得分越高。
+
+## 提交方式
+
+**只提交 `calculate()` 的实现，不要写 `main()`。**
+
+```cpp
+#include <cstdint>
+
+void calculate(uint32_t n, uint32_t m, uint32_t *edges, uint64_t *dis);
+```
+
+参数：
+
+| 参数 | 含义 |
+| --- | --- |
+| `n` | 点数 |
+| `m` | 边数 |
+| `edges` | 长度为 `3 * m` 的数组：第 $i$ 条边是 `edges[3i]`、`edges[3i+1]`、`edges[3i+2]`，即起点、终点、权值 |
+| `dis` | 长度为 `n` 的数组，**已经初始化好**：`dis[0] = 0`，其余为 $10^{18}$ |
+
+你只需要把 `dis` 填成正确的最短距离即可。**不要自己定义 `main()`**——评测用的
+驱动会提供它，重复定义会导致编译失败。
+
+## 计分
+
+每个测试点独立计分：
+
+$$
+\text{score} = \text{base} + \text{perf} \times \min\left(1,\ \frac{\text{goal}}{\text{time}}\right)
+$$
+
+- **结果不正确 → 该测试点 0 分**，与快慢无关
+- `time` 是 `calculate()` 的耗时，不含造图与计时开销
+- `goal` 是拿满性能分的时间；跑得比它快不会超过 `perf`
+- 上限：`base + perf`
+
+也就是说，**正确性是门槛**。正确但慢只会拿到 `base`，快过 `goal` 才拿满。
+
+<Callout kind="warning" title="注意">
+
+- 评测机是 16 核，驱动不会替你开线程——**并行要自己写在 `calculate()` 里**
+- 数据规模最大的测试点边长很多，注意访存与数据结构布局
+- 不要试图读取或改写 `edges` 以外的东西；驱动会当场算出参考解与你的结果逐点比对
+
+</Callout>
+
+## 数据规模
+
+| 测试点 | $n$ | $m$ | 基数分 | 性能分 | 拿满性能分的时间 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | $10^5$ | $2 \times 10^5$ | 10 | 10 | 5 ms |
+| 2 | $10^5$ | $10^6$ | 5 | 15 | 60 ms |
+| 3 | $10^6$ | $2 \times 10^6$ | 5 | 5 | 1200 ms |
+
+第二档虽然点数与第一档相同，但边多了五倍——**稀疏和稠密的最优写法不一样**，
+建议分别调优。
+
+<Callout kind="tip" title="优化思路">
+
+- 把邻接表组织成 CSR（平面数组 + 前缀和），不要用 `vector<vector<...>>`：
+  后者每个点的 vector 都有超额容量，在 $m = 10^9$ 这种规模下会多吃几个 GB
+- 优先队列的弹出次数是主要开销。边多反而让路径更短、队列压力更小——所以
+  第二档的 goal 比第一档宽松得多
+- 并行方向：按点分块的 $\Delta$-stepping，或者用原子 CAS 做并发松弛
+- 注意 `dis` 已经是 `uint64_t`：边权最大 $10^7$，$n$ 很大时路径和会超出 32 位
+
+</Callout>
+
+<SubmitPanel><CodeInput /></SubmitPanel>

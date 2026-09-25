@@ -1,0 +1,63 @@
+import { Callout } from "@/content/_shared/mdx/callout";
+import { Constraints } from "@/content/_shared/mdx/constraints";
+import { SubmitPanel } from "@/content/_shared/ui/submit-panel";
+import { CodeInput } from "@/content/_shared/ui/code-input";
+
+<Constraints time="30 s" memory="256 MB" extra={{ 语言: "C++ (mpicxx)", 进程: "4", 评测: "正确性" }} />
+
+## 题目描述
+
+在分布式训练里，**Allreduce** 是最常见的集体通信：每个进程有一份数据，结束后
+每个进程都要拿到**所有进程数据的归约结果**（这里是求和）。
+
+$P = 4$ 个进程按 **ring（环）** 拓扑连接：`0 → 1 → 2 → 3 → 0`。
+
+**你的任务**：写一个完整的 MPI 程序——每个进程的 `data` 是一段 `float` 数组
+（初始 `data[i] = 我的 rank + 1`），用 **`MPI_Send` / `MPI_Recv` 手写 ring
+allreduce**，让每个进程的 `data` 都变成所有进程初始数据的逐元素和
+（期望全为 $1+2+3+4 = 10$）。
+
+**输出**：程序自检后，由 `rank 0` 输出一行 `PASS`（所有进程结果都正确）或
+`FAIL`。
+
+## 评测方式
+
+- 用 `mpicxx -O3 -std=c++20 -march=x86-64-v4` 编译，`mpirun -np 4` 运行（程序不读 stdin）
+- 评测机读 `rank 0` 输出的**第一个词**：`PASS` 得满分，`FAIL`、没输出或其它内容得 0 分
+- **只判正确性**，不评性能——把算法写对就是满分
+- **每个 rank 内部不允许再开线程**（没有 `-fopenmp` / `-pthread`）；并行只能来自 MPI rank
+
+## 思路（教科书版 ring allreduce）
+
+<Callout kind="tip" title="两步走">
+
+**第一步：scatter-reduce（$P-1$ 轮）**。把 $n$ 个元素切成 $P$ 块，每进程负责
+归约一块。第 $t$ 轮：把自己的第 `(rank - t) mod P` 块发给右邻居，从左侧收
+邻居的同编号块并累加。$P-1$ 轮后，每个进程都持有一块「全局和」。
+
+**第二步：allgather（$P-1$ 轮）**。每进程把已归约的块沿着 ring 再转发一圈，
+让每块的和到达所有进程。
+
+分块、邻居编号都要算清楚，否则要么死锁（大家都阻塞在收），要么结果不对。
+
+</Callout>
+
+<Callout kind="warning" title="要求与提示">
+
+- **请手写 ring allreduce**：用 `MPI_Send` / `MPI_Recv` 做 scatter-reduce +
+  allgather。直接调 `MPI_Allreduce` 一行搞定虽然能过评测，但那不是这道题
+  的训练目标——**这条要求靠自觉遵守，评测机不检查**（`mpicxx` 会让整个 libmpi
+  都出现在符号表里，没法据此区分你到底调了什么）
+- **别让所有进程同向「先发后收」**：`chunk` 有 64KB，超过 eager 阈值后阻塞
+  `MPI_Send` 走 rendezvous 协议，同向收发会**环形死锁**。解法：**奇数 rank
+  先发后收、偶数 rank 先收后发**（奇偶交替），或者用 `MPI_Sendrecv` /
+  非阻塞收发
+- `MPI_Send`/`MPI_Recv` 的 `count` 是**元素个数**（`chunk`），不是字节数；
+  `MPI_FLOAT` 是类型
+- `rank 0` 输出 `PASS` 前，要确认**所有**进程都正确——用 `MPI_Allreduce`
+  收集各进程的本地自检结果（校验归约不算「手写数据归约」）
+- 程序不读 stdin，`MPI_Init` 后直接开始
+
+</Callout>
+
+<SubmitPanel><CodeInput /></SubmitPanel>

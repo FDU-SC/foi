@@ -3,9 +3,9 @@ import type { ProblemBackend } from "@/lib/backend/types";
 
 export const backends: Record<string, ProblemBackend> = {
   traditional: fromEnv("traditional"),
-  interactive: fromEnv("interactive"),
 
-  performance: fromEnv("performance"),
+  /** makefile 驱动的通用判题机：题目自带 makefile 与驱动，平台只传配置。 */
+  interactive: fromEnv("interactive"),
 
   "leaky-bucket": fromEnv("leaky-bucket"),
 };

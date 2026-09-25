@@ -1,0 +1,87 @@
+import { Callout } from "@/content/_shared/mdx/callout";
+import { Constraints } from "@/content/_shared/mdx/constraints";
+import { SubmitPanel } from "@/content/_shared/ui/submit-panel";
+import { CodeInput } from "@/content/_shared/ui/code-input";
+
+<Constraints time="30 s" memory="1 GB" extra={{ 线程: "16", 语言: "C++ (-fopenmp)", 评测: "容差比对 + 加速比" }} />
+
+## 题目描述
+
+用**矩形法数值积分**计算 $\pi$：
+
+$$
+\pi \approx \frac{1}{n} \sum_{i=0}^{n-1} \frac{4}{1 + x_i^2}, \quad x_i = \frac{i + 0.5}{n}
+$$
+
+给定 $n = 10^9$。下面的**串行参考实现**是正确的，但跑一遍要好几秒——你的任务
+是用 **OpenMP** 让它快起来（保证结果正确）。
+
+**输入**（stdin）：一行一个整数 $n$。
+**输出**（stdout）：一行，$\pi$ 的近似值，保留 10 位小数。
+
+## 串行参考
+
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+int main() {
+    long long n;
+    cin >> n;
+    double h = 1.0 / n, sum = 0.0;
+    for (long long i = 0; i < n; i++) {
+        double x = (i + 0.5) * h;
+        sum += 4.0 / (1.0 + x * x);
+    }
+    cout << fixed << setprecision(10) << sum * h << endl;
+    return 0;
+}
+```
+
+## 评测方式
+
+评测机在 16 核上运行。提交的是**完整程序**：读入 $n$，输出 $\pi$ 的近似值。
+
+- 你的代码用 `g++ -O3 -std=c++17 -fopenmp` 编译
+- 与**串行参考**（同一台机器、同一次评测里现测）比对：相对误差不超过 $10^{-6}$ 才算正确
+- 正确的前提下按加速比给分：
+
+$$
+\text{score} = \min\left(100,\ 50 + 50 \times \left(\frac{\text{串行耗时}}{\text{你的耗时}} - 1\right)\right)
+$$
+
+即 **串行原样提交约 50 分，两倍加速满分**。结果不正确一律 0 分。
+
+参考耗时是**每次评测现测的**，不是固定常数——所以同一份提交在不同负载下分数会有
+几个百分点的浮动，宿主越忙参考越慢。
+
+<Callout kind="tip" title="怎么做">
+
+```cpp
+#pragma omp parallel for reduction(+ : sum)
+for (long long i = 0; i < n; i++) { ... }
+```
+
+一个 `reduction` 子句就够了。注意：
+
+- `i` 是 `long long`——OpenMP 的规约循环对 `long long` 下标没问题，但别把
+  `sum` 的累加拆坏（`reduction` 会为每个线程维护私有副本，最后归并）
+- 积分里 `x` 依赖 `i`，每个迭代可以独立算，天然并行
+- 机器有多少核就开多少线程（`OMP_NUM_THREADS` 由评测机设置）
+
+</Callout>
+
+<Callout kind="warning" title="别改数学">
+
+求和顺序会影响浮点尾数——评测允许 $10^{-6}$ 的容差，**不要**为了"精确"去
+逐位复现串行的累加顺序，那会毁掉并行性。
+
+</Callout>
+
+<Callout kind="danger" title="别自己测时间">
+
+评分用的是评测机实测的耗时。在自己的程序里打印耗时、休眠、或者把 `n` 读小一点
+都不能提高分数——`n` 由评测机提供，输出不对直接 0 分。
+
+</Callout>
+
+<SubmitPanel><CodeInput /></SubmitPanel>

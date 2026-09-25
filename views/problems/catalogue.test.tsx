@@ -104,7 +104,10 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("题库首页访问边界", () => {
-  it("不展示无权读取的分区，游客也不查询提交记录", async () => {
+  it.each([
+    { label: "游客", viewer: ANONYMOUS, readsProgress: false },
+    { label: "登录用户", viewer: VIEWER, readsProgress: true },
+  ])("$label 不展示或查询无权读取的分区", async ({ viewer, readsProgress }) => {
     const listedProblems = [
       problem("one", "题目一"),
       problem("two", "题目二"),
@@ -115,6 +118,7 @@ describe("题库首页访问边界", () => {
     const visible = section("visible", "公开分区", "公开方向", listedProblems);
     const hidden = section("hidden", "隐藏分区", "隐藏方向", []);
 
+    vi.mocked(getViewer).mockResolvedValue(viewer);
     vi.mocked(catalogueSlugs).mockReturnValue([visible.slug, hidden.slug]);
     vi.mocked(contestFor).mockImplementation((slug) =>
       slug === visible.slug ? contestView(visible) : undefined,
@@ -130,9 +134,14 @@ describe("题库首页访问边界", () => {
     expect(html).toContain("题目四");
     expect(html).not.toContain("题目五");
     expect(problemsFor).toHaveBeenCalledOnce();
-    expect(problemsFor).toHaveBeenCalledWith(visible.slug, ANONYMOUS);
+    expect(problemsFor).toHaveBeenCalledWith(visible.slug, viewer);
     expect(problemHref).toHaveBeenCalledTimes(4);
-    expect(progressFor).not.toHaveBeenCalled();
+    if (readsProgress) {
+      expect(progressFor).toHaveBeenCalledOnce();
+      expect(progressFor).toHaveBeenCalledWith(visible.slug, viewer);
+    } else {
+      expect(progressFor).not.toHaveBeenCalled();
+    }
     expect(html).not.toContain('role="progressbar"');
   });
 
@@ -197,6 +206,24 @@ describe("题库首页访问边界", () => {
     expect(html).toContain(`aria-valuemax="1" aria-valuenow="${expected}"`);
     expect(html).toContain(`width:${expected * 100}%`);
     expect(html).toContain('/problems/single/standings');
+  });
+
+  it("部分题目缺少进度解释时隐藏分区与方向汇总", async () => {
+    const items = [problem("one"), problem("two")];
+    const config = section("partial", "部分进度分区", "部分进度方向", items);
+    vi.mocked(getViewer).mockResolvedValue(VIEWER);
+    vi.mocked(catalogueSlugs).mockReturnValue([config.slug]);
+    vi.mocked(contestFor).mockReturnValue(contestView(config));
+    vi.mocked(problemsFor).mockReturnValue(problemViews(config, items));
+    vi.mocked(progressFor).mockResolvedValue(new Map([
+      [items[0].slug, { state: "solved", verdict: null }],
+    ]));
+
+    const html = renderToStaticMarkup(await CatalogueIndexView());
+
+    expect(html).toContain("2 题");
+    expect(html).not.toContain("1 / 2");
+    expect(html).not.toContain('role="progressbar"');
   });
 
   it.each([false, true])("隐藏无法统计或没有题目的方向进度（空分区：%s）", async (empty) => {

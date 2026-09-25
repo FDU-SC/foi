@@ -78,7 +78,7 @@ export const ACTIONS = {
 
   "submission.read": {
     resource: "submission",
-    describe: "看一条提交的详情，含提交内容与评测结果",
+    describe: "查看提交详情",
     denial: { code: "not-found", message: "提交不存在" },
     queryable: true,
   },
@@ -90,13 +90,13 @@ export const ACTIONS = {
 
   "account.read": {
     resource: "account",
-    describe: "读一个账号的目录信息，含邮箱与凭据状态",
+    describe: "查看账号与邮箱",
     denial: { code: "forbidden", message: "没有查看账号的权限" },
     queryable: true,
   },
   "account.viewProfile": {
     resource: "account",
-    describe: "打开一个账号的公开主页：头像、昵称、用户组",
+    describe: "查看选手主页",
     denial: { code: "not-found", message: "页面不存在" },
   },
   "account.changeEmail": {
@@ -157,7 +157,7 @@ export const ACTIONS = {
   },
   "leaderboard.read": {
     resource: "site",
-    describe: "查看内容提供的排行榜",
+    describe: "查看排行榜",
     denial: { code: "not-found", message: "页面不存在" },
   },
 
@@ -168,7 +168,7 @@ export const ACTIONS = {
   },
   "backend.inspect": {
     resource: "backend",
-    describe: "查看一台题目后端的地址、评测机与队列细节",
+    describe: "查看后端细节",
     denial: { code: "forbidden", message: "没有查看后端细节的权限" },
   },
 } as const satisfies Record<string, ActionSpec>;

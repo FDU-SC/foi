@@ -84,7 +84,7 @@ export const renderers = { Cell: CtfCellView, Total: CtfTotalView, Board: Proble
 export const ruleset: Ruleset<CtfCell> = {
   id: "ctf-dynamic",
   name: "CTF 动态分值",
-  description: "题目分值随解出人数衰减，前三名解出者获得一/二/三血加成。",
+  description: "分值随解出人数衰减，前三名有加成。",
 
   compute(input: StandingsInput) {
     const config = configSchema.parse(input.config ?? {});

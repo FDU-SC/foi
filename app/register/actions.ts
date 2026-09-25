@@ -51,7 +51,7 @@ export async function sendVerificationLinkAction(
     return { error: "这个邮箱域名不在允许注册的范围内。" };
   }
   if (await findAccountByEmail(email)) {
-    return { error: "这个邮箱已经注册过了。如果是你本人，请用「找回密码」。" };
+    return { error: "这个邮箱已经注册过了。" };
   }
 
   const { max, windowSeconds } = ACTION_LIMITS.sendVerificationLinkAction;
@@ -67,7 +67,7 @@ export async function sendVerificationLinkAction(
     await sendVerificationLink(email);
   } catch (error) {
     log.error("验证邮件发送失败", error);
-    return { error: "邮件发送失败，请稍后再试或联系管理员。" };
+    return { error: "邮件发送失败，请稍后再试。" };
   }
 
   return { sent: true };
@@ -98,8 +98,8 @@ const REJECTIONS: Record<RegisterRejection, string> = {
   closed: "当前未开放注册。",
   "username-taken": USERNAME_UNAVAILABLE,
   "email-domain": "这个邮箱域名不在允许注册的范围内。",
-  "email-taken": "这个邮箱已经注册过了。如果是你本人，请用「找回密码」。",
-  "email-unverified": "验证链接无效或已过期，请重新获取。",
+  "email-taken": "这个邮箱已经注册过了。",
+  "email-unverified": "验证链接无效或已过期。",
 };
 
 export async function registerAction(

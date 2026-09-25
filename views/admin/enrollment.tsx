@@ -17,7 +17,6 @@ export async function AdminEnrollmentView() {
   const {
     policy: enrollmentPolicy,
     rules,
-    known: { groups: allGroups },
     ruleMatches,
     groupCounts,
     untagged,
@@ -56,7 +55,7 @@ export async function AdminEnrollmentView() {
           <div className="border-border mt-3 border-t pt-3">
             <p className="text-fg-subtle mb-1.5 text-xs">允许注册的邮箱域名</p>
             {enrollmentPolicy.emailDomains.length === 0 ? (
-              <Badge tone="warn">不限，任何人都可以注册</Badge>
+              <Badge tone="warn">不限</Badge>
             ) : (
               <ul className="flex flex-wrap gap-1.5">
                 {enrollmentPolicy.emailDomains.map((domain) => (
@@ -71,12 +70,9 @@ export async function AdminEnrollmentView() {
       </Card>
 
       <Card>
-        <CardHeader title="分流规则" />
         <CardBody className="space-y-3">
           {rules.length === 0 ? (
-            <p className="text-fg-muted text-sm leading-6">
-              暂无分流规则，注册用户尚未分组。
-            </p>
+            <p className="text-fg-muted text-sm leading-6">暂无分流规则。</p>
           ) : (
             <div className="border-border overflow-hidden rounded-md border">
               <table className="w-full text-sm">
@@ -111,9 +107,7 @@ export async function AdminEnrollmentView() {
                       </td>
                       <td className="px-3 py-2 align-top">
                         {typeof rule.groups === "function" ? (
-                          <span className="text-fg-subtle text-xs">
-                            由邮箱计算得出
-                          </span>
+                          <span className="text-fg-subtle text-xs">按邮箱</span>
                         ) : (
                           <span className="flex flex-wrap gap-1">
                             {rule.groups.map((id) => (
@@ -148,56 +142,44 @@ export async function AdminEnrollmentView() {
               </table>
             </div>
           )}
-          {ruleMatches === null ? (
-            <p className="text-fg-subtle text-xs leading-5">
-              需要账号查看权限才能显示命中数。
-            </p>
-          ) : (
-            <p className="text-fg-subtle text-xs leading-5">
-              标黄表示该规则未匹配到任何账号。
-            </p>
-          )}
           {untagged !== null && untagged > 0 ? (
             <p className="text-warn text-xs leading-5">
-              有 <span className="font-mono">{untagged}</span>{" "}
-              个账号的邮箱未匹配分流规则，无法参加限定用户组的比赛。
+              <span className="font-mono">{untagged}</span> 个账号未匹配任何规则。
             </p>
           ) : null}
         </CardBody>
       </Card>
 
-      <Card>
-        <CardHeader title="当前用户组分布" />
-        <CardBody>
-          {groupCounts === null ? (
-            <p className="text-fg-muted text-sm leading-6">
-              需要账号查看权限才能统计分布。已知用户组共 {allGroups.length} 个。
-            </p>
-          ) : groupCounts.size === 0 ? (
-            <p className="text-fg-muted text-sm">还没有任何用户组。</p>
-          ) : (
-            <ul className="flex flex-wrap gap-1.5">
-              {[...groupCounts.entries()]
-                .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-                .map(([id, count]) => (
-                  <li key={id}>
-                    <Badge
-                      tone={
-                        count === 0
-                          ? "warn"
-                          : isPrivilegedGroup(id)
-                            ? "primary"
-                            : "neutral"
-                      }
-                    >
-                      {groupName(id)} · {count}
-                    </Badge>
-                  </li>
-                ))}
-            </ul>
-          )}
-        </CardBody>
-      </Card>
+      {groupCounts === null ? null : (
+        <Card>
+          <CardHeader title="当前用户组分布" />
+          <CardBody>
+            {groupCounts.size === 0 ? (
+              <p className="text-fg-muted text-sm">还没有任何用户组。</p>
+            ) : (
+              <ul className="flex flex-wrap gap-1.5">
+                {[...groupCounts.entries()]
+                  .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+                  .map(([id, count]) => (
+                    <li key={id}>
+                      <Badge
+                        tone={
+                          count === 0
+                            ? "warn"
+                            : isPrivilegedGroup(id)
+                              ? "primary"
+                              : "neutral"
+                        }
+                      >
+                        {groupName(id)} · {count}
+                      </Badge>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </CardBody>
+        </Card>
+      )}
     </div>
   );
 }

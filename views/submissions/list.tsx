@@ -24,7 +24,6 @@ export async function SubmissionListView() {
     <div className="space-y-5">
       <PageHeader
         title="我的提交"
-        description="最近 50 条提交记录"
         actions={<NavigationLinks viewer={viewer} location="submissions" />}
       />
 

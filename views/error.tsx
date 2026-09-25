@@ -11,22 +11,14 @@ export interface AppErrorProps {
 export function AppErrorView({ error, retry }: AppErrorProps) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-12 text-center">
-      <div className="space-y-2">
-        <h1 className="text-fg text-2xl font-semibold tracking-tight">
-          出错了
-        </h1>
-        <p className="text-fg-muted max-w-sm text-sm leading-relaxed">
-          页面加载失败，请重试。
-        </p>
-      </div>
+      <h1 className="text-fg text-2xl font-semibold tracking-tight">出错了</h1>
 
       {error.digest ? (
         <p className="text-fg-subtle text-xs">
-          报错编号{" "}
+          错误编号{" "}
           <code className="bg-surface-2 rounded px-1.5 py-0.5 font-mono">
             {error.digest}
           </code>
-          ，联系管理员时请附上。
         </p>
       ) : null}
 

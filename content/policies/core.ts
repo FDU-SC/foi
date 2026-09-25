@@ -39,14 +39,14 @@ export const policies = [
   policy({
     id: "registration-open",
     effect: "permit",
-    describe: "允许注册账号，邮箱域名仍受注册规则限制",
+    describe: "允许注册账号",
     action: "account.register",
   }),
 
   policy({
     id: "password-recovery",
     effect: "permit",
-    describe: "已经验证过邮箱的账号可以自助找回密码，请求的人不必是本人",
+    describe: "邮箱已验证的账号可以找回密码",
     action: "account.sendPasswordReset",
     when: ({ resource }) => resource.emailVerified,
   }),
@@ -54,7 +54,7 @@ export const policies = [
   policy({
     id: "password-reset-by-link",
     effect: "permit",
-    describe: "允许通过找回链接重置账号密码，链接验证由重置流程完成",
+    describe: "允许凭找回链接重置密码",
     action: "account.resetPassword",
   }),
 ];

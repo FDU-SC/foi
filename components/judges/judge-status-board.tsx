@@ -135,7 +135,7 @@ function JudgeCard({
 
         {stranded ? (
           <p className="text-err bg-err-subtle rounded px-2.5 py-1.5 text-xs">
-            有提交等待评测，最近一分钟没有评测机领取任务。
+            有提交在排队，暂无评测机领取。
           </p>
         ) : null}
 

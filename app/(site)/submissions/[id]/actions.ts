@@ -61,7 +61,7 @@ export async function rejudgeSubmissionAction(
   if (!decision.allow) return { error: decision.reason.message };
 
   if (row.state === "pending") {
-    return { error: "提交尚未完成评测，暂不能重判。" };
+    return { error: "评测尚未完成。" };
   }
 
   const skipFilter = parsed.data.includeAccepted
@@ -74,29 +74,25 @@ export async function rejudgeSubmissionAction(
 
   if (result.skippedInline > 0) {
     return {
-      error:
-        "这道题不经过评测机判定，请直接重新提交。",
+      error: "这道题无法重判。",
     };
   }
 
   if (result.skippedNotDispatched > 0) {
     return {
-      error:
-        "这道题的评测方式已变更，无法重判。请让选手重新提交。",
+      error: "这道题无法重判。",
     };
   }
 
   if (result.skippedByFilter > 0) {
     return {
-      error:
-        "该提交已通过。如需覆盖结果，请勾选「包含已通过的提交」。",
+      error: "该提交已通过。",
     };
   }
 
   if (result.requeued === 0) {
-
     revalidatePath(`/submissions/${parsed.data.id}`);
-    return { error: "提交状态已变更，本次未作修改。请刷新页面。" };
+    return { error: "提交状态已变更。" };
   }
 
   revalidatePath(`/submissions/${parsed.data.id}`);

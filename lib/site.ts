@@ -18,7 +18,6 @@ export interface NavItem {
 export interface HomeEntry {
   href: string;
   title: string;
-  description: string;
 }
 
 export interface FooterConfig {

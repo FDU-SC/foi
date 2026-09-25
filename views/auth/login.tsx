@@ -29,7 +29,7 @@ export async function LoginView({ searchParams }: PageProps<"/login">) {
     >
       {changed === "1" ? (
         <div className="mb-4">
-          <FormMessage tone="ok">密码已更新，请用新密码重新登录。</FormMessage>
+          <FormMessage tone="ok">密码已更新。</FormMessage>
         </div>
       ) : null}
       <LoginForm next={target} />

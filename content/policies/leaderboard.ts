@@ -10,7 +10,7 @@ export const policies = [
   policy({
     id: "leaderboard-open",
     effect: "permit",
-    describe: "登录用户都可以看练习排行榜（解题数、提交数、首杀数）",
+    describe: "登录用户可以查看练习排行榜",
     action: "leaderboard.read",
     principal: { authenticated: true },
   }),

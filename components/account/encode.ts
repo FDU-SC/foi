@@ -21,7 +21,7 @@ export const ACCEPTED_TYPES = "image/png,image/jpeg,image/webp,image/gif";
 /** Why this file cannot be cropped at all, or null when it can. */
 export function sourceRejection(file: File): string | null {
   if (!file.type.startsWith("image/")) return "请选择图片文件。";
-  if (file.size > MAX_SOURCE_BYTES) return "原图过大，请先压缩后再上传。";
+  if (file.size > MAX_SOURCE_BYTES) return "原图过大。";
   return null;
 }
 
@@ -71,11 +71,11 @@ export async function encodeAvatar(
 
     for (const quality of QUALITIES) {
       const blob = await encode(canvas, quality);
-      if (!blob) throw new Error("图片处理失败，请换一张试试。");
+      if (!blob) throw new Error("图片处理失败。");
 
       // A canvas that cannot encode WebP silently hands back PNG instead.
       if (blob.type !== "image/webp") {
-        throw new Error("当前浏览器不支持 WebP，无法上传头像。");
+        throw new Error("当前浏览器不支持 WebP。");
       }
 
       if (blob.size <= TARGET_BYTES) {
@@ -84,5 +84,5 @@ export async function encodeAvatar(
     }
   }
 
-  throw new Error("这张图压缩后仍然过大，换一张试试。");
+  throw new Error("这张图压缩后仍然过大。");
 }

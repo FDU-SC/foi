@@ -79,7 +79,7 @@ export function AvatarEditor({
       // setup/cleanup/setup that StrictMode puts every effect through.
       setPicked(await createImageBitmap(file));
     } catch {
-      setProblem("无法读取图片，请选择其他图片。");
+      setProblem("无法读取图片。");
     }
   }
 
@@ -127,22 +127,15 @@ export function AvatarEditor({
           className="hidden"
         />
 
-        {withControls ? (
-          <div className="min-w-0 space-y-2">
-            <p className="text-fg-muted text-sm leading-6">
-              点击头像选择图片并裁剪。
-            </p>
-            {current.avatarUpdatedAt ? (
-              <Button
-                type="button"
-                size="sm"
-                disabled={pending}
-                onClick={() => send({ intent: "remove" })}
-              >
-                移除当前头像
-              </Button>
-            ) : null}
-          </div>
+        {withControls && current.avatarUpdatedAt ? (
+          <Button
+            type="button"
+            size="sm"
+            disabled={pending}
+            onClick={() => send({ intent: "remove" })}
+          >
+            移除当前头像
+          </Button>
         ) : null}
       </div>
 

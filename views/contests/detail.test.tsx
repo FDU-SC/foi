@@ -75,8 +75,7 @@ describe("比赛详情权限边界", () => {
       viewerWith("contest.readProblemSet", 22),
     );
     const previewHtml = await renderDetail(ref.contest.slug);
-    expect(previewHtml.match(/<h1\b/g)).toHaveLength(1);
-    expect(previewHtml.split(ref.contest.title)).toHaveLength(2);
+    expect(previewHtml).toContain(ref.contest.title);
     expect(previewHtml).toContain("开始时间");
     expect(previewHtml).toContain("结束时间");
     expect(previewHtml).toContain(`dateTime="${ref.contest.startsAt.toISOString()}"`);

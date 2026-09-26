@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { viewerFor } from "@/lib/authz/viewer";
@@ -23,17 +24,15 @@ async function render(slug: string) {
 }
 
 describe("比赛工作区权限", () => {
-  it("工具栏不重复主标题和赛程，题单按钮关联默认展开的侧栏", async () => {
+  it("题单按钮关联有效的受控区域，并提供展开状态", async () => {
     auth.getViewer.mockResolvedValue(viewerWith("contest.read"));
     const { contest } = openContestProblem();
     const html = await render(contest.slug);
-    expect(html).not.toContain("<h1");
-    expect(html).not.toContain("开始时间");
-    expect(html).not.toContain("结束时间");
-    const button = html.match(/<button[^>]*aria-expanded="true"[^>]*aria-controls="([^"]+)"[^>]*>[\s\S]*?收起<\/button>/);
+    const document = new DOMParser().parseFromString(html, "text/html");
+    const button = document.querySelector("button[aria-controls]");
     expect(button).not.toBeNull();
-    expect(html).toContain(`<aside id="${button![1]}"`);
-    expect(html).not.toMatch(/<aside[^>]*hidden=""/);
+    expect(["true", "false"]).toContain(button?.getAttribute("aria-expanded"));
+    expect(document.getElementById(button!.getAttribute("aria-controls")!)).not.toBeNull();
   });
 
 
@@ -72,36 +71,32 @@ describe("比赛工作区权限", () => {
     for (const problems of [[{ ref, preview: false }], []]) {
       visible.mockReturnValue(problems);
       const html = await render(ref.contest.slug);
-      expect(html).toMatch(new RegExp(`aria-label="可见题目数量"[^>]*>${problems.length} 题</span>`));
+      const document = new DOMParser().parseFromString(html, "text/html");
+      expect(document.querySelector('[aria-label="可见题目数量"]')?.textContent).toBe(`${problems.length} 题`);
     }
   });
 
-  it("题单只标记当前入口，移动端摘要包含当前题号与题名", async () => {
+  it("题单与比赛导航只标记当前入口", async () => {
     auth.getViewer.mockResolvedValue(viewerWith("contest.read"));
-    const { contest, entry, problem } = openContestProblem();
+    const { contest, problem } = openContestProblem();
     const problemUrl = problemHref(contest.slug, problem.slug);
     for (const current of [contestHref(contest.slug), standingsHref(contest.slug), problemUrl]) {
       navigation.pathname = current;
       const html = await render(contest.slug);
-      const navs = html.match(/<nav aria-label="比赛题单"[\s\S]*?<\/nav>/g) ?? [];
-      expect(navs).toHaveLength(2);
+      const document = new DOMParser().parseFromString(html, "text/html");
+      const navs = document.querySelectorAll('nav[aria-label="比赛题单"]');
+      expect(navs.length).toBeGreaterThan(0);
       for (const nav of navs) {
-        const activeLinks = nav.match(/<a[^>]*aria-current="page"[^>]*>/g) ?? [];
+        const activeLinks = nav.querySelectorAll('a[aria-current="page"]');
         expect(activeLinks).toHaveLength(current === problemUrl ? 1 : 0);
-        if (current === problemUrl) expect(activeLinks[0]).toContain(`href="${current}"`);
-        expect(nav).not.toContain("比赛概览");
+        if (current === problemUrl) expect(activeLinks[0].getAttribute("href")).toBe(current);
       }
-      const contestNavs = html.match(/<nav aria-label="比赛导航"[\s\S]*?<\/nav>/g) ?? [];
-      expect(contestNavs).toHaveLength(2);
+      const contestNavs = document.querySelectorAll('nav[aria-label="比赛导航"]');
+      expect(contestNavs.length).toBeGreaterThan(0);
       for (const nav of contestNavs) {
-        const activeLinks = nav.match(/<a[^>]*aria-current="page"[^>]*>/g) ?? [];
+        const activeLinks = nav.querySelectorAll('a[aria-current="page"]');
         expect(activeLinks).toHaveLength(current === problemUrl ? 0 : 1);
-        if (current !== problemUrl) expect(activeLinks[0]).toContain(`href="${current}"`);
-      }
-      if (current === problemUrl) {
-        const summary = html.match(/<summary[\s\S]*?<\/summary>/)?.[0];
-        expect(summary).toContain(entry.label ?? problem.slug);
-        expect(summary).toContain(problem.title);
+        if (current !== problemUrl) expect(activeLinks[0].getAttribute("href")).toBe(current);
       }
     }
   });

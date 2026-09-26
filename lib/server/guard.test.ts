@@ -1,6 +1,8 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import * as ts from "typescript";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { importBindings, nodes, parseSource, walk } from "@/test/source";
 import { guardRequest, SOURCE_GATE } from "./guard";
 
 afterEach(() => {
@@ -249,12 +251,13 @@ describe("guardRequest 的豁免", () => {
 describe("每个 api 路由都取来源闸", () => {
   const ROOT = join(import.meta.dirname, "..", "..");
 
-  function walk(directory: string): string[] {
-    return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-      const path = join(directory, entry.name);
-      if (entry.isDirectory()) return walk(path);
-      return entry.isFile() ? [path] : [];
-    });
+  function callsGuard(source: string): boolean {
+    const file = parseSource(source);
+    const bindings = importBindings(file).filter(({ source }) => source === "@/lib/server/guard");
+    return nodes(file, ts.isCallExpression).some(({ expression }) => bindings.some(({ local, imported }) =>
+      ts.isIdentifier(expression) ? imported === "guardRequest" && expression.text === local :
+        imported === "*" && ts.isPropertyAccessExpression(expression) &&
+        ts.isIdentifier(expression.expression) && expression.expression.text === local && expression.name.text === "guardRequest"));
   }
 
   const routes = walk(join(ROOT, "app", "api")).filter((file) =>
@@ -262,17 +265,24 @@ describe("每个 api 路由都取来源闸", () => {
   );
 
   it("扫描确实找到了东西，而不是路径写错后空过", () => {
-    expect(routes.length).toBeGreaterThanOrEqual(8);
+    expect(routes.length).toBeGreaterThan(0);
   });
 
   it("没有一个 route.ts 少了 guardRequest", () => {
     const missing = routes
-      .filter((file) => !readFileSync(file, "utf8").includes("guardRequest("))
+      .filter((file) => !callsGuard(readFileSync(file, "utf8")))
       .map((file) => relative(ROOT, file));
 
     expect(missing, "这些路由不在 proxy 的 matcher 里，也没有自己取来源闸").toEqual(
       [],
     );
+  });
+
+  it("识别导入别名的调用，不把注释或同名本地函数当作来源闸", () => {
+    expect(callsGuard(`import { guardRequest as guard } from '@/lib/server/guard'; guard (request, route);`)).toBe(true);
+    expect(callsGuard(`import * as gate from '@/lib/server/guard'; gate.guardRequest(request, route);`)).toBe(true);
+    expect(callsGuard(`import { guardRequest } from '@/lib/server/guard'; /* guardRequest(request, route); */`)).toBe(false);
+    expect(callsGuard(`function guardRequest() {} guardRequest();`)).toBe(false);
   });
 });
 

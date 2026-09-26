@@ -14,15 +14,8 @@ import {
 } from "@/lib/accounts/username";
 import { authorize } from "@/lib/authz/engine";
 import { viewerFor } from "@/lib/authz/viewer";
+import { formatMoment } from "@/lib/format";
 import { site } from "@/lib/site";
-
-function formatMoment(at: Date): string {
-  return new Intl.DateTimeFormat(site.lang, {
-    dateStyle: "long",
-    timeStyle: "short",
-    timeZone: site.timezone,
-  }).format(at);
-}
 
 function usernameHint(changedAt: Date | null): string {
   const availableAt = usernameChangeAvailableAt(changedAt);

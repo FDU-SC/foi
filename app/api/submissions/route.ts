@@ -65,11 +65,7 @@ export async function GET(request: Request) {
   if (!user) return apiDeny(UNAUTHENTICATED);
 
   const rule = ROUTE_LIMITS["GET /api/submissions"];
-  const limited = rateLimit(
-    `submissions:${user.uid}`,
-    rule.max,
-    rule.windowSeconds * 1000,
-  );
+  const limited = rateLimit(`submissions:${user.uid}`, rule);
   if (!limited.ok) return tooManyRequests(limited.retryAfterMs);
 
   const { searchParams } = new URL(request.url);

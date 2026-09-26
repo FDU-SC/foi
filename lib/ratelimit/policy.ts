@@ -1,6 +1,10 @@
-export interface AlsoBound {
+/** At most `max` takes per `windowSeconds`. */
+export interface Bound {
   max: number;
   windowSeconds: number;
+}
+
+export interface AlsoBound extends Bound {
   why: string;
 }
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { enrollmentSources } from "@/lib/enrollment/modules";
+import { issueList } from "@/lib/validation";
 
 /**
  * A group is a label, nothing more.
@@ -32,12 +33,7 @@ function buildRegistry(): Map<string, Group> {
     exported.forEach((raw, index) => {
       const parsed = groupSchema.safeParse(raw);
       if (!parsed.success) {
-        const issues = parsed.error.issues
-          .map(
-            (issue) => `  - ${issue.path.join(".") || "(root)"}: ${issue.message}`,
-          )
-          .join("\n");
-        throw new Error(`${path} 第 ${index + 1} 个用户组不合法:\n${issues}`);
+        throw new Error(`${path} 第 ${index + 1} 个用户组不合法:\n${issueList(parsed.error)}`);
       }
 
       const existing = sources.get(parsed.data.id);

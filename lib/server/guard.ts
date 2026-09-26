@@ -24,12 +24,7 @@ function floodGate(request: Request, route: RouteKey): NextResponse | null {
   const rule: RouteRule = ROUTE_LIMITS[route];
   const bound = rule.flood ?? SOURCE_GATE;
 
-  const verdict = rateLimitBySource(
-    `gate:${route}`,
-    sourceFrom(request.headers),
-    bound.max,
-    bound.windowSeconds * 1000,
-  );
+  const verdict = rateLimitBySource(`gate:${route}`, sourceFrom(request.headers), bound);
   if (verdict.ok) return null;
 
   return tooManyRequests(verdict.retryAfterMs);

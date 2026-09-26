@@ -11,14 +11,16 @@ _shared/
   ui/             Submission UI templates
     submit-panel.tsx    Shell — handles submit state, verdict display, login gate
     submit-context.tsx  React context — exposes submit(payload) + submitting to children
-    code-input.tsx      Template — language select + code textarea → { language, source }
+    code-input.tsx      Template — language select + code editor → { language, source }
+    code-editor.tsx     CodeEditor — CodeMirror, loaded on first use; editable or read-only
+    code-mirror.tsx     The CodeMirror setup behind CodeEditor: languages, theme from colour variables
     flag-input.tsx      Template — single-line input → { flag }
     text-input.tsx      Template — multi-line textarea → { text }
     ui-config.tsx       ProblemUi schema (difficulty, tags, languages, placeholder)
     problem-facets.tsx  Which ui fields become filterable dimensions + the difficulty ladder
     problem-badges.tsx  Problem badges (the offered dimensions + max score)
   views/           Submission detail view templates
-    code-payload.tsx    Renders { language, source } payloads
+    code-payload.tsx    Renders { language, source } payloads in a read-only CodeEditor
     flag-payload.tsx    Renders { flag } payloads
     text-payload.tsx    Renders { text } payloads
     tests-table.tsx     Renders { tests: [...] } verdict detail as a table

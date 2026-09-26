@@ -2,6 +2,7 @@ import type { z } from "zod";
 import { declaredGroupIds } from "@/lib/authz/groups";
 import { isPrivilegedGroup, privilegedGroups } from "@/lib/authz/introspect";
 import { log } from "@/lib/log";
+import { issueList } from "@/lib/validation";
 import { enrollmentSources } from "./modules";
 import {
   enrollmentPolicySchema,
@@ -30,10 +31,7 @@ interface Registry {
 }
 
 function fail(path: string, what: string, error: z.ZodError): never {
-  const issues = error.issues
-    .map((issue) => `  - ${issue.path.join(".") || "(root)"}: ${issue.message}`)
-    .join("\n");
-  throw new Error(`${path} 的${what}不合法:\n${issues}`);
+  throw new Error(`${path} 的${what}不合法:\n${issueList(error)}`);
 }
 
 function buildRegistry(): Registry {

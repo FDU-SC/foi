@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSelf, signIn } from "@/auth";
-import { avatarRejection } from "@/lib/accounts/avatar";
+import { normalizeAvatar } from "@/lib/accounts/avatar-image";
 import { setPassword, verifyPassword } from "@/lib/accounts/password";
 import {
   clearAvatar,
@@ -18,11 +18,13 @@ import {
 import type { ResolvedUser } from "@/lib/accounts/types";
 import { nicknameSchema, usernameSchema } from "@/lib/accounts/types";
 import { usernameChangeAvailableAt } from "@/lib/accounts/username";
+import { formatMoment } from "@/lib/format";
 import { log } from "@/lib/log";
 import { sendSecurityNotice } from "@/lib/mail/notify";
 import type { SecurityChangeKind } from "@/lib/mail/types";
 import { rateLimit } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
+import { parseInput } from "@/lib/validation";
 import { site } from "@/lib/site";
 
 export interface SettingsState {
@@ -32,18 +34,6 @@ export interface SettingsState {
 
 const TOO_MANY = "操作过于频繁，请稍后再试。";
 const WRONG_PASSWORD = "当前密码不正确。";
-
-function within(activity: string, uid: number, rule: { max: number; windowSeconds: number }): boolean {
-  return rateLimit(`${activity}:${uid}`, rule.max, rule.windowSeconds * 1000).ok;
-}
-
-function formatMoment(at: Date): string {
-  return new Intl.DateTimeFormat(site.lang, {
-    dateStyle: "long",
-    timeStyle: "short",
-    timeZone: site.timezone,
-  }).format(at);
-}
 
 /**
  * The change already happened; a failed notice must never surface as a failed action.
@@ -84,17 +74,15 @@ export async function updateNicknameAction(
 ): Promise<SettingsState> {
   const viewer = await requireSelf("account.changeNickname");
 
-  const parsed = nicknameForm.safeParse({ nickname: formData.get("nickname") });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  const parsed = parseInput(nicknameForm, { nickname: formData.get("nickname") });
+  if (!parsed.ok) return { error: parsed.error };
 
   const { nickname } = parsed.data;
   if (nickname === viewer.nickname) {
     return { error: "新昵称和当前昵称相同。" };
   }
 
-  if (!within("settings:nickname", viewer.uid, ACTION_LIMITS.updateNicknameAction)) {
+  if (!rateLimit(`settings:nickname:${viewer.uid}`, ACTION_LIMITS.updateNicknameAction).ok) {
     return { error: TOO_MANY };
   }
 
@@ -113,19 +101,17 @@ export async function updateAvatarAction(
   const file = formData.get("avatar");
   if (!(file instanceof File)) return { error: "请选择一张图片。" };
 
-  if (!within("settings:avatar", viewer.uid, ACTION_LIMITS.updateAvatarAction)) {
+  if (!rateLimit(`settings:avatar:${viewer.uid}`, ACTION_LIMITS.updateAvatarAction).ok) {
     return { error: TOO_MANY };
   }
 
   // The browser re-encodes through a canvas before uploading, but nothing
-  // stops a client from posting something else, and these are the exact bytes
-  // that get served back from this origin.
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  // stops a client from posting something else; only the server's own
+  // re-encode gets served back from this origin.
+  const avatar = await normalizeAvatar(new Uint8Array(await file.arrayBuffer()));
+  if (!avatar.ok) return { error: avatar.error };
 
-  const rejected = avatarRejection(bytes);
-  if (rejected) return { error: rejected };
-
-  if (!(await setAvatar(viewer.uid, bytes))) {
+  if (!(await setAvatar(viewer.uid, avatar.bytes))) {
     return { error: "更新失败，请重试。" };
   }
 
@@ -141,7 +127,7 @@ export async function removeAvatarAction(
 
   if (!viewer.avatarUpdatedAt) return { error: "当前没有设置头像。" };
 
-  if (!within("settings:avatar", viewer.uid, ACTION_LIMITS.removeAvatarAction)) {
+  if (!rateLimit(`settings:avatar:${viewer.uid}`, ACTION_LIMITS.removeAvatarAction).ok) {
     return { error: TOO_MANY };
   }
 
@@ -164,20 +150,18 @@ export async function updateUsernameAction(
 ): Promise<SettingsState> {
   const viewer = await requireSelf("account.changeUsername");
 
-  const parsed = usernameForm.safeParse({
+  const parsed = parseInput(usernameForm, {
     username: formData.get("username"),
     currentPassword: formData.get("currentPassword"),
   });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  if (!parsed.ok) return { error: parsed.error };
 
   const { username, currentPassword } = parsed.data;
   if (username === viewer.username) {
     return { error: "新用户名和当前用户名相同。" };
   }
 
-  if (!within("settings:username", viewer.uid, ACTION_LIMITS.updateUsernameAction)) {
+  if (!rateLimit(`settings:username:${viewer.uid}`, ACTION_LIMITS.updateUsernameAction).ok) {
     return { error: TOO_MANY };
   }
 
@@ -236,16 +220,14 @@ export async function changePasswordAction(
 ): Promise<SettingsState> {
   const viewer = await requireSelf("account.changePassword");
 
-  const parsed = passwordForm.safeParse({
+  const parsed = parseInput(passwordForm, {
     currentPassword: formData.get("currentPassword"),
     password: formData.get("password"),
     confirm: formData.get("confirm"),
   });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  if (!parsed.ok) return { error: parsed.error };
 
-  if (!within("settings:password", viewer.uid, ACTION_LIMITS.changePasswordAction)) {
+  if (!rateLimit(`settings:password:${viewer.uid}`, ACTION_LIMITS.changePasswordAction).ok) {
     return { error: TOO_MANY };
   }
 

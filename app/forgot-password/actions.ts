@@ -13,6 +13,7 @@ import { log } from "@/lib/log";
 import { sendPasswordReset, type Recipient } from "@/lib/mail/notify";
 import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
+import { parseInput } from "@/lib/validation";
 
 export interface ForgotState {
   error?: string;
@@ -29,18 +30,11 @@ export async function requestPasswordReset(
   _prev: ForgotState,
   formData: FormData,
 ): Promise<ForgotState> {
-  const parsed = schema.safeParse({ identifier: formData.get("identifier") });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  const parsed = parseInput(schema, { identifier: formData.get("identifier") });
+  if (!parsed.ok) return { error: parsed.error };
 
   const rule = ACTION_LIMITS.requestPasswordReset;
-  const limit = rateLimitBySource(
-    "forgot",
-    sourceFrom(await headers()),
-    rule.max,
-    rule.windowSeconds * 1000,
-  );
+  const limit = rateLimitBySource("forgot", sourceFrom(await headers()), rule);
   if (!limit.ok) {
     return { error: "请求过于频繁，请稍后再试。" };
   }

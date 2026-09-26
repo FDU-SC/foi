@@ -77,7 +77,7 @@ export async function createSubmission(
   user: ResolvedUser,
 ): Promise<CreateSubmissionResult> {
   const cap = ROUTE_LIMITS["POST /api/submissions"].also;
-  const flood = rateLimit(`submit:${user.uid}`, cap.max, cap.windowSeconds * 1000);
+  const flood = rateLimit(`submit:${user.uid}`, cap);
   if (!flood.ok) return { kind: "limited", retryAfterMs: flood.retryAfterMs };
 
   const { clientNonce } = input;
@@ -91,8 +91,7 @@ export async function createSubmission(
   const { contest, problem } = gate.ref;
   const limited = rateLimit(
     `submit:${user.uid}:${contest.slug}:${problem.slug}`,
-    gate.rateLimit.max,
-    gate.rateLimit.windowSeconds * 1000,
+    gate.rateLimit,
   );
   if (!limited.ok) return { kind: "limited", retryAfterMs: limited.retryAfterMs };
 

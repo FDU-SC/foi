@@ -22,11 +22,7 @@ export async function GET(
   if (!user) return apiDeny(UNAUTHENTICATED);
 
   const rule = ROUTE_LIMITS["GET /api/submissions/[id]"];
-  const limited = rateLimit(
-    `submission:${user.uid}`,
-    rule.max,
-    rule.windowSeconds * 1000,
-  );
+  const limited = rateLimit(`submission:${user.uid}`, rule);
   if (!limited.ok) return tooManyRequests(limited.retryAfterMs);
 
   const { id } = await params;

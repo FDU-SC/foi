@@ -42,8 +42,7 @@ export async function POST(
 
   const verdict = rateLimit(
     `action:${user.uid}:${slug}:${problemSlug}:${action}`,
-    resolved.rateLimit.max,
-    resolved.rateLimit.windowSeconds * 1000,
+    resolved.rateLimit,
   );
   if (!verdict.ok) {
     return tooManyRequests(verdict.retryAfterMs, "操作过于频繁，请稍后再试");

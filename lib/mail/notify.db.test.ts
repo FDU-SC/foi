@@ -41,7 +41,7 @@ describe("sendVerificationLink", () => {
     expect(relay.sent[0].to).toBe("user@example.test");
 
     const token = tokenFromLastMail();
-    const payload = verifyToken(token, "email-verify");
+    const payload = await verifyToken(token, "email-verify");
     expect(payload).not.toBeNull();
     expect(payload!.s).toBe("user@example.test");
 
@@ -64,7 +64,7 @@ describe("sendPasswordReset", () => {
     expect(relay.sent[0].to).toBe("alice@example.test");
 
     const token = tokenFromLastMail();
-    const payload = verifyToken(token, "password-reset");
+    const payload = await verifyToken(token, "password-reset");
     expect(payload).not.toBeNull();
     expect(payload!.s).toBe("1");
     expect(payload!.fp).toBe("fp_abc123");

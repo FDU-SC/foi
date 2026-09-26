@@ -1,8 +1,10 @@
+import { formatMoment } from "@/lib/format";
 import { escapeHtml } from "@/lib/mail/html";
 import type { MailBody } from "@/lib/mail/types";
 import { site } from "@/lib/site";
 
 export type { MailBody };
+export { formatMoment };
 
 export interface ActionMail {
   subject: string;
@@ -36,12 +38,6 @@ export interface CodeMail {
   footnote?: string[];
 }
 
-const formatter = new Intl.DateTimeFormat(site.lang, {
-  dateStyle: "long",
-  timeStyle: "short",
-  timeZone: site.timezone,
-});
-
 function paragraph(line: string): string {
   return `    <p style="margin:0 0 12px;font-size:14px;line-height:1.7;color:#374151;">${escapeHtml(line)}</p>`;
 }
@@ -63,7 +59,7 @@ ${inner}
 }
 
 export function actionMail(mail: ActionMail): MailBody {
-  const expiry = `此链接在 ${formatter.format(mail.expiresAt)} 前有效，只能使用一次。`;
+  const expiry = `此链接在 ${formatMoment(mail.expiresAt)} 前有效，只能使用一次。`;
   const footnote = mail.footnote ?? [];
 
   const text = [
@@ -93,10 +89,6 @@ export function actionMail(mail: ActionMail): MailBody {
   );
 
   return { subject: mail.subject, text, html };
-}
-
-export function formatMoment(at: Date): string {
-  return formatter.format(at);
 }
 
 export function noticeMail(mail: NoticeMail): MailBody {
@@ -129,7 +121,7 @@ export function noticeMail(mail: NoticeMail): MailBody {
 }
 
 export function codeMail(mail: CodeMail): MailBody {
-  const expiry = `验证码在 ${formatter.format(mail.expiresAt)} 前有效。`;
+  const expiry = `验证码在 ${formatMoment(mail.expiresAt)} 前有效。`;
   const footnote = mail.footnote ?? [];
 
   const text = [

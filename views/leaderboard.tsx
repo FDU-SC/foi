@@ -15,6 +15,7 @@ import {
 } from "@/lib/contests/catalogue";
 import { PAGE_PARAM } from "@/lib/paging";
 import { carried, queryString, readAll, readOne, without, type SearchParams } from "@/lib/query";
+import { site } from "@/lib/site";
 import { catalogueStandingsFor } from "@/lib/standings/compute";
 import { STANDINGS_PARAMS } from "@/lib/standings/selection";
 
@@ -75,6 +76,7 @@ export async function LeaderboardView({
           names={{ from: FROM, to: TO }}
           value={{ from, to }}
           label="时间"
+          timeZone={site.timezone}
         />
         {data.frozen ? <Badge tone="warn">已封榜</Badge> : null}
         <span className="text-fg-subtle ml-auto text-sm">

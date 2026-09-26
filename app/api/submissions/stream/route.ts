@@ -24,13 +24,7 @@ export async function GET(request: Request) {
   if (!user) return apiDeny(UNAUTHENTICATED);
 
   const opens = ROUTE_LIMITS["GET /api/submissions/stream"];
-  if (
-    !rateLimit(
-      `stream:${user.uid}`,
-      opens.max,
-      opens.windowSeconds * 1000,
-    ).ok
-  ) {
+  if (!rateLimit(`stream:${user.uid}`, opens).ok) {
     return new Response("Too Many Requests", { status: 429 });
   }
 

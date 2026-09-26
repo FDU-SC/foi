@@ -8,6 +8,7 @@
 // names the file it must stay in sync with.
 
 const crypto = require("node:crypto");
+const util = require("node:util");
 const { hash } = require("@node-rs/argon2");
 const { Client } = require("pg");
 
@@ -38,33 +39,43 @@ function requireDevelopmentEnvironment(env = process.env) {
  * than a refusal.
  */
 function parseArgs(argv, valueOptions, usage) {
-  const parsed = {};
-  const positional = [];
+  const flags = new Map(
+    Object.entries(valueOptions).map(([flag, key]) => [flag.slice(2), { flag, key }]),
+  );
 
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
+  // Non-strict so every refusal below keeps its own wording.
+  const { tokens, positionals } = util.parseArgs({
+    args: argv,
+    options: {
+      help: { type: "boolean", short: "h" },
+      ...Object.fromEntries([...flags.keys()].map((name) => [name, { type: "string" }])),
+    },
+    strict: false,
+    allowPositionals: true,
+    tokens: true,
+  });
 
-    if (arg === "--help" || arg === "-h") return { help: true, positional };
-
-    const key = valueOptions[arg];
-    if (key) {
-      const value = argv[i + 1];
-      // Rejecting a `-` prefix catches `--email --nick alice`, which would
-      // otherwise swallow the next flag as this one's value.
-      if (value === undefined || value.startsWith("-")) {
-        bail(`${arg} 后面要跟一个值`);
-      }
-      if (parsed[key] !== undefined) bail(`${arg} 给了不止一次`);
-      parsed[key] = value;
-      i += 1;
-      continue;
-    }
-
-    if (arg.startsWith("-")) bail(`未知选项 ${arg}\n\n${usage}`);
-    positional.push(arg);
+  if (tokens.some((token) => token.kind === "option" && token.name === "help")) {
+    return { help: true, positional: positionals };
   }
 
-  return { ...parsed, positional };
+  const parsed = {};
+  for (const token of tokens) {
+    if (token.kind !== "option") continue;
+
+    const option = flags.get(token.name);
+    if (!option) bail(`未知选项 ${token.rawName}\n\n${usage}`);
+
+    // Rejecting a `-` prefix catches `--email --nick alice`, which would
+    // otherwise swallow the next flag as this one's value.
+    if (token.value === undefined || (!token.inlineValue && token.value.startsWith("-"))) {
+      bail(`${option.flag} 后面要跟一个值`);
+    }
+    if (parsed[option.key] !== undefined) bail(`${option.flag} 给了不止一次`);
+    parsed[option.key] = token.value;
+  }
+
+  return { ...parsed, positional: positionals };
 }
 
 function singlePositional(positional, label) {

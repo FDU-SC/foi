@@ -12,6 +12,7 @@ import { log } from "@/lib/log";
 import { sendPasswordReset } from "@/lib/mail/notify";
 import { rateLimit } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
+import { parseInput } from "@/lib/validation";
 
 export interface ActionState {
   error?: string;
@@ -33,21 +34,15 @@ export async function resendPasswordResetAction(
   const actor = await getViewer();
 
   const rule = ACTION_LIMITS.resendPasswordResetAction;
-  const limited = rateLimit(
-    `resend-reset:${actor.uid}`,
-    rule.max,
-    rule.windowSeconds * 1000,
-  );
+  const limited = rateLimit(`resend-reset:${actor.uid}`, rule);
   if (!limited.ok) {
     return {
       error: `代发重置邮件过于频繁，请 ${Math.ceil(limited.retryAfterMs / 60_000)} 分钟后再试。`,
     };
   }
 
-  const parsed = issueSchema.safeParse({ uid: formData.get("uid") });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  const parsed = parseInput(issueSchema, { uid: formData.get("uid") });
+  if (!parsed.ok) return { error: parsed.error };
 
   const user = await resolveUser(parsed.data.uid);
   if (!user) return { error: "没有这个账号" };
@@ -91,13 +86,11 @@ export async function suspendAccountAction(
 ): Promise<ActionState> {
   const actor = await getViewer();
 
-  const parsed = moderateSchema.safeParse({
+  const parsed = parseInput(moderateSchema, {
     uid: formData.get("uid"),
     reason: formData.get("reason"),
   });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  if (!parsed.ok) return { error: parsed.error };
 
   const target = await resolveUser(parsed.data.uid);
   if (!target) return { error: "没有这个账号" };
@@ -121,10 +114,8 @@ export async function reinstateAccountAction(
 ): Promise<ActionState> {
   const actor = await getViewer();
 
-  const parsed = moderateSchema.safeParse({ uid: formData.get("uid") });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  const parsed = parseInput(moderateSchema, { uid: formData.get("uid") });
+  if (!parsed.ok) return { error: parsed.error };
 
   const target = await resolveUser(parsed.data.uid);
   if (!target) return { error: "没有这个账号" };

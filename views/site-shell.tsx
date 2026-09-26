@@ -8,7 +8,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
     <>
       <div className="contents" data-site-header><Header /></div>
       <PageTransition>
-        <main className="oj-page site-container relative z-10 mx-auto w-full min-w-0 flex-1 px-4 py-5 md:px-6">
+        <main className="oj-page site-container relative z-20 mx-auto w-full min-w-0 flex-1 px-4 py-5 md:px-6">
           {children}
         </main>
       </PageTransition>

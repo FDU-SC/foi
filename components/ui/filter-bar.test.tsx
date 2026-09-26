@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { FilterBar, type FilterRow } from "./filter-bar";
+import { FilterBar, FilterChips, SearchForm, type FilterRow } from "./filter-bar";
 import { pageWindow, Pagination } from "./pagination";
 
 function hrefs(html: string): string[] {
@@ -22,19 +22,57 @@ function render(rows: FilterRow[], params: Record<string, string | string[]>) {
 }
 
 describe("FilterBar", () => {
-  it("任何筛选变化都回到第一页，resets 列出的参数随之清掉", () => {
+  it("任何筛选变化都回到第一页，其余参数原样带着", () => {
     const html = render(
       [
-        { key: "board", label: "方向", selected: [], choices: [{ value: "b", label: "B" }], resets: ["section"] },
+        { key: "board", label: "方向", selected: [], choices: [{ value: "b", label: "B" }] },
         { key: "tag", label: "标签", multiple: true, selected: [], choices: [{ value: "x", label: "X" }] },
       ],
       { page: "3", section: "s", q: "k" },
     );
 
-    expect(hrefs(html)).toContain("/list?q=k&board=b");
+    expect(hrefs(html)).toContain("/list?section=s&q=k&board=b");
     expect(hrefs(html)).toContain("/list?section=s&q=k&tag=x");
     expect(html).not.toContain('name="page"');
     expect(html).toContain('name="section"');
+  });
+});
+
+describe("FilterBar 的下拉按钮", () => {
+  it("单选显示当前选项，多选显示已选个数，默认选项不算已选", () => {
+    const html = render(
+      [
+        { key: "board", label: "方向", selected: ["b"], fallback: "", choices: [{ value: "", label: "默认" }, { value: "b", label: "算法" }] },
+        { key: "tag", label: "标签", multiple: true, selected: ["x", "y"], choices: [{ value: "x", label: "X" }, { value: "y", label: "Y" }] },
+        { key: "sort", label: "排序", selected: [""], fallback: "", choices: [{ value: "", label: "题单序" }] },
+      ],
+      {},
+    );
+    const summaries = [...html.matchAll(/<summary[^>]*>(.*?)<svg/g)].map(([, inner]) => inner.replace(/<[^>]+>/g, ""));
+
+    expect(summaries).toEqual(["方向算法", "标签2", "排序"]);
+    expect(html.match(/<details[^>]*class="group relative"/g)).toHaveLength(3);
+  });
+});
+
+describe("可单独使用的搜索框与选项行", () => {
+  it("搜索框带上其余参数、回到第一页；选项行只改自己的参数，再点已选的取消", () => {
+    const search = renderToStaticMarkup(
+      <SearchForm path="/list" params={{ board: "b", page: "2", q: "old" }} name="q" value="old" placeholder="搜索用户" />,
+    );
+    expect(search).toMatch(/type="hidden" name="board" value="b"/);
+    expect(search).not.toMatch(/name="page"/);
+    expect(search).not.toMatch(/type="hidden" name="q"/);
+
+    const chips = renderToStaticMarkup(
+      <FilterChips
+        path="/list"
+        params={{ board: "b", page: "2" }}
+        row={{ key: "board", label: "榜单", selected: ["b"], choices: [{ value: "a", label: "A" }, { value: "b", label: "B" }] }}
+      />,
+    );
+    expect(hrefs(chips)).toEqual(["/list?board=a", "/list"]);
+    expect(chips.match(/aria-current="true"/g)).toHaveLength(1);
   });
 });
 

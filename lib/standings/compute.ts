@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lt } from "drizzle-orm";
 import { allows } from "@/lib/authz/engine";
 import type { Viewer } from "@/lib/authz/viewer";
 import { isContestProblemSetVisibleTo } from "@/lib/contests/access";
@@ -56,11 +56,12 @@ export interface CatalogueQuery {
   /** Some of the board's sections. Empty keeps them all. */
   sections?: readonly string[];
 
-  /** Only submissions from the last this many days count. */
-  days?: number;
-}
+  /** Only submissions from this moment on count. */
+  from?: Date;
 
-const DAY_MS = 86_400_000;
+  /** Only submissions before this moment count. */
+  until?: Date;
+}
 
 /** What a board reads, once every access question has been asked. */
 interface Scope {
@@ -68,7 +69,8 @@ interface Scope {
 
   /** Contests whose results after `freezeAt` this viewer may not see. */
   masked: ReadonlySet<string>;
-  since?: Date;
+  from?: Date;
+  until?: Date;
 }
 
 interface Loaded {
@@ -90,7 +92,7 @@ interface Row {
   avatarUpdatedAt: Date | null;
 }
 
-async function load({ contests, masked, since }: Scope): Promise<Loaded> {
+async function load({ contests, masked, from, until }: Scope): Promise<Loaded> {
   const problems = contests.flatMap((contest) =>
     resolveContestProblems(contest).map((problem) => ({
       ...problem,
@@ -117,7 +119,8 @@ async function load({ contests, masked, since }: Scope): Promise<Loaded> {
     .innerJoin(accounts, eq(accounts.uid, submissions.uid))
     .where(and(
       inArray(submissions.contestSlug, contests.map(({ slug }) => slug)),
-      since ? gte(submissions.createdAt, since) : undefined,
+      from ? gte(submissions.createdAt, from) : undefined,
+      until ? lt(submissions.createdAt, until) : undefined,
     ))
     .orderBy(asc(submissions.createdAt));
 
@@ -227,7 +230,7 @@ export function standingsFor(
  * problem set, and is masked the way its own board would be.
  */
 export function catalogueStandingsFor(
-  { board, sections = [], days }: CatalogueQuery,
+  { board, sections = [], from, until }: CatalogueQuery,
   viewer: Viewer,
   now = new Date(),
 ): Promise<CatalogueStandings | null> {
@@ -242,16 +245,11 @@ export function catalogueStandingsFor(
   const counted = contests.map(({ slug }) => slug);
   const masked = new Set(contests.filter((contest) => masks(contest, viewer, now)).map(({ slug }) => slug));
 
-  // Floored to a whole minute, so a moving window still shares one cache entry.
-  const from = days === undefined
-    ? undefined
-    : new Date(Math.floor((now.getTime() - days * DAY_MS) / 60_000) * 60_000);
-
   return cachedStandings(
-    standingsKey(`catalogue:${board ?? ""}`, [counted.join(","), [...masked].join(","), from?.getTime() ?? ""].join("|")),
+    standingsKey(`catalogue:${board ?? ""}`, [counted.join(","), [...masked].join(","), from?.getTime() ?? "", until?.getTime() ?? ""].join("|")),
     counted,
     async () => {
-      const loaded = await load({ contests, masked, since: from });
+      const loaded = await load({ contests, masked, from, until });
       return {
         sections: contests,
         problems: loaded.problems,

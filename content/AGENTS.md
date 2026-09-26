@@ -186,8 +186,9 @@ domain: "HPC & AI Infra",
 ```
 
 Headings appear in the order their first contest appears in `catalogue`, and a
-contest without one lands in an unlabelled group at the end. A heading is a
-heading, not a page — there is no `/problems/<domain>`.
+contest without one lands in an unlabelled group at the end. A heading only
+labels; one over several contests adds an entry listing every problem under
+it, at `/problems?domain=<domain>`. There is no `/problems/<domain>` path.
 
 The boot check refuses a catalogued contest carrying a problem named
 `standings`: that address redirects to the leaderboard, so it would have no
@@ -207,7 +208,7 @@ catalogueLeaderboards: [
 - A board computes the main leaderboards (`leaderboards[0]`) of its sections as one, at `/leaderboard?board=<id>`.
 - The total, at `/leaderboard`, spans every catalogued section except those named only by boards without `includeInTotal`.
 - The sections of one board must share a ruleset and its configuration; the boot check refuses otherwise.
-- `/leaderboard` is the catalogue's only leaderboard page. A section's standings link opens it with that section, and its board, selected; `/problems/<slug>/standings` redirects there.
+- `/leaderboard` is the catalogue's only leaderboard page: the leaderboard view under a shared sidebar selection. A section's standings link opens it with that section, and its board, selected; `/problems/<slug>/standings` redirects there.
 
 ### Adding a Ruleset
 
@@ -254,9 +255,11 @@ The `result` may be any non-null JSON value. Its meaning is your decision. The p
 
 ## Practice Leaderboard
 
-`/leaderboard` is the platform's catalogue board page, gated by
-`leaderboard.read`. It offers direction, section and period filters, a name
-search, pages and the viewer's own place. Content decides the rest:
+`/leaderboard` is the catalogue's leaderboard view, gated by
+`leaderboard.read`. It shares the problem list's sidebar; a tab under the list
+title switches between problems and standings for that selection. A date range,
+a name search, pages and the viewer's own place sit with the board. Content
+decides the rest:
 
 - Ranking: the ruleset the catalogue sections' main leaderboards name. The sample uses `practice` (best score per problem, scaled to its worth).
 - Display: that ruleset's `Board`. `practice` uses `_shared/leaderboards/summary.tsx` for one column per figure instead of one per problem.
@@ -297,6 +300,12 @@ Navigation entries gate on the same action their destination enforces:
 
 ```typescript
 { href: "/admin", label: "管理", visibleWhen: "admin.enter" }
+```
+
+`matches` names other paths an entry counts as current on:
+
+```typescript
+{ href: "/problems", label: "题库", matches: ["/leaderboard"] }
 ```
 
 ## Changing How a Page Looks

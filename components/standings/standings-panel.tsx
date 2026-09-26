@@ -1,29 +1,28 @@
 import Link from "next/link";
 import { Avatar } from "@/components/ui/avatar";
-import { FilterBar, type FilterRow } from "@/components/ui/filter-bar";
+import { SearchForm } from "@/components/ui/filter-bar";
 import { Pagination } from "@/components/ui/pagination";
 import { PAGE_PARAM } from "@/lib/paging";
-import { withParam, without, type SearchParams } from "@/lib/query";
+import { queryString, withParam, without, type SearchParams } from "@/lib/query";
 import type { LeaderboardStandings } from "@/lib/standings/compute";
 import { selectStandings, STANDINGS_PARAMS } from "@/lib/standings/selection";
 import type { BoardProps, ContestProblem, StandingsRow } from "@/lib/standings/types";
 
 /**
- * One computed board with the controls every standings page shares: the
- * viewer's own place, a search over names, the caller's filters, and pages.
- * The board itself is drawn by its ruleset's `Board`.
+ * One computed board with what every standings page shares: the viewer's own
+ * place, a search over names right above the rows, and pages. What the board
+ * covers is chosen above it by the page. The rows are drawn by the ruleset's
+ * `Board`.
  */
 export function StandingsPanel({
   path,
   query,
-  rows: filters,
   board,
   problems,
   viewerUid,
 }: {
   path: string;
   query: SearchParams;
-  rows: FilterRow[];
   board: LeaderboardStandings;
   problems: ContestProblem[];
   viewerUid: number | null;
@@ -31,7 +30,6 @@ export function StandingsPanel({
   const { standings, renderers } = board;
   const selection = selectStandings(standings.rows, query, viewerUid);
   const Board = renderers.Board ?? DefaultBoard;
-  const narrowed = filters.some((row) => row.selected.some((value) => value !== row.fallback));
 
   return (
     <div className="min-w-0 space-y-3">
@@ -43,15 +41,23 @@ export function StandingsPanel({
         />
       ) : null}
 
-      <FilterBar
-        path={path}
-        params={query}
-        rows={filters}
-        searchKey={STANDINGS_PARAMS.search}
-        searchValue={selection.searchValue}
-        searchPlaceholder="搜索用户"
-        filtered={selection.filtered || narrowed}
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchForm
+          path={path}
+          params={query}
+          name={STANDINGS_PARAMS.search}
+          value={selection.searchValue}
+          placeholder="搜索用户"
+        />
+        {selection.filtered ? (
+          <Link
+            href={path + queryString(without(query, STANDINGS_PARAMS.search, PAGE_PARAM))}
+            className="text-fg-muted text-xs underline underline-offset-2"
+          >
+            清除搜索
+          </Link>
+        ) : null}
+      </div>
 
       {selection.matched === 0 && selection.filtered ? (
         <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">

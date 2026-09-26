@@ -8,6 +8,9 @@ export interface NavItem {
   /** Defaults to the primary header navigation. */
   location?: "primary" | "account" | "catalogue" | "submissions" | "admin";
 
+  /** Other paths the link counts as current on, besides its own and those below it. */
+  matches?: string[];
+
   /**
    * Hide the link unless this action is permitted. It names the same action the
    * destination enforces, so the nav cannot drift from what the page allows.

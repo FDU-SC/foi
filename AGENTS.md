@@ -164,12 +164,17 @@ participants. `/problems` shows every list's problems in one table;
 long contest window. Authorization and submission behaviour are unchanged:
 `contest_slug` and `/api/contests/[slug]/problems/[problem]/action/[action]` serve both namespaces.
 
-The catalogue has one leaderboard page, `/leaderboard`, filtered by direction
-and section. A section's standings are that page narrowed to the section, with
-its direction selected when a board names it.
+The catalogue has one leaderboard page, `/leaderboard`, the leaderboard view
+of a sidebar selection. The problem list and that page share one sidebar; a tab
+under the list title switches between them, keeping the selected list or
+direction. `lib/contests/scope.ts` maps a selection to the leaderboard scope
+that ranks it and back. A section's standings are that page narrowed to the
+section, with its direction selected when a board names it.
 
 `contest.domain` is an opaque grouping label in the list sidebar. Headings follow the
-first occurrence of each domain in `site.catalogue`. There is no `/problems/[domain]` page.
+first occurrence of each domain in `site.catalogue`. A heading only labels; one
+over several lists adds an entry listing every problem under it, selected on the
+same page as `/problems?domain=<domain>`. There is no `/problems/[domain]` path.
 
 `lib/contests/catalogue.ts` builds every such link and is the only place that reads `site.catalogue`. Never write a contest or problem path by hand — `problemHref`, `contestHref` and `standingsHref` are what keep the two namespaces from both claiming a pair.
 

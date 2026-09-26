@@ -62,7 +62,8 @@ export const contestConfigSchema = z
     description: z.string().optional(),
 
     /**
-     * The heading this contest sits under in the catalogue's list sidebar.
+     * The direction this contest sits under in the catalogue's list sidebar.
+     * One gathering several contests is also a list of all their problems.
      *
      * A label the platform groups by and never interprets. Headings appear in
      * the order their first contest appears in `site.catalogue`, so the order

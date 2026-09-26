@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 export interface NavLink {
   href: string;
   label: string;
+  matches?: string[];
 }
 
 /**
@@ -22,8 +23,9 @@ export function SiteNav({ items }: { items: NavLink[] }) {
   return (
     <nav className="order-last flex w-full min-w-0 items-center gap-1 overflow-x-auto pb-2 text-sm lg:order-none lg:w-auto lg:flex-1 lg:pb-0">
       {items.map((item) => {
-        const active =
-          pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const active = [item.href, ...(item.matches ?? [])].some(
+          (path) => pathname === path || pathname.startsWith(`${path}/`),
+        );
 
         return (
           <Link

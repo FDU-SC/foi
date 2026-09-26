@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import type { ActionId } from "@/lib/authz/actions";
 import { allows, authorize } from "@/lib/authz/engine";
@@ -22,6 +23,11 @@ import { listRulesets } from "@/lib/standings/registry";
 import { viewerFor } from "@/lib/authz/viewer";
 import { viewerWith } from "@/test/content-shapes";
 import { ignoresLateSubmissions } from "@/test/standings-support";
+
+const require = createRequire(import.meta.url);
+const { DEFAULT_BACKEND_IDS } = require("../scripts/stub-runner.cjs") as {
+  DEFAULT_BACKEND_IDS: string[];
+};
 
 /**
  * Assertions about *this* deployment's content, kept out of the kernel suites.
@@ -64,6 +70,12 @@ describe("这套 content 自身自洽", () => {
     for (const id of Object.keys(backends)) {
       expect(routed.has(id), `没有题目使用后端 ${id}`).toBe(true);
     }
+  });
+
+  it("默认模拟评测机覆盖每个已登记后端", () => {
+    expect(DEFAULT_BACKEND_IDS.toSorted()).toEqual(
+      Object.keys(backends).toSorted(),
+    );
   });
 
   it("开发环境把邮件打到控制台，而不是假装有 relay", () => {

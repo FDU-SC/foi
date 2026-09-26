@@ -1,17 +1,26 @@
 import pino from "pino";
 
-const logger = pino(
-  {
-    name: "foi",
-    timestamp: pino.stdTimeFunctions.isoTime,
-    formatters: {
-      level(label) {
-        return { level: label };
-      },
+const options: pino.LoggerOptions = {
+  name: "foi",
+  timestamp: pino.stdTimeFunctions.isoTime,
+  formatters: {
+    level(label) {
+      return { level: label };
     },
   },
-  process.stdout,
-);
+};
+
+// pino-pretty is a devDependency: only `next dev` may load it.
+const logger =
+  process.env.NODE_ENV === "development"
+    ? pino({
+        ...options,
+        transport: {
+          target: "pino-pretty",
+          options: { translateTime: "SYS:HH:MM:ss", ignore: "pid,hostname,name" },
+        },
+      })
+    : pino(options, process.stdout);
 
 export type LogFields = Record<string, unknown>;
 

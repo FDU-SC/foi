@@ -5,10 +5,8 @@ import { Pool } from "pg";
 import { accounts } from "../lib/db/schema";
 import ARGON2_OPTIONS from "../lib/accounts/argon2-options.cjs";
 
-if (process.env.NODE_ENV === "production") {
-  console.error(
-    "seed 仅限本地开发，会写入统一弱密码；NODE_ENV=production 时拒绝运行。",
-  );
+if (process.env.FOI_ENV !== "dev") {
+  console.error("seed 会写入统一弱密码，FOI_ENV 必须显式设为 dev。");
   process.exit(1);
 }
 

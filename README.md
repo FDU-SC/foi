@@ -38,7 +38,7 @@ pnpm install
 cp .env.example .env.local        # 至少改掉 AUTH_SECRET 与 FOI_BACKEND_SECRET
 docker compose up -d postgres     # 或者自备一个 PostgreSQL
 pnpm db:migrate
-pnpm db:seed                      # 建几个开发账号，密码见 scripts/seed.ts
+FOI_ENV=dev pnpm db:seed          # 建几个开发账号，密码见 scripts/seed.ts
 pnpm dev
 ```
 

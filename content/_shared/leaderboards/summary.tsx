@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { ProfileLink } from "@/components/account/profile-link";
 import { Avatar } from "@/components/ui/avatar";
 import { MotionTr } from "@/components/ui/motion";
 import type { BoardProps, StandingsRow } from "@/lib/standings/types";
@@ -60,7 +61,9 @@ export function summaryBoard<Cell>(
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2">
                       <Avatar of={row.participant} />
-                      <span className="text-fg font-medium">{row.participant.nickname}</span>
+                      <ProfileLink username={row.participant.username} className="text-fg font-medium">
+                        {row.participant.nickname}
+                      </ProfileLink>
                       {row.participant.username ? (
                         <span className="text-fg-subtle font-mono text-xs">@{row.participant.username}</span>
                       ) : null}

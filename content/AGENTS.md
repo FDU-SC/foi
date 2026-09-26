@@ -95,9 +95,12 @@ field access, including unknown-status fallback. Without it the platform shows
 `progress(history)` returns `{ state, verdict }`, where `state` is `untouched`,
 `attempted` or `solved` and `verdict` is a preset or null. The history contains
 `id`, record `state`, opaque `result`, `createdAt` and `judgedAt`, ordered by
-creation time and id. It includes every readable submission by the current user
-for this contest/problem pair, including pending and disrupted records.
-The content function decides which records count. The sample requires a
+creation time and id. It includes every submission by one person for this
+contest/problem pair, including pending and disrupted records: the current
+user's own for problem lists, someone else's on their profile. On a profile,
+`result` is null for submissions after a freeze the viewer's standings would
+hide, and the function is also called on prefixes of the history to find when
+the problem was first solved. The content function decides which records count. The sample requires a
 completed record with boolean `accepted: true` and keeps any previous success.
 
 Both functions are pure and client-safe: the problem views registry is used in

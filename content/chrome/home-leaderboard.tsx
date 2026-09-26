@@ -1,4 +1,5 @@
 import { getViewer } from "@/auth";
+import { ProfileLink } from "@/components/account/profile-link";
 import { HomePanel } from "@/components/ui/home-panel";
 import { allows } from "@/lib/authz/engine";
 import { leaderboardHref } from "@/lib/contests/catalogue";
@@ -25,10 +26,13 @@ export async function FoiHomeLeaderboard() {
               {rank}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium">
+              <ProfileLink
+                username={participant.username}
+                className="block truncate text-sm font-medium"
+              >
                 {participant.nickname}
                 {participant.uid === viewer.uid ? "（我）" : ""}
-              </span>
+              </ProfileLink>
               {participant.username ? (
                 <span className="text-fg-subtle block truncate text-xs">
                   @{participant.username}

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getResolvedUser } from "@/auth";
 import { AvatarEditor } from "@/components/account/avatar-editor";
 import { FormMessage } from "@/components/form";
+import { BioForm } from "@/components/settings/bio-form";
 import { EmailChangeForm } from "@/components/settings/email-change-form";
 import { NicknameForm } from "@/components/settings/nickname-form";
 import { PasswordForm } from "@/components/settings/password-form";
@@ -45,6 +46,7 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
   const viewer = viewerFor(user);
   const nicknameGate = authorize("account.changeNickname", user, viewer);
   const avatarGate = authorize("account.changeAvatar", user, viewer);
+  const bioGate = authorize("account.changeBio", user, viewer);
   const usernameGate = authorize("account.changeUsername", user, viewer);
   const emailGate = authorize("account.changeEmail", user, viewer);
   const passwordGate = authorize("account.changePassword", user, viewer);
@@ -74,6 +76,17 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
                 <AvatarEditor current={user} withControls />
               ) : (
                 <Unavailable>{avatarGate.reason.message}</Unavailable>
+              )}
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader title="个人简介" />
+            <CardBody>
+              {bioGate.allow ? (
+                <BioForm current={account?.bio ?? null} />
+              ) : (
+                <Unavailable>{bioGate.reason.message}</Unavailable>
               )}
             </CardBody>
           </Card>

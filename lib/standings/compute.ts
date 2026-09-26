@@ -186,7 +186,7 @@ function computeBoard(
  * Freeze is not a second computation — it is result masking, and which of the
  * two boards a viewer gets is one authorization question like any other.
  */
-function masks(contest: ContestConfig, viewer: Viewer, now: Date): boolean {
+export function masks(contest: ContestConfig, viewer: Viewer, now: Date): boolean {
   return (
     contestPhase(contest, now) === "frozen" &&
     contest.freezeAt !== undefined &&

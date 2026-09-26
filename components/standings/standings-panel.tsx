@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ProfileLink } from "@/components/account/profile-link";
 import { Avatar } from "@/components/ui/avatar";
 import { SearchForm } from "@/components/ui/filter-bar";
 import { Pagination } from "@/components/ui/pagination";
@@ -129,9 +130,9 @@ function DefaultBoard({ board, highlight }: BoardProps) {
             {row.rank}
           </span>
           <Avatar of={row.participant} />
-          <span className="text-fg font-medium">
+          <ProfileLink username={row.participant.username} className="text-fg font-medium">
             {row.participant.nickname}
-          </span>
+          </ProfileLink>
           <span className="text-fg-muted ml-auto font-mono text-sm tabular-nums">
             {Math.round(row.total)}
           </span>

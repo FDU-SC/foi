@@ -12,11 +12,12 @@ import {
   getAccount,
   getAccountByUsername,
   setAvatar,
+  updateBio,
   updateNickname,
   updateUsername,
 } from "@/lib/accounts/queries";
 import type { ResolvedUser } from "@/lib/accounts/types";
-import { nicknameSchema, usernameSchema } from "@/lib/accounts/types";
+import { bioSchema, nicknameSchema, usernameSchema } from "@/lib/accounts/types";
 import { usernameChangeAvailableAt } from "@/lib/accounts/username";
 import { formatMoment } from "@/lib/format";
 import { log } from "@/lib/log";
@@ -90,6 +91,27 @@ export async function updateNicknameAction(
   if (!updated) return { error: "更新失败，请重试。" };
 
   return { message: `昵称已更新为 ${nickname}。` };
+}
+
+const bioForm = z.object({ bio: bioSchema });
+
+export async function updateBioAction(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const viewer = await requireSelf("account.changeBio");
+
+  const parsed = parseInput(bioForm, { bio: formData.get("bio") ?? "" });
+  if (!parsed.ok) return { error: parsed.error };
+
+  if (!(await rateLimit(`settings:bio:${viewer.uid}`, ACTION_LIMITS.updateBioAction)).ok) {
+    return { error: TOO_MANY };
+  }
+
+  const { bio } = parsed.data;
+  if (!(await updateBio(viewer.uid, bio))) return { error: "更新失败，请重试。" };
+
+  return { message: bio ? "简介已更新。" : "简介已清空。" };
 }
 
 export async function updateAvatarAction(

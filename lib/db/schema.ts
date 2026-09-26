@@ -42,6 +42,9 @@ export const accounts = pgTable(
      */
     avatarUpdatedAt: timestamp("avatar_updated_at", { withTimezone: true }),
 
+    /** Plain text shown on the profile. Null when the owner has written none. */
+    bio: text("bio"),
+
     email: text("email"),
 
     passwordHash: text("password_hash"),

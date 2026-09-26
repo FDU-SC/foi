@@ -34,3 +34,28 @@ export function dayEnd(day: string): Date {
   const [year, month, date] = fields(day)!;
   return startOf(year, month, date + 1);
 }
+
+const pad = (value: number) => String(value).padStart(2, "0");
+
+function utcOf(day: string): Date {
+  const [year, month, date] = fields(day)!;
+  return new Date(Date.UTC(year, month - 1, date));
+}
+
+/** The day `by` days after `day`; negative goes back. */
+export function shiftDay(day: string, by: number): string {
+  const at = utcOf(day);
+  at.setUTCDate(at.getUTCDate() + by);
+  return at.toISOString().slice(0, 10);
+}
+
+/** 0 for Sunday through 6 for Saturday. */
+export function weekdayOf(day: string): number {
+  return utcOf(day).getUTCDay();
+}
+
+/** The `YYYY-MM-DD` an instant falls on in the site's timezone. */
+export function dayOf(at: Date): string {
+  const zoned = new TZDate(+at, site.timezone);
+  return `${zoned.getFullYear()}-${pad(zoned.getMonth() + 1)}-${pad(zoned.getDate())}`;
+}

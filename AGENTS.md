@@ -87,10 +87,13 @@ New tables are the same shape one layer down. Declare them in `content.local/sch
 ## Results and Progress
 
 `ProblemViews.describeResult` interprets a non-null JSON result as a verdict preset.
-`ProblemViews.progress` interprets the complete readable history for one viewer and
-contest/problem pair. The platform obtains this history through `progressFor`;
-it never derives success from result fields or badge tones. Missing progress
-support hides the problem's progress and disables section totals and filters.
+`ProblemViews.progress` interprets one person's complete history for one
+contest/problem pair, as the viewer may see it. The platform obtains this
+history through `progressFor` (the viewer's own) and `activityFor` (a profile,
+behind `account.readActivity`, limited to contests whose standings the viewer
+may read and masked after a freeze the way those standings are); it never
+derives success from result fields or badge tones. Missing progress support
+hides the problem's progress and disables section totals and filters.
 
 Every leaderboard is a ruleset applied to a set of (contest, problem) pairs,
 computed by `lib/standings`:

@@ -51,27 +51,19 @@ async function main() {
   const passwordHash = await hash(password, ARGON2_OPTIONS);
 
   for (const entry of SEED_ACCOUNTS) {
-    await db
-      .insert(accounts)
-      .values({
-        username: entry.username,
-        nickname: entry.nickname,
-        email: entry.email,
-        status: "active",
-        passwordHash,
-        passwordSetAt: sql`now()`,
-      })
-      .onConflictDoUpdate({
-        target: accounts.username,
-        set: {
-          nickname: sql`excluded.nickname`,
-          email: sql`excluded.email`,
-          status: sql`'active'`,
-          passwordHash: sql`excluded.password_hash`,
-          passwordSetAt: sql`excluded.password_set_at`,
-          updatedAt: sql`now()`,
-        },
-      });
+    // Usernames are unique case-insensitively through an index on
+    // lower(username); drizzle's conflict target only takes plain columns.
+    await db.execute(sql`
+      insert into ${accounts} (username, nickname, email, status, password_hash, password_set_at)
+      values (${entry.username}, ${entry.nickname}, ${entry.email}, 'active', ${passwordHash}, now())
+      on conflict (lower(username)) do update set
+        nickname = excluded.nickname,
+        email = excluded.email,
+        status = 'active',
+        password_hash = excluded.password_hash,
+        password_set_at = excluded.password_set_at,
+        updated_at = now()
+    `);
 
     console.log(`  ${entry.username.padEnd(8)} ${entry.email ?? "（无邮箱）"}`);
   }

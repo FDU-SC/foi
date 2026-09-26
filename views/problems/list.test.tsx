@@ -112,6 +112,7 @@ describe("题库全部题目", () => {
         expect(html).toContain(`href="${problemHref(contest.slug, ref.problem.slug)}"`);
       }
     }
+    expect(html, "游客没有进度，不该画进度条").not.toContain('role="progressbar"');
   });
 
   it("同一道题挂在两个题单时各占一行，进度一次读取并按比赛与题目成对查找", async () => {
@@ -137,7 +138,45 @@ describe("题库全部题目", () => {
       expect(html).toContain(`href="${problemHref(contest.slug, shared.ref.problem.slug)}"`);
     }
     expect(html.match(/已通过<\/span>/g)).toHaveLength(1);
-    expect(html).toContain(`>1/${holders[0].problems.length}<`);
+    expect(html).toContain(`>1 / ${holders[0].problems.length}<`);
+    const first = holders[0];
+    expect(html).toContain(`aria-label="${first.contest.title}完成进度"`);
+    expect(html).toContain(`aria-valuemax="${first.problems.length}" aria-valuenow="1"`);
+    expect(html).toContain(`width:${100 / first.problems.length}%`);
+  });
+
+  it("同一方向有多个题单时汇总方向进度，只有一个题单时不重复显示", async () => {
+    vi.mocked(getViewer).mockResolvedValue(VIEWER);
+    const html = await render();
+    const byDomain = Map.groupBy(readableLists(), ({ contest }) => contest.domain);
+    const [heading, shared] = required(
+      [...byDomain].find(([, lists]) => lists.length > 1),
+      "一个含多个可读题单的方向",
+    );
+    const [single] = required(
+      [...byDomain].find(([, lists]) => lists.length === 1)?.[1],
+      "一个只含一个可读题单的方向",
+    );
+    const total = shared.reduce((sum, { problems }) => sum + problems.length, 0);
+
+    expect(html).toContain(`aria-label="${heading}完成进度"`);
+    expect(html).toContain(`aria-valuemax="${total}" aria-valuenow="0"`);
+    expect(html).not.toContain(`aria-label="${single.contest.domain}完成进度"`);
+    expect(html).toContain(`aria-label="${single.contest.title}完成进度"`);
+  });
+
+  it("进度不完整或题单没有题目时隐藏进度条", async () => {
+    vi.mocked(getViewer).mockResolvedValue(VIEWER);
+    const [first, ...rest] = readableLists();
+    vi.mocked(progressFor).mockImplementation(async () => untouched([first.contest.slug]));
+    const html = await render();
+
+    expect(html).toContain(`aria-label="${first.contest.title}完成进度"`);
+    for (const { contest } of rest) {
+      expect(html).not.toContain(`aria-label="${contest.title}完成进度"`);
+    }
+    expect(html).not.toContain('aria-label="全部题目完成进度"');
+    expect(html).not.toContain("NaN");
   });
 
   it("跨题单时不提供最新排序", async () => {

@@ -76,7 +76,7 @@ export const renderers = {
 export const ruleset: Ruleset<PracticeCell> = {
   id: "practice",
   name: "练习",
-  description: "每题取最高分并按分值折算，按总分排名，同分时先达到者在前。",
+  description: "每题取最高分，按总分排名。",
 
   compute(input: StandingsInput) {
     const worth = new Map(

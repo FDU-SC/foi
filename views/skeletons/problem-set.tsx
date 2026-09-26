@@ -11,8 +11,9 @@ export function ProblemSetSkeleton() {
           {[5, 4, 5].map((count, group) => (
             <div key={group} className="contents lg:block lg:space-y-1.5">
               <Skeleton className="hidden h-3 w-20 lg:block" />
+              <Skeleton className="hidden h-1.5 w-full rounded-full lg:block" />
               {Array.from({ length: count }, (_, index) => (
-                <Skeleton key={index} className="h-8 w-24 shrink-0 lg:w-full" />
+                <Skeleton key={index} className="h-8 w-24 shrink-0 lg:h-11 lg:w-full" />
               ))}
             </div>
           ))}

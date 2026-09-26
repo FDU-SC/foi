@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
@@ -32,6 +32,9 @@ const CONTEST = "runner-queue-round";
 const BACKEND = "runner-queue-fixture";
 
 const PROBLEM = externallyJudged()[0]!;
+
+/** Where a rejudge sends `PROBLEM`'s rows: the backend judging it now. */
+const CURRENT = PROBLEM.backend.id;
 
 const PAYLOAD = { language: "cpp", source: "int main() { return 0; }" };
 const VERDICT: Verdict = { result: { status: "accepted", score: 100, maxScore: 100 } };
@@ -94,6 +97,7 @@ async function cleanup(): Promise<void> {
   }
   await db.delete(contests).where(eq(contests.slug, CONTEST));
   await db.delete(runners).where(eq(runners.backendId, BACKEND));
+  await db.delete(runners).where(and(eq(runners.backendId, CURRENT), eq(runners.runnerId, "r-second")));
 }
 
 describeDb("runner 领取任务与上报", () => {
@@ -294,7 +298,7 @@ describeDb("runner 领取任务与上报", () => {
       await reportDone(id, first!.lease, WRONG, VERSION);
       expect((await rejudgeSubmissions([id])).requeued).toBe(1);
 
-      const second = await claimJob(BACKEND, "r-second");
+      const second = await claimJob(CURRENT, "r-second");
       expect(second?.id).toBe(id);
       expect(second?.lease).not.toBe(first?.lease);
 

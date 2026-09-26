@@ -25,9 +25,14 @@ export interface RejudgeResult {
   skippedNotDispatched: number;
 }
 
-function stillDispatched(problemSlug: string): boolean {
+/**
+ * The backend judging this problem now. A runner is handed the problem's
+ * current config, so a rejudge goes where that config belongs, not to the
+ * backend the submission was first judged on.
+ */
+function currentBackend(problemSlug: string): string | undefined {
   const problem = problemBySlug(problemSlug);
-  return problem !== undefined && !isInlineBackend(problem.backend);
+  return problem && !isInlineBackend(problem.backend) ? problem.backend.id : undefined;
 }
 
 export type RejudgeSkipFilter = (row: {
@@ -65,7 +70,7 @@ export async function rejudgeSubmissions(
   const external = rows.filter((row) => row.backendId !== INLINE_BACKEND_ID);
 
   const notDispatched = external.filter(
-    (row) => !stillDispatched(row.problemSlug),
+    (row) => currentBackend(row.problemSlug) === undefined,
   );
   const strandedIds = new Set(notDispatched.map((row) => row.id));
   const routed = external.filter((row) => !strandedIds.has(row.id));
@@ -86,21 +91,24 @@ export async function rejudgeSubmissions(
     };
   }
 
-  const targetIds = targets.map((row) => row.id);
-
-  const requeued = await tx
-    .update(submissions)
-    .set({
-      state: "pending" satisfies SubmissionRecordState,
-      result: null,
-      detail: null,
-      backendVersion: null,
-      releaseSha: releaseSha(),
-      error: null,
-      judgedAt: null,
-    })
-    .where(inArray(submissions.id, targetIds))
-    .returning();
+  // The row's backend moves with the job: runner requests are verified against it.
+  const requeued: (typeof submissions.$inferSelect)[] = [];
+  for (const [backendId, group] of Map.groupBy(targets, (row) => currentBackend(row.problemSlug)!)) {
+    requeued.push(...await tx
+      .update(submissions)
+      .set({
+        state: "pending" satisfies SubmissionRecordState,
+        backendId,
+        result: null,
+        detail: null,
+        backendVersion: null,
+        releaseSha: releaseSha(),
+        error: null,
+        judgedAt: null,
+      })
+      .where(inArray(submissions.id, group.map((row) => row.id)))
+      .returning());
+  }
 
   if (requeued.length > 0) {
     await tx.insert(judgingQueue).values(

@@ -99,6 +99,11 @@ export const ACTIONS = {
     describe: "查看选手主页",
     denial: { code: "not-found", message: "页面不存在" },
   },
+  "account.readActivity": {
+    resource: "account",
+    describe: "查看选手的做题统计与比赛记录",
+    denial: { code: "forbidden", message: "没有查看做题记录的权限" },
+  },
   "account.changeEmail": {
     resource: "account",
     describe: "更换一个账号绑定的邮箱",
@@ -123,6 +128,11 @@ export const ACTIONS = {
     resource: "account",
     describe: "更换或移除一个账号的头像",
     denial: { code: "forbidden", message: "没有更改头像的权限" },
+  },
+  "account.changeBio": {
+    resource: "account",
+    describe: "更改一个账号的个人简介",
+    denial: { code: "forbidden", message: "没有更改个人简介的权限" },
   },
   "account.suspend": {
     resource: "account",

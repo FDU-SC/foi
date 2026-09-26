@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   requireSelf: vi.fn(),
   revalidatePath: vi.fn(),
   setAvatar: vi.fn(),
+  updateBio: vi.fn(),
 }));
 
 vi.mock("next-auth", () => ({
@@ -41,6 +42,7 @@ vi.mock("@/lib/accounts/queries", () => ({
   getAccount: vi.fn(),
   getAccountByUsername: vi.fn(),
   setAvatar: mocks.setAvatar,
+  updateBio: mocks.updateBio,
   updateNickname: vi.fn(),
   updateUsername: vi.fn(),
 }));
@@ -57,7 +59,7 @@ vi.mock("@/lib/ratelimit", () => ({
   rateLimit: mocks.rateLimit,
 }));
 
-const { removeAvatarAction, updateAvatarAction } = await import("./actions");
+const { removeAvatarAction, updateAvatarAction, updateBioAction } = await import("./actions");
 
 const viewer = {
   uid: 42,
@@ -86,6 +88,61 @@ beforeEach(() => {
   mocks.normalizeAvatar.mockResolvedValue({ ok: true, bytes: normalized });
   mocks.setAvatar.mockResolvedValue(new Date("2026-09-08T00:00:00Z"));
   mocks.clearAvatar.mockResolvedValue(true);
+  mocks.updateBio.mockResolvedValue({ uid: viewer.uid });
+});
+
+function bio(value: string): FormData {
+  const form = new FormData();
+  form.set("bio", value);
+  return form;
+}
+
+describe("updateBioAction", () => {
+  it("权限拒绝时不限流也不写数据库", async () => {
+    const denied = new Error("forbidden");
+    mocks.requireSelf.mockRejectedValue(denied);
+
+    await expect(updateBioAction({}, bio("hi"))).rejects.toBe(denied);
+
+    expect(mocks.requireSelf).toHaveBeenCalledWith("account.changeBio");
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.updateBio).not.toHaveBeenCalled();
+  });
+
+  it("超长时返回理由且不消耗限流额度", async () => {
+    const result = await updateBioAction({}, bio("字".repeat(201)));
+
+    expect(result.error).toMatch(/200/);
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.updateBio).not.toHaveBeenCalled();
+  });
+
+  it("去掉首尾空白后保存", async () => {
+    const result = await updateBioAction({}, bio("  写题的人\n  "));
+
+    expect(result).toEqual({ message: "简介已更新。" });
+    expect(mocks.rateLimit).toHaveBeenCalledWith(
+      `settings:bio:${viewer.uid}`,
+      ACTION_LIMITS.updateBioAction,
+    );
+    expect(mocks.updateBio).toHaveBeenCalledWith(viewer.uid, "写题的人");
+  });
+
+  it("留空即清除", async () => {
+    const result = await updateBioAction({}, bio("   "));
+
+    expect(result).toEqual({ message: "简介已清空。" });
+    expect(mocks.updateBio).toHaveBeenCalledWith(viewer.uid, null);
+  });
+
+  it("限流拒绝时不写数据库", async () => {
+    mocks.rateLimit.mockResolvedValue({ ok: false, retryAfterMs: 1_000 });
+
+    const result = await updateBioAction({}, bio("hi"));
+
+    expect(result).toEqual({ error: "操作过于频繁，请稍后再试。" });
+    expect(mocks.updateBio).not.toHaveBeenCalled();
+  });
 });
 
 describe("updateAvatarAction", () => {

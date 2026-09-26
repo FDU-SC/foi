@@ -10,10 +10,11 @@ export const policies = [
   policy({
     id: "self-service",
     effect: "permit",
-    describe: "每个人都可以改自己的昵称、头像、用户名、邮箱与密码",
+    describe: "每个人都可以改自己的昵称、头像、简介、用户名、邮箱与密码",
     action: [
       "account.changeNickname",
       "account.changeAvatar",
+      "account.changeBio",
       "account.changeUsername",
       "account.changeEmail",
       "account.changePassword",
@@ -26,6 +27,14 @@ export const policies = [
     effect: "permit",
     describe: "允许所有人查看选手主页",
     action: "account.viewProfile",
+  }),
+
+  policy({
+    id: "public-activity",
+    effect: "permit",
+    describe: "登录用户可以查看选手的做题统计与比赛记录，提交内容与评测详情不在其中",
+    action: "account.readActivity",
+    principal: { authenticated: true },
   }),
 
   policy({

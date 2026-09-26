@@ -1,3 +1,4 @@
+import { ProfileLink } from "@/components/account/profile-link";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Avatar } from "@/components/ui/avatar";
 import { MotionTr } from "@/components/ui/motion";
@@ -71,9 +72,9 @@ export function ProblemGridBoard({ board, problems }: BoardProps) {
               <td className="bg-surface border-border sticky left-0 z-10 border-r px-3 py-2">
                 <div className="flex items-center gap-2">
                   <Avatar of={row.participant} />
-                  <span className="text-fg font-medium">
+                  <ProfileLink username={row.participant.username} className="text-fg font-medium">
                     {row.participant.nickname}
-                  </span>
+                  </ProfileLink>
                 </div>
               </td>
               <td className="px-3 py-2 text-center">

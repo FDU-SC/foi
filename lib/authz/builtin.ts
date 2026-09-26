@@ -114,12 +114,13 @@ export function builtinPolicies(): CompiledPolicy[] {
     policy({
       id: "builtin:suspended-account",
       effect: "forbid",
-      describe: "封禁账号不能改昵称、凭据或找回密码",
+      describe: "封禁账号不能改昵称、简介、凭据或找回密码",
       action: [
         "account.changeEmail",
         "account.changeUsername",
         "account.changePassword",
         "account.changeNickname",
+        "account.changeBio",
         "account.sendPasswordReset",
         "account.resetPassword",
       ],

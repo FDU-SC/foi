@@ -7,6 +7,7 @@ import { logout } from "@/app/actions/auth";
 import { Avatar } from "@/components/ui/avatar";
 import { QUICK } from "@/components/ui/motion";
 import { useDismiss } from "@/components/ui/use-dismiss";
+import { profileHref } from "@/lib/accounts/profile";
 import type { SessionUser } from "@/lib/authz/viewer";
 import { cn } from "@/lib/utils";
 
@@ -70,7 +71,7 @@ export function UserMenu({
               </div>
             </div>
             <Link
-              href={`/u/${user.username}`}
+              href={profileHref(user.username)}
               onClick={() => setOpen(false)}
               className={ITEM}
             >

@@ -165,6 +165,10 @@ export const ACTION_LIMITS = {
     max: 20,
     windowSeconds: 3600,
   },
+  updateBioAction: {
+    max: 20,
+    windowSeconds: 3600,
+  },
   updateAvatarAction: {
     max: 20,
     windowSeconds: 3600,

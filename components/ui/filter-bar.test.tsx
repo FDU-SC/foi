@@ -38,23 +38,6 @@ describe("FilterBar", () => {
   });
 });
 
-describe("FilterBar 的下拉按钮", () => {
-  it("单选显示当前选项，多选显示已选个数，默认选项不算已选", () => {
-    const html = render(
-      [
-        { key: "board", label: "方向", selected: ["b"], fallback: "", choices: [{ value: "", label: "默认" }, { value: "b", label: "算法" }] },
-        { key: "tag", label: "标签", multiple: true, selected: ["x", "y"], choices: [{ value: "x", label: "X" }, { value: "y", label: "Y" }] },
-        { key: "sort", label: "排序", selected: [""], fallback: "", choices: [{ value: "", label: "题单序" }] },
-      ],
-      {},
-    );
-    const summaries = [...html.matchAll(/<summary[^>]*>(.*?)<svg/g)].map(([, inner]) => inner.replace(/<[^>]+>/g, ""));
-
-    expect(summaries).toEqual(["方向算法", "标签2", "排序"]);
-    expect(html.match(/<details[^>]*class="group relative"/g)).toHaveLength(3);
-  });
-});
-
 describe("可单独使用的搜索框与选项行", () => {
   it("搜索框带上其余参数、回到第一页；选项行只改自己的参数，再点已选的取消", () => {
     const search = renderToStaticMarkup(

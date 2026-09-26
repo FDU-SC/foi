@@ -239,7 +239,7 @@ for factual fidelity before reviewing its style.
 
 ### Operator stdout
 
-The platform process writes structured JSON through `lib/log.ts` (`pino`). Scripts write their own lines and do not use that module.
+The platform process writes structured JSON through `lib/log.ts` (`pino`); `next dev` renders it through `pino-pretty`. Scripts write their own lines and do not use that module.
 
 - One `msg`: a Chinese sentence that states the fact.
 - Identifiers (uid, id, slug, env) are fields on the object, not interpolated into `msg`.

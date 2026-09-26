@@ -29,6 +29,11 @@ describe("导航入口", () => {
     expect(allows).toHaveBeenCalledWith("admin.enter", null, ANONYMOUS);
   });
 
+  it("入口可以把其他路径也算作当前页", () => {
+    site.navigation = [{ href: "/problems", label: "题库", matches: ["/leaderboard"] }];
+    expect(navigationFor(ANONYMOUS)).toEqual([{ href: "/problems", label: "题库", matches: ["/leaderboard"] }]);
+  });
+
   it("榜单入口同时要求权限和总榜覆盖的题库分区", () => {
     site.navigation = [{ href: "/leaderboard", label: "榜单", location: "catalogue", visibleWhen: "leaderboard.read" }];
     vi.mocked(catalogueBoardSections).mockReturnValue(["section"]);

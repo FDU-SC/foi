@@ -8,12 +8,12 @@ import { site, type NavItem } from "@/lib/site";
 export function navigationFor(
   viewer: Viewer,
   location: NonNullable<NavItem["location"]> = "primary",
-): { href: string; label: string }[] {
+): { href: string; label: string; matches?: string[] }[] {
   return site.navigation
     .filter((item) =>
       (item.location ?? "primary") === location &&
       (item.href !== leaderboardHref() || (catalogueBoardSections() ?? []).length > 0) &&
       (!item.visibleWhen || allows(item.visibleWhen, null, viewer)),
     )
-    .map(({ href, label }) => ({ href, label }));
+    .map(({ href, label, matches }) => ({ href, label, ...(matches ? { matches } : {}) }));
 }

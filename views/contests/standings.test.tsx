@@ -63,6 +63,8 @@ describe("比赛排行榜", () => {
     expect(first).not.toContain("Rookie");
 
     const second = await render({ board: "rookie" });
+    expect(second, "标题不随榜单变化").toContain(">排行榜</h1>");
+    expect(second, "标题旁不显示计分规则名").not.toContain("计分");
     expect(second).toContain("新人榜");
     expect(second).toContain("Rookie");
     expect(second).not.toContain("Alpha");

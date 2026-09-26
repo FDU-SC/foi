@@ -216,12 +216,12 @@ describeDb("题库榜合并各分区的主榜", () => {
       .toEqual(own?.boards[0].standings.rows.map(({ participant, total }) => [participant.uid, total]));
   });
 
-  it("时间窗口之外的提交不计，未知的榜没有结果", async () => {
-    const earliest = Math.min(minuteInto(SOLVED_IN).getTime(), minuteInto(TRIED_IN).getTime());
-    const day = 86_400_000;
-    const covering = Math.ceil((after().getTime() - earliest) / day) + 1;
-    expect(mine(await catalogueStandingsFor({ days: covering }, READER, after()))).toMatchObject({ total: 1 });
-    expect(mine(await catalogueStandingsFor({ days: 0 }, READER, after()))).toBeUndefined();
+  it("时间区间之外的提交不计，未知的榜没有结果", async () => {
+    const solvedAt = minuteInto(SOLVED_IN).getTime();
+    const around = { from: new Date(solvedAt - 60_000), until: new Date(solvedAt + 60_000) };
+    expect(mine(await catalogueStandingsFor(around, READER, after()))).toMatchObject({ total: 1 });
+    expect(mine(await catalogueStandingsFor({ until: new Date(solvedAt) }, READER, after()))?.total ?? 0).toBe(0);
+    expect(mine(await catalogueStandingsFor({ from: after() }, READER, after()))).toBeUndefined();
     expect(await catalogueStandingsFor({ board: "no-such-board" }, READER, after())).toBeNull();
   });
 });

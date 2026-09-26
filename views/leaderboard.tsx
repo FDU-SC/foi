@@ -2,41 +2,38 @@ import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
 import { StandingsPanel } from "@/components/standings/standings-panel";
 import { Badge } from "@/components/ui/badge";
-import type { FilterRow } from "@/components/ui/filter-bar";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { allows } from "@/lib/authz/engine";
 import { viewerFor } from "@/lib/authz/viewer";
+import { dayEnd, dayStart, readDay } from "@/lib/calendar-day";
 import { contestFor } from "@/lib/contests/access";
 import {
   catalogueBoardSections,
   catalogueLeaderboards,
+  catalogueSlugs,
   leaderboardHref,
 } from "@/lib/contests/catalogue";
-import { queryString, readAll, readOne, type SearchParams } from "@/lib/query";
+import { PAGE_PARAM } from "@/lib/paging";
+import { carried, queryString, readAll, readOne, without, type SearchParams } from "@/lib/query";
 import { catalogueStandingsFor } from "@/lib/standings/compute";
 import { STANDINGS_PARAMS } from "@/lib/standings/selection";
 
+const BOARD = STANDINGS_PARAMS.board;
 const SECTION = "section";
-const PERIOD = "period";
-
-/** The choice standing for an absent parameter: the total, or all time. */
-const UNSET = "";
-
-const PERIODS = [
-  { value: "7d", label: "近 7 天", days: 7 },
-  { value: "30d", label: "近 30 天", days: 30 },
-] as const;
+const FROM = "from";
+const TO = "to";
 
 /**
- * The catalogue's leaderboard: the main boards of the catalogued sections,
- * computed as one and narrowed by direction, section and period.
+ * The catalogue's leaderboard panel body. Title and tabs live in the shared
+ * shell; this is the date range and standings under them.
  */
 export async function LeaderboardView({
   searchParams,
 }: {
   searchParams?: Promise<SearchParams>;
 } = {}) {
-  const query = (await searchParams) ?? {};
-  const board = query[STANDINGS_PARAMS.board];
+  const asked = (await searchParams) ?? {};
+  const board = asked[BOARD];
   const boards = catalogueLeaderboards();
   if (board !== undefined && (
     typeof board !== "string" ||
@@ -44,54 +41,41 @@ export async function LeaderboardView({
   )) notFound();
 
   const user = await getSessionUser();
-  if (!user) redirect(`/login?next=${encodeURIComponent(leaderboardHref() + queryString(query))}`);
+  if (!user) redirect(`/login?next=${encodeURIComponent(leaderboardHref() + queryString(asked))}`);
   const viewer = viewerFor(user);
   if (!allows("leaderboard.read", null, viewer)) notFound();
 
-  const offered = (catalogueBoardSections(board) ?? []).flatMap((slug) => {
-    const view = contestFor(slug, viewer);
-    return view ? [{ value: slug, label: view.config.title }] : [];
-  });
-  const sections = readAll(query, SECTION).filter((slug) => offered.some(({ value }) => value === slug));
-  const period = PERIODS.find(({ value }) => value === readOne(query, PERIOD));
+  const contests = catalogueSlugs().flatMap((slug) => contestFor(slug, viewer)?.config ?? []);
+  const spanned = catalogueBoardSections(board) ?? [];
+  const sections = readAll(asked, SECTION).filter((slug) =>
+    spanned.includes(slug) && contests.some((contest) => contest.slug === slug));
+
+  // Days a visitor can only have typed are dropped, and a reversed pair reads as meant.
+  const days = [readDay(readOne(asked, FROM)), readDay(readOne(asked, TO))];
+  const [from, to] = days[0] && days[1] && days[0] > days[1] ? [days[1], days[0]] : days;
+  const query = {
+    ...without(asked, FROM, TO),
+    ...(from ? { [FROM]: from } : {}),
+    ...(to ? { [TO]: to } : {}),
+  };
 
   const data = await catalogueStandingsFor(
-    { board, sections, days: period?.days },
+    { board, sections, from: from ? dayStart(from) : undefined, until: to ? dayEnd(to) : undefined },
     viewer,
   );
   if (!data) notFound();
 
-  const rows: FilterRow[] = [];
-  if (boards.length > 0) {
-    rows.push({
-      key: STANDINGS_PARAMS.board,
-      label: "方向",
-      selected: [board ?? UNSET],
-      fallback: UNSET,
-      resets: [SECTION],
-      choices: [{ value: UNSET, label: "总榜" }, ...boards.map(({ id, title }) => ({ value: id, label: title }))],
-    });
-  }
-  if (offered.length > 1) {
-    rows.push({ key: SECTION, label: "分区", multiple: true, selected: sections, choices: offered });
-  }
-  rows.push({
-    key: PERIOD,
-    label: "时间",
-    selected: [period?.value ?? UNSET],
-    fallback: UNSET,
-    choices: [{ value: UNSET, label: "全部" }, ...PERIODS],
-  });
-
-  const title = boards.find(({ id }) => id === board)?.title;
-
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-fg text-2xl font-bold tracking-tight">
-          {title ? `${title}排行榜` : "总排行榜"}
-        </h1>
-        <Badge title={data.board.ruleset.description}>{data.board.ruleset.name}</Badge>
+        <span className="text-fg-muted text-sm font-medium">时间</span>
+        <DateRangePicker
+          action={leaderboardHref()}
+          carried={carried(query, FROM, TO, PAGE_PARAM)}
+          names={{ from: FROM, to: TO }}
+          value={{ from, to }}
+          label="时间"
+        />
         {data.frozen ? <Badge tone="warn">已封榜</Badge> : null}
         <span className="text-fg-subtle ml-auto text-sm">
           共 {data.board.standings.rows.length} 人
@@ -101,7 +85,6 @@ export async function LeaderboardView({
       <StandingsPanel
         path={leaderboardHref()}
         query={query}
-        rows={rows}
         board={data.board}
         problems={data.problems}
         viewerUid={viewer.uid}

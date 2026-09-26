@@ -64,8 +64,8 @@ interface StandingsInput {
 Two entry points in `compute.ts` build that input:
 
 - `standingsFor(slug, viewer)` — every leaderboard one contest declares.
-- `catalogueStandingsFor({ board, sections, days }, viewer)` — a catalogue board: the main leaderboards (`leaderboards[0]`) of the sections it spans, computed as one.
-  - `sections` narrows to some of them; `days` keeps only recent submissions.
+- `catalogueStandingsFor({ board, sections, from, until }, viewer)` — a catalogue board: the main leaderboards (`leaderboards[0]`) of the sections it spans, computed as one.
+  - `sections` narrows to some of them; `from` / `until` keep only submissions in `[from, until)`.
   - A section counts only where the viewer may read its standings and problem set.
   - `lib/contests/warnings.ts` refuses to boot when a board's sections differ in ruleset or configuration.
 
@@ -73,7 +73,7 @@ Both share one cache. Each entry is tagged with the contests it read, so `invali
 
 ## Displaying a Board
 
-`components/standings/standings-panel.tsx` wraps any computed board with the viewer's own place, a name search, the page's filters and pagination. Search and paging run after ranking, so a row keeps its place on the whole board. The board itself is the ruleset's `Board` renderer, which receives the viewer's uid as `highlight`.
+`components/standings/standings-panel.tsx` wraps any computed board with the viewer's own place, a name search right above the rows, and pagination; what the board covers is chosen by the page above it. Search and paging run after ranking, so a row keeps its place on the whole board. The board itself is the ruleset's `Board` renderer, which receives the viewer's uid as `highlight`.
 
 ## Freeze as Permission
 

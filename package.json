@@ -30,6 +30,7 @@
     "nodemailer": "^9.0.5",
     "pg": "^8.23.0",
     "react": "19.3.0",
+    "react-day-picker": "^10.0.1",
     "react-dom": "19.3.0",
     "rehype-katex": "^7.0.1",
     "rehype-pretty-code": "^0.14.5",

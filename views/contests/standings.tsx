@@ -4,7 +4,7 @@ import { getViewer } from "@/auth";
 import { StandingsLiveRefresh } from "@/components/standings/live-refresh";
 import { StandingsPanel } from "@/components/standings/standings-panel";
 import { Badge } from "@/components/ui/badge";
-import type { FilterRow } from "@/components/ui/filter-bar";
+import { FilterChips } from "@/components/ui/filter-bar";
 import {
   contestFor,
   isContestProblemSetVisibleTo,
@@ -74,21 +74,11 @@ export async function StandingsView({
   const [first] = data.boards;
   const asked = readOne(query, STANDINGS_PARAMS.board);
   const board = data.boards.find(({ leaderboard }) => leaderboard.id === asked) ?? first;
-  const rows: FilterRow[] = data.boards.length > 1 ? [{
-    key: STANDINGS_PARAMS.board,
-    label: "榜单",
-    selected: [board.leaderboard.id],
-    fallback: first.leaderboard.id,
-    choices: data.boards.map(({ leaderboard }) => ({ value: leaderboard.id, label: leaderboard.title })),
-  }] : [];
 
   return (
     <div className={FRAME}>
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-fg text-2xl font-bold tracking-tight">
-          {data.boards.length > 1 ? board.leaderboard.title : "排行榜"}
-        </h1>
-        <Badge>{board.ruleset.name}</Badge>
+        <h1 className="text-fg text-2xl font-bold tracking-tight">排行榜</h1>
         {data.frozen ? <Badge tone="warn">已封榜</Badge> : null}
         <span className="text-fg-subtle ml-auto text-xs">
           共 {board.standings.rows.length} 人
@@ -96,10 +86,28 @@ export async function StandingsView({
         <StandingsLiveRefresh defaultOn={MOVING_PHASES.includes(contestPhase(contest))} />
       </div>
 
+      {data.boards.length > 1 ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-fg-muted text-sm font-medium">榜单</span>
+          <div className="flex flex-wrap gap-2">
+            <FilterChips
+              path={standingsHref(contest.slug)}
+              params={query}
+              row={{
+                key: STANDINGS_PARAMS.board,
+                label: "榜单",
+                selected: [board.leaderboard.id],
+                fallback: first.leaderboard.id,
+                choices: data.boards.map(({ leaderboard }) => ({ value: leaderboard.id, label: leaderboard.title })),
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
+
       <StandingsPanel
         path={standingsHref(contest.slug)}
         query={query}
-        rows={rows}
         board={board}
         problems={data.problems}
         viewerUid={viewer.uid}

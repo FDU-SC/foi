@@ -6,7 +6,9 @@ import { contestFor } from "@/lib/contests/access";
 import {
   catalogueSlugs,
   isCatalogue,
+  leaderboardHref,
   problemHref,
+  standingsHref,
 } from "@/lib/contests/catalogue";
 import { allContests } from "@/lib/contests/registry";
 import { pairKey } from "@/lib/contests/types";
@@ -17,14 +19,19 @@ import {
 } from "@/lib/problems/facets";
 import { progressFor } from "@/lib/problems/progress";
 import type { ProblemProgress } from "@/lib/problems/views";
+import { viewerWith } from "@/test/content-shapes";
+import { CatalogueShellView } from "@/views/catalogue/shell";
 import { ProblemSetView } from "./list";
 
+const navigation = vi.hoisted(() => ({ pathname: "/problems", search: "" }));
 vi.mock("@/auth", () => ({ getViewer: vi.fn() }));
 vi.mock("@/lib/problems/progress", () => ({ progressFor: vi.fn() }));
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("not-found");
   },
+  usePathname: () => navigation.pathname,
+  useSearchParams: () => new URLSearchParams(navigation.search),
 }));
 
 const NOW = new Date("2030-01-01T00:00:00Z");
@@ -75,8 +82,21 @@ function props(
   };
 }
 
-async function render(...args: Parameters<typeof props>) {
-  return renderToStaticMarkup(await ProblemSetView(props(...args)));
+async function render(section?: string, searchParams: Record<string, string | string[] | undefined> = {}) {
+  navigation.pathname = section === undefined ? "/problems" : `/problems/${section}`;
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (value === undefined) continue;
+    for (const one of Array.isArray(value) ? value : [value]) query.append(key, one);
+  }
+  navigation.search = query.toString();
+  const panel = await ProblemSetView(props(section, searchParams));
+  return renderToStaticMarkup(await CatalogueShellView({ children: panel }));
+}
+
+/** Where the page's one leaderboard entry leads, if it has one. */
+function leaderboardLink(html: string): string | undefined {
+  return /href="([^"]*)"[^>]*>(?:<svg.*?<\/svg>)?排行榜<\/a>/.exec(html)?.[1].replaceAll("&amp;", "&");
 }
 
 function untouched(slugs: readonly string[]): Map<string, ProblemProgress> {
@@ -105,7 +125,7 @@ describe("题库全部题目", () => {
     expect(html).toContain('aria-label="题单"');
     expect(html).toContain(">题单</th>");
     const total = lists.reduce((sum, { problems }) => sum + problems.length, 0);
-    expect(html).toContain(`共 ${total} 题`);
+    expect(html, "未筛选时不显示题数").not.toContain(`${total} 题`);
     for (const { contest, problems } of lists) {
       expect(html).toContain(contest.title);
       for (const { ref } of problems) {
@@ -132,7 +152,7 @@ describe("题库全部题目", () => {
 
     const html = await render();
 
-    expect(progressFor).toHaveBeenCalledOnce();
+    expect(progressFor).toHaveBeenCalled();
     expect(progressFor).toHaveBeenCalledWith(lists.map(({ contest }) => contest.slug), VIEWER);
     for (const { contest } of holders) {
       expect(html).toContain(`href="${problemHref(contest.slug, shared.ref.problem.slug)}"`);
@@ -177,6 +197,93 @@ describe("题库全部题目", () => {
     }
     expect(html).not.toContain('aria-label="全部题目完成进度"');
     expect(html).not.toContain("NaN");
+  });
+
+  it("排行榜是同一页面的另一个 tab，跟随当前题单，无权查看的人看不到", async () => {
+    const [{ contest }] = readableLists();
+    vi.mocked(getViewer).mockResolvedValue(viewerWith("leaderboard.read"));
+
+    const all = await render();
+    expect(all.match(/排行榜/g)).toHaveLength(1);
+    expect(leaderboardLink(all)).toBe(leaderboardHref());
+
+    const one = await render(contest.slug);
+    expect(one.match(/排行榜/g)).toHaveLength(1);
+    expect(leaderboardLink(one)).toBe(standingsHref(contest.slug));
+
+    vi.mocked(getViewer).mockResolvedValue(VIEWER);
+    expect(await render()).not.toContain("排行榜");
+  });
+
+  it("每个方向有自己的全部题目列表，筛选与清除都留在这个方向里", async () => {
+    const byDomain = Map.groupBy(readableLists(), ({ contest }) => contest.domain);
+    const [heading, within] = required(
+      [...byDomain].find(([domain, lists]) => domain !== undefined && lists.length > 1),
+      "一个含多个可读题单的方向",
+    ) as [string, ReturnType<typeof readableLists>];
+    const mine = new Set(within.map(({ contest }) => contest.slug));
+    const others = readableLists().filter(({ contest }) => !mine.has(contest.slug));
+    const scope = new URLSearchParams({ domain: heading }).toString();
+
+    const html = await render(undefined, { domain: heading, q: "x" });
+
+    expect(html).toContain(`>${heading}</h2>`);
+    expect(html).toMatch(new RegExp(`aria-current="page"[^>]*href="/problems\\?q=x&amp;${scope.replaceAll("+", "\\+")}"`));
+    expect(html, "方向标题只作分组，不是链接").toContain(`>${heading}</p>`);
+    expect(html).toMatch(new RegExp(`href="/problems\\?q=x&amp;${scope.replaceAll("+", "\\+")}"[^>]*>.*?>全部</span>`));
+    for (const { contest } of within) {
+      expect(html, "切到题单时不带方向").toContain(`href="/problems/${contest.slug}?q=x"`);
+    }
+    expect(html).toContain(`href="/problems?${scope}">清除筛选`);
+
+    const all = await render(undefined, { domain: heading });
+    expect(all).not.toContain("共 ");
+    for (const { contest, problems } of others) {
+      for (const { ref } of problems) {
+        expect(all).not.toContain(`href="${problemHref(contest.slug, ref.problem.slug)}"`);
+      }
+    }
+    for (const { contest, problems } of within) {
+      for (const { ref } of problems) {
+        expect(all).toContain(`href="${problemHref(contest.slug, ref.problem.slug)}"`);
+      }
+    }
+  });
+
+  it("方向的排行榜 tab 排这个方向的题单", async () => {
+    const [heading, lists] = required(
+      [...Map.groupBy(readableLists(), ({ contest }) => contest.domain)]
+        .find(([domain, lists]) => domain !== undefined && lists.length > 1),
+      "一个含多个可读题单的方向",
+    );
+    vi.mocked(getViewer).mockResolvedValue(viewerWith("leaderboard.read"));
+    const html = await render(undefined, { domain: heading! });
+    const sections = lists.map(({ contest }) => ["section", contest.slug]).sort();
+    expect(html).toContain(`>${heading}</h2>`);
+    expect(leaderboardLink(html), "方向不属于同一个方向榜时，排它的各个分区").toBe(`${leaderboardHref()}?${new URLSearchParams(sections)}`);
+  });
+
+  it("只有一个题单的方向不单独成列表，标题只是分组", async () => {
+    const [heading, [only]] = required(
+      [...Map.groupBy(readableLists(), ({ contest }) => contest.domain)]
+        .find(([domain, lists]) => domain !== undefined && lists.length === 1),
+      "一个只含一个可读题单的方向",
+    );
+    const link = `href="/problems?${new URLSearchParams({ domain: heading! })}"`;
+
+    const html = await render();
+    expect(html).not.toContain(link);
+    expect(html).toContain(`>${heading}</p>`);
+    expect(html).toContain(`href="/problems/${only.contest.slug}"`);
+
+    expect(await render(undefined, { domain: heading! })).toContain(">全部题目</h2>");
+  });
+
+  it("认不出的方向当作全部题目", async () => {
+    const html = await render(undefined, { domain: "no-such-direction" });
+    expect(html).toContain(">全部题目</h2>");
+    expect(html).toMatch(/aria-current="page"[^>]*href="\/problems"/);
+    expect(html, "认不出的方向不被筛选链接带着").not.toContain("no-such-direction");
   });
 
   it("跨题单时不提供最新排序", async () => {
@@ -238,9 +345,10 @@ describe("题库分区页", () => {
 
     const html = await render(contest.slug);
 
-    expect(progressFor).toHaveBeenCalledOnce();
+    expect(progressFor).toHaveBeenCalled();
     expect(html).toContain(">状态</th>");
-    expect(html).toContain(`已通过 0 / ${problems.length} 题`);
+    expect(html, "完成进度只在题单栏显示一次").toContain(`>0 / ${problems.length}<`);
+    expect(html).not.toContain("已通过 0 /");
   });
 });
 

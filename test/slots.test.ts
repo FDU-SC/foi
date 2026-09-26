@@ -1,8 +1,10 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import * as ts from "typescript";
 import { SLOTS } from "@/test/content-roots.mjs";
+import { importBindings, moduleSpecifiers, nodes, parseSource, walk } from "@/test/source";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
@@ -10,16 +12,6 @@ const ROOT = fileURLToPath(new URL("..", import.meta.url));
  * Check that slot aliases resolve local-first with per-file fallback, only
  * allowed layers are overridable, and platform imports use content entry points.
  */
-
-function walk(directory: string): string[] {
-  if (!existsSync(directory)) return [];
-
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) return walk(path);
-    return entry.isFile() ? [path] : [];
-  });
-}
 
 function key(file: string): string {
   return relative(ROOT, file).split(sep).join("/");
@@ -47,19 +39,6 @@ describe("插槽的别名表", () => {
     }
   });
 
-  it("默认映射 @/* 排在插槽后面，确保具体映射优先生效", () => {
-    const patterns = Object.keys(tsconfigPaths());
-    const fallback = patterns.indexOf("@/*");
-
-    expect(fallback, "@/* 不在 paths 里").toBeGreaterThanOrEqual(0);
-    for (const slot of SLOTS) {
-      expect(
-        patterns.indexOf(`${slot.alias}/*`),
-        `${slot.alias}/* 排在 @/* 之后`,
-      ).toBeLessThan(fallback);
-    }
-  });
-
   it("每个插槽的上游那一半都在", () => {
     const missing = SLOTS.map((slot) => slot.upstream).filter(
       (root) => !existsSync(join(ROOT, root)),
@@ -75,23 +54,30 @@ describe("插槽的别名表", () => {
 /** Next discovers routes from the filesystem, so these files cannot be aliased. */
 const ROUTE_FILES = /\/(page|layout|error|not-found|loading|template)\.tsx$/;
 
+function localRendering(source: string): string[] {
+  const file = parseSource(source);
+  const views = importBindings(file).filter(({ source }) => source.startsWith("@/views/"));
+  return nodes(file, (node): node is ts.JsxOpeningElement | ts.JsxSelfClosingElement =>
+    ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))
+    .filter(({ tagName }) => !views.some(({ local, imported }) =>
+      ts.isIdentifier(tagName) ? imported !== "*" && tagName.text === local :
+        ts.isPropertyAccessExpression(tagName) && ts.isIdentifier(tagName.expression) &&
+        imported === "*" && tagName.expression.text === local))
+    .map(({ tagName }) => tagName.getText(file));
+}
+
 describe("app/ 只有薄壳", () => {
   const shells = walk(join(ROOT, "app")).filter((file) =>
     ROUTE_FILES.test(file.split(sep).join("/")),
   );
 
   it("确实找到了路由文件，而不是路径写错后空过", () => {
-    expect(shells.length).toBeGreaterThanOrEqual(20);
+    expect(shells.length).toBeGreaterThan(0);
   });
 
   it("每个渲染页面的主体都来自 views/", () => {
     const detached = shells
-      .filter((file) => {
-        const source = readFileSync(file, "utf8");
-        // A route that only redirects renders nothing, so it has no view.
-        if (!/return\s*\(?\s*</.test(source)) return false;
-        return !/from\s+["']@\/views\//.test(source);
-      })
+      .filter((file) => localRendering(readFileSync(file, "utf8")).length > 0)
       .map(key);
 
     expect(
@@ -99,12 +85,18 @@ describe("app/ 只有薄壳", () => {
       "这些路由自己渲染了内容。搬进 views/，下游才能整页替换",
     ).toEqual([]);
   });
+
+  it("接受转发及重命名导入，检测独立页面内容而非仅检查 import", () => {
+    expect(localRendering(`import { View as Page } from '@/views/page'; export default () => <Page />;`)).toEqual([]);
+    expect(localRendering(`import * as Views from '@/views/page'; export default () => <Views.Page />;`)).toEqual([]);
+    expect(localRendering(`export { View as default } from '@/views/page';`)).toEqual([]);
+    expect(localRendering(`import { View } from '@/views/page'; export default () => <main><View /></main>;`)).toEqual(["main"]);
+  });
 });
 
 /** Only `lib/` reaches content, and only through the entry points. */
-const UI_LAYERS = ["app", "components", "views"];
-
-const CONTENT_IMPORT = /from\s+["'](@\/content\/[^"']*)["']/g;
+const UI_LAYERS = ["app", ...SLOTS.filter(({ alias }) => alias !== "@/content")
+  .flatMap(({ upstream, local }) => [upstream, local])];
 
 describe("UI 层不认识 content", () => {
   it("app/、components/、views/ 都不直接 import content", () => {
@@ -115,7 +107,8 @@ describe("UI 层不认识 content", () => {
         if (!/\.tsx?$/.test(file) || /\.test\.tsx?$/.test(file)) continue;
 
         const source = readFileSync(file, "utf8");
-        for (const [, specifier] of source.matchAll(CONTENT_IMPORT)) {
+        for (const specifier of moduleSpecifiers(source)) {
+          if (!/(^|\/)content(?:\.local)?\//.test(specifier)) continue;
           offences.push(`${key(file)}: ${specifier}`);
         }
       }

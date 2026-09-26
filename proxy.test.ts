@@ -1,36 +1,16 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { config } from "./proxy";
 
-function proxyMatcher(): string[] {
-  const source = readFileSync(join(import.meta.dirname, "proxy.ts"), "utf8");
-
-  const declaration = source.match(/matcher:\s*\[([\s\S]*?)\]/);
-  if (!declaration) throw new Error("proxy.ts 里找不到 matcher 声明");
-
-  const patterns = [...declaration[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map(
-    (match) => match[1],
-  );
-  if (patterns.length === 0) throw new Error("proxy.ts 的 matcher 是空的");
-
-  return patterns;
-}
-
-const config = { matcher: proxyMatcher() };
+vi.mock("next-auth", () => ({
+  default: () => ({ auth: (handler: unknown) => handler }),
+}));
 
 function matches(url: string): boolean {
   return unstable_doesMiddlewareMatch({ config, url });
 }
 
 describe("proxy matcher 覆盖面", () => {
-  it("确实读到了 proxy.ts 里的那个 matcher", () => {
-
-    expect(config.matcher).toHaveLength(1);
-    expect(config.matcher[0]).toContain("?!");
-  });
-
   it("页面进全局层", () => {
     expect(matches("/")).toBe(true);
     expect(matches("/contests")).toBe(true);

@@ -2,8 +2,9 @@
 
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { Select, Textarea } from "@/components/ui/field";
+import { Select } from "@/components/ui/field";
 import { useProblem } from "@/components/problem/problem-context";
+import { CodeEditor } from "./code-editor";
 import { problemUi } from "./ui-config";
 import { useSubmitContext } from "./submit-context";
 
@@ -18,6 +19,8 @@ const LANGUAGES: Record<string, string> = {
 };
 
 const DEFAULT_LANGUAGES = ["cpp", "python"];
+
+const EDITOR_HEIGHT = "18rem";
 
 export function CodeInput() {
   const { config } = useProblem();
@@ -50,13 +53,20 @@ export function CodeInput() {
           ))}
         </Select>
       </div>
-      <Textarea
-        aria-label="代码"
+      <CodeEditor
+        label="代码"
         value={value}
-        onChange={(e) => setValue(e.target.value)}
-        rows={12}
-        spellCheck={false}
+        onChange={setValue}
+        language={language}
+        minHeight={EDITOR_HEIGHT}
         placeholder={ui.placeholder ?? "在此粘贴你的代码"}
+        fallback={
+          <div
+            aria-hidden
+            className="border-border bg-surface rounded-md border"
+            style={{ height: EDITOR_HEIGHT }}
+          />
+        }
       />
       <div className="flex items-center gap-3">
         <Button

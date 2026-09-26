@@ -24,11 +24,7 @@ export async function GET(request: Request) {
   if (!decision.allow) return apiDeny(decision);
 
   const rule = ROUTE_LIMITS["GET /api/judges/status"];
-  const limited = rateLimit(
-    `judges:${user.uid}`,
-    rule.max,
-    rule.windowSeconds * 1000,
-  );
+  const limited = rateLimit(`judges:${user.uid}`, rule);
   if (!limited.ok) return tooManyRequests(limited.retryAfterMs);
 
   return NextResponse.json(await judgeQueuesFor(viewer), {

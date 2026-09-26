@@ -6,6 +6,7 @@ import { getViewer } from "@/auth";
 import { authorize } from "@/lib/authz/engine";
 import { rateLimit } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
+import { parseInput } from "@/lib/validation";
 import {
   rejudgeSubmissions,
   submissionStateOf,
@@ -35,24 +36,18 @@ export async function rejudgeSubmissionAction(
   const actor = await getViewer();
 
   const rule = ACTION_LIMITS.rejudgeSubmissionAction;
-  const limited = rateLimit(
-    `rejudge:${actor.uid}`,
-    rule.max,
-    rule.windowSeconds * 1000,
-  );
+  const limited = rateLimit(`rejudge:${actor.uid}`, rule);
   if (!limited.ok) {
     return {
       error: `重判过于频繁，请 ${Math.ceil(limited.retryAfterMs / 60_000)} 分钟后再试。`,
     };
   }
 
-  const parsed = rejudgeSchema.safeParse({
+  const parsed = parseInput(rejudgeSchema, {
     id: formData.get("id"),
     includeAccepted: formData.get("includeAccepted") !== null,
   });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  if (!parsed.ok) return { error: parsed.error };
 
   const row = await submissionStateOf(parsed.data.id);
   if (!row) return { error: "提交不存在" };

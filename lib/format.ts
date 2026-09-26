@@ -8,3 +8,10 @@ export function dateFormatter(
     ...options,
   });
 }
+
+const moment = dateFormatter({ dateStyle: "long", timeStyle: "short" });
+
+/** A date and time in the site's language and timezone, as prose and emails name one. */
+export function formatMoment(at: Date): string {
+  return moment.format(at);
+}

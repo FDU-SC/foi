@@ -1,4 +1,5 @@
 import { createFixedWindow, type RateLimitResult } from "./window";
+import type { Bound } from "./policy";
 import { isResolvedSource } from "@/lib/server/source";
 
 export { sourceFrom } from "@/lib/server/source";
@@ -12,22 +13,17 @@ const window = (globalThis.__foiRateLimit ??= createFixedWindow({
   maxKeys: 10_000,
 }));
 
-export type { RateLimitResult };
+export type { Bound, RateLimitResult };
 
-export function rateLimit(
-  key: string,
-  limit: number,
-  windowMs: number,
-): RateLimitResult {
-  return window.take(key, limit, windowMs);
+export function rateLimit(key: string, bound: Bound): RateLimitResult {
+  return window.take(key, bound.max, bound.windowSeconds * 1000);
 }
 
 export function rateLimitBySource(
   activity: string,
   source: string,
-  limit: number,
-  windowMs: number,
+  bound: Bound,
 ): RateLimitResult {
   if (!isResolvedSource(source)) return { ok: true };
-  return rateLimit(`${activity}:${source}`, limit, windowMs);
+  return rateLimit(`${activity}:${source}`, bound);
 }

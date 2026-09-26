@@ -1,6 +1,6 @@
 import { emailModules } from "@/content/_modules/emails";
+import { formatMoment } from "@/lib/format";
 import { loadSingletonModule } from "@/lib/singleton-module";
-import { site } from "@/lib/site";
 import { escapeHtml } from "./html";
 import type {
   EmailChangeMail,
@@ -10,14 +10,6 @@ import type {
   SecurityNoticeMail,
   VerificationLinkMail,
 } from "./types";
-
-function formatAt(at: Date): string {
-  return new Intl.DateTimeFormat(site.lang, {
-    dateStyle: "long",
-    timeStyle: "short",
-    timeZone: site.timezone,
-  }).format(at);
-}
 
 function plain(subject: string, lines: string[]): MailBody {
   const text = lines.join("\n");
@@ -32,7 +24,7 @@ const FALLBACK: EmailTemplates = {
     return plain("验证你的注册邮箱", [
       "有人正在用这个邮箱注册账号。请打开下面的链接完成验证。",
       input.url,
-      `此链接在 ${formatAt(input.expiresAt)} 前有效。`,
+      `此链接在 ${formatMoment(input.expiresAt)} 前有效。`,
       "如果不是你本人操作，忽略这封邮件即可。",
     ]);
   },
@@ -41,7 +33,7 @@ const FALLBACK: EmailTemplates = {
       `${input.displayName}，你好：`,
       "收到密码重置请求，请通过下方链接设置新密码。",
       input.url,
-      `此链接在 ${formatAt(input.expiresAt)} 前有效，只能使用一次。`,
+      `此链接在 ${formatMoment(input.expiresAt)} 前有效，只能使用一次。`,
       "如果不是你本人操作，忽略这封邮件即可。",
     ]);
   },
@@ -50,7 +42,7 @@ const FALLBACK: EmailTemplates = {
       `${input.displayName}，你好：`,
       `收到将邮箱更换为 ${input.newEmail} 的请求，请通过下方链接确认。`,
       input.url,
-      `此链接在 ${formatAt(input.expiresAt)} 前有效。`,
+      `此链接在 ${formatMoment(input.expiresAt)} 前有效。`,
       "如果不是你本人操作，忽略这封邮件即可。",
     ]);
   },
@@ -59,7 +51,7 @@ const FALLBACK: EmailTemplates = {
 
     return plain(`你的${what}已变更`, [
       `${input.displayName}，你好：`,
-      `你的${what}已于 ${formatAt(input.changedAt)} 变更。`,
+      `你的${what}已于 ${formatMoment(input.changedAt)} 变更。`,
       ...(input.detail ? [input.detail] : []),
       "若为本人操作，无需处理此邮件。",
       "若非本人操作，请立即打开以下地址重置密码，并联系管理员。",

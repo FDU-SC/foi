@@ -1,29 +1,22 @@
 import { z } from "zod";
 import { TIERS } from "@/lib/boot/deployment";
 import { refuse } from "@/lib/log";
+import { issueItems } from "@/lib/validation";
 
 const schema = z.object({
-  DATABASE_URL: z
-    .string("未设置")
-    .refine(
-      (value) => value.startsWith("postgres://") || value.startsWith("postgresql://"),
-      "必须是 postgres:// 或 postgresql:// 连接串",
-    ),
+  DATABASE_URL: z.url({
+    protocol: /^postgres(ql)?$/,
+    error: (issue) =>
+      issue.input === undefined ? "未设置" : "必须是 postgres:// 或 postgresql:// 连接串",
+  }),
 
   AUTH_SECRET: z
     .string("未设置，用 openssl rand -base64 32 生成")
     .min(16, "太短，用 openssl rand -base64 32 生成"),
 
-  FOI_PUBLIC_URL: z
-    .string("未设置")
-    .refine((value) => {
-      try {
-        new URL(value);
-        return true;
-      } catch {
-        return false;
-      }
-    }, "必须是完整的 URL"),
+  FOI_PUBLIC_URL: z.url({
+    error: (issue) => (issue.input === undefined ? "未设置" : "必须是完整的 URL"),
+  }),
 
   FOI_BACKEND_SECRET: z
     .string("未设置，用 openssl rand -hex 32 生成")
@@ -71,15 +64,7 @@ export function assertEnv(
   env: Record<string, string | undefined> = process.env,
 ): void {
   const parsed = schema.safeParse(env);
+  if (parsed.success) return;
 
-  const problems = parsed.success
-    ? []
-    : parsed.error.issues.map((issue) => {
-        const name = issue.path.join(".");
-        return name ? `${name}: ${issue.message}` : issue.message;
-      });
-
-  if (problems.length === 0) return;
-
-  refuse("环境变量配置不完整：", problems);
+  refuse("环境变量配置不完整：", issueItems(parsed.error));
 }

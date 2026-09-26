@@ -1,17 +1,7 @@
+import { TZDate } from "@date-fns/tz";
 import { site } from "@/lib/site";
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-const zone = new Intl.DateTimeFormat("en-US", {
-  timeZone: site.timezone,
-  hourCycle: "h23",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-});
 
 function fields(day: string): [number, number, number] | undefined {
   const match = DAY.exec(day);
@@ -28,17 +18,9 @@ export function readDay(value: string | undefined): string | undefined {
   return value !== undefined && fields(value) ? value : undefined;
 }
 
-/** How far the site's wall clock runs ahead of UTC at this instant. */
-function offsetAt(instant: number): number {
-  const parts = Object.fromEntries(zone.formatToParts(instant).map(({ type, value }) => [type, Number(value)]));
-  const wall = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
-  return wall - Math.floor(instant / 1000) * 1000;
-}
-
+/** A plain `Date`: `TZDate` serializes with an offset, which drizzle and callers do not expect. */
 function startOf(year: number, month: number, date: number): Date {
-  const wall = Date.UTC(year, month - 1, date);
-  const guess = wall - offsetAt(wall);
-  return new Date(wall - offsetAt(guess));
+  return new Date(+new TZDate(year, month - 1, date, site.timezone));
 }
 
 /** When a calendar day read by `readDay` begins in the site's timezone. */

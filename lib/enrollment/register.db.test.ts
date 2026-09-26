@@ -40,7 +40,7 @@ if (!online) {
   console.warn("[test] 数据库不可达，跳过注册集成用例");
 }
 
-function mintToken(email: string): string {
+function mintToken(email: string): Promise<string> {
   return issueToken({ purpose: "email-verify", subject: email, ttlMs: 30 * 60 * 1000 });
 }
 
@@ -77,7 +77,7 @@ describeDb("register", () => {
   });
 
   it("token 的邮箱和表单邮箱不匹配时拒绝", async () => {
-    const token = mintToken("other@example.test");
+    const token = await mintToken("other@example.test");
 
     await expect(register({ ...FORM, token })).resolves.toMatchObject({
       ok: false,
@@ -87,7 +87,7 @@ describeDb("register", () => {
   });
 
   it("有效 token 建号成功", async () => {
-    const token = mintToken(EMAIL);
+    const token = await mintToken(EMAIL);
 
     await expect(register({ ...FORM, token })).resolves.toMatchObject({
       ok: true,
@@ -104,7 +104,7 @@ describeDb("register", () => {
       nickname: "占位",
       status: "active",
     });
-    const token = mintToken(EMAIL);
+    const token = await mintToken(EMAIL);
 
     await expect(register({ ...FORM, username: TAKEN_USERNAME, token })).resolves.toEqual({
       ok: false,
@@ -117,14 +117,14 @@ describeDb("register", () => {
   });
 
   it("域名不在允许范围内的邮箱直接拒绝", async () => {
-    const token = mintToken("someone@elsewhere.invalid");
+    const token = await mintToken("someone@elsewhere.invalid");
     await expect(
       register({ ...FORM, email: "someone@elsewhere.invalid", token }),
     ).resolves.toEqual({ ok: false, reason: "email-domain" });
   });
 
   it("写密码失败时整笔回滚，不留下一个登不进去的账号", async () => {
-    const token = mintToken(EMAIL);
+    const token = await mintToken(EMAIL);
     passwordHook.failSetPassword = true;
 
     await expect(register({ ...FORM, token })).rejects.toThrow(

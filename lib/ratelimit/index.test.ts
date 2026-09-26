@@ -16,16 +16,16 @@ describe("rateLimit", () => {
     const k = key();
 
     for (let i = 0; i < 3; i += 1) {
-      expect(rateLimit(k, 3, 60_000).ok).toBe(true);
+      expect(rateLimit(k, { max: 3, windowSeconds: 60 }).ok).toBe(true);
     }
-    expect(rateLimit(k, 3, 60_000).ok).toBe(false);
+    expect(rateLimit(k, { max: 3, windowSeconds: 60 }).ok).toBe(false);
   });
 
   it("被拒时给出还要等多久", () => {
     const k = key();
-    rateLimit(k, 1, 60_000);
+    rateLimit(k, { max: 1, windowSeconds: 60 });
 
-    const result = rateLimit(k, 1, 60_000);
+    const result = rateLimit(k, { max: 1, windowSeconds: 60 });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.retryAfterMs).toBeGreaterThan(0);
@@ -37,30 +37,30 @@ describe("rateLimit", () => {
     const a = key();
     const b = key();
 
-    rateLimit(a, 1, 60_000);
+    rateLimit(a, { max: 1, windowSeconds: 60 });
 
-    expect(rateLimit(a, 1, 60_000).ok).toBe(false);
-    expect(rateLimit(b, 1, 60_000).ok).toBe(true);
+    expect(rateLimit(a, { max: 1, windowSeconds: 60 }).ok).toBe(false);
+    expect(rateLimit(b, { max: 1, windowSeconds: 60 }).ok).toBe(true);
   });
 
   it("窗口过去后重新放行", () => {
     vi.useFakeTimers();
     const k = key();
 
-    expect(rateLimit(k, 1, 1_000).ok).toBe(true);
-    expect(rateLimit(k, 1, 1_000).ok).toBe(false);
+    expect(rateLimit(k, { max: 1, windowSeconds: 1 }).ok).toBe(true);
+    expect(rateLimit(k, { max: 1, windowSeconds: 1 }).ok).toBe(false);
 
     vi.advanceTimersByTime(1_001);
 
-    expect(rateLimit(k, 1, 1_000).ok).toBe(true);
+    expect(rateLimit(k, { max: 1, windowSeconds: 1 }).ok).toBe(true);
   });
 
   it("计数器是进程内共享的，不随模块副本翻倍", async () => {
     const k = key();
-    rateLimit(k, 1, 60_000);
+    rateLimit(k, { max: 1, windowSeconds: 60 });
 
     const again = await import("./index");
-    expect(again.rateLimit(k, 1, 60_000).ok).toBe(false);
+    expect(again.rateLimit(k, { max: 1, windowSeconds: 60 }).ok).toBe(false);
   });
 });
 
@@ -68,25 +68,25 @@ describe("rateLimitBySource", () => {
   it("来源解析得出时照常计数", () => {
     const activity = key();
 
-    expect(rateLimitBySource(activity, "203.0.113.9", 1, 60_000).ok).toBe(true);
-    expect(rateLimitBySource(activity, "203.0.113.9", 1, 60_000).ok).toBe(
+    expect(rateLimitBySource(activity, "203.0.113.9", { max: 1, windowSeconds: 60 }).ok).toBe(true);
+    expect(rateLimitBySource(activity, "203.0.113.9", { max: 1, windowSeconds: 60 }).ok).toBe(
       false,
     );
   });
 
   it("不同来源各算各的", () => {
     const activity = key();
-    rateLimitBySource(activity, "203.0.113.9", 1, 60_000);
+    rateLimitBySource(activity, "203.0.113.9", { max: 1, windowSeconds: 60 });
 
-    expect(rateLimitBySource(activity, "198.51.100.4", 1, 60_000).ok).toBe(
+    expect(rateLimitBySource(activity, "198.51.100.4", { max: 1, windowSeconds: 60 }).ok).toBe(
       true,
     );
   });
 
   it("同一来源在不同 activity 下也各算各的", () => {
-    rateLimitBySource(key(), "203.0.113.9", 1, 60_000);
+    rateLimitBySource(key(), "203.0.113.9", { max: 1, windowSeconds: 60 });
 
-    expect(rateLimitBySource(key(), "203.0.113.9", 1, 60_000).ok).toBe(true);
+    expect(rateLimitBySource(key(), "203.0.113.9", { max: 1, windowSeconds: 60 }).ok).toBe(true);
   });
 
   it("两个哨兵都整层让路，而不是共用一个桶", () => {
@@ -95,7 +95,7 @@ describe("rateLimitBySource", () => {
     for (const sentinel of ["direct", "unknown"]) {
       for (let i = 0; i < 20; i += 1) {
         expect(
-          rateLimitBySource(activity, sentinel, 1, 60_000).ok,
+          rateLimitBySource(activity, sentinel, { max: 1, windowSeconds: 60 }).ok,
           `${sentinel} 第 ${i + 1} 次被拒了，说明哨兵仍然被当成 key 在计数`,
         ).toBe(true);
       }

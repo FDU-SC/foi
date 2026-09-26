@@ -1,10 +1,12 @@
 "use client";
 
+import { TZDate } from "@date-fns/tz";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { DayPicker, type ClassNames, type DateRange } from "react-day-picker";
 import { zhCN } from "react-day-picker/locale";
 import { Button } from "@/components/ui/button";
+import { useDismiss } from "@/components/ui/use-dismiss";
 import { cn } from "@/lib/utils";
 
 /** Each end a `YYYY-MM-DD`, either one optional. */
@@ -13,37 +15,42 @@ export interface DayRange {
   to?: string;
 }
 
-/** The earliest month the year dropdown offers. */
-const START_MONTH = new Date(2020, 0);
+/** The earliest year the year dropdown offers. */
+const START_YEAR = 2020;
 
 const pad = (value: number) => String(value).padStart(2, "0");
 const show = (day: string) => day.replaceAll("-", "/");
 
-function toDay(date: Date): string {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+function toDay(date: Date, timeZone: string): string {
+  const day = new TZDate(date, timeZone);
+  return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
 }
 
-function toDate(day: string): Date {
+function toDate(day: string, timeZone: string): Date {
   const [year, month, date] = day.split("-").map(Number);
-  return new Date(year, month - 1, date);
+  return new TZDate(year, month - 1, date, timeZone);
 }
 
-function toRange({ from, to }: DayRange): DateRange | undefined {
-  return from || to ? { from: from ? toDate(from) : undefined, to: to ? toDate(to) : undefined } : undefined;
+function toRange({ from, to }: DayRange, timeZone: string): DateRange | undefined {
+  return from || to
+    ? { from: from ? toDate(from, timeZone) : undefined, to: to ? toDate(to, timeZone) : undefined }
+    : undefined;
 }
 
-function fromRange(range: DateRange | undefined): DayRange {
-  return { from: range?.from && toDay(range.from), to: range?.to && toDay(range.to) };
+function fromRange(range: DateRange | undefined, timeZone: string): DayRange {
+  return { from: range?.from && toDay(range.from, timeZone), to: range?.to && toDay(range.to, timeZone) };
 }
 
-function presets(today: Date): { label: string; range: DateRange }[] {
-  const [year, month, date] = [today.getFullYear(), today.getMonth(), today.getDate()];
+function presets(today: Date, timeZone: string): { label: string; range: DateRange }[] {
+  const now = new TZDate(today, timeZone);
+  const [year, month, date] = [now.getFullYear(), now.getMonth(), now.getDate()];
+  const at = (y: number, m: number, d: number) => new TZDate(y, m, d, timeZone);
   return [
-    { label: "最近 7 天", range: { from: new Date(year, month, date - 6), to: today } },
-    { label: "最近 30 天", range: { from: new Date(year, month, date - 29), to: today } },
-    { label: "本月", range: { from: new Date(year, month, 1), to: today } },
-    { label: "上个月", range: { from: new Date(year, month - 1, 1), to: new Date(year, month, 0) } },
-    { label: "今年", range: { from: new Date(year, 0, 1), to: today } },
+    { label: "最近 7 天", range: { from: at(year, month, date - 6), to: today } },
+    { label: "最近 30 天", range: { from: at(year, month, date - 29), to: today } },
+    { label: "本月", range: { from: at(year, month, 1), to: today } },
+    { label: "上个月", range: { from: at(year, month - 1, 1), to: at(year, month, 0) } },
+    { label: "今年", range: { from: at(year, 0, 1), to: today } },
   ];
 }
 
@@ -89,6 +96,7 @@ export function DateRangePicker({
   names,
   value,
   label,
+  timeZone,
 }: {
   action: string;
   /** The page's other parameters, resent with the range. */
@@ -96,33 +104,20 @@ export function DateRangePicker({
   names: { from: string; to: string };
   value: DayRange;
   label: string;
+  /** The zone the server reads each day in; "today" and the calendar follow it. */
+  timeZone: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<DateRange | undefined>(() => toRange(value));
+  const [draft, setDraft] = useState<DateRange | undefined>(() => toRange(value, timeZone));
   const [month, setMonth] = useState<Date | undefined>();
   const [today, setToday] = useState<Date | undefined>();
   const box = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const outside = (event: MouseEvent) => {
-      if (!box.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", outside);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("mousedown", outside);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [open]);
+  useDismiss(box, open, () => setOpen(false));
 
   const toggle = () => {
     if (!open) {
-      const now = new Date();
-      const range = toRange(value);
+      const now = TZDate.tz(timeZone);
+      const range = toRange(value, timeZone);
       setToday(now);
       setDraft(range);
       setMonth(range?.to ?? range?.from ?? now);
@@ -136,7 +131,7 @@ export function DateRangePicker({
   };
 
   const current = rangeLabel(value);
-  const picked = fromRange(draft);
+  const picked = fromRange(draft, timeZone);
   const clearHref = action + (carried.length ? `?${new URLSearchParams(carried.map(({ name, value: one }) => [name, one]))}` : "");
 
   return (
@@ -169,8 +164,9 @@ export function DateRangePicker({
         >
           <div className="flex flex-col sm:flex-row">
             <ul aria-label="快捷范围" className="border-border/70 flex flex-wrap gap-1 border-b p-2 sm:w-28 sm:flex-col sm:flex-nowrap sm:border-r sm:border-b-0">
-              {presets(today).map(({ label: name, range }) => {
-                const active = fromRange(range).from === picked.from && fromRange(range).to === picked.to;
+              {presets(today, timeZone).map(({ label: name, range }) => {
+                const { from, to } = fromRange(range, timeZone);
+                const active = from === picked.from && to === picked.to;
                 return (
                   <li key={name}>
                     <button
@@ -193,7 +189,8 @@ export function DateRangePicker({
                 locale={zhCN}
                 weekStartsOn={1}
                 captionLayout="dropdown"
-                startMonth={START_MONTH}
+                timeZone={timeZone}
+                startMonth={new TZDate(START_YEAR, 0, 1, timeZone)}
                 showOutsideDays
                 fixedWeeks
                 resetOnSelect

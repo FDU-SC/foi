@@ -38,7 +38,7 @@ export async function RegisterView({
   const domains = enrollmentPolicy.emailDomains;
   const { token } = await searchParams;
 
-  const payload = token ? verifyToken(token, "email-verify") : null;
+  const payload = token ? await verifyToken(token, "email-verify") : null;
   const verifiedEmail = payload?.s;
 
   return (

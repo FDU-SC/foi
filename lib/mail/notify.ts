@@ -21,7 +21,7 @@ function linkTo(path: string, token: string): string {
 }
 
 export async function sendVerificationLink(email: string): Promise<void> {
-  const token = issueToken({
+  const token = await issueToken({
     purpose: "email-verify",
     subject: email,
     ttlMs: VERIFY_TTL_MS,
@@ -48,7 +48,7 @@ export async function sendPasswordReset(
   to: Recipient,
   passwordFingerprint: string,
 ): Promise<void> {
-  const token = issueToken({
+  const token = await issueToken({
     purpose: "password-reset",
     subject: String(to.uid),
     fingerprint: passwordFingerprint,
@@ -89,7 +89,7 @@ export async function sendEmailChangeLink(
   newEmail: string,
   emailFingerprint: string,
 ): Promise<void> {
-  const token = issueToken({
+  const token = await issueToken({
     purpose: "email-change",
     subject: String(to.uid),
     data: { newEmail },

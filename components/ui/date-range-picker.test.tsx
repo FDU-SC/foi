@@ -13,7 +13,7 @@ let root: Root;
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(new Date(2026, 8, 26, 12));
+  vi.setSystemTime(new Date("2026-09-26T12:00:00+08:00"));
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   host = document.createElement("div");
   document.body.append(host);
@@ -36,6 +36,7 @@ async function render(value: DayRange) {
         names={{ from: "from", to: "to" }}
         value={value}
         label="时间"
+        timeZone="Asia/Shanghai"
       />,
     );
   });
@@ -99,12 +100,29 @@ describe("日期范围选择器", () => {
     expect(hidden()).toMatchObject({ from: "2026-08-01", to: "2026-08-31" });
   });
 
+  it("今天按站点时区算，而不是浏览器所在时区", async () => {
+    vi.setSystemTime(new Date("2026-09-26T20:00:00Z"));
+    await render({});
+    await click(trigger());
+
+    await click(button("最近 7 天"));
+    expect(hidden()).toMatchObject({ from: "2026-09-21", to: "2026-09-27" });
+  });
+
   it("点外面关闭，清除链接只保留其余参数", async () => {
     await render({ from: "2026-09-01", to: "2026-09-20" });
     await click(trigger());
     expect(host.querySelector("a")?.getAttribute("href")).toBe("/board?board=b");
 
-    await act(async () => document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
+    await act(async () => document.body.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true })));
+    expect(host.querySelector("[role=dialog]")).toBeNull();
+  });
+
+  it("按 Esc 关闭", async () => {
+    await render({});
+    await click(trigger());
+
+    await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
     expect(host.querySelector("[role=dialog]")).toBeNull();
   });
 

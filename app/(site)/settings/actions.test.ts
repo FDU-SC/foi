@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
 
 const mocks = vi.hoisted(() => ({
-  avatarRejection: vi.fn(),
   clearAvatar: vi.fn(),
+  normalizeAvatar: vi.fn(),
   rateLimit: vi.fn(),
   requireSelf: vi.fn(),
   revalidatePath: vi.fn(),
@@ -27,8 +27,8 @@ vi.mock("@/auth", () => ({
   signIn: vi.fn(),
 }));
 
-vi.mock("@/lib/accounts/avatar", () => ({
-  avatarRejection: mocks.avatarRejection,
+vi.mock("@/lib/accounts/avatar-image", () => ({
+  normalizeAvatar: mocks.normalizeAvatar,
 }));
 
 vi.mock("@/lib/accounts/password", () => ({
@@ -71,6 +71,8 @@ const viewer = {
   disabled: false,
 };
 
+const normalized = Uint8Array.of(9, 9, 9);
+
 function upload(bytes: Uint8Array<ArrayBuffer>): FormData {
   const form = new FormData();
   form.set("avatar", new File([bytes], "avatar.webp", { type: "image/webp" }));
@@ -81,7 +83,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireSelf.mockResolvedValue(viewer);
   mocks.rateLimit.mockReturnValue({ ok: true });
-  mocks.avatarRejection.mockReturnValue(null);
+  mocks.normalizeAvatar.mockResolvedValue({ ok: true, bytes: normalized });
   mocks.setAvatar.mockResolvedValue(new Date("2026-09-08T00:00:00Z"));
   mocks.clearAvatar.mockResolvedValue(true);
 });
@@ -97,7 +99,7 @@ describe("updateAvatarAction", () => {
 
     expect(mocks.requireSelf).toHaveBeenCalledWith("account.changeAvatar");
     expect(mocks.rateLimit).not.toHaveBeenCalled();
-    expect(mocks.avatarRejection).not.toHaveBeenCalled();
+    expect(mocks.normalizeAvatar).not.toHaveBeenCalled();
     expect(mocks.setAvatar).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
@@ -110,16 +112,15 @@ describe("updateAvatarAction", () => {
     expect(result).toEqual({ error: "操作过于频繁，请稍后再试。" });
     expect(mocks.rateLimit).toHaveBeenCalledWith(
       `settings:avatar:${viewer.uid}`,
-      ACTION_LIMITS.updateAvatarAction.max,
-      ACTION_LIMITS.updateAvatarAction.windowSeconds * 1_000,
+      ACTION_LIMITS.updateAvatarAction,
     );
-    expect(mocks.avatarRejection).not.toHaveBeenCalled();
+    expect(mocks.normalizeAvatar).not.toHaveBeenCalled();
     expect(mocks.setAvatar).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
   it("校验拒绝时原样返回理由且不保存", async () => {
-    mocks.avatarRejection.mockReturnValue("头像格式不支持。");
+    mocks.normalizeAvatar.mockResolvedValue({ ok: false, error: "头像格式不支持。" });
 
     const result = await updateAvatarAction({}, upload(Uint8Array.of(1, 2)));
 
@@ -128,15 +129,15 @@ describe("updateAvatarAction", () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
-  it("保存原始字节并刷新所有头像入口", async () => {
+  it("保存重新编码后的字节并刷新所有头像入口", async () => {
     const bytes = Uint8Array.of(1, 2, 3, 255);
 
     const result = await updateAvatarAction({}, upload(bytes));
 
     expect(result).toEqual({ message: "头像已更新。" });
     expect(mocks.requireSelf).toHaveBeenCalledWith("account.changeAvatar");
-    expect(mocks.avatarRejection).toHaveBeenCalledWith(bytes);
-    expect(mocks.setAvatar).toHaveBeenCalledWith(viewer.uid, bytes);
+    expect(mocks.normalizeAvatar).toHaveBeenCalledWith(bytes);
+    expect(mocks.setAvatar).toHaveBeenCalledWith(viewer.uid, normalized);
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/", "layout");
   });
 
@@ -179,8 +180,7 @@ describe("removeAvatarAction", () => {
     expect(mocks.requireSelf).toHaveBeenCalledWith("account.changeAvatar");
     expect(mocks.rateLimit).toHaveBeenCalledWith(
       `settings:avatar:${viewer.uid}`,
-      ACTION_LIMITS.removeAvatarAction.max,
-      ACTION_LIMITS.removeAvatarAction.windowSeconds * 1_000,
+      ACTION_LIMITS.removeAvatarAction,
     );
     expect(mocks.clearAvatar).toHaveBeenCalledWith(viewer.uid);
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/", "layout");

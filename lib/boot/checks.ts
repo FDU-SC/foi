@@ -85,7 +85,7 @@ export async function assertBootConfiguration(): Promise<void> {
 
   const current = tier();
   const sha = releaseSha();
-  log.info(`环境 ${current}，构建自 ${sha ?? "未知 commit"}`);
+  log.info({ env: current, sha: sha ?? null }, "进程已启动");
 
   const refusals: string[] = [];
   const warnings: string[] = [];

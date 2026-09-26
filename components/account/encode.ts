@@ -1,5 +1,11 @@
 import { AVATAR_LIMITS } from "@/lib/accounts/avatar";
-import type { CropRect } from "./crop";
+
+/** The square of the source to keep, in source pixels. */
+export interface CropRect {
+  x: number;
+  y: number;
+  size: number;
+}
 
 /** Large enough to cover a phone photo, small enough not to stall decoding. */
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;

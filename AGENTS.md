@@ -239,13 +239,13 @@ for factual fidelity before reviewing its style.
 
 ### Operator stdout
 
-The platform process writes through `lib/log.ts`. Scripts use their own output format and do not use that module.
+The platform process writes structured JSON through `lib/log.ts` (`pino`). Scripts write their own lines and do not use that module.
 
-- One sentence: name the subject (env var, slug, id) and state the fact.
-- A refuse-to-start may append a single command when that is the fix (`openssl rand -hex 32`).
-- No consequence lecture, no multi-step how-to, no repository path as an instruction.
-- Chinese; env vars, commands and proper nouns stay as written.
-- The platform process prefixes `[foi]`; scripts do not.
+- One `msg`: a Chinese sentence that states the fact.
+- Identifiers (uid, id, slug, env) are fields on the object, not interpolated into `msg`.
+- Errors go in `err`; pino serializes the stack.
+- A refuse-to-start throws a multi-line Error for the process to print, and may append a single command when that is the fix (`openssl rand -hex 32`).
+- Env vars, commands and proper nouns stay as written.
 
 ## Do NOT
 

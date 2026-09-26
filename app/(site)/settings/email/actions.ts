@@ -57,7 +57,7 @@ export async function requestEmailChangeAction(
   }
 
   const rule = ACTION_LIMITS.requestEmailChangeAction;
-  const limit = rateLimitBySource("email-change", sourceFrom(await headers()), rule);
+  const limit = await rateLimitBySource("email-change", sourceFrom(await headers()), rule);
   if (!limit.ok) {
     return { error: "请求过于频繁，请稍后再试。" };
   }
@@ -74,7 +74,7 @@ export async function requestEmailChangeAction(
       fp,
     );
   } catch (error) {
-    log.error("换绑邮箱邮件发送失败", error);
+    log.error({ err: error }, "换绑邮箱邮件发送失败");
     return { error: "邮件发送失败，请稍后再试。" };
   }
 
@@ -92,7 +92,7 @@ export async function confirmEmailChangeAction(
   const viewer = await requireSelf("account.changeEmail");
 
   const rule = ACTION_LIMITS.confirmEmailChangeAction;
-  const limit = rateLimitBySource(
+  const limit = await rateLimitBySource(
     "email-change-confirm",
     sourceFrom(await headers()),
     rule,

@@ -41,7 +41,7 @@ export async function resetPasswordAction(
   if (!parsed.ok) return { error: parsed.error };
 
   const rule = ACTION_LIMITS.resetPasswordAction;
-  const limit = rateLimitBySource("reset", sourceFrom(await headers()), rule);
+  const limit = await rateLimitBySource("reset", sourceFrom(await headers()), rule);
   if (!limit.ok) {
     return { error: "尝试过于频繁，请稍后再试。" };
   }

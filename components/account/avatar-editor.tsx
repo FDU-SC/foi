@@ -17,7 +17,7 @@ import { Avatar, type AvatarSize, type AvatarSubject } from "@/components/ui/ava
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { AvatarCropper } from "./avatar-cropper";
+import { AvatarCropper, type PickedImage } from "./avatar-cropper";
 import { ACCEPTED_TYPES, sourceRejection } from "./encode";
 
 /**
@@ -56,7 +56,7 @@ export function AvatarEditor({
   );
 
   const input = useRef<HTMLInputElement>(null);
-  const [picked, setPicked] = useState<ImageBitmap | null>(null);
+  const [picked, setPicked] = useState<PickedImage | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
   async function onPick(event: ChangeEvent<HTMLInputElement>) {
@@ -75,17 +75,21 @@ export function AvatarEditor({
 
     setProblem(null);
     try {
-      // Decoded here rather than in the dialog: an event handler owns the
-      // bitmap's lifetime plainly, where an effect would have to survive the
-      // setup/cleanup/setup that StrictMode puts every effect through.
-      setPicked(await createImageBitmap(file));
+      // Created here rather than in the dialog: an event handler owns the
+      // bitmap's and the URL's lifetime plainly, where an effect would have to
+      // survive the setup/cleanup/setup that StrictMode puts every effect through.
+      const bitmap = await createImageBitmap(file);
+      setPicked({ bitmap, url: URL.createObjectURL(file) });
     } catch {
       setProblem("无法读取图片。");
     }
   }
 
   function discard() {
-    picked?.close();
+    if (picked) {
+      picked.bitmap.close();
+      URL.revokeObjectURL(picked.url);
+    }
     setPicked(null);
   }
 

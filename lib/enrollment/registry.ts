@@ -131,7 +131,8 @@ export function groupsFor(uid: number, email: string | null): string[] {
     for (const id of produced) {
       if (!mayGrantPrivilege && isPrivilegedGroup(id)) {
         log.warn(
-          `分流规则「${rule.label}」算出了带权限的用户组 "${id}"，已忽略。`,
+          { rule: rule.label, group: id },
+          "分流规则算出了带权限的用户组，已忽略",
         );
         continue;
       }

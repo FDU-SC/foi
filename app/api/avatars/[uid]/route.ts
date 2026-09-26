@@ -20,7 +20,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ uid: string }> },
 ) {
-  const gated = guardRequest(request, "GET /api/avatars/[uid]");
+  const gated = await guardRequest(request, "GET /api/avatars/[uid]");
   if (gated) return gated;
 
   const { uid } = await params;

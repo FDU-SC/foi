@@ -28,12 +28,15 @@ const credentialsSchema = z.object({
 const PER_UID = ACTION_LIMITS.login;
 const PER_SOURCE = ACTION_LIMITS.login.also;
 
-function withinLoginRate(uid: number, request: Request | undefined): boolean {
-  if (!rateLimit(`login:uid:${uid}`, PER_UID).ok) return false;
+async function withinLoginRate(
+  uid: number,
+  request: Request | undefined,
+): Promise<boolean> {
+  if (!(await rateLimit(`login:uid:${uid}`, PER_UID)).ok) return false;
 
   const source = request ? sourceFrom(request.headers) : "unknown";
 
-  return rateLimitBySource("login:ip", source, PER_SOURCE).ok;
+  return (await rateLimitBySource("login:ip", source, PER_SOURCE)).ok;
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -62,11 +65,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!account) {
           const source = request ? sourceFrom(request.headers) : "unknown";
-          rateLimitBySource("login:ip", source, PER_SOURCE);
+          await rateLimitBySource("login:ip", source, PER_SOURCE);
           return null;
         }
 
-        if (!withinLoginRate(account.uid, request)) return null;
+        if (!(await withinLoginRate(account.uid, request))) return null;
 
         if (account.status !== "active") {
           await verifyPassword(account.uid, password);

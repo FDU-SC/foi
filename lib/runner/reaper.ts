@@ -140,13 +140,11 @@ export function startReaping(intervalMs: number): () => void {
     try {
       const { exhausted, requeued, fused } = await reapOnce();
       if (exhausted || requeued || fused) {
-        log.info(
-          `回收: 重新入队 ${requeued} 条，attempts 用尽 ${exhausted} 条，排队超时 ${fused} 条`,
-        );
+        log.info({ requeued, exhausted, fused }, "已回收评测任务");
       }
       globalThis.__foiReaperRanAt = Date.now();
     } catch (error) {
-      log.error("回收失败", error);
+      log.error({ err: error }, "回收失败");
     } finally {
       if (!stopped) timer = setTimeout(tick, intervalMs);
     }

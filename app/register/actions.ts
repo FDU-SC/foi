@@ -48,7 +48,7 @@ export async function sendVerificationLinkAction(
 
   // Counted before the lookup: the reply says whether an address is taken, and
   // must not be free to ask about every address in turn.
-  const limit = rateLimitBySource(
+  const limit = await rateLimitBySource(
     "send-verification-link",
     sourceFrom(await headers()),
     ACTION_LIMITS.sendVerificationLinkAction,
@@ -65,7 +65,7 @@ export async function sendVerificationLinkAction(
   try {
     await sendVerificationLink(email);
   } catch (error) {
-    log.error("验证邮件发送失败", error);
+    log.error({ err: error }, "验证邮件发送失败");
     return { error: "邮件发送失败，请稍后再试。" };
   }
 
@@ -118,7 +118,7 @@ export async function registerAction(
   if (!parsed.ok) return { error: parsed.error };
 
   const reg = ACTION_LIMITS.registerAction;
-  const limit = rateLimitBySource("register", sourceFrom(await headers()), reg);
+  const limit = await rateLimitBySource("register", sourceFrom(await headers()), reg);
   if (!limit.ok) {
     return { error: "注册过于频繁，请稍后再试。" };
   }
@@ -135,7 +135,7 @@ export async function registerAction(
   } catch (error) {
     if (!(error instanceof AuthError)) throw error;
 
-    log.error("注册后自动登录失败", error);
+    log.error({ err: error }, "注册后自动登录失败");
     return { createdNeedsLogin: true };
   }
 

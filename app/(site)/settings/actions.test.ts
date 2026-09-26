@@ -82,7 +82,7 @@ function upload(bytes: Uint8Array<ArrayBuffer>): FormData {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireSelf.mockResolvedValue(viewer);
-  mocks.rateLimit.mockReturnValue({ ok: true });
+  mocks.rateLimit.mockResolvedValue({ ok: true });
   mocks.normalizeAvatar.mockResolvedValue({ ok: true, bytes: normalized });
   mocks.setAvatar.mockResolvedValue(new Date("2026-09-08T00:00:00Z"));
   mocks.clearAvatar.mockResolvedValue(true);
@@ -105,7 +105,7 @@ describe("updateAvatarAction", () => {
   });
 
   it("限流拒绝时不校验或保存上传内容", async () => {
-    mocks.rateLimit.mockReturnValue({ ok: false, retryAfterMs: 1_000 });
+    mocks.rateLimit.mockResolvedValue({ ok: false, retryAfterMs: 1_000 });
 
     const result = await updateAvatarAction({}, upload(Uint8Array.of(1)));
 
@@ -164,7 +164,7 @@ describe("removeAvatarAction", () => {
   });
 
   it("限流拒绝时不移除头像", async () => {
-    mocks.rateLimit.mockReturnValue({ ok: false, retryAfterMs: 1_000 });
+    mocks.rateLimit.mockResolvedValue({ ok: false, retryAfterMs: 1_000 });
 
     const result = await removeAvatarAction({}, new FormData());
 

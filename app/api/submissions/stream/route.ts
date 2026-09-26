@@ -17,14 +17,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const gated = guardRequest(request, "GET /api/submissions/stream");
+  const gated = await guardRequest(request, "GET /api/submissions/stream");
   if (gated) return gated;
 
   const user = await getSessionUser();
   if (!user) return apiDeny(UNAUTHENTICATED);
 
   const opens = ROUTE_LIMITS["GET /api/submissions/stream"];
-  if (!rateLimit(`stream:${user.uid}`, opens).ok) {
+  if (!(await rateLimit(`stream:${user.uid}`, opens)).ok) {
     return new Response("Too Many Requests", { status: 429 });
   }
 

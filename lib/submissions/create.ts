@@ -35,7 +35,7 @@ async function acknowledge(
   try {
     return { kind, submission: await createdSubmissionView(id, uid) };
   } catch (error) {
-    log.error(`提交 ${id} 读取失败`, error);
+    log.error({ id, err: error }, "提交读取失败");
     return { kind: "failed", error: "提交读取失败，请重试" };
   }
 }
@@ -77,7 +77,7 @@ export async function createSubmission(
   user: ResolvedUser,
 ): Promise<CreateSubmissionResult> {
   const cap = ROUTE_LIMITS["POST /api/submissions"].also;
-  const flood = rateLimit(`submit:${user.uid}`, cap);
+  const flood = await rateLimit(`submit:${user.uid}`, cap);
   if (!flood.ok) return { kind: "limited", retryAfterMs: flood.retryAfterMs };
 
   const { clientNonce } = input;
@@ -89,7 +89,7 @@ export async function createSubmission(
   const gate = submitFor(input.contestSlug, input.problemSlug, viewerFor(user));
   if (!gate.ok) return { kind: "denied", denial: gate.denial };
   const { contest, problem } = gate.ref;
-  const limited = rateLimit(
+  const limited = await rateLimit(
     `submit:${user.uid}:${contest.slug}:${problem.slug}`,
     gate.rateLimit,
   );

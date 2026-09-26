@@ -15,14 +15,14 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const gated = guardRequest(request, "GET /api/submissions/[id]");
+  const gated = await guardRequest(request, "GET /api/submissions/[id]");
   if (gated) return gated;
 
   const user = await getSessionUser();
   if (!user) return apiDeny(UNAUTHENTICATED);
 
   const rule = ROUTE_LIMITS["GET /api/submissions/[id]"];
-  const limited = rateLimit(`submission:${user.uid}`, rule);
+  const limited = await rateLimit(`submission:${user.uid}`, rule);
   if (!limited.ok) return tooManyRequests(limited.retryAfterMs);
 
   const { id } = await params;

@@ -34,7 +34,7 @@ export async function requestPasswordReset(
   if (!parsed.ok) return { error: parsed.error };
 
   const rule = ACTION_LIMITS.requestPasswordReset;
-  const limit = rateLimitBySource("forgot", sourceFrom(await headers()), rule);
+  const limit = await rateLimitBySource("forgot", sourceFrom(await headers()), rule);
   if (!limit.ok) {
     return { error: "请求过于频繁，请稍后再试。" };
   }
@@ -72,8 +72,8 @@ async function notifyQuietly(to: Recipient): Promise<void> {
     if (!fp) return;
 
     await sendPasswordReset(to, fp);
-    log.info(`找回密码: 已向 uid=${to.uid} 发出重置链接`);
+    log.info({ uid: to.uid }, "已发出密码重置链接");
   } catch (error) {
-    log.error(`找回密码: 向 uid=${to.uid} 投递重置邮件失败`, error);
+    log.error({ uid: to.uid, err: error }, "密码重置邮件投递失败");
   }
 }

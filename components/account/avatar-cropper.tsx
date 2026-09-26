@@ -1,32 +1,26 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-} from "react";
+import { useEffect, useRef, useState } from "react";
+import Cropper, { type Area, type Point } from "react-easy-crop";
 import { Button } from "@/components/ui/button";
-import {
-  centered,
-  clampOffset,
-  cropOf,
-  scaleFor,
-  zoomAround,
-  ZOOM,
-  type CropState,
-} from "./crop";
 import { encodeAvatar } from "./encode";
 
-/** The frame is fixed, so every offset in `CropState` is in these pixels. */
 const FRAME = 288;
 
-const WHEEL_STEP = 0.12;
+const ZOOM = { min: 1, max: 4, step: 0.01 } as const;
+
+/** One picked file in the two forms the dialog needs. */
+export interface PickedImage {
+  /** Decoded once, for the final encode. */
+  bitmap: ImageBitmap;
+
+  /** Object URL the cropper displays. */
+  url: string;
+}
 
 export interface AvatarCropperProps {
   /** The picture being cropped. Null keeps the dialog closed. */
-  image: ImageBitmap | null;
+  image: PickedImage | null;
   onCancel: () => void;
   onCropped: (file: File) => void;
   onFailed: (reason: string) => void;
@@ -63,6 +57,7 @@ export function AvatarCropper({
     >
       {image ? (
         <CropPanel
+          key={image.url}
           image={image}
           onCancel={onCancel}
           onCropped={onCropped}
@@ -73,108 +68,30 @@ export function AvatarCropper({
   );
 }
 
-/**
- * The preview is a canvas rather than a positioned `<img>`, which keeps the
- * decoded picture in one form: the same bitmap feeds the preview and the final
- * encode, and there is no object URL whose lifetime has to be managed.
- */
-function paint(
-  canvas: HTMLCanvasElement,
-  image: ImageBitmap,
-  state: CropState,
-): void {
-  const ratio = window.devicePixelRatio || 1;
-
-  canvas.width = FRAME * ratio;
-  canvas.height = FRAME * ratio;
-
-  const context = canvas.getContext("2d");
-  if (!context) return;
-
-  context.setTransform(ratio, 0, 0, ratio, 0, 0);
-  context.clearRect(0, 0, FRAME, FRAME);
-
-  const scale = scaleFor(image, FRAME, state.zoom);
-  context.drawImage(
-    image,
-    state.x,
-    state.y,
-    image.width * scale,
-    image.height * scale,
-  );
-}
-
 function CropPanel({
   image,
   onCancel,
   onCropped,
   onFailed,
-}: AvatarCropperProps & { image: ImageBitmap }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const drag = useRef<{ x: number; y: number } | null>(null);
-
-  const [state, setState] = useState<CropState>(() => centered(image, FRAME));
+}: AvatarCropperProps & { image: PickedImage }) {
+  const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState<number>(ZOOM.min);
+  const [area, setArea] = useState<Area | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    if (canvas.current) paint(canvas.current, image, state);
-  }, [image, state]);
-
-  const nudgeZoom = useCallback(
-    (delta: number) => {
-      setState((current) =>
-        zoomAround(image, FRAME, current, current.zoom + delta),
-      );
-    },
-    [image],
-  );
-
-  // React registers wheel listeners passively, so keeping the page from
-  // scrolling behind the dialog takes a direct registration.
-  useEffect(() => {
-    const element = canvas.current;
-    if (!element) return;
-
-    const onWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      nudgeZoom(event.deltaY < 0 ? WHEEL_STEP : -WHEEL_STEP);
-    };
-
-    element.addEventListener("wheel", onWheel, { passive: false });
-    return () => element.removeEventListener("wheel", onWheel);
-  }, [nudgeZoom]);
-
-  function onPointerDown(event: ReactPointerEvent<HTMLCanvasElement>) {
-    drag.current = { x: event.clientX - state.x, y: event.clientY - state.y };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
-
-  function onPointerMove(event: ReactPointerEvent<HTMLCanvasElement>) {
-    const from = drag.current;
-    if (!from) return;
-
-    setState((current) =>
-      clampOffset(image, FRAME, {
-        zoom: current.zoom,
-        x: event.clientX - from.x,
-        y: event.clientY - from.y,
-      }),
-    );
-  }
-
-  function onPointerUp(event: ReactPointerEvent<HTMLCanvasElement>) {
-    drag.current = null;
-    event.currentTarget.releasePointerCapture(event.pointerId);
-  }
-
   async function confirm() {
+    if (!area) return;
     setBusy(true);
     try {
-      onCropped(await encodeAvatar(image, cropOf(image, FRAME, state)));
-    } catch (error) {
-      onFailed(
-        error instanceof Error ? error.message : "图片处理失败。",
+      onCropped(
+        await encodeAvatar(image.bitmap, {
+          x: area.x,
+          y: area.y,
+          size: Math.min(area.width, area.height),
+        }),
       );
+    } catch (error) {
+      onFailed(error instanceof Error ? error.message : "图片处理失败。");
     } finally {
       setBusy(false);
     }
@@ -188,21 +105,20 @@ function CropPanel({
         className="bg-surface-3 relative overflow-hidden rounded-lg"
         style={{ width: FRAME, height: FRAME }}
       >
-        <canvas
-          ref={canvas}
-          aria-hidden
-          className="touch-none select-none"
-          style={{ width: FRAME, height: FRAME, cursor: "grab" }}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-        />
-
-        {/* A ring of shadow rather than a mask, so the frame stays one element. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-full shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]"
+        <Cropper
+          image={image.url}
+          crop={crop}
+          zoom={zoom}
+          aspect={1}
+          minZoom={ZOOM.min}
+          maxZoom={ZOOM.max}
+          cropShape="round"
+          objectFit="cover"
+          showGrid={false}
+          onCropChange={setCrop}
+          onZoomChange={setZoom}
+          onCropComplete={(_, pixels) => setArea(pixels)}
+          cropperProps={{ "aria-label": "头像取景框" }}
         />
       </div>
 
@@ -213,12 +129,8 @@ function CropPanel({
           min={ZOOM.min}
           max={ZOOM.max}
           step={ZOOM.step}
-          value={state.zoom}
-          onChange={(event) =>
-            setState((current) =>
-              zoomAround(image, FRAME, current, Number(event.target.value)),
-            )
-          }
+          value={zoom}
+          onChange={(event) => setZoom(Number(event.target.value))}
           className="accent-primary flex-1"
         />
       </label>
@@ -231,6 +143,7 @@ function CropPanel({
           type="button"
           variant="primary"
           onClick={confirm}
+          disabled={!area}
           pending={busy}
         >
           {busy ? "处理中…" : "保存头像"}

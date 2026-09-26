@@ -10,21 +10,28 @@ import { sourceFrom } from "./source";
 /** The default bound, for routes a page calls once. Overridable per route. */
 export const SOURCE_GATE = { max: 300, windowSeconds: 60 } as const;
 
-export function guardRequest(
+export async function guardRequest(
   request: Request,
   route: RouteKey,
-): NextResponse | null {
-  const flood = floodGate(request, route);
+): Promise<NextResponse | null> {
+  const flood = await floodGate(request, route);
   if (flood) return flood;
 
   return originGate(request, route);
 }
 
-function floodGate(request: Request, route: RouteKey): NextResponse | null {
+async function floodGate(
+  request: Request,
+  route: RouteKey,
+): Promise<NextResponse | null> {
   const rule: RouteRule = ROUTE_LIMITS[route];
   const bound = rule.flood ?? SOURCE_GATE;
 
-  const verdict = rateLimitBySource(`gate:${route}`, sourceFrom(request.headers), bound);
+  const verdict = await rateLimitBySource(
+    `gate:${route}`,
+    sourceFrom(request.headers),
+    bound,
+  );
   if (verdict.ok) return null;
 
   return tooManyRequests(verdict.retryAfterMs);

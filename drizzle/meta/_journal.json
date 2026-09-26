@@ -29,6 +29,13 @@
       "when": 1788284620721,
       "tag": "0003_contest_owned_problems",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790415693818,
+      "tag": "0004_rate_limits",
+      "breakpoints": true
     }
   ]
 }

@@ -23,7 +23,7 @@ export async function POST(
     params,
   }: RouteContext<"/api/contests/[slug]/problems/[problem]/action/[action]">,
 ) {
-  const gated = guardRequest(request, ROUTE);
+  const gated = await guardRequest(request, ROUTE);
   if (gated) return gated;
 
   const user = await getResolvedUser();
@@ -40,7 +40,7 @@ export async function POST(
 
   const { ref, resolved } = gate;
 
-  const verdict = rateLimit(
+  const verdict = await rateLimit(
     `action:${user.uid}:${slug}:${problemSlug}:${action}`,
     resolved.rateLimit,
   );
@@ -70,7 +70,7 @@ export async function POST(
       payload,
     });
   } catch (error) {
-    log.error("题目后端配置错误，无法发起交互动作", error);
+    log.error({ err: error }, "题目后端配置错误，无法发起交互动作");
     return NextResponse.json({ error: "题目后端配置错误" }, { status: 500 });
   }
 

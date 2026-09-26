@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const gated = guardRequest(request, "GET /api/judges/status");
+  const gated = await guardRequest(request, "GET /api/judges/status");
   if (gated) return gated;
 
   const user = await getSessionUser();
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   if (!decision.allow) return apiDeny(decision);
 
   const rule = ROUTE_LIMITS["GET /api/judges/status"];
-  const limited = rateLimit(`judges:${user.uid}`, rule);
+  const limited = await rateLimit(`judges:${user.uid}`, rule);
   if (!limited.ok) return tooManyRequests(limited.retryAfterMs);
 
   return NextResponse.json(await judgeQueuesFor(viewer), {

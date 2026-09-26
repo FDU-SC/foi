@@ -18,7 +18,7 @@ const MAX_PAYLOAD_BYTES = 512 * 1024;
 const TOO_FAST = "提交过于频繁，请稍后再试";
 
 export async function POST(request: Request) {
-  const gated = guardRequest(request, "POST /api/submissions");
+  const gated = await guardRequest(request, "POST /api/submissions");
   if (gated) return gated;
 
   const user = await getResolvedUser();
@@ -58,14 +58,14 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const gated = guardRequest(request, "GET /api/submissions");
+  const gated = await guardRequest(request, "GET /api/submissions");
   if (gated) return gated;
 
   const user = await getSessionUser();
   if (!user) return apiDeny(UNAUTHENTICATED);
 
   const rule = ROUTE_LIMITS["GET /api/submissions"];
-  const limited = rateLimit(`submissions:${user.uid}`, rule);
+  const limited = await rateLimit(`submissions:${user.uid}`, rule);
   if (!limited.ok) return tooManyRequests(limited.retryAfterMs);
 
   const { searchParams } = new URL(request.url);

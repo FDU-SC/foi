@@ -49,7 +49,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const gated = guardRequest(request, "GET /api/runner/jobs/[id]");
+  const gated = await guardRequest(request, "GET /api/runner/jobs/[id]");
   if (gated) return gated;
 
   const { id } = await params;
@@ -79,7 +79,7 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const gated = guardRequest(request, "PUT /api/runner/jobs/[id]");
+  const gated = await guardRequest(request, "PUT /api/runner/jobs/[id]");
   if (gated) return gated;
 
   const { id } = await params;

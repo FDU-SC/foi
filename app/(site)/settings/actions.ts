@@ -52,7 +52,7 @@ async function notify(
       detail,
     );
   } catch (error) {
-    log.error("安全变更通知邮件发送失败", error);
+    log.error({ err: error }, "安全变更通知邮件发送失败");
   }
 }
 
@@ -82,7 +82,7 @@ export async function updateNicknameAction(
     return { error: "新昵称和当前昵称相同。" };
   }
 
-  if (!rateLimit(`settings:nickname:${viewer.uid}`, ACTION_LIMITS.updateNicknameAction).ok) {
+  if (!(await rateLimit(`settings:nickname:${viewer.uid}`, ACTION_LIMITS.updateNicknameAction)).ok) {
     return { error: TOO_MANY };
   }
 
@@ -101,7 +101,7 @@ export async function updateAvatarAction(
   const file = formData.get("avatar");
   if (!(file instanceof File)) return { error: "请选择一张图片。" };
 
-  if (!rateLimit(`settings:avatar:${viewer.uid}`, ACTION_LIMITS.updateAvatarAction).ok) {
+  if (!(await rateLimit(`settings:avatar:${viewer.uid}`, ACTION_LIMITS.updateAvatarAction)).ok) {
     return { error: TOO_MANY };
   }
 
@@ -127,7 +127,7 @@ export async function removeAvatarAction(
 
   if (!viewer.avatarUpdatedAt) return { error: "当前没有设置头像。" };
 
-  if (!rateLimit(`settings:avatar:${viewer.uid}`, ACTION_LIMITS.removeAvatarAction).ok) {
+  if (!(await rateLimit(`settings:avatar:${viewer.uid}`, ACTION_LIMITS.removeAvatarAction)).ok) {
     return { error: TOO_MANY };
   }
 
@@ -161,7 +161,7 @@ export async function updateUsernameAction(
     return { error: "新用户名和当前用户名相同。" };
   }
 
-  if (!rateLimit(`settings:username:${viewer.uid}`, ACTION_LIMITS.updateUsernameAction).ok) {
+  if (!(await rateLimit(`settings:username:${viewer.uid}`, ACTION_LIMITS.updateUsernameAction)).ok) {
     return { error: TOO_MANY };
   }
 
@@ -227,7 +227,7 @@ export async function changePasswordAction(
   });
   if (!parsed.ok) return { error: parsed.error };
 
-  if (!rateLimit(`settings:password:${viewer.uid}`, ACTION_LIMITS.changePasswordAction).ok) {
+  if (!(await rateLimit(`settings:password:${viewer.uid}`, ACTION_LIMITS.changePasswordAction)).ok) {
     return { error: TOO_MANY };
   }
 
@@ -252,7 +252,7 @@ export async function changePasswordAction(
     reissued = true;
   } catch (error) {
     if (!(error instanceof AuthError)) throw error;
-    log.error("改密后自动重新登录失败", error);
+    log.error({ err: error }, "改密后自动重新登录失败");
   }
 
   // signIn put the new session on the *response*. Re-rendering here would still read

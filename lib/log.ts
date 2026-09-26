@@ -1,24 +1,37 @@
-const PREFIX = "[foi]";
+import pino from "pino";
 
-function line(message: string): string {
-  return `${PREFIX} ${message}`;
-}
+const logger = pino(
+  {
+    name: "foi",
+    timestamp: pino.stdTimeFunctions.isoTime,
+    formatters: {
+      level(label) {
+        return { level: label };
+      },
+    },
+  },
+  process.stdout,
+);
+
+export type LogFields = Record<string, unknown>;
 
 export const log = {
-  info(message: string): void {
-    console.log(line(message));
+  info(fields: LogFields | string, message?: string): void {
+    if (typeof fields === "string") logger.info(fields);
+    else logger.info(fields, message);
   },
-  warn(message: string): void {
-    console.warn(line(message));
+  warn(fields: LogFields | string, message?: string): void {
+    if (typeof fields === "string") logger.warn(fields);
+    else logger.warn(fields, message);
   },
-  error(message: string, cause?: unknown): void {
-    if (cause !== undefined) console.error(line(message), cause);
-    else console.error(line(message));
+  error(fields: LogFields | string, message?: string): void {
+    if (typeof fields === "string") logger.error(fields);
+    else logger.error(fields, message);
   },
 };
 
 export function refuse(header: string, items: string[]): never {
   throw new Error(
-    `${line(header)}\n` + items.map((item) => `  - ${item}`).join("\n"),
+    `[foi] ${header}\n` + items.map((item) => `  - ${item}`).join("\n"),
   );
 }

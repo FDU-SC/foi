@@ -34,7 +34,7 @@ export async function resendPasswordResetAction(
   const actor = await getViewer();
 
   const rule = ACTION_LIMITS.resendPasswordResetAction;
-  const limited = rateLimit(`resend-reset:${actor.uid}`, rule);
+  const limited = await rateLimit(`resend-reset:${actor.uid}`, rule);
   if (!limited.ok) {
     return {
       error: `代发重置邮件过于频繁，请 ${Math.ceil(limited.retryAfterMs / 60_000)} 分钟后再试。`,
@@ -65,7 +65,7 @@ export async function resendPasswordResetAction(
       fp,
     );
   } catch (error) {
-    log.error("重置密码邮件发送失败", error);
+    log.error({ err: error }, "重置密码邮件发送失败");
     return { error: "邮件发送失败。" };
   }
 

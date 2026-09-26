@@ -20,8 +20,8 @@ import { summarizeProgress } from "@/lib/problems/selection";
 /**
  * Shared catalogue chrome around the problem list and leaderboard panels.
  * The sidebar, title and tabs stay mounted and still across tab switches; only
- * the body below them fades. No loading skeleton: the previous body stays
- * until the next one is ready.
+ * the body below them fades. Switching inside keeps the previous body until
+ * the next one is ready; entering from elsewhere shows the catalogue skeleton.
  */
 export async function CatalogueShellView({ children }: { children: ReactNode }) {
   const viewer = await getViewer();

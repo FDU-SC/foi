@@ -203,8 +203,8 @@
 }
 
 @layer components {
-  /* Placeholder block for loading.tsx skeletons. The gradient is wider than the
-     box so the highlight travels across it rather than fading in place. */
+  /* Placeholder block for route and Suspense skeletons. The gradient is wider
+     than the box so the highlight travels across it rather than fading in place. */
   .skeleton {
     border-radius: 0.375rem;
     background-color: var(--surface-2);
@@ -216,7 +216,11 @@
       transparent 80%
     );
     background-size: 250% 100%;
-    animation: shimmer 1.6s linear infinite;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .skeleton {
+      animation: shimmer 1.6s linear infinite;
+    }
   }
 }
 
@@ -517,11 +521,11 @@ body:has(.oj-page [data-contest-workspace]) {
 }
 
 ::view-transition-old(.page-fade) {
-  animation: page-fade-out 180ms ease-out both;
+  animation: page-fade-out 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 ::view-transition-new(.page-fade) {
-  animation: page-fade-in 180ms ease-out both;
+  animation: page-fade-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes page-fade-out {

@@ -231,7 +231,7 @@ function CropPanel({
           type="button"
           variant="primary"
           onClick={confirm}
-          disabled={busy}
+          pending={busy}
         >
           {busy ? "处理中…" : "保存头像"}
         </Button>

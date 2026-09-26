@@ -44,7 +44,7 @@ export function StandingsLiveRefresh({ defaultOn }: { defaultOn: boolean }) {
       />
       {live
         ? pending
-          ? "更新中"
+          ? "更新中…"
           : `每 ${INTERVAL_MS / 1000} 秒刷新`
         : "自动刷新"}
     </button>

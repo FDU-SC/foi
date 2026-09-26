@@ -11,7 +11,7 @@ export function ProblemDetailSkeleton() {
         <div className="oj-sidebar lg:col-start-2 lg:row-start-1">
           <TextBlock lines={5} />
         </div>
-        <div className="border-border space-y-6 rounded-lg border p-4 sm:p-6 lg:col-start-1 lg:row-start-1">
+        <div className="oj-statement bg-surface border-border space-y-6 rounded-lg border p-4 sm:p-6 lg:col-start-1 lg:row-start-1">
           <TextBlock lines={4} />
           <TextBlock lines={3} />
           <Skeleton className="h-40 w-full" />

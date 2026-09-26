@@ -4,26 +4,17 @@ import type { ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { revealClass } from "@/components/ui/reveal";
-import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 export function PendingSubmit({
   pendingLabel,
   children,
-  disabled,
   ...props
-}: ButtonProps & { pendingLabel: string }) {
+}: Omit<ButtonProps, "pending"> & { pendingLabel: string }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending || disabled} {...props}>
-      {pending ? (
-        <>
-          <Spinner />
-          {pendingLabel}
-        </>
-      ) : (
-        children
-      )}
+    <Button type="submit" pending={pending} {...props}>
+      {pending ? pendingLabel : children}
     </Button>
   );
 }

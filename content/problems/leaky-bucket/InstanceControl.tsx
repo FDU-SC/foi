@@ -6,6 +6,7 @@ import type { Permission } from "@/lib/authz/adapters";
 import { useProblem } from "@/components/problem/problem-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { CopyButton } from "@/content/_shared/mdx/copy-button";
 
 type InstanceView =
@@ -136,18 +137,19 @@ export function InstanceControl() {
               {ready.endpoint}
             </code>
             <CopyButton value={ready.endpoint} />
-            <Button size="sm" variant="danger" onClick={destroy} disabled={busy || !destroyPermission?.allowed}>
-              销毁实例
+            <Button size="sm" variant="danger" onClick={destroy} pending={busy} disabled={!destroyPermission?.allowed}>
+              {busy ? "销毁中…" : "销毁实例"}
             </Button>
             <PermissionNotice permission={destroyPermission} />
           </>
         ) : pulling ? (
           <>
-            <span className="text-fg-muted text-xs">
-              实例正在启动。
+            <span className="text-fg-muted inline-flex items-center gap-1.5 text-xs">
+              <Spinner />
+              实例正在启动…
             </span>
-            <Button size="sm" variant="danger" onClick={destroy} disabled={busy || !destroyPermission?.allowed}>
-              取消
+            <Button size="sm" variant="danger" onClick={destroy} pending={busy} disabled={!destroyPermission?.allowed}>
+              {busy ? "取消中…" : "取消"}
             </Button>
             <PermissionNotice permission={destroyPermission} />
             <PermissionNotice permission={pollPermission} />
@@ -156,7 +158,7 @@ export function InstanceControl() {
           <PermissionNotice permission={spawnPermission} />
         ) : (
           <>
-            <Button size="sm" variant="primary" onClick={spawn} disabled={busy}>
+            <Button size="sm" variant="primary" onClick={spawn} pending={busy}>
               {busy ? "启动中…" : "启动实例"}
             </Button>
             <span className="text-fg-subtle text-xs">

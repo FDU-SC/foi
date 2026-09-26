@@ -1,16 +1,16 @@
+import { PageHeader } from "@/components/ui/page";
 import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
-import { PageHeading } from "@/views/skeletons/parts";
 
 export function ContestListSkeleton() {
   return (
-    <SkeletonScreen label="正在加载比赛" className="space-y-5">
-      <PageHeading width="w-16" />
+    <SkeletonScreen label="正在加载比赛列表" className="space-y-5">
+      <PageHeader title="比赛" />
       <div className="flex gap-3 border-b border-border pb-3">
         {Array.from({ length: 4 }, (_, i) => (
           <Skeleton key={i} className="h-9 w-20" />
         ))}
       </div>
-      <div className="ui-panel divide-y divide-border rounded-lg border border-border p-4">
+      <div className="ui-panel divide-y divide-border rounded-lg border border-border bg-surface p-4">
         <Skeleton className="mb-4 w-24" />
         {Array.from({ length: 3 }, (_, i) => (
           <div key={i} className="flex gap-5 py-5">

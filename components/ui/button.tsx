@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes } from "react";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 const VARIANTS = {
@@ -19,12 +20,17 @@ const SIZES = {
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: keyof typeof VARIANTS;
   size?: keyof typeof SIZES;
+  /** Waiting on the action this button started: disables it and shows a spinner. */
+  pending?: boolean;
 }
 
 export function Button({
   variant = "secondary",
   size = "md",
+  pending = false,
+  disabled,
   className,
+  children,
   ...props
 }: ButtonProps) {
   return (
@@ -37,7 +43,11 @@ export function Button({
         SIZES[size],
         className,
       )}
+      disabled={pending || disabled}
       {...props}
-    />
+    >
+      {pending ? <Spinner /> : null}
+      {children}
+    </button>
   );
 }

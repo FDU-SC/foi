@@ -15,6 +15,7 @@ import {
 import { FormMessage } from "@/components/form";
 import { Avatar, type AvatarSize, type AvatarSubject } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { AvatarCropper } from "./avatar-cropper";
 import { ACCEPTED_TYPES, sourceRejection } from "./encode";
@@ -108,14 +109,14 @@ export function AvatarEditor({
           <span
             aria-hidden
             className={cn(
-              "absolute inset-0 flex items-center justify-center rounded-full",
+              "absolute inset-0 flex items-center justify-center gap-1.5 rounded-full",
               "bg-black/55 text-xs font-medium text-white transition-opacity",
               pending
                 ? "opacity-100"
                 : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100",
             )}
           >
-            {pending ? "处理中…" : "更换"}
+            {pending ? <><Spinner />处理中…</> : "更换"}
           </span>
         </button>
 

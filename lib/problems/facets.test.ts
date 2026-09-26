@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { site } from "@/lib/site";
 import {
-  chipValues,
   collectFacets,
   facetCounts,
   facetsFor,
@@ -24,7 +23,11 @@ const OFFERED = [
   ),
 ];
 
-const groups = collectFacets(catalogue, OFFERED);
+function subjects(offered: readonly string[], configs = catalogue) {
+  return configs.map((config) => ({ config, offered }));
+}
+
+const groups = collectFacets(subjects(OFFERED));
 
 function valuesOn(key: string, config: ProblemConfig): string[] {
   return facetsFor(config, OFFERED).flatMap((facet) =>
@@ -100,7 +103,7 @@ describe("facetsFor", () => {
 
 describe("collectFacets", () => {
   it("比赛未指定维度时返回空列表", () => {
-    expect(collectFacets(catalogue, [])).toEqual([]);
+    expect(collectFacets(subjects([]))).toEqual([]);
   });
 
   it("维度按比赛指定的先后排列", () => {
@@ -111,9 +114,30 @@ describe("collectFacets", () => {
 
     const reversed = [...OFFERED].reverse();
     expect(
-      collectFacets(catalogue, reversed).map((group) => group.key),
+      collectFacets(subjects(reversed)).map((group) => group.key),
       "反过来指定，行的顺序没跟着反过来",
     ).toEqual(reversed.filter((key) => shown.has(key)));
+  });
+
+  it("跨比赛时每道题只按自己比赛提供的维度计入，维度按首次提供的先后排", () => {
+    const [first, second] = groups;
+    const mixed = [
+      ...subjects([second.key]),
+      ...subjects([first.key, second.key]),
+      ...subjects([]),
+    ];
+    const collected = collectFacets(mixed);
+
+    expect(collected.map((group) => group.key)).toEqual([second.key, first.key]);
+    expect(collected.find((group) => group.key === first.key)?.values).toEqual(first.values);
+
+    const counts = facetCounts(mixed, collected, {});
+    for (const value of second.values) {
+      expect(counts.get(second.key)?.get(value)).toBe(carriers(second.key, value).length * 2);
+    }
+    for (const value of first.values) {
+      expect(counts.get(first.key)?.get(value)).toBe(carriers(first.key, value).length);
+    }
   });
 
   it("谁都没有取值的维度不出现，否则筛选栏上是一行空标题", () => {
@@ -203,23 +227,6 @@ describe("collectFacets", () => {
   });
 });
 
-describe("chipValues", () => {
-  it("只取未声明顺序的维度，阶梯不进卡片 chips", () => {
-    const chips = chipValues(groups);
-    const free = groups
-      .filter((group) => !group.ordered)
-      .flatMap((group) => group.values);
-    const ladder = groups
-      .filter((group) => group.ordered)
-      .flatMap((group) => group.values);
-
-    expect(free.length, "夹具里没有未声明顺序的取值").toBeGreaterThan(0);
-    expect(ladder.length, "夹具里没有阶梯取值").toBeGreaterThan(0);
-    expect(chips).toEqual(free);
-    for (const value of ladder) expect(chips).not.toContain(value);
-  });
-});
-
 describe("matchesFacets", () => {
   const empty = Object.fromEntries(groups.map((group) => [group.key, []]));
 
@@ -301,7 +308,7 @@ describe("matchesFacets", () => {
 });
 
 describe("facetCounts", () => {
-  const bare = facetCounts(catalogue, OFFERED, groups, {});
+  const bare = facetCounts(subjects(OFFERED), groups, {});
 
   it("什么都没选时，计数就是带着这个取值的题数", () => {
     for (const group of groups) {
@@ -315,7 +322,7 @@ describe("facetCounts", () => {
 
   it("同一维度里已经选中的取值不压低同伴的计数", () => {
     const group = groups.find((one) => one.values.length > 1)!;
-    const picked = facetCounts(catalogue, OFFERED, groups, {
+    const picked = facetCounts(subjects(OFFERED), groups, {
       [group.key]: [group.values[0]],
     });
 
@@ -333,7 +340,7 @@ describe("facetCounts", () => {
 
     expect(
       total(
-        facetCounts(catalogue, OFFERED, groups, {
+        facetCounts(subjects(OFFERED), groups, {
           [second.key]: [rarest],
         }).get(first.key),
       ),
@@ -343,7 +350,7 @@ describe("facetCounts", () => {
   it("算出 0 的取值再选上确实什么都不剩", () => {
     const [first, second] = groups;
     const selection = { [first.key]: [first.values[0]] };
-    const counts = facetCounts(catalogue, OFFERED, groups, selection).get(
+    const counts = facetCounts(subjects(OFFERED), groups, selection).get(
       second.key,
     )!;
 

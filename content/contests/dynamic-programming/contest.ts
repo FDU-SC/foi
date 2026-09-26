@@ -16,7 +16,7 @@ export const contest = {
     {
       id: "main",
       title: "总分榜",
-      ruleset: { id: "oi", config: { take: "best" } },
+      ruleset: { id: "practice" },
     },
   ],
 

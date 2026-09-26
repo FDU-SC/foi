@@ -48,7 +48,7 @@ export function ProblemGridBoard({ board, problems }: BoardProps) {
             </th>
             {problems.map((problem) => (
               <th
-                key={problem.slug}
+                key={problem.key}
                 className="border-border border-b px-2 py-2.5 text-center font-semibold"
                 title={problem.title}
               >
@@ -80,8 +80,8 @@ export function ProblemGridBoard({ board, problems }: BoardProps) {
                 <Total row={row} />
               </td>
               {problems.map((problem) => (
-                <td key={problem.slug} className="px-2 py-2 text-center">
-                  <Cell cell={row.cells[problem.slug]} problem={problem} />
+                <td key={problem.key} className="px-2 py-2 text-center">
+                  <Cell cell={row.cells[problem.key]} problem={problem} />
                 </td>
               ))}
             </MotionTr>

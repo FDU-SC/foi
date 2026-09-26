@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CONTEST,
   fail,
   input,
   participants,
@@ -20,10 +21,10 @@ function compute(
 function cell(
   standings: ReturnType<typeof compute>,
   uid: number,
-  slug: string,
+  key: string,
 ): AcmCell | undefined {
   const row = standings.rows.find((entry) => entry.participant.uid === uid);
-  return row?.cells[slug] as AcmCell | undefined;
+  return row?.cells[key] as AcmCell | undefined;
 }
 
 const problems = [problem("a", "A"), problem("b", "B")];
@@ -223,7 +224,8 @@ describe("acm 解题时刻", () => {
         {
           id: "s1",
           uid: 1,
-          problemSlug: "a",
+          contestSlug: CONTEST,
+          problemKey: "a",
           state: "completed" as const,
           result: { status: "accepted", score: 100, maxScore: 100, accepted: true },
           createdAt: new Date(START.getTime() + 90_500),

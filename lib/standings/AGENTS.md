@@ -44,6 +44,37 @@ leaderboards: [
 
 Different leaderboards in the same contest can use different rulesets.
 
+## One Input, One Or Many Contests
+
+`StandingsInput` spans every contest a board reads:
+
+```typescript
+interface StandingsInput {
+  config: unknown;
+  contests: ContestWindow[];      // each with its own startsAt..endsAt
+  problems: ContestProblem[];     // key = pairKey(contestSlug, slug)
+  participants: Participant[];
+  submissions: SubmissionRecord[]; // contestSlug + problemKey
+}
+```
+
+- Key cells by `problem.key` and match submissions by `problemKey`. The same problem may sit in two contests of one board, so a slug alone is ambiguous.
+- Measure time with `elapsed(input, submission)`, which starts at the submission's own contest.
+
+Two entry points in `compute.ts` build that input:
+
+- `standingsFor(slug, viewer)` — every leaderboard one contest declares.
+- `catalogueStandingsFor({ board, sections, days }, viewer)` — a catalogue board: the main leaderboards (`leaderboards[0]`) of the sections it spans, computed as one.
+  - `sections` narrows to some of them; `days` keeps only recent submissions.
+  - A section counts only where the viewer may read its standings and problem set.
+  - `lib/contests/warnings.ts` refuses to boot when a board's sections differ in ruleset or configuration.
+
+Both share one cache. Each entry is tagged with the contests it read, so `invalidateStandings(slug)` also clears every catalogue board that includes that contest.
+
+## Displaying a Board
+
+`components/standings/standings-panel.tsx` wraps any computed board with the viewer's own place, a name search, the page's filters and pagination. Search and paging run after ranking, so a row keeps its place on the whole board. The board itself is the ruleset's `Board` renderer, which receives the viewer's uid as `highlight`.
+
 ## Freeze as Permission
 
 Freeze is NOT "compute twice and diff." It is permission-based result masking:
@@ -64,16 +95,17 @@ The platform does NOT interpret `submission.result`. Rulesets define their own e
 ```
 
 Utility functions available to rulesets:
-- `submissionsInWindow(input)` — filter to contest time range, exclude disrupted
+- `submissionsInWindow(input)` — keep each submission inside its own contest's time range, exclude disrupted
+- `elapsed(input, submission)` — milliseconds since the submission's contest started
 - `hasResult(submission)` — true when state is "completed" and result is non-null
 - `assignRanks(rows)` — sort by total desc / tiebreak asc, assign tied ranks
 
 ## Scoring the Window Is the Ruleset's Job
 
-`compute.ts` passes every submission attributed to the contest, including those
-accepted after it ends via `afterEnd.submissions`. Rulesets must use
-`submissionsInWindow` to restrict scoring to `startsAt`..`endsAt`; late practice
-submissions must not affect official rankings.
+`compute.ts` passes every submission attributed to the board's contests,
+including those accepted after a contest ends via `afterEnd.submissions`.
+Rulesets must use `submissionsInWindow` to restrict scoring to each contest's
+`startsAt`..`endsAt`; late practice submissions must not affect official rankings.
 
 `lib/standings/window.test.ts` checks this contract for the kernel;
 `content/deployment.test.ts` checks registered deployment rulesets.

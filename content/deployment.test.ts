@@ -11,6 +11,7 @@ import {
   catalogueContests,
   contestBySlug,
 } from "@/lib/contests/registry";
+import { catalogueComplaints } from "@/lib/contests/warnings";
 import { mailSink } from "@/lib/mail/transport";
 import { site } from "@/lib/site";
 import { allProblems, externallyJudged } from "@/lib/problems/registry";
@@ -46,6 +47,13 @@ describe("这套 content 自身自洽", () => {
       expect(domains.size).toBe(1);
       expect(domains.has(undefined)).toBe(false);
     }
+  });
+
+  it("题库分区的主榜都用练习赛制，方向榜与总榜能合并计算", () => {
+    for (const contest of catalogueContests()) {
+      expect(contest.leaderboards[0].ruleset, contest.slug).toEqual({ id: "practice" });
+    }
+    expect(catalogueComplaints()).toEqual([]);
   });
   it("每道外挂题指向的后端都登记过", () => {
     expect(undeclaredBackends()).toEqual([]);

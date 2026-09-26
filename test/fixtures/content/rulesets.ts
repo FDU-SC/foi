@@ -1,5 +1,6 @@
 import {
   assignRanks,
+  elapsed,
   hasResult,
   submissionsInWindow,
   type Ruleset,
@@ -29,7 +30,6 @@ export const tally: Ruleset<TallyCell> = {
   description: "按通过题数排名，同数按用时排序。",
 
   compute(input: StandingsInput) {
-    const start = input.contest.startsAt.getTime();
     const scored = submissionsInWindow(input);
 
     const rows: Omit<StandingsRow<TallyCell>, "rank">[] = input.participants.map(
@@ -50,7 +50,7 @@ export const tally: Ruleset<TallyCell> = {
             if (cell.solved) break;
             if (
               submission.uid !== participant.uid ||
-              submission.problemSlug !== problem.slug
+              submission.problemKey !== problem.key
             ) {
               continue;
             }
@@ -64,13 +64,11 @@ export const tally: Ruleset<TallyCell> = {
             const result = submission.result as { accepted?: boolean };
             if (result.accepted === true) {
               cell.solved = true;
-              cell.minutes = Math.floor(
-                (submission.createdAt.getTime() - start) / 60_000,
-              );
+              cell.minutes = Math.floor(elapsed(input, submission) / 60_000);
             }
           }
 
-          cells[problem.slug] = cell;
+          cells[problem.key] = cell;
           if (cell.solved) {
             total += 1;
             tiebreak += cell.minutes;

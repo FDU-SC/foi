@@ -43,7 +43,11 @@ export interface CatalogueLeaderboard {
 }
 
 export interface SiteConfig {
-  /** Direction boards for catalogue sections; omitted preserves per-contest boards. */
+  /**
+   * Direction boards over catalogue sections, each computing its sections'
+   * main leaderboards as one. The total spans every section except those named
+   * only by boards without `includeInTotal`.
+   */
   catalogueLeaderboards?: CatalogueLeaderboard[];
   announcements?: readonly Announcement[];
   name: string;

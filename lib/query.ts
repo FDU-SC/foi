@@ -85,6 +85,22 @@ export function withParam(
   return replaced(params, key, value === undefined ? [] : [value]);
 }
 
+/** `params` as a query string, `?` included; empty when there are none. */
+export function queryString(params: SearchParams): string {
+  const search = new URLSearchParams();
+  for (const [name, value] of Object.entries(params)) {
+    for (const one of values(value)) search.append(name, one);
+  }
+  return render(search);
+}
+
+/** `params` with these keys dropped, for state that must not outlive a change. */
+export function without(params: SearchParams, ...keys: string[]): SearchParams {
+  return Object.fromEntries(
+    Object.entries(params).filter(([name]) => !keys.includes(name)),
+  );
+}
+
 /**
  * The parameters a GET form has to resend as hidden inputs.
  *

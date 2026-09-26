@@ -1,10 +1,17 @@
 import type {
   AnyRuleset,
   ContestProblem,
+  ContestWindow,
   Participant,
   StandingsInput,
   SubmissionRecord,
 } from "@/lib/standings/types";
+
+/**
+ * The contest every helper here attributes to unless told otherwise. Keys are
+ * opaque to rulesets, so within it a problem's key is simply its slug.
+ */
+export const CONTEST = "test";
 
 export const START = new Date("2026-01-15T13:00:00+08:00");
 export const END = new Date("2026-01-15T18:00:00+08:00");
@@ -21,15 +28,17 @@ export function problem(
   slug: string,
   label: string,
   maxScore = 100,
+  contestSlug = CONTEST,
 ): ContestProblem {
-  return { slug, label, title: slug, points: null, maxScore, config: null };
+  return { key: slug, contestSlug, slug, label, title: slug, points: null, maxScore, config: null };
 }
 
 let counter = 0;
 
 export function submission(options: {
   uid: number;
-  problemSlug: string;
+  problemKey: string;
+  contestSlug?: string;
   minutes: number;
   score: number;
   maxScore?: number;
@@ -43,7 +52,8 @@ export function submission(options: {
   return {
     id: `sub_${(counter += 1)}`,
     uid: options.uid,
-    problemSlug: options.problemSlug,
+    contestSlug: options.contestSlug ?? CONTEST,
+    problemKey: options.problemKey,
     state,
     result:
       state === "completed"
@@ -55,28 +65,28 @@ export function submission(options: {
 
 export function solve(
   uid: number,
-  problemSlug: string,
+  problemKey: string,
   minutes: number,
 ): SubmissionRecord {
-  return submission({ uid, problemSlug, minutes, score: 100 });
+  return submission({ uid, problemKey, minutes, score: 100 });
 }
 
 export function fail(
   uid: number,
-  problemSlug: string,
+  problemKey: string,
   minutes: number,
   score = 0,
 ): SubmissionRecord {
-  return submission({ uid, problemSlug, minutes, score });
+  return submission({ uid, problemKey, minutes, score });
 }
 
 export function unjudged(
   uid: number,
-  problemSlug: string,
+  problemKey: string,
   minutes: number,
   state: Exclude<SubmissionRecord["state"], "completed"> = "pending",
 ): SubmissionRecord {
-  return submission({ uid, problemSlug, minutes, score: 0, state });
+  return submission({ uid, problemKey, minutes, score: 0, state });
 }
 
 export function input(options: {
@@ -86,14 +96,15 @@ export function input(options: {
   config?: unknown;
   freezeAt?: Date | null;
   endsAt?: Date;
+
+  /** Replaces the single default contest. */
+  contests?: ContestWindow[];
 }): StandingsInput {
   return {
     config: options.config,
-    contest: {
-      slug: "test",
-      startsAt: START,
-      endsAt: options.endsAt ?? END,
-    },
+    contests: options.contests ?? [
+      { slug: CONTEST, startsAt: START, endsAt: options.endsAt ?? END },
+    ],
     problems: options.problems,
     participants: options.participants,
     submissions: options.submissions,

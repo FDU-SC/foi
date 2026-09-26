@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   at,
+  CONTEST,
   END,
   input,
   participants,
   problem,
+  START,
   submission,
   unjudged,
 } from "@/test/standings-support";
 import {
   assignRanks,
+  elapsed,
   scoredSubmissions,
   submissionsInWindow,
 } from "./types";
@@ -76,17 +79,17 @@ describe("scoredSubmissions", () => {
       input({
         ...base,
         submissions: [
-          submission({ uid: 1, problemSlug: "a", minutes: 5, score: 100 }),
+          submission({ uid: 1, problemKey: "a", minutes: 5, score: 100 }),
           submission({
             uid: 1,
-            problemSlug: "a",
+            problemKey: "a",
             minutes: 6,
             score: 0,
             state: "pending",
           }),
           submission({
             uid: 1,
-            problemSlug: "a",
+            problemKey: "a",
             minutes: 7,
             score: 0,
             state: "disrupted",
@@ -104,9 +107,9 @@ describe("scoredSubmissions", () => {
       input({
         ...base,
         submissions: [
-          submission({ uid: 1, problemSlug: "a", minutes: -1, score: 100 }),
-          submission({ uid: 1, problemSlug: "a", minutes: 10, score: 100 }),
-          submission({ uid: 1, problemSlug: "a", minutes: 999, score: 100 }),
+          submission({ uid: 1, problemKey: "a", minutes: -1, score: 100 }),
+          submission({ uid: 1, problemKey: "a", minutes: 10, score: 100 }),
+          submission({ uid: 1, problemKey: "a", minutes: 999, score: 100 }),
         ],
       }),
     );
@@ -119,8 +122,8 @@ describe("scoredSubmissions", () => {
       input({
         ...base,
         submissions: [
-          submission({ uid: 1, problemSlug: "a", minutes: 0, score: 100 }),
-          submission({ uid: 1, problemSlug: "a", minutes: 300, score: 100 }),
+          submission({ uid: 1, problemKey: "a", minutes: 0, score: 100 }),
+          submission({ uid: 1, problemKey: "a", minutes: 300, score: 100 }),
         ],
         endsAt: END,
       }),
@@ -134,9 +137,9 @@ describe("scoredSubmissions", () => {
       input({
         ...base,
         submissions: [
-          submission({ uid: 1, problemSlug: "a", minutes: 30, score: 0 }),
-          submission({ uid: 1, problemSlug: "a", minutes: 10, score: 0 }),
-          submission({ uid: 1, problemSlug: "a", minutes: 20, score: 0 }),
+          submission({ uid: 1, problemKey: "a", minutes: 30, score: 0 }),
+          submission({ uid: 1, problemKey: "a", minutes: 10, score: 0 }),
+          submission({ uid: 1, problemKey: "a", minutes: 20, score: 0 }),
         ],
       }),
     );
@@ -156,7 +159,7 @@ describe("submissionsInWindow", () => {
       input({
         ...base,
         submissions: [
-          submission({ uid: 1, problemSlug: "a", minutes: 5, score: 100 }),
+          submission({ uid: 1, problemKey: "a", minutes: 5, score: 100 }),
           unjudged(1, "a", 6),
           unjudged(1, "a", 7, "pending"),
         ],
@@ -185,10 +188,10 @@ describe("submissionsInWindow", () => {
     const built = input({
       ...base,
       submissions: [
-          submission({ uid: 1, problemSlug: "a", minutes: -1, score: 100 }),
-          submission({ uid: 1, problemSlug: "a", minutes: 30, score: 0 }),
-          submission({ uid: 1, problemSlug: "a", minutes: 10, score: 0 }),
-          submission({ uid: 1, problemSlug: "a", minutes: 999, score: 100 }),
+          submission({ uid: 1, problemKey: "a", minutes: -1, score: 100 }),
+          submission({ uid: 1, problemKey: "a", minutes: 30, score: 0 }),
+          submission({ uid: 1, problemKey: "a", minutes: 10, score: 0 }),
+          submission({ uid: 1, problemKey: "a", minutes: 999, score: 100 }),
       ],
       endsAt: END,
     });
@@ -198,6 +201,38 @@ describe("submissionsInWindow", () => {
       at(30),
     ]);
     expect(submissionsInWindow(built)).toEqual(scoredSubmissions(built));
+  });
+});
+
+describe("跨比赛的窗口", () => {
+  const LATER = { slug: "later", startsAt: at(600), endsAt: at(900) };
+  const built = input({
+    participants: participants(1),
+    problems: [problem("a", "A"), problem("b", "B", 100, LATER.slug)],
+    contests: [{ slug: CONTEST, startsAt: START, endsAt: END }, LATER],
+    submissions: [
+      submission({ uid: 1, problemKey: "a", minutes: 10, score: 100 }),
+      submission({ uid: 1, problemKey: "a", minutes: 610, score: 100 }),
+      submission({ uid: 1, problemKey: "b", contestSlug: LATER.slug, minutes: 10, score: 100 }),
+      submission({ uid: 1, problemKey: "b", contestSlug: LATER.slug, minutes: 610, score: 100 }),
+      submission({ uid: 1, problemKey: "c", contestSlug: "elsewhere", minutes: 20, score: 100 }),
+    ],
+  });
+
+  it("每条提交按自己比赛的窗口取舍，不在任何一场里的提交不计", () => {
+    expect(
+      submissionsInWindow(built).map((row) => [row.contestSlug, row.createdAt]),
+    ).toEqual([
+      [CONTEST, at(10)],
+      [LATER.slug, at(610)],
+    ]);
+  });
+
+  it("elapsed 从提交所属比赛的开赛算起", () => {
+    expect(submissionsInWindow(built).map((row) => elapsed(built, row))).toEqual([
+      10 * 60_000,
+      10 * 60_000,
+    ]);
   });
 });
 

@@ -33,6 +33,7 @@ _shared/
     copy-button.tsx     Copy-to-clipboard button
   leaderboards/    Leaderboard display templates (passed to platform via renderers.Board)
     problem-grid.tsx  "Rank | Name | Total | per-problem columns" table
+    summary.tsx       `summaryBoard(columns)`: "Rank | Name | Total | one column per figure" table
   verdicts.ts      Result interpretation, verdict labels and personal progress
 ```
 

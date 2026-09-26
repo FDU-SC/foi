@@ -157,7 +157,7 @@ export const ACTIONS = {
   },
   "leaderboard.read": {
     resource: "site",
-    describe: "查看排行榜",
+    describe: "查看题库排行榜",
     denial: { code: "not-found", message: "页面不存在" },
   },
 

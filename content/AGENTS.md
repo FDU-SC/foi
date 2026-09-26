@@ -124,8 +124,8 @@ export const contest = {
 ```
 
 `label` is the contest letter a round numbers its problems with. A catalogue
-section omits it: the index and the section list treat the array tail as the
-newest problem, and a new one is appended.
+section omits it: a list's “最新” sort treats the array tail as the newest
+problem, and a new one is appended.
 
 `problems` determines which problems are reachable; `afterEnd` determines access after the contest ends:
 
@@ -146,16 +146,14 @@ facets: ["difficulty", "tags"],   // the keys `problemFacets` hands back
 ```
 
 The default is empty: neither filters nor badges reveal difficulty or tags.
-Catalogue sections declare the dimensions they offer. Index cards show only
-dimensions without an `order`; ordered dimensions appear as filters and badges
-on the section page.
+Catalogue sections declare the dimensions they offer. In the `/problems` table,
+each row is filtered and badged by its own section's dimensions.
 
 ### Mounting Contests as the Catalogue
 
 `site.catalogue` in `content/site.ts` names contests, and each answers at
 `/problems/<slug>` instead of `/contests/<slug>` — its problems at
-`/problems/<slug>/<problem>`, its leaderboard at `/problems/<slug>/standings`,
-and it drops out of the `/contests` list. Everything else about it is
+`/problems/<slug>/<problem>` — and it drops out of the `/contests` list. Everything else about it is
 unchanged: the window, the `participants`, the `visibleTo`, and the fact that
 its submissions carry its slug.
 
@@ -179,7 +177,9 @@ catalogue: [
 ],
 ```
 
-`/problems` is the index those cards sit on, grouped by each contest's `domain`:
+Each catalogued contest is a list in the `/problems` sidebar. `/problems`
+shows every list's problems in one table; `/problems/<slug>` is the same page
+with that list selected. Lists are grouped by each contest's `domain`:
 
 ```typescript
 domain: "HPC & AI Infra",
@@ -190,16 +190,34 @@ contest without one lands in an unlabelled group at the end. A heading is a
 heading, not a page — there is no `/problems/<domain>`.
 
 The boot check refuses a catalogued contest carrying a problem named
-`standings`: the leaderboard page shadows it, so it would have no address at
-all. A slug no contest matches is a warning instead — that card is missing and
+`standings`: that address redirects to the leaderboard, so it would have no
+address at all. A slug no contest matches is a warning instead — that list is missing and
 its own addresses answer 404, while the rest of the site is unaffected. Omit
 the field and every contest stays under `/contests`.
+
+`site.catalogueLeaderboards` groups sections into direction boards:
+
+```typescript
+catalogueLeaderboards: [
+  { id: "hpc", title: "HPC & AI Infra", sections: ["kernel", "comm"], includeInTotal: true },
+  { id: "puzzles", title: "玩具箱", sections: ["puzzles"], includeInTotal: false },
+],
+```
+
+- A board computes the main leaderboards (`leaderboards[0]`) of its sections as one, at `/leaderboard?board=<id>`.
+- The total, at `/leaderboard`, spans every catalogued section except those named only by boards without `includeInTotal`.
+- The sections of one board must share a ruleset and its configuration; the boot check refuses otherwise.
+- `/leaderboard` is the catalogue's only leaderboard page. A section's standings link opens it with that section, and its board, selected; `/problems/<slug>/standings` redirects there.
 
 ### Adding a Ruleset
 
 Create `content/rulesets/<id>.tsx` — export `ruleset` satisfying `Ruleset<Cell>`.
 
 A ruleset is a **pure function**: it receives submissions and outputs rankings. It does NOT know about freeze, rendering, or leaderboard structure.
+
+One input may span several contests (a catalogue board). Key cells by
+`problem.key`, match submissions by `problemKey`, keep scoring inside
+`submissionsInWindow(input)`, and measure time with `elapsed(input, submission)`.
 
 Export companion renderers separately (not on the Ruleset interface):
 
@@ -236,10 +254,13 @@ The `result` may be any non-null JSON value. Its meaning is your decision. The p
 
 ## Practice Leaderboard
 
-`SiteViews.Leaderboard` supplies the full leaderboard; `HomeLeaderboard` supplies
-the home summary. The platform checks `leaderboard.read` before mounting either.
-An absent full leaderboard returns 404. Content owns querying, ranking and display.
-The sample shares a server-only query between both slots.
+`/leaderboard` is the platform's catalogue board page, gated by
+`leaderboard.read`. It offers direction, section and period filters, a name
+search, pages and the viewer's own place. Content decides the rest:
+
+- Ranking: the ruleset the catalogue sections' main leaderboards name. The sample uses `practice` (best score per problem, scaled to its worth).
+- Display: that ruleset's `Board`. `practice` uses `_shared/leaderboards/summary.tsx` for one column per figure instead of one per problem.
+- Home summary: the optional `HomeLeaderboard` slot, which reads the total board through `catalogueStandingsFor`.
 
 ### Adding an Authorization Policy
 
@@ -290,6 +311,6 @@ import type { SiteViews } from "@/lib/site-views";
 export const views: SiteViews = { Footer: MyFooter };
 ```
 
-Every slot is optional, so `{}` is complete. Chrome slots have defaults; optional content regions may be absent, and an absent `Leaderboard` returns 404. Regions outside the override continue to receive upstream updates.
+Every slot is optional, so `{}` is complete. Chrome slots have defaults; optional content regions may be absent. Regions outside the override continue to receive upstream updates.
 
 A page whose whole body needs rewriting is a file override: put a same-named file under `views.local/` and it replaces the upstream one. That file no longer receives upstream changes automatically; use this option only when shallower overrides are insufficient. See [the README](../README.md#派生一份自己的部署) for the slot map.

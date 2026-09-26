@@ -67,15 +67,21 @@ glob 会自动发现它，不需要注册。
 加一个比赛，建 `content/contests/<slug>/contest.ts`。比赛持有自己的排行榜，每个排行榜
 引用一套计分规则。想让一批题长期开放，就让这场比赛的窗口足够长。
 
-`content/site.ts` 的 `catalogue` 指定作为题库分区的比赛：索引为 `/problems`，
-比赛、题目和排行榜分别使用 `/problems/<比赛>`、`/problems/<比赛>/<题目>`、
-`/problems/<比赛>/standings`，不再出现在 `/contests` 列表中。索引按比赛的 `domain`
-分组，每场比赛一张卡片。比赛的窗口、受众与排行榜不变；其余比赛的题目仍使用
-`/contests/<比赛>/problems/<题目>`。每对「比赛 + 题目」只有一个 URL，
-示例见 `content/contests/graphs/`。
+`content/site.ts` 的 `catalogue` 指定作为题库分区的比赛，这些比赛不再出现在
+`/contests` 列表中：
+
+- `/problems`：左侧题单栏 + 全部题目的统一题表
+  - 题单栏每场比赛一项，按比赛的 `domain` 分组
+  - 题表上方是筛选器：搜索、难度、标签、状态、排序，结果分页
+- `/problems/<比赛>`：同一页面，题单栏选中这场比赛
+- `/problems/<比赛>/<题目>`：题目页
+
+比赛的窗口、受众与排行榜不变；其余比赛的题目仍使用 `/contests/<比赛>/problems/<题目>`。
+每对「比赛 + 题目」只有一个 URL，示例见 `content/contests/graphs/`。
 
 难度与标签写在题目的 `ui` 里，平台不读取其字段。`views.tsx` 的 `facets` 将它们提供为
-筛选维度，比赛的 `facets` 决定显示哪些维度。默认不显示筛选项及对应徽章，避免赛中泄露标签。
+筛选维度，比赛的 `facets` 决定显示哪些维度；统一题表中每道题按所属比赛的设置筛选和显示徽章。
+默认不显示筛选项及对应徽章，避免赛中泄露标签。
 
 加一套计分规则，建 `content/rulesets/<id>.tsx`，导出一个纯函数，根据提交记录计算排名。
 封榜和渲染由其他模块负责。
@@ -125,8 +131,7 @@ export const views: SiteViews = { Footer };
 ```
 
 插槽均可选，未覆盖的上述部分使用平台默认实现并继续接收上游更新；`{}` 是有效配置。
-`Leaderboard`、`HomeLeaderboard` 和 `AnnouncementBody` 提供可选内容区域；未配置
-`Leaderboard` 时排行榜页返回 404，其他未配置内容区域按各自的缺省行为显示。
+`HomeLeaderboard` 和 `AnnouncementBody` 提供可选内容区域，未配置时按各自的缺省行为显示。
 
 **三、整文件替换。** `components/` 与 `views/` 下的任何文件，都能被 `.local` 目录里
 的同名文件整个换掉。想重做整个题目页，就写一份 `views.local/problems/detail.tsx`。
@@ -152,16 +157,26 @@ import { DefaultHeader } from "../../components/site/header";
 Next 通过文件系统发现路由，别名不影响这一过程，因此 `app/` 路由文件不支持插槽覆盖。
 路由文件只声明段配置并转发到 `views/` 中的页面主体，`test/slots.test.ts` 检查此约束。
 
-### 题库方向排行榜
+### 排行榜
 
-`content/site.ts` 的 `catalogueLeaderboards` 配置方向榜的 `id`、`title`、
-`sections`（题库分区 slug）与 `includeInTotal`。同一方向下的分区归入同一个榜，
-每个分区只配置一次。省略此配置的部署继续使用原有分区榜。
+题库排行榜与比赛排行榜是同一套机制：一个计分规则作用在一组「比赛 + 题目」上。
+
+- 配置：`content/site.ts` 的 `catalogueLeaderboards` 声明方向榜的 `id`、`title`、
+  `sections`（题库分区 slug）与 `includeInTotal`
+- 计算：方向榜把所含分区的主榜（`leaderboards[0]`）合并计算
+  - 同一方向榜内的分区必须使用相同的计分规则与配置，否则拒绝启动
+  - 总榜覆盖计入总榜的方向，以及未归入任何方向的分区
+- 页面：`/leaderboard`
+  - 筛选：方向（`board`）、分区（`section`，可多选）、时间（近 7 天 / 近 30 天）
+  - 按昵称或用户名搜索，结果保留全榜名次；每页 50 人；顶部显示自己的排名
+- 题库只有 `/leaderboard` 这一个排行榜页面：分区的排行榜链接打开它并选中该分区与所属方向，
+  旧地址 `/problems/<分区>/standings` 跳转到这里
+- 比赛排行榜提供同样的搜索、分页与我的排名，多个榜时用「榜单」切换
 
 本部署提供 HPC & AI Infra、算法与数据结构、CTF 和玩具箱四个方向榜；总榜排除玩具箱。
-`/leaderboard` 展示总榜，`board` 查询参数选择方向。每个分区中的每题取最高分后累加，
-部分得分计入；同分按达成时间排序，时间也相同则并列。首页展示总榜前五名。
-原分区榜地址跳转到所属方向榜，普通比赛的排行榜保持原样。
+题库分区使用 `practice` 计分规则：每题取最高分并按分值折算后累加，部分得分计入；
+同分按达成时间排序，时间也相同则并列。榜单列出总分、解题数、提交次数与首杀。
+首页展示总榜前五名。
 
 ### 新增页面与新增表
 

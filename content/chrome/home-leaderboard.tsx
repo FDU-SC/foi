@@ -1,40 +1,45 @@
 import { getViewer } from "@/auth";
-import { allows } from "@/lib/authz/engine";
-import { leaderboardRows } from "./leaderboard-data";
 import { HomePanel } from "@/components/ui/home-panel";
+import { allows } from "@/lib/authz/engine";
+import { leaderboardHref } from "@/lib/contests/catalogue";
+import { catalogueStandingsFor } from "@/lib/standings/compute";
 
+/** The top of the catalogue's total board. */
 export async function FoiHomeLeaderboard() {
   const viewer = await getViewer();
   if (viewer.uid === null || !allows("leaderboard.read", null, viewer))
     return null;
-  const rows = await leaderboardRows(5);
+  const standings = (await catalogueStandingsFor({}, viewer))?.board.standings;
+  const rows = standings?.rows.slice(0, 5) ?? [];
   return (
-    <HomePanel title="总排行榜" href="/leaderboard">
+    <HomePanel title="总排行榜" href={leaderboardHref()}>
       <ol className="divide-y divide-border">
-        {rows.map((row) => (
+        {rows.map(({ rank, total, participant }) => (
           <li
-            key={row.uid}
-            className={`flex items-center gap-3 px-4 py-3 ${row.uid === viewer.uid ? "bg-primary-subtle/40" : ""}`}
+            key={participant.uid}
+            className={`flex items-center gap-3 px-4 py-3 ${participant.uid === viewer.uid ? "bg-primary-subtle/40" : ""}`}
           >
             <span
-              className={`w-4 shrink-0 font-mono text-sm ${row.rank === 1 ? "text-primary font-semibold" : "text-fg-muted"}`}
+              className={`w-4 shrink-0 font-mono text-sm ${rank === 1 ? "text-primary font-semibold" : "text-fg-muted"}`}
             >
-              {row.rank}
+              {rank}
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-medium">
-                {row.nickname}
-                {row.uid === viewer.uid ? "（我）" : ""}
+                {participant.nickname}
+                {participant.uid === viewer.uid ? "（我）" : ""}
               </span>
-              <span className="text-fg-subtle block truncate text-xs">
-                @{row.username}
-              </span>
+              {participant.username ? (
+                <span className="text-fg-subtle block truncate text-xs">
+                  @{participant.username}
+                </span>
+              ) : null}
             </span>
             <span className="text-fg-muted shrink-0 text-xs">
+              {standings?.totalLabel}{" "}
               <strong className="text-fg font-mono font-medium">
-                {Number(row.total.toFixed(2))}
-              </strong>{" "}
-              分
+                {Math.round(total)}
+              </strong>
             </span>
           </li>
         ))}

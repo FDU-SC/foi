@@ -1,115 +1,43 @@
-import { ContestNav } from "@/components/contests/contest-nav";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getViewer } from "@/auth";
 import { StandingsLiveRefresh } from "@/components/standings/live-refresh";
-import { Avatar } from "@/components/ui/avatar";
+import { StandingsPanel } from "@/components/standings/standings-panel";
 import { Badge } from "@/components/ui/badge";
+import type { FilterRow } from "@/components/ui/filter-bar";
 import {
   contestFor,
   isContestProblemSetVisibleTo,
 } from "@/lib/contests/access";
-import {
-  catalogueHref,
-  contestHref,
-  isCatalogue,
-} from "@/lib/contests/catalogue";
+import { standingsHref } from "@/lib/contests/catalogue";
 import {
   contestPhase,
   type ContestConfig,
   type ContestPhase,
 } from "@/lib/contests/types";
-import { standingsFor } from "@/lib/standings/compute";
 import { dateFormatter } from "@/lib/format";
-import type { BoardProps } from "@/lib/standings/types";
-
-function DefaultBoard({ board }: BoardProps) {
-  if (board.standings.rows.length === 0) {
-    return (
-      <p className="text-fg-subtle border-border rounded-lg border bg-surface py-10 text-center text-sm">
-        还没有提交记录。
-      </p>
-    );
-  }
-  return (
-    <ol className="divide-border divide-y">
-      {board.standings.rows.map((row) => (
-        <li
-          key={row.participant.uid}
-          className="flex items-center gap-3 px-3 py-2"
-        >
-          <span className="text-fg-muted font-mono text-xs tabular-nums w-8 text-right">
-            {row.rank}
-          </span>
-          <Avatar of={row.participant} />
-          <span className="text-fg font-medium">
-            {row.participant.nickname}
-          </span>
-          <span className="text-fg-muted ml-auto font-mono text-sm tabular-nums">
-            {Math.round(row.total)}
-          </span>
-        </li>
-      ))}
-    </ol>
-  );
-}
+import { readOne } from "@/lib/query";
+import { standingsFor } from "@/lib/standings/compute";
+import { STANDINGS_PARAMS } from "@/lib/standings/selection";
 
 const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 
 /** Phases where new submissions can still change the board, so polling earns its keep. */
 const MOVING_PHASES: ContestPhase[] = ["running", "frozen"];
 
-async function titleOf(contestSlug: string): Promise<Metadata> {
-  const view = contestFor(contestSlug, await getViewer());
-  return { title: view ? `${view.config.title} 排行榜` : "排行榜" };
-}
+const FRAME = "min-w-0 space-y-5 p-4 sm:p-6";
 
 export async function standingsMetadata({
   params,
 }: PageProps<"/contests/[slug]/standings">): Promise<Metadata> {
   const { slug } = await params;
-  return titleOf(slug);
+  const view = contestFor(slug, await getViewer());
+  return { title: view ? `${view.config.title} 排行榜` : "排行榜" };
 }
 
-export async function catalogueStandingsMetadata({
-  params,
-}: PageProps<"/problems/[section]/standings">): Promise<Metadata> {
-  const { section } = await params;
-  return titleOf(section);
-}
-
-/** Where this board sits: under the catalogue index, or under `/contests`. */
-function Crumbs({ contest }: { contest: ContestConfig }) {
-  const catalogued = isCatalogue(contest.slug);
-
+function UpcomingNotice({ contest }: { contest: ContestConfig }) {
   return (
-    <nav className="text-fg-subtle flex items-center gap-1.5 text-xs">
-      <Link
-        href={catalogued ? catalogueHref() : "/contests"}
-        className="hover:text-fg transition-colors"
-      >
-        {catalogued ? "题库" : "比赛"}
-      </Link>
-      <span>/</span>
-      <Link
-        href={contestHref(contest.slug)}
-        className="hover:text-fg transition-colors"
-      >
-        {contest.title}
-      </Link>
-    </nav>
-  );
-}
-
-function UpcomingNotice({ contest, embedded }: { contest: ContestConfig; embedded: boolean }) {
-  return (
-    <div className={embedded ? "min-w-0 space-y-5 p-4 sm:p-6" : "space-y-5"}>
-      {!embedded ? <>
-        <Crumbs contest={contest} />
-        <ContestNav slug={contest.slug} />
-      </> : null}
-
+    <div className={FRAME}>
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-fg text-2xl font-bold tracking-tight">排行榜</h1>
         <Badge tone="info">未开始</Badge>
@@ -122,79 +50,60 @@ function UpcomingNotice({ contest, embedded }: { contest: ContestConfig; embedde
   );
 }
 
+/** A contest's own boards, inside its workspace. Catalogued sections rank on `/leaderboard`. */
 export async function StandingsView({
   params,
+  searchParams,
 }: PageProps<"/contests/[slug]/standings">) {
-  const { slug } = await params;
-  return <Standings contestSlug={slug} embedded />;
-}
-
-export async function CatalogueStandingsView({
-  params,
-}: PageProps<"/problems/[section]/standings">) {
-  const { section } = await params;
-
-  // Only a catalogued contest answers here; every other one keeps its board
-  // under `/contests`, and a board must not hold two addresses either.
-  if (!isCatalogue(section)) notFound();
-
-  return <Standings contestSlug={section} />;
-}
-
-async function Standings({ contestSlug, embedded = false }: { contestSlug: string; embedded?: boolean }) {
+  const [{ slug }, query] = await Promise.all([params, searchParams]);
   const viewer = await getViewer();
 
-  const view = contestFor(contestSlug, viewer);
+  const view = contestFor(slug, viewer);
   if (!view) notFound();
 
   const contest = view.config;
 
   if (!isContestProblemSetVisibleTo(contest, viewer)) {
-    return <UpcomingNotice contest={contest} embedded={embedded} />;
+    return <UpcomingNotice contest={contest} />;
   }
 
   const data = await standingsFor(contest.slug, viewer);
   if (!data) notFound();
 
-  const totalRows = data.boards[0]?.standings.rows.length ?? 0;
-  const phase = contestPhase(contest);
+  // A contest may declare several boards; one is shown at a time.
+  const [first] = data.boards;
+  const asked = readOne(query, STANDINGS_PARAMS.board);
+  const board = data.boards.find(({ leaderboard }) => leaderboard.id === asked) ?? first;
+  const rows: FilterRow[] = data.boards.length > 1 ? [{
+    key: STANDINGS_PARAMS.board,
+    label: "榜单",
+    selected: [board.leaderboard.id],
+    fallback: first.leaderboard.id,
+    choices: data.boards.map(({ leaderboard }) => ({ value: leaderboard.id, label: leaderboard.title })),
+  }] : [];
 
   return (
-    <div className={embedded ? "min-w-0 space-y-5 p-4 sm:p-6" : "space-y-5"}>
-      {!embedded ? <>
-        <Crumbs contest={contest} />
-        <ContestNav slug={contest.slug} />
-      </> : null}
-
+    <div className={FRAME}>
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-fg text-2xl font-bold tracking-tight">排行榜</h1>
+        <h1 className="text-fg text-2xl font-bold tracking-tight">
+          {data.boards.length > 1 ? board.leaderboard.title : "排行榜"}
+        </h1>
+        <Badge>{board.ruleset.name}</Badge>
         {data.frozen ? <Badge tone="warn">已封榜</Badge> : null}
         <span className="text-fg-subtle ml-auto text-xs">
-          共 {totalRows} 人
+          共 {board.standings.rows.length} 人
         </span>
-        <StandingsLiveRefresh defaultOn={MOVING_PHASES.includes(phase)} />
+        <StandingsLiveRefresh defaultOn={MOVING_PHASES.includes(contestPhase(contest))} />
       </div>
 
-      {data.boards.map((board) => (
-        <section key={board.leaderboard.id} className="min-w-0 space-y-3">
-          {data.boards.length > 1 ? (
-            <div className="flex items-center gap-2">
-              <h2 className="text-fg text-lg font-semibold">
-                {board.leaderboard.title}
-              </h2>
-              <Badge>{board.ruleset.name}</Badge>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Badge>{board.ruleset.name}</Badge>
-            </div>
-          )}
-          {(() => {
-            const Board = board.renderers.Board ?? DefaultBoard;
-            return <div className="overflow-x-auto"><Board board={board} problems={data.problems} /></div>;
-          })()}
-        </section>
-      ))}
+      <StandingsPanel
+        path={standingsHref(contest.slug)}
+        query={query}
+        rows={rows}
+        board={board}
+        problems={data.problems}
+        viewerUid={viewer.uid}
+      />
     </div>
   );
 }

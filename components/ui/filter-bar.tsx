@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
-import { carried, toggled, withParam, type SearchParams } from "@/lib/query";
+import { PAGE_PARAM } from "@/lib/paging";
+import { carried, toggled, withParam, without, type SearchParams } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 export interface FilterChoice {
@@ -26,14 +27,17 @@ export interface FilterRow {
 
   /** The choice in effect while the parameter is absent; picking it drops it. */
   fallback?: string;
+
+  /** Parameters that only mean something under this row's current choice. */
+  resets?: string[];
 }
 
 /**
  * A filter bar that works without JavaScript: every choice is a link to this
  * page with one parameter changed, and the search box is a GET form carrying
- * the rest along.
+ * the rest along. Any change returns a paged list to its first page.
  */
-export function ProblemFilters({
+export function FilterBar({
   path,
   params,
   rows,
@@ -75,7 +79,7 @@ export function ProblemFilters({
     <div className="border-border bg-surface relative space-y-2 rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-3">
         <form action={path} className="flex min-w-0 flex-1 gap-2 sm:max-w-sm">
-          {carried(params, searchKey).map((field, index) => (
+          {carried(params, searchKey, PAGE_PARAM).map((field, index) => (
             <input
               key={index}
               type="hidden"
@@ -95,7 +99,7 @@ export function ProblemFilters({
         </form>
         <div className="hidden flex-wrap gap-2 sm:flex">
           {rows.map((row) => (
-            <details key={row.key} name="problem-filter">
+            <details key={row.key} name="filter-bar">
               <summary className="text-fg-muted hover:bg-surface-2 cursor-pointer rounded-md border px-3 py-2 text-xs">
                 {row.label}
                 {row.selected.length > 0 &&
@@ -121,7 +125,7 @@ export function ProblemFilters({
       {selected ? <p className="text-fg-muted text-xs">{selected}</p> : null}
       <details className="sm:hidden">
         <summary className="text-primary cursor-pointer py-1 text-xs font-medium">
-          筛选与排序{selected ? "" : " · 全部题目"}
+          筛选与排序{selected ? "" : " · 未筛选"}
         </summary>
         <div className="mt-2 space-y-3">
           {rows.map((row) => (
@@ -143,11 +147,12 @@ function hrefFor(
   choice: FilterChoice,
   params: SearchParams,
 ): string {
-  if (row.multiple) return toggled(params, row.key, choice.value);
+  const base = without(params, PAGE_PARAM, ...(row.resets ?? []));
+  if (row.multiple) return toggled(base, row.key, choice.value);
 
   const active = row.selected.includes(choice.value);
   const drop = active || choice.value === row.fallback;
-  return withParam(params, row.key, drop ? undefined : choice.value);
+  return withParam(base, row.key, drop ? undefined : choice.value);
 }
 
 function Chip({

@@ -1,16 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { allows } from "@/lib/authz/engine";
 import { ANONYMOUS } from "@/lib/authz/viewer";
+import { catalogueBoardSections } from "@/lib/contests/catalogue";
 import { site } from "@/lib/site";
-import { siteViews } from "@/lib/site-views";
 import { navigationFor } from "./site-navigation";
 
 vi.mock("@/lib/authz/engine", () => ({ allows: vi.fn() }));
+vi.mock("@/lib/contests/catalogue", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/contests/catalogue")>()),
+  catalogueBoardSections: vi.fn(),
+}));
 const originalNavigation = site.navigation;
-const originalLeaderboard = siteViews.Leaderboard;
 afterEach(() => {
   site.navigation = originalNavigation;
-  siteViews.Leaderboard = originalLeaderboard;
   vi.resetAllMocks();
 });
 
@@ -27,13 +29,13 @@ describe("导航入口", () => {
     expect(allows).toHaveBeenCalledWith("admin.enter", null, ANONYMOUS);
   });
 
-  it("榜单入口同时要求权限和已配置的页面", () => {
+  it("榜单入口同时要求权限和总榜覆盖的题库分区", () => {
     site.navigation = [{ href: "/leaderboard", label: "榜单", location: "catalogue", visibleWhen: "leaderboard.read" }];
-    siteViews.Leaderboard = function Leaderboard() { return null; };
+    vi.mocked(catalogueBoardSections).mockReturnValue(["section"]);
     expect(navigationFor(ANONYMOUS, "catalogue")).toEqual([]);
     vi.mocked(allows).mockReturnValue(true);
     expect(navigationFor(ANONYMOUS, "catalogue")).toHaveLength(1);
-    delete siteViews.Leaderboard;
+    vi.mocked(catalogueBoardSections).mockReturnValue([]);
     expect(navigationFor(ANONYMOUS, "catalogue")).toEqual([]);
   });
 });

@@ -1,5 +1,5 @@
-import { ProblemListSkeleton } from "@/views/skeletons/problem-list";
+import { ProblemSetSkeleton } from "@/views/skeletons/problem-set";
 
 export default function Loading() {
-  return <ProblemListSkeleton />;
+  return <ProblemSetSkeleton />;
 }

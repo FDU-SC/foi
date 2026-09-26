@@ -2,7 +2,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 
 /**
  * Long-running practice contest, mounted by `site.catalogue` at
- * `/problems/graphs/<slug>`. Its `domain` groups the card under 算法与数据结构.
+ * `/problems/graphs/<slug>`. Its `domain` groups the list under 算法与数据结构.
  */
 export const contest = {
   slug: "graphs",
@@ -19,7 +19,7 @@ export const contest = {
     {
       id: "main",
       title: "总分榜",
-      ruleset: { id: "oi", config: { take: "best" } },
+      ruleset: { id: "practice" },
     },
   ],
 

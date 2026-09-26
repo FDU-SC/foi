@@ -3,6 +3,7 @@ import { AnimatedNumber } from "@/components/ui/animated-number";
 import { formatDuration } from "@/lib/utils";
 import {
   assignRanks,
+  elapsed,
   hasResult,
   submissionsInWindow,
   type Ruleset,
@@ -80,8 +81,6 @@ export const ruleset: Ruleset<AcmCell> = {
 
   compute(input: StandingsInput) {
     const { penaltyMinutes } = configSchema.parse(input.config ?? {});
-    const start = input.contest.startsAt.getTime();
-
     const byUser = new Map<number, Map<string, AcmCell>>();
     for (const participant of input.participants) {
       byUser.set(participant.uid, new Map());
@@ -91,12 +90,12 @@ export const ruleset: Ruleset<AcmCell> = {
       const cells = byUser.get(submission.uid);
       if (!cells) continue;
 
-      const cell = cells.get(submission.problemSlug) ?? {
+      const cell = cells.get(submission.problemKey) ?? {
         attempts: 0,
         solvedAt: null,
         pending: 0,
       };
-      cells.set(submission.problemSlug, cell);
+      cells.set(submission.problemKey, cell);
 
       if (cell.solvedAt !== null) continue;
 
@@ -107,9 +106,7 @@ export const ruleset: Ruleset<AcmCell> = {
 
       cell.attempts += 1;
       if (isAccepted(submission)) {
-        cell.solvedAt = Math.floor(
-          (submission.createdAt.getTime() - start) / 60_000,
-        );
+        cell.solvedAt = Math.floor(elapsed(input, submission) / 60_000);
       }
     }
 

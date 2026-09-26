@@ -12,7 +12,10 @@ import { site } from "@/lib/site";
 const CATALOGUE = "/problems";
 const CONTESTS = "/contests";
 
-/** The static segment `/problems/[section]/[slug]` sits beside, and cannot hold. */
+/**
+ * The standings path segment. Under a catalogued section it redirects to the
+ * leaderboard, so `/problems/[section]/[slug]` cannot hold a problem by that name.
+ */
 export const STANDINGS_SEGMENT = "standings";
 
 const named = site.catalogue ?? [];
@@ -54,17 +57,35 @@ export function catalogueBoardFor(contestSlug: string) {
     : undefined;
 }
 
-export function leaderboardHref(board?: string): string {
-  return board === undefined
-    ? "/leaderboard"
-    : `/leaderboard?board=${encodeURIComponent(board)}`;
+/**
+ * The catalogued sections a board spans, in catalogue order. Without an id it
+ * is the total: every section except those only boards kept out of it name.
+ * An unknown id spans nothing.
+ */
+export function catalogueBoardSections(board?: string): string[] | undefined {
+  const boards = catalogueLeaderboards();
+  if (board !== undefined) {
+    const named = boards.find((one) => one.id === board);
+    return named ? catalogueSlugs().filter((slug) => named.sections.includes(slug)) : undefined;
+  }
+
+  return catalogueSlugs().filter((slug) => {
+    const holders = boards.filter((one) => one.sections.includes(slug));
+    return holders.length === 0 || holders.some((one) => one.includeInTotal);
+  });
 }
 
+export function leaderboardHref(board?: string, section?: string): string {
+  const query = new URLSearchParams();
+  if (board !== undefined) query.set("board", board);
+  if (section !== undefined) query.set("section", section);
+  return query.size > 0 ? `/leaderboard?${query}` : "/leaderboard";
+}
+
+/** A catalogued section's standings are the leaderboard narrowed to it. */
 export function standingsHref(contestSlug: string): string {
-  const board = catalogueBoardFor(contestSlug);
-  if (board) return leaderboardHref(board.id);
   return isCatalogue(contestSlug)
-    ? `${CATALOGUE}/${contestSlug}/${STANDINGS_SEGMENT}`
+    ? leaderboardHref(catalogueBoardFor(contestSlug)?.id, contestSlug)
     : `${CONTESTS}/${contestSlug}/${STANDINGS_SEGMENT}`;
 }
 
@@ -76,9 +97,9 @@ export function standingsHref(contestSlug: string): string {
  */
 export function catalogueRedirect(pathname: string): string | null {
   for (const slug of named) {
-    if (catalogueBoardFor(slug) &&
-      pathname.replace(/\/$/, "") === `${CATALOGUE}/${slug}/${STANDINGS_SEGMENT}`
-    ) return standingsHref(slug);
+    if (pathname.replace(/\/$/, "") === `${CATALOGUE}/${slug}/${STANDINGS_SEGMENT}`) {
+      return standingsHref(slug);
+    }
     const prefix = `${CONTESTS}/${slug}`;
     if (pathname !== prefix && !pathname.startsWith(`${prefix}/`)) continue;
 

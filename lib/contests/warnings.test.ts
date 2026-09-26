@@ -12,6 +12,10 @@ interface Stub {
 
   /** Which of those the registry actually holds. */
   contests: ContestConfig[];
+
+  /** `site.catalogueLeaderboards`, and the sections the total spans. */
+  boards?: { id: string; title: string; sections: string[]; includeInTotal: boolean }[];
+  total?: string[];
 }
 
 /**
@@ -28,6 +32,10 @@ async function checksWith(
   vi.doMock("./catalogue", async (importOriginal) => ({
     ...(await importOriginal<typeof import("./catalogue")>()),
     catalogueSlugs: () => stub.slugs,
+    catalogueLeaderboards: () => stub.boards ?? [],
+    catalogueBoardSections: (board?: string) => board === undefined
+      ? stub.total ?? []
+      : stub.boards?.find((one) => one.id === board)?.sections,
   }));
   vi.doMock("./registry", async (importOriginal) => ({
     ...(await importOriginal<typeof import("./registry")>()),
@@ -107,6 +115,38 @@ describe("题库的启动校验", () => {
 
     expect(complaints).toHaveLength(1);
     expect(complaints[0]).toContain(shadowed.slug);
+  });
+
+  it("题库榜内分区主榜的赛制或配置不一致时拒绝启动，并指出是哪个榜", async () => {
+    const same = carrying("same-section", "some-problem");
+    const odd: ContestConfig = {
+      ...carrying("odd-section", "other-problem"),
+      leaderboards: [{ ...same.leaderboards[0], ruleset: { ...same.leaderboards[0].ruleset, config: { changed: true } } }],
+    };
+    const contests = [same, odd];
+    const slugs = contests.map(({ slug }) => slug);
+
+    const split = await checksWith({
+      slugs,
+      contests,
+      boards: [{ id: "direction", title: "方向", sections: slugs, includeInTotal: false }],
+      total: [],
+    });
+    expect(split.complaints).toHaveLength(1);
+    expect(split.complaints[0]).toContain("direction");
+    expect(split.complaints[0]).toContain(odd.slug);
+
+    const total = await checksWith({ slugs, contests, total: slugs });
+    expect(total.complaints).toHaveLength(1);
+    expect(total.complaints[0]).toContain("总榜");
+
+    const apart = await checksWith({
+      slugs,
+      contests,
+      boards: slugs.map((slug) => ({ id: slug, title: slug, sections: [slug], includeInTotal: false })),
+      total: [],
+    });
+    expect(apart.complaints, "各自成榜的分区不必同一赛制").toEqual([]);
   });
 
   it("题单里没有那个 slug 就放行", async () => {

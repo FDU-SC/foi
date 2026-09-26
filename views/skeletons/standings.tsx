@@ -1,14 +1,9 @@
 import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
-import { Breadcrumb, TableSkeleton } from "@/views/skeletons/parts";
+import { TableSkeleton } from "@/views/skeletons/parts";
 
-export function StandingsSkeleton({ embedded = false }: { embedded?: boolean }) {
+export function StandingsSkeleton() {
   return (
-    <SkeletonScreen label="正在加载排行榜" className={embedded ? "min-w-0 space-y-5 p-4 sm:p-6" : "space-y-5"}>
-      {!embedded ? <>
-        <Breadcrumb />
-        <Skeleton className="h-10 w-40" />
-      </> : null}
-
+    <SkeletonScreen label="正在加载排行榜" className="min-w-0 space-y-5 p-4 sm:p-6">
       <div className="flex flex-wrap items-center gap-3">
         <Skeleton className="h-8 w-24" />
         <Skeleton className="ml-auto h-3 w-16" />

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import {
   assignRanks,
+  elapsed,
   hasResult,
   submissionsInWindow,
   type Ruleset,
@@ -88,7 +89,6 @@ export const ruleset: Ruleset<CtfCell> = {
 
   compute(input: StandingsInput) {
     const config = configSchema.parse(input.config ?? {});
-    const start = input.contest.startsAt.getTime();
 
     const cellsByUser = new Map<number, Record<string, CtfCell>>();
     for (const participant of input.participants) {
@@ -103,7 +103,7 @@ export const ruleset: Ruleset<CtfCell> = {
     for (const submission of submissionsInWindow(input)) {
       if (!cellsByUser.has(submission.uid)) continue;
 
-      const key = `${submission.uid}:${submission.problemSlug}`;
+      const key = `${submission.uid}:${submission.problemKey}`;
       if (solvedKeys.has(key)) continue;
 
       if (!hasResult(submission)) {
@@ -115,24 +115,24 @@ export const ruleset: Ruleset<CtfCell> = {
       if (!isAccepted(submission)) continue;
 
       solvedKeys.add(key);
-      const list = solves.get(submission.problemSlug) ?? [];
+      const list = solves.get(submission.problemKey) ?? [];
       list.push({
         uid: submission.uid,
-        at: submission.createdAt.getTime() - start,
+        at: elapsed(input, submission),
       });
-      solves.set(submission.problemSlug, list);
+      solves.set(submission.problemKey, list);
     }
 
     for (const problem of input.problems) {
-      const list = (solves.get(problem.slug) ?? []).sort((a, b) => a.at - b.at);
+      const list = (solves.get(problem.key) ?? []).sort((a, b) => a.at - b.at);
       const value = decayedValue(config, list.length);
 
       list.forEach((solve, index) => {
         const cells = cellsByUser.get(solve.uid);
         if (!cells) return;
         const bonus = config.bloodBonus[index] ?? 0;
-        const key = `${solve.uid}:${problem.slug}`;
-        cells[problem.slug] = {
+        const key = `${solve.uid}:${problem.key}`;
+        cells[problem.key] = {
           score: value * (1 + bonus),
           solvedAt: solve.at,
           blood: index < config.bloodBonus.length ? index + 1 : null,

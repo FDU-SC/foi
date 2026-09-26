@@ -10,18 +10,18 @@ function compute(options: Parameters<typeof input>[0]) {
 function cell(
   standings: ReturnType<typeof compute>,
   uid: number,
-  slug: string,
+  key: string,
 ): OiCell | undefined {
   const row = standings.rows.find((entry) => entry.participant.uid === uid);
-  return row?.cells[slug] as OiCell | undefined;
+  return row?.cells[key] as OiCell | undefined;
 }
 
 const problems = [problem("a", "A"), problem("b", "B")];
 
-function score(uid: number, slug: string, minutes: number, value: number) {
+function score(uid: number, key: string, minutes: number, value: number) {
   return submission({
     uid,
-    problemSlug: slug,
+    problemKey: key,
     minutes,
     score: value,
   });

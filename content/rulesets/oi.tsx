@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import {
   assignRanks,
+  elapsed,
   hasResult,
   submissionsInWindow,
   type Ruleset,
@@ -66,11 +67,9 @@ export const ruleset: Ruleset<OiCell> = {
 
   compute(input: StandingsInput) {
     const { take } = configSchema.parse(input.config ?? {});
-    const start = input.contest.startsAt.getTime();
-
     const worth = new Map(
       input.problems.map((problem) => [
-        problem.slug,
+        problem.key,
         problem.points ?? problem.maxScore,
       ]),
     );
@@ -84,15 +83,15 @@ export const ruleset: Ruleset<OiCell> = {
       const cells = byUser.get(submission.uid);
       if (!cells) continue;
 
-      const maxScore = worth.get(submission.problemSlug) ?? 0;
-      const cell = cells.get(submission.problemSlug) ?? {
+      const maxScore = worth.get(submission.problemKey) ?? 0;
+      const cell = cells.get(submission.problemKey) ?? {
         score: 0,
         maxScore,
         attempts: 0,
         pending: 0,
         at: null,
       };
-      cells.set(submission.problemSlug, cell);
+      cells.set(submission.problemKey, cell);
 
       if (!hasResult(submission)) {
         cell.pending += 1;
@@ -111,7 +110,7 @@ export const ruleset: Ruleset<OiCell> = {
 
       if (take === "last" || score > cell.score) {
         cell.score = score;
-        cell.at = submission.createdAt.getTime() - start;
+        cell.at = elapsed(input, submission);
       }
     }
 

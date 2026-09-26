@@ -75,7 +75,7 @@ deployment tests and source scanners must tolerate their absence.
 Depth of customization, shallowest first — **prefer the shallowest that works**, because each step down gives up more of the upstream's future changes:
 
 1. **Data.** `content/site.ts` for brand, navigation, tagline, footer; `content/theme.css` for colour tokens, which load after `globals.css` so redeclaring one wins.
-2. **Chrome slots.** `SiteViews` in `content/site-views.tsx` replaces the Header, Footer, Brand, HomeHero or AuthShell. Every slot is optional, so `{}` is a complete implementation. Chrome slots have platform defaults; optional content regions are omitted, and an absent `Leaderboard` returns 404.
+2. **Chrome slots.** `SiteViews` in `content/site-views.tsx` replaces the Header, Footer, Brand, HomeHero or AuthShell. Every slot is optional, so `{}` is a complete implementation. Chrome slots have platform defaults; optional content regions are omitted.
 3. **File override.** Any file under `components/` or `views/` can be replaced wholesale by a same-named file in its `.local` twin. The overriding file no longer receives upstream changes automatically.
 
 An override that wants to wrap the upstream original must reach it by **relative path** (`../../components/site/header`), because the alias would resolve back to the override itself.
@@ -92,9 +92,18 @@ contest/problem pair. The platform obtains this history through `progressFor`;
 it never derives success from result fields or badge tones. Missing progress
 support hides the problem's progress and disables section totals and filters.
 
-Content owns the full `SiteViews.Leaderboard` and `HomeLeaderboard` displays and
-ranking rules. The platform authorizes their mounting with `leaderboard.read`.
-Keep their database queries server-only; problem view callbacks are client-safe.
+Every leaderboard is a ruleset applied to a set of (contest, problem) pairs,
+computed by `lib/standings`:
+
+- A contest board is one of `contest.leaderboards`, over that contest's pairs.
+- A catalogue board (`site.catalogueLeaderboards`, and the total) computes the
+  main leaderboards of its sections as one. The boot check holds those sections
+  to one ruleset and configuration.
+
+Content owns scoring and display through rulesets and their renderers, plus the
+optional `HomeLeaderboard` summary. `/leaderboard` is mounted behind
+`leaderboard.read`; a section counts only where `standings.read` allows it.
+Problem view callbacks are client-safe.
 
 ## Authorization
 
@@ -146,14 +155,20 @@ Retiring a problem is removing it from `contest.problems`.
 | Index | `/problems` | `/contests` |
 | Contest | `/problems/[section]` | `/contests/[slug]` |
 | Problem | `/problems/[section]/[problem]` | `/contests/[slug]/problems/[problem]` |
-| Standings | `/problems/[section]/standings` | `/contests/[slug]/standings` |
+| Standings | `/leaderboard?section=[section]` | `/contests/[slug]/standings` |
 
-`[section]` is the contest slug. Each catalogued contest gets one `/problems` card
-and retains its window, audience, leaderboard and participants. Practice uses a
+`[section]` is the contest slug. Each catalogued contest is one list in the
+`/problems` sidebar and retains its window, audience, leaderboard and
+participants. `/problems` shows every list's problems in one table;
+`/problems/[section]` is the same page with that list selected. Practice uses a
 long contest window. Authorization and submission behaviour are unchanged:
 `contest_slug` and `/api/contests/[slug]/problems/[problem]/action/[action]` serve both namespaces.
 
-`contest.domain` is an opaque grouping label on the index. Headings follow the
+The catalogue has one leaderboard page, `/leaderboard`, filtered by direction
+and section. A section's standings are that page narrowed to the section, with
+its direction selected when a board names it.
+
+`contest.domain` is an opaque grouping label in the list sidebar. Headings follow the
 first occurrence of each domain in `site.catalogue`. There is no `/problems/[domain]` page.
 
 `lib/contests/catalogue.ts` builds every such link and is the only place that reads `site.catalogue`. Never write a contest or problem path by hand — `problemHref`, `contestHref` and `standingsHref` are what keep the two namespaces from both claiming a pair.
@@ -166,7 +181,7 @@ Naming a catalogue is optional. Omit it and every contest stays under `/contests
 
 Difficulty, tags and anything like them live in `problem.ui`, which the platform does not read. What makes them filterable is `ProblemViews.facets`: content hands back `{ key, label, values, order }` and the platform collects the values, matches the strings and counts them, without learning what a key means.
 
-`contest.facets` names which of those keys that contest's pages offer. It drives the filter bar and the problem badges together, so a dimension cannot be hidden from one and left showing on the other. The default is empty, so no facets or corresponding badges are shown.
+`contest.facets` names which of those keys that contest's pages offer. It drives the filter bar and the problem badges together, so a dimension cannot be hidden from one and left showing on the other. The default is empty, so no facets or corresponding badges are shown. A table spanning several contests filters and badges each row by its own contest's facets.
 
 ## Key Contracts
 

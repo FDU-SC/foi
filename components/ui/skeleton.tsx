@@ -10,15 +10,15 @@ export function Skeleton({
 }
 
 /**
- * Route loading screen: announce loading once and hide decorative placeholders
- * from screen readers.
+ * Loading region for a route or a Suspense fallback: announce loading once and
+ * hide decorative placeholders from screen readers.
  */
 export function SkeletonScreen({
-  label = "加载中",
+  label,
   className,
   children,
 }: {
-  label?: string;
+  label: string;
   className?: string;
   children: ReactNode;
 }) {

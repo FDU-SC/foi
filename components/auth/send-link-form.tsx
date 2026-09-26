@@ -54,7 +54,8 @@ export function SendLinkForm({ invalidToken }: { invalidToken?: boolean }) {
         type="button"
         variant="primary"
         className="w-full"
-        disabled={busy || email.trim().length === 0}
+        pending={busy}
+        disabled={email.trim().length === 0}
         onClick={submit}
       >
         {busy ? "发送中…" : sent ? "重新发送" : "发送验证链接"}

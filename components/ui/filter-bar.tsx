@@ -59,35 +59,31 @@ export function FilterBar({
     .join(" · ");
 
   return (
-    <div className="border-border bg-surface space-y-2 rounded-lg border p-3">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
         <SearchForm path={path} params={params} name={searchKey} value={searchValue} placeholder={searchPlaceholder} />
-        <div className="hidden flex-wrap gap-2 sm:flex">
+        <div className="hidden flex-wrap gap-x-5 gap-y-2 sm:flex">
           {rows.map((row) => {
             const picked = pickedIn(row);
             return (
               <details key={row.key} name="filter-bar" className="group relative">
                 <summary
                   className={cn(
-                    "flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-md border px-3 text-sm transition-colors select-none [&::-webkit-details-marker]:hidden",
-                    picked.length > 0
-                      ? "border-primary/40 bg-primary-subtle text-primary"
-                      : "border-border text-fg-muted hover:border-border-strong hover:bg-surface-2 hover:text-fg",
+                    "flex h-8 cursor-pointer list-none items-center gap-1 text-sm transition-colors select-none [&::-webkit-details-marker]:hidden",
+                    picked.length > 0 ? "text-fg font-medium" : "text-fg-muted hover:text-fg",
                   )}
                 >
                   {row.label}
                   {picked.length === 0 ? null : row.multiple ? (
-                    <span className="bg-primary text-primary-fg rounded px-1.5 font-mono text-xs leading-5 tabular-nums">
-                      {picked.length}
-                    </span>
+                    <span className="tabular-nums">{picked.length}</span>
                   ) : (
-                    <span className="max-w-32 truncate font-medium">{picked[0].label}</span>
+                    <span className="max-w-32 truncate">：{picked[0].label}</span>
                   )}
-                  <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="size-3.5 shrink-0 transition-transform group-open:rotate-180">
+                  <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="text-fg-subtle size-3 shrink-0 group-open:rotate-180">
                     <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </summary>
-                <div className="border-border bg-surface absolute top-full left-0 z-30 mt-1.5 flex max-h-80 w-72 max-w-[calc(100vw-2rem)] flex-wrap gap-2 overflow-y-auto rounded-lg border p-3 shadow-lg">
+                <div className="border-border bg-surface absolute top-full left-0 z-30 mt-1 flex max-h-80 w-72 max-w-[calc(100vw-2rem)] flex-wrap gap-x-4 gap-y-2 overflow-y-auto border p-3">
                   <FilterChips path={path} params={params} row={row} />
                 </div>
               </details>
@@ -95,14 +91,14 @@ export function FilterBar({
           })}
         </div>
         {filtered ? (
-          <Link href={clearHref} className="text-fg-muted text-xs underline underline-offset-2">
+          <Link href={clearHref} className="text-fg-muted hover:text-fg text-xs underline underline-offset-2">
             清除筛选
           </Link>
         ) : null}
       </div>
       {selected ? <p className="text-fg-muted text-xs">{selected}</p> : null}
       <details className="sm:hidden">
-        <summary className="text-primary cursor-pointer py-1 text-xs font-medium">
+        <summary className="text-fg cursor-pointer py-1 text-xs font-medium">
           筛选与排序{selected ? "" : " · 未筛选"}
         </summary>
         <div className="mt-2 space-y-3">
@@ -144,7 +140,7 @@ export function SearchForm({
         defaultValue={value}
         placeholder={placeholder}
         aria-label={placeholder}
-        className="h-9 min-w-0 flex-1 py-0"
+        className="min-w-0 flex-1"
         spellCheck={false}
       />
       <Button type="submit">搜索</Button>
@@ -191,16 +187,16 @@ function Chip({
       href={href}
       aria-current={active || undefined}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm transition-colors",
+        "inline-flex items-baseline gap-1 text-sm transition-colors",
         active
-          ? "border-primary/50 bg-primary-subtle text-primary font-medium"
-          : "border-border bg-surface-2 text-fg-muted hover:border-border-strong hover:text-fg",
+          ? "text-fg decoration-fg font-medium underline decoration-2 underline-offset-4"
+          : "text-fg-muted hover:text-fg",
         choice.count === 0 && !active && "opacity-45",
       )}
     >
       {choice.label}
       {choice.count === undefined ? null : (
-        <span className="font-mono text-xs tabular-nums opacity-60">
+        <span className="text-fg-subtle text-xs font-normal tabular-nums">
           {choice.count}
         </span>
       )}

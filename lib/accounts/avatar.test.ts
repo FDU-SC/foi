@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SERVER_ACTION_BODY_LIMIT } from "@/lib/body-limit";
-import { AVATAR_LIMITS, identiconHue, identiconInitial } from "./avatar";
+import { AVATAR_LIMITS, identiconInitial } from "./avatar";
 
 describe("AVATAR_LIMITS", () => {
   it("字节上限留在 Server Action 的天花板之下", () => {
@@ -10,23 +10,6 @@ describe("AVATAR_LIMITS", () => {
 });
 
 describe("identicon", () => {
-  it("同一个 uid 永远得到同一个色相", () => {
-    expect(identiconHue(42)).toBe(identiconHue(42));
-  });
-
-  it("色相落在一圈之内", () => {
-    for (const uid of [1, 2, 7, 42, 100, 99999]) {
-      expect(identiconHue(uid)).toBeGreaterThanOrEqual(0);
-      expect(identiconHue(uid)).toBeLessThan(360);
-    }
-  });
-
-  it("相邻的 uid 不会撞成同一个颜色", () => {
-    const hues = new Set([1, 2, 3, 4, 5, 6, 7, 8].map(identiconHue));
-
-    expect(hues.size).toBeGreaterThan(6);
-  });
-
   it("取首字并转成大写", () => {
     expect(identiconInitial("alice")).toBe("A");
     expect(identiconInitial("  bob")).toBe("B");

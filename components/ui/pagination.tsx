@@ -61,10 +61,8 @@ function PageLink({
   children: ReactNode;
 }) {
   const className = cn(
-    "inline-flex h-8 min-w-8 items-center justify-center rounded-md border px-2.5 font-mono text-xs tabular-nums",
-    current
-      ? "border-primary/50 bg-primary-subtle text-primary"
-      : "border-border text-fg-muted",
+    "inline-flex h-8 min-w-8 items-center justify-center px-2 text-sm tabular-nums",
+    current ? "bg-fg text-bg font-medium" : "text-fg-muted",
   );
 
   if (!href) {
@@ -74,7 +72,7 @@ function PageLink({
     <Link
       href={href}
       aria-current={current ? "page" : undefined}
-      className={cn(className, !current && "hover:border-border-strong hover:bg-surface-2 hover:text-fg")}
+      className={cn(className, !current && "hover:text-fg underline-offset-4 transition-colors hover:underline")}
     >
       {children}
     </Link>

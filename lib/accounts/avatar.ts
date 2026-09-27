@@ -24,21 +24,6 @@ export const AVATAR_LIMITS = {
   maxEdge: 512,
 } as const;
 
-/**
- * The hue an account's identicon uses, keyed on uid so it survives a rename.
- * FNV-1a: short, and stable across runtimes in a way `hashCode` folklore is not.
- */
-export function identiconHue(uid: number): number {
-  let hash = 0x811c9dc5;
-
-  for (const char of String(uid)) {
-    hash ^= char.charCodeAt(0);
-    hash = Math.imul(hash, 0x01000193);
-  }
-
-  return (hash >>> 0) % 360;
-}
-
 /** The glyph an identicon shows. Iterated by code point, so emoji stay whole. */
 export function identiconInitial(nickname: string): string {
   const [first] = [...nickname.trim()];

@@ -97,9 +97,9 @@ function Identity({
     <aside className="min-w-0 space-y-4">
       <div className="flex items-center gap-4 lg:block lg:space-y-3">
         {profile.editable ? (
-          <AvatarEditor current={user} size="xl" />
+          <AvatarEditor current={user} size="md" />
         ) : (
-          <Avatar of={user} size="xl" className="border-border border" />
+          <Avatar of={user} size="md" />
         )}
         <div className="min-w-0">
           <h1 className="text-fg truncate text-2xl leading-tight font-semibold">

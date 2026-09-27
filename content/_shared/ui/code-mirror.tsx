@@ -30,7 +30,7 @@ const chrome = EditorView.theme({
   "&": { color: "var(--fg)", backgroundColor: "transparent", fontSize: "13px" },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": {
-    fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
+    fontFamily: "var(--font-mono)",
     lineHeight: "1.625",
   },
   ".cm-content": { caretColor: "var(--fg)" },

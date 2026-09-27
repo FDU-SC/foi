@@ -3,74 +3,124 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * Ink on paper. The result colours (ok, err, warn, partial, info) carry
+ * verdicts and contest states only; `--mark` highlights the viewer's own row.
+ */
 :root {
-  --bg: oklch(99% 0.002 265);
-  --surface: oklch(100% 0 0);
-  --surface-2: oklch(97.2% 0.004 265);
-  --surface-3: oklch(94.5% 0.006 265);
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f4f4f3;
+  --surface-3: #eaeae8;
 
-  --fg: oklch(21% 0.021 265);
-  --fg-muted: oklch(48% 0.016 265);
-  --fg-subtle: oklch(62% 0.012 265);
+  --fg: #111111;
+  --fg-muted: #5c5c5c;
+  --fg-subtle: #8e8e8e;
 
-  --border: oklch(91% 0.006 265);
-  --border-strong: oklch(84% 0.009 265);
+  --border: #e4e4e2;
+  --border-strong: #c9c9c6;
 
-  --primary: oklch(52% 0.19 268);
-  --primary-hover: oklch(46% 0.19 268);
-  --primary-fg: oklch(100% 0 0);
-  --primary-subtle: oklch(95% 0.03 268);
+  --primary: #111111;
+  --primary-hover: #333333;
+  --primary-fg: #ffffff;
+  --primary-subtle: #ededeb;
 
-  --ok: oklch(56% 0.15 152);
-  --ok-subtle: oklch(95.5% 0.04 152);
-  --err: oklch(56% 0.2 25);
-  --err-subtle: oklch(95.5% 0.035 25);
-  --warn: oklch(64% 0.16 62);
-  --warn-subtle: oklch(96% 0.045 62);
-  --partial: oklch(66% 0.14 95);
-  --partial-subtle: oklch(96% 0.05 95);
-  --info: oklch(58% 0.13 240);
-  --info-subtle: oklch(95.5% 0.03 240);
+  --ok: #1a7f37;
+  --ok-subtle: #e3f3e7;
+  --ok-strong: #0f5b27;
+  --err: #c62828;
+  --err-subtle: #fbe9e9;
+  --warn: #a85b00;
+  --warn-subtle: #fdf0dc;
+  --partial: #8a6a00;
+  --partial-subtle: #f6efd6;
+  --info: #1d5fbf;
+  --info-subtle: #e7effc;
 
-  --ring: oklch(52% 0.19 268 / 0.45);
+  --mark: #fff1a8;
+
+  --ring: #111111;
+
+  /* Same palette as the statement code blocks (github-light). */
+  --code-keyword: #cf222e;
+  --code-string: #0a3069;
+  --code-number: #0550ae;
+  --code-function: #8250df;
+  --code-type: #953800;
+  --code-comment: #6e7781;
 }
 
 .dark {
-  --bg: oklch(16.5% 0.014 265);
-  --surface: oklch(20% 0.016 265);
-  --surface-2: oklch(24% 0.017 265);
-  --surface-3: oklch(28% 0.018 265);
+  --bg: #111111;
+  --surface: #111111;
+  --surface-2: #1a1a1a;
+  --surface-3: #232323;
 
-  --fg: oklch(95% 0.006 265);
-  --fg-muted: oklch(72% 0.014 265);
-  --fg-subtle: oklch(58% 0.014 265);
+  --fg: #ededed;
+  --fg-muted: #a6a6a6;
+  --fg-subtle: #6f6f6f;
 
-  --border: oklch(30% 0.017 265);
-  --border-strong: oklch(38% 0.019 265);
+  --border: #2a2a2a;
+  --border-strong: #3c3c3c;
 
-  --primary: oklch(70% 0.16 268);
-  --primary-hover: oklch(76% 0.15 268);
-  --primary-fg: oklch(18% 0.02 268);
-  --primary-subtle: oklch(30% 0.06 268);
+  --primary: #ededed;
+  --primary-hover: #ffffff;
+  --primary-fg: #111111;
+  --primary-subtle: #262626;
 
-  --ok: oklch(72% 0.16 152);
-  --ok-subtle: oklch(29% 0.06 152);
-  --err: oklch(69% 0.18 25);
-  --err-subtle: oklch(30% 0.07 25);
-  --warn: oklch(77% 0.15 62);
-  --warn-subtle: oklch(31% 0.06 62);
-  --partial: oklch(80% 0.14 95);
-  --partial-subtle: oklch(32% 0.06 95);
-  --info: oklch(72% 0.13 240);
-  --info-subtle: oklch(29% 0.06 240);
+  --ok: #57c27e;
+  --ok-subtle: #15301f;
+  --ok-strong: #237a43;
+  --err: #ff7070;
+  --err-subtle: #3a1818;
+  --warn: #f0a650;
+  --warn-subtle: #3a2a14;
+  --partial: #d9b84a;
+  --partial-subtle: #332b12;
+  --info: #7ea8ff;
+  --info-subtle: #16233d;
 
-  --ring: oklch(70% 0.16 268 / 0.5);
+  --mark: #3a3413;
+
+  --ring: #ededed;
+
+  /* Same palette as the statement code blocks (github-dark-dimmed). */
+  --code-keyword: #f47067;
+  --code-string: #96d0ff;
+  --code-number: #6cb6ff;
+  --code-function: #dcbdfb;
+  --code-type: #f69d50;
+  --code-comment: #768390;
+}
+
+@theme {
+  --font-sans:
+    system-ui, -apple-system, "Segoe UI", "PingFang SC", "HarmonyOS Sans SC",
+    "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  /* KaTeX_Main is the face KaTeX sets formulas in, so prose and maths share
+     their Latin glyphs. Chinese falls through to the Song faces. */
+  --font-serif:
+    "KaTeX_Main", "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC",
+    SimSun, serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Every radius step is capped at 2px; `rounded-full` stays for dots. */
+  --radius: 2px;
+  --radius-xs: 2px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 2px;
+  --radius-3xl: 2px;
+  --radius-4xl: 2px;
+
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
 }
 
 @theme inline {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
@@ -90,6 +140,7 @@
 
   --color-ok: var(--ok);
   --color-ok-subtle: var(--ok-subtle);
+  --color-ok-strong: var(--ok-strong);
   --color-err: var(--err);
   --color-err-subtle: var(--err-subtle);
   --color-warn: var(--warn);
@@ -99,26 +150,14 @@
   --color-info: var(--info);
   --color-info-subtle: var(--info-subtle);
 
+  --color-mark: var(--mark);
+
   --color-ring: var(--ring);
-
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-
-  --animate-shimmer: shimmer 1.6s linear infinite;
-  --animate-pulse-ring: pulse-ring 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
-  /* `backwards`, not `both`: the element holds the "before" frame through its
-     stagger delay, then hands control back so hover transforms still apply. */
-  --animate-fade-up: fade-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-  --animate-shake: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
 
 @layer base {
   * {
     border-color: var(--border);
-  }
-
-  html {
-    scroll-behavior: smooth;
   }
 
   body {
@@ -129,12 +168,12 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--primary);
+    outline: 2px solid var(--fg);
     outline-offset: 2px;
   }
 
   ::selection {
-    background-color: var(--primary-subtle);
+    background-color: color-mix(in oklch, var(--fg) 16%, transparent);
   }
 
   @media (pointer: fine) {
@@ -145,7 +184,6 @@
 
     ::-webkit-scrollbar-thumb {
       background: var(--border-strong);
-      border-radius: 999px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
@@ -154,73 +192,11 @@
   }
 }
 
-@keyframes shimmer {
-  from {
-    background-position: 150% 0;
-  }
-  to {
-    background-position: -50% 0;
-  }
-}
-
-/* Expands outward from a dot that stays put, so the dot itself reads as the
-   status and the ring as "still running". */
-@keyframes pulse-ring {
-  from {
-    transform: scale(1);
-    opacity: 0.55;
-  }
-  to {
-    transform: scale(2.6);
-    opacity: 0;
-  }
-}
-
-@keyframes fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes shake {
-  20% {
-    transform: translateX(-4px);
-  }
-  40% {
-    transform: translateX(3px);
-  }
-  60% {
-    transform: translateX(-2px);
-  }
-  80% {
-    transform: translateX(1px);
-  }
-}
-
 @layer components {
-  /* Placeholder block for route and Suspense skeletons. The gradient is wider
-     than the box so the highlight travels across it rather than fading in place. */
+  /* Placeholder block for route and Suspense skeletons. */
   .skeleton {
-    border-radius: 0.375rem;
+    border-radius: 2px;
     background-color: var(--surface-2);
-    background-image: linear-gradient(
-      90deg,
-      transparent 0%,
-      var(--surface-3) 35%,
-      var(--surface-3) 45%,
-      transparent 80%
-    );
-    background-size: 250% 100%;
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    .skeleton {
-      animation: shimmer 1.6s linear infinite;
-    }
   }
 }
 
@@ -247,8 +223,8 @@
 }
 
 [data-rehype-pretty-code-figure] [data-highlighted-line] {
-  background-color: var(--primary-subtle);
-  border-left-color: var(--primary);
+  background-color: var(--surface-2);
+  border-left-color: var(--fg);
 }
 
 [data-rehype-pretty-code-title] {
@@ -265,20 +241,13 @@
   padding: 0.25rem 0;
 }
 
-/* Covers CSS animation only. Motion drives inline styles from JavaScript and
-   never sees this, which is what `MotionConfig reducedMotion="user"` is for. */
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
   }
 }
 
@@ -290,34 +259,38 @@
   .oj-table-frame {
     min-width: 0;
     overflow-x: auto;
-    border: 1px solid var(--border);
-    border-radius: 0.5rem;
-    background: var(--surface);
   }
   .oj-table-frame > table {
     width: 100%;
     font-size: 0.875rem;
   }
   .oj-table-frame > table > thead {
-    background: var(--surface-2);
     color: var(--fg-muted);
     font-size: 0.75rem;
   }
   .oj-table-frame > table > thead > tr > th {
-    padding: 0.625rem 1rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--fg);
     text-align: left;
-    font-weight: 600;
+    font-weight: 500;
     white-space: nowrap;
   }
   .oj-table-frame > table > tbody > tr {
-    height: 2.75rem;
-    border-top: 1px solid var(--border);
+    height: 2.25rem;
+    border-bottom: 1px solid var(--border);
+    transition: background-color 120ms;
   }
   .oj-table-frame > table > tbody > tr:hover {
     background: var(--surface-2);
   }
   .oj-table-frame > table > tbody > tr > td {
-    padding: 0.625rem 1rem;
+    padding: 0.375rem 0.75rem;
+  }
+  .oj-table-frame > table > * > tr > :first-child {
+    padding-left: 0;
+  }
+  .oj-table-frame > table > * > tr > :last-child {
+    padding-right: 0;
   }
   .oj-table-frame .numeric {
     text-align: right;
@@ -328,23 +301,18 @@
     font-weight: 500;
   }
   .oj-table-frame .row-link:hover {
-    color: var(--primary);
     text-decoration: underline;
-  }
-  .oj-sidebar {
-    border: 1px solid var(--border);
-    border-radius: 0.5rem;
-    background: var(--surface);
-    padding: 1rem;
+    text-underline-offset: 3px;
   }
   .oj-sidebar dl {
     display: grid;
     gap: 0.75rem;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
   }
   .oj-sidebar dt {
     color: var(--fg-muted);
-    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+    margin-bottom: 0.125rem;
   }
   .oj-sidebar dd {
     margin: 0;
@@ -353,6 +321,12 @@
     min-width: 0;
     overflow-wrap: anywhere;
   }
+  /* Prose reads as a printed sheet; content-owned interactive views keep the
+     interface face and the full width. */
+  .oj-statement > :where(p, ul, ol, blockquote) {
+    max-width: 42rem;
+    font-family: var(--font-serif);
+  }
   .oj-statement img,
   .oj-statement video,
   .oj-statement canvas {
@@ -360,64 +334,6 @@
   }
   .oj-statement pre {
     max-width: 100%;
-  }
-}
-
-/* Depth and feedback without changing the geometry of dense data pages. */
-@layer components {
-  .ui-panel,
-  .oj-table-frame,
-  .oj-sidebar,
-  .oj-statement {
-    box-shadow:
-      0 2px 4px -3px color-mix(in oklch, var(--fg) 12%, transparent),
-      0 10px 30px -24px color-mix(in oklch, var(--primary) 30%, transparent);
-  }
-  .ui-entry {
-    border-color: var(--border);
-    background: linear-gradient(
-      145deg,
-      var(--surface),
-      color-mix(in oklch, var(--primary-subtle) 28%, var(--surface))
-    );
-    box-shadow: 0 4px 18px -14px var(--primary);
-    transition:
-      border-color 200ms,
-      box-shadow 200ms,
-      transform 200ms;
-  }
-  .ui-entry:hover {
-    border-color: color-mix(in oklch, var(--primary) 40%, var(--border));
-    box-shadow: 0 10px 28px -18px var(--primary);
-  }
-  .ui-primary {
-    box-shadow:
-      0 2px 4px color-mix(in oklch, var(--primary) 15%, transparent),
-      0 0 18px -6px var(--primary);
-  }
-  .ui-primary:hover:not(:disabled) {
-    box-shadow: 0 0 24px -6px var(--primary);
-  }
-  .oj-table-frame > table > thead {
-    background: linear-gradient(
-      100deg,
-      var(--surface-2),
-      color-mix(in oklch, var(--primary-subtle) 35%, var(--surface))
-    );
-  }
-  .oj-table-frame > table > tbody > tr {
-    transition: background-color 160ms;
-  }
-  .oj-table-frame > table > tbody > tr > td:first-child {
-    transition: box-shadow 160ms;
-  }
-  .oj-table-frame > table > tbody > tr:hover > td:first-child {
-    box-shadow: inset 2px 0 var(--primary);
-  }
-}
-@media (prefers-reduced-motion: no-preference) {
-  .ui-entry:hover {
-    transform: translateY(-2px);
   }
 }
 
@@ -469,13 +385,9 @@
   }
 }
 
-/* The default header and page share geometry, including streamed workspaces. */
+/* The default header and page share geometry. */
 .site-container {
-  max-width: var(--site-content-width, 1280px);
-}
-
-body:has(.oj-page [data-contest-workspace]) {
-  --site-content-width: 100%;
+  max-width: var(--site-content-width, 1200px);
 }
 
 /* Animate only opted-in regions, not the viewport or persistent chrome. */

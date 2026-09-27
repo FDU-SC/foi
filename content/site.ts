@@ -50,10 +50,4 @@ export const site: SiteConfig = {
   footer: {
     links: [{ href: "https://github.com/FDU-SC/foi", label: "源码" }],
   },
-
-  homeEntries: [
-    { href: "/problems", title: "题库" },
-    { href: "/contests", title: "比赛" },
-    { href: "/submissions", title: "我的提交" },
-  ],
 };

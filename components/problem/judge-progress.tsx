@@ -1,7 +1,3 @@
-"use client";
-
-import { motion } from "motion/react";
-import { LAYOUT_SPRING } from "@/components/ui/motion";
 import { isSettled, type SubmissionState } from "@/lib/backend/types";
 import { cn } from "@/lib/utils";
 
@@ -16,8 +12,8 @@ const REACHED: Record<SubmissionState, number> = {
 };
 
 /**
- * Shows the submission's current stage. The active stage pulses rather than
- * displaying a percentage because the remaining duration is unknown.
+ * Shows the submission's current stage. The remaining duration is unknown, so
+ * the current stage is named rather than shown as a percentage.
  */
 export function JudgeProgress({
   state,
@@ -35,35 +31,26 @@ export function JudgeProgress({
       <div className="flex items-center gap-1.5">
         {STAGES.map((label, index) => {
           const done = index < reached || (settled && index <= reached);
-          const running = index === reached && !settled;
+          const current = index === reached && !settled;
 
           return (
             <div key={label} className="flex-1 space-y-1">
-              <div className="bg-surface-3 h-1 overflow-hidden rounded-full">
-                <motion.div
-                  className={cn(
-                    "h-full origin-left rounded-full",
-                    failed && index === reached ? "bg-warn" : "bg-primary",
-                  )}
-                  // No entrance from zero: a page opened on a settled
-                  // submission should already show the finished bar.
-                  initial={false}
-                  animate={{
-                    scaleX: done || running ? 1 : 0,
-                    opacity: running ? [0.4, 1, 0.4] : 1,
-                  }}
-                  transition={{
-                    scaleX: LAYOUT_SPRING,
-                    opacity: running
-                      ? { duration: 1.6, repeat: Infinity, ease: "easeInOut" }
-                      : { duration: 0.2 },
-                  }}
-                />
-              </div>
               <div
                 className={cn(
-                  "text-[11px] transition-colors",
-                  done || running ? "text-fg-muted" : "text-fg-subtle",
+                  "h-0.5",
+                  failed && index === reached
+                    ? "bg-warn"
+                    : done
+                      ? "bg-fg"
+                      : current
+                        ? "bg-fg-subtle"
+                        : "bg-border",
+                )}
+              />
+              <div
+                className={cn(
+                  "text-[11px]",
+                  current ? "text-fg font-medium" : done ? "text-fg-muted" : "text-fg-subtle",
                 )}
               >
                 {label}

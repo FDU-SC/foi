@@ -3,7 +3,6 @@
 import type { ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { Button, type ButtonProps } from "@/components/ui/button";
-import { revealClass } from "@/components/ui/reveal";
 import { cn } from "@/lib/utils";
 
 export function PendingSubmit({
@@ -32,13 +31,7 @@ export function FormMessage({
   children: ReactNode;
 }) {
   return (
-    <p
-      className={cn(
-        "rounded-md px-3 py-2 text-sm leading-6",
-        revealClass,
-        TONES[tone],
-      )}
-    >
+    <p className={cn("rounded-md px-3 py-2 text-sm leading-6", TONES[tone])}>
       {children}
     </p>
   );
@@ -54,14 +47,10 @@ export function ActionResult({
   return (
     <>
       {state.error ? (
-        <span className={cn("text-err text-xs", revealClass, className)}>
-          {state.error}
-        </span>
+        <span className={cn("text-err text-xs", className)}>{state.error}</span>
       ) : null}
       {state.message ? (
-        <span className={cn("text-ok text-xs", revealClass, className)}>
-          {state.message}
-        </span>
+        <span className={cn("text-ok text-xs", className)}>{state.message}</span>
       ) : null}
     </>
   );

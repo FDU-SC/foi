@@ -8,7 +8,6 @@ import {
 } from "@/components/catalogue/shell";
 import { NavigationLinks } from "@/components/site/navigation-links";
 import { PageHeader } from "@/components/ui/page";
-import { PageTransition } from "@/components/ui/page-transition";
 import { allows } from "@/lib/authz/engine";
 import { contestFor } from "@/lib/contests/access";
 import { catalogueBoardSections, catalogueSlugs } from "@/lib/contests/catalogue";
@@ -19,9 +18,9 @@ import { summarizeProgress } from "@/lib/problems/selection";
 
 /**
  * Shared catalogue chrome around the problem list and leaderboard panels.
- * The sidebar, title and tabs stay mounted and still across tab switches; only
- * the body below them fades. Switching inside keeps the previous body until
- * the next one is ready; entering from elsewhere shows the catalogue skeleton.
+ * The sidebar, title and tabs stay mounted across tab switches; only the body
+ * below them is replaced. Switching inside keeps the previous body until the
+ * next one is ready; entering from elsewhere shows the catalogue skeleton.
  */
 export async function CatalogueShellView({ children }: { children: ReactNode }) {
   const viewer = await getViewer();
@@ -56,15 +55,13 @@ export async function CatalogueShellView({ children }: { children: ReactNode }) 
   return (
     <CatalogueFrame>
       <PageHeader title="题库" actions={<NavigationLinks viewer={viewer} location="catalogue" />} />
-      {/* No Suspense around the sidebar or tabs: a boundary here can reveal after
-          the shell, and the page transition animates the panel across the grid. */}
+      {/* No Suspense around the sidebar or tabs: a boundary here can reveal
+          after the shell and move the panel across the grid. */}
       <div className="grid items-start gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
         <CatalogueSidebar lists={items} />
         <div className="min-w-0 space-y-3">
           <CataloguePanelHeader lists={items} canRank={canRank} />
-          <PageTransition>
-            <div className="min-w-0">{children}</div>
-          </PageTransition>
+          <div className="min-w-0">{children}</div>
         </div>
       </div>
     </CatalogueFrame>

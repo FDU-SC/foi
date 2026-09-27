@@ -1,9 +1,7 @@
 "use client";
 
-import { useId } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NavigationIndicator } from "@/components/ui/navigation-indicator";
 import { cn } from "@/lib/utils";
 
 export interface NavLink {
@@ -13,15 +11,15 @@ export interface NavLink {
 }
 
 /**
- * Header navigation with a shared active-link indicator.
- * Entries are authorized on the server before reaching this client component.
+ * Header navigation; the current entry is underlined against the header's
+ * bottom rule. Entries are authorized on the server before reaching this
+ * client component.
  */
 export function SiteNav({ items }: { items: NavLink[] }) {
   const pathname = usePathname();
-  const id = useId();
 
   return (
-    <nav className="order-last flex w-full min-w-0 items-center gap-1 overflow-x-auto pb-2 text-sm lg:order-none lg:w-auto lg:flex-1 lg:pb-0">
+    <nav className="order-last -mb-px flex w-full min-w-0 gap-5 overflow-x-auto text-sm lg:order-none lg:w-auto lg:flex-1 lg:self-stretch">
       {items.map((item) => {
         const active = [item.href, ...(item.matches ?? [])].some(
           (path) => pathname === path || pathname.startsWith(`${path}/`),
@@ -35,19 +33,13 @@ export function SiteNav({ items }: { items: NavLink[] }) {
             className={cn(
               // Narrow viewports scroll the strip rather than wrapping it,
               // keeping every navigation link reachable on small screens.
-              "relative shrink-0 rounded-md px-2.5 py-1.5 whitespace-nowrap transition-colors",
+              "flex shrink-0 items-center border-b-2 py-2.5 whitespace-nowrap transition-colors lg:py-0",
               active
-                ? "text-fg font-medium"
-                : "text-fg-muted hover:text-fg hover:bg-surface-2/60",
+                ? "border-fg text-fg font-medium"
+                : "text-fg-muted hover:text-fg border-transparent",
             )}
           >
-            {active ? (
-              <NavigationIndicator
-                name={`site-nav-active-${id}`}
-                className="bg-surface-2 absolute inset-0 rounded-md"
-              />
-            ) : null}
-            <span className="relative">{item.label}</span>
+            {item.label}
           </Link>
         );
       })}

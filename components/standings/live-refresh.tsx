@@ -33,15 +33,11 @@ export function StandingsLiveRefresh({ defaultOn }: { defaultOn: boolean }) {
       onClick={() => setLive((on) => !on)}
       aria-pressed={live}
       className={cn(
-        "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors",
-        "hover:bg-surface-2",
-        live ? "text-fg-muted" : "text-fg-subtle hover:text-fg-muted",
+        "flex items-center gap-1.5 py-1 text-xs transition-colors",
+        live ? "text-fg-muted hover:text-fg" : "text-fg-subtle hover:text-fg-muted",
       )}
     >
-      <PulseDot
-        active={live}
-        className={live ? "bg-ok" : "bg-border-strong"}
-      />
+      <PulseDot className={live ? "bg-ok" : "bg-border-strong"} />
       {live
         ? pending
           ? "更新中…"

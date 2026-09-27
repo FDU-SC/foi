@@ -1,7 +1,6 @@
 import type { ComponentType } from "react";
 import { ProfileLink } from "@/components/account/profile-link";
 import { Avatar } from "@/components/ui/avatar";
-import { MotionTr } from "@/components/ui/motion";
 import type { BoardProps, StandingsRow } from "@/lib/standings/types";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +49,7 @@ export function summaryBoard<Cell>(
             {(standings.rows as StandingsRow<Cell>[]).map((row) => {
               const mine = row.participant.uid === highlight;
               return (
-                <MotionTr
+                <tr
                   key={row.participant.uid}
                   aria-current={mine || undefined}
                   className={cn("hover:bg-surface-2/60", mine && "bg-primary/5")}
@@ -78,7 +77,7 @@ export function summaryBoard<Cell>(
                       {column.value(row)}
                     </td>
                   ))}
-                </MotionTr>
+                </tr>
               );
             })}
           </tbody>

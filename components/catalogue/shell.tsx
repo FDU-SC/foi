@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
-import { ViewTransition, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { CatalogueTabs } from "@/components/problem/catalogue-tabs";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { ListNav, type ListNavEntry, type ListNavGroup } from "@/components/ui/list-nav";
@@ -39,16 +39,8 @@ export interface CatalogueListItem {
   progress: { solved: number | null; total: number };
 }
 
-/**
- * Holds the catalogue chrome still during navigation. Without it the
- * site-wide page fade cross-fades the sidebar and tabs along with the panel.
- */
 export function CatalogueFrame({ children }: { children: ReactNode }) {
-  return (
-    <ViewTransition default="none" update="page-stable">
-      <div className="space-y-5">{children}</div>
-    </ViewTransition>
-  );
+  return <div className="space-y-5">{children}</div>;
 }
 
 /**

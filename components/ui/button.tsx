@@ -37,8 +37,7 @@ export function Button({
     <button
       className={cn(
         "inline-flex items-center justify-center rounded-md font-medium",
-        "transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-200 ease-out",
-        "motion-safe:active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100",
+        "transition-colors disabled:pointer-events-none disabled:opacity-50",
         VARIANTS[variant],
         SIZES[size],
         className,

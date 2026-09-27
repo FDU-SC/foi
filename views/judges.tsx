@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/ui/page";
+import { EmptyState, PageHeader } from "@/components/ui/page";
 import { notFound, redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
 import { JudgeStatusBoard } from "@/components/judges/judge-status-board";
@@ -21,9 +21,7 @@ export async function JudgesView() {
       <PageHeader title="评测机" />
 
       {visible.length === 0 ? (
-        <p className="text-fg-subtle border-border rounded-lg border bg-surface py-10 text-center text-sm">
-          暂无评测机。
-        </p>
+        <EmptyState>暂无评测机。</EmptyState>
       ) : (
         <JudgeStatusBoard
           initial={visible}

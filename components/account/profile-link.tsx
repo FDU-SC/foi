@@ -17,7 +17,7 @@ export function ProfileLink({
   return (
     <Link
       href={profileHref(username)}
-      className={cn("hover:text-primary transition-colors", className)}
+      className={cn("underline-offset-2 hover:underline", className)}
     >
       {children}
     </Link>

@@ -11,7 +11,11 @@ export interface TabLink {
   count?: number;
 }
 
-/** Tabs that are links: each tab is its own address, so switching is plain navigation. */
+/**
+ * Tabs that are links: each tab is its own address, so switching is plain
+ * navigation. The strip sinks one pixel into the wrapper's rule, so the current
+ * tab's underline covers it.
+ */
 export function Tabs({
   label,
   tabs,
@@ -22,25 +26,27 @@ export function Tabs({
   className?: string;
 }) {
   return (
-    <nav aria-label={label} className={cn("border-border flex gap-5 overflow-x-auto border-b", className)}>
-      {tabs.map((tab) => (
-        <Link
-          key={tab.key}
-          href={tab.href}
-          aria-current={tab.current ? "page" : undefined}
-          className={cn(
-            "-mb-px inline-flex shrink-0 items-center gap-1.5 border-b-2 py-2 text-sm whitespace-nowrap transition-colors",
-            tab.current
-              ? "border-fg text-fg font-medium"
-              : "text-fg-muted hover:text-fg border-transparent",
-          )}
-        >
-          {tab.label}
-          {tab.count !== undefined ? (
-            <span className="text-fg-subtle text-xs font-normal tabular-nums">{tab.count}</span>
-          ) : null}
-        </Link>
-      ))}
-    </nav>
+    <div className={cn("border-border border-b", className)}>
+      <nav aria-label={label} className="-mb-px flex gap-5 overflow-x-auto">
+        {tabs.map((tab) => (
+          <Link
+            key={tab.key}
+            href={tab.href}
+            aria-current={tab.current ? "page" : undefined}
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1.5 border-b-2 py-2 text-sm whitespace-nowrap transition-colors",
+              tab.current
+                ? "border-fg text-fg font-medium"
+                : "text-fg-muted hover:text-fg border-transparent",
+            )}
+          >
+            {tab.label}
+            {tab.count !== undefined ? (
+              <span className="text-fg-subtle text-xs font-normal tabular-nums">{tab.count}</span>
+            ) : null}
+          </Link>
+        ))}
+      </nav>
+    </div>
   );
 }

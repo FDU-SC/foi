@@ -17,7 +17,9 @@ import {
 } from "@/lib/contests/catalogue";
 import { contestFor, contestsFor } from "@/lib/contests/access";
 import { contestStatus } from "@/lib/contests/types";
-import { problemFor } from "@/lib/problems/access";
+import { problemFor, problemsFor, type ProblemView } from "@/lib/problems/access";
+import { progressFor } from "@/lib/problems/progress";
+import { summarizeProgress } from "@/lib/problems/selection";
 import { dateFormatter } from "@/lib/format";
 import { publishedAnnouncements } from "@/lib/announcements";
 import { homeSubmissions, recentPractice, recentContests } from "@/lib/home";
@@ -29,47 +31,42 @@ const formatter = dateFormatter({
   hour: "2-digit",
   minute: "2-digit",
 });
+const ROW = "border-border flex items-center gap-4 border-b py-2.5";
+const EMPTY = "text-fg-muted py-4 text-sm";
+const TITLE_LINK = "underline-offset-2 hover:underline";
+
 type PersonalProps = {
   rows: Promise<SubmissionListItem[]>;
   viewer: Viewer;
   now: Date;
 };
+type Progress = Awaited<ReturnType<typeof progressFor>>;
 
 async function Practice({ rows, viewer, now }: PersonalProps) {
   const practice = recentPractice(await rows, viewer, now);
   return (
     <HomePanel title="最近练习" href="/problems" className="order-1">
       {practice.length ? (
-        <ul className="divide-y divide-border">
+        <ul>
           {practice.map(({ row, ref }) => (
-            <li
-              key={`${row.contestSlug}/${row.problemSlug}`}
-              className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-surface-2/50"
-            >
-              <div className="min-w-0">
+            <li key={`${row.contestSlug}/${row.problemSlug}`} className={ROW}>
+              <div className="min-w-0 flex-1">
                 <Link
                   href={problemHref(row.contestSlug, row.problemSlug)}
-                  className="text-sm font-medium break-words hover:text-primary"
+                  className={`text-[15px] font-semibold break-words ${TITLE_LINK}`}
                 >
                   {ref.problem.title}
                 </Link>
-                <p className="text-fg-muted mt-1 text-xs">
-                  {ref.contest.title} ·{" "}
-                  {formatter.format(new Date(row.createdAt))}
+                <p className="text-fg-muted mt-0.5 text-xs">
+                  {ref.contest.title}　{formatter.format(new Date(row.createdAt))}
                 </p>
               </div>
-              <Link
-                href={problemHref(row.contestSlug, row.problemSlug)}
-                aria-label={`打开${ref.problem.title}`}
-                className="shrink-0 rounded-md bg-primary-subtle px-2.5 py-1.5 text-xs text-primary hover:bg-primary/15"
-              >
-                打开 →
-              </Link>
+              <VerdictBadge submission={row} />
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-fg-muted px-4 py-5 text-sm">还没有练习记录。</p>
+        <p className={EMPTY}>还没有练习记录。</p>
       )}
     </HomePanel>
   );
@@ -80,7 +77,7 @@ async function Submissions({ rows, viewer, now }: PersonalProps) {
   return (
     <HomePanel title="近期提交" href="/submissions" className="order-3">
       {latest.length ? (
-        <ul className="divide-y divide-border">
+        <ul>
           {latest.map((row) => {
             const readable = problemFor(
               row.contestSlug,
@@ -89,15 +86,18 @@ async function Submissions({ rows, viewer, now }: PersonalProps) {
               now,
             );
             return (
-              <li
-                key={row.id}
-                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 hover:bg-surface-2/50"
-              >
-                <div className="min-w-0 flex-1 basis-36 text-sm font-medium break-words">
+              <li key={row.id} className={`${ROW} flex-wrap gap-y-1`}>
+                <time
+                  dateTime={row.createdAt}
+                  className="text-fg-muted w-24 shrink-0 font-mono text-xs tabular-nums"
+                >
+                  {formatter.format(new Date(row.createdAt))}
+                </time>
+                <div className="min-w-0 flex-1 basis-32 text-sm break-words">
                   {readable ? (
                     <Link
                       href={problemHref(row.contestSlug, row.problemSlug)}
-                      className="hover:text-primary"
+                      className={TITLE_LINK}
                     >
                       {readable.ref.problem.title}
                     </Link>
@@ -105,20 +105,14 @@ async function Submissions({ rows, viewer, now }: PersonalProps) {
                     <span>{row.problemTitle}</span>
                   )}
                 </div>
-                <span className="flex flex-wrap items-center gap-1.5">
+                <span className="flex items-center gap-2">
                   <VerdictBadge submission={row} />
                   <QueueBadge queue={row.queue} />
                 </span>
-                <time
-                  dateTime={row.createdAt}
-                  className="text-fg-muted text-xs tabular-nums"
-                >
-                  {formatter.format(new Date(row.createdAt))}
-                </time>
                 <Link
                   href={`/submissions/${row.id}`}
                   aria-label={`查看${row.problemTitle}的提交详情`}
-                  className="text-primary text-xs"
+                  className="text-fg-muted hover:text-fg text-xs transition-colors"
                 >
                   详情
                 </Link>
@@ -127,7 +121,7 @@ async function Submissions({ rows, viewer, now }: PersonalProps) {
           })}
         </ul>
       ) : (
-        <p className="text-fg-muted px-4 py-3 text-sm">还没有提交记录。</p>
+        <p className={EMPTY}>还没有提交记录。</p>
       )}
     </HomePanel>
   );
@@ -137,46 +131,66 @@ function Schedule({ viewer, now }: { viewer: Viewer; now: Date }) {
   const contests = recentContests(contestsFor(viewer, now), now);
   return (
     <HomePanel title="近期比赛" href="/contests" className="order-2">
-      <ul className="divide-y divide-border">
+      <ul>
         {contests.map(({ config, preview }) => {
           const status = contestStatus(config, now);
           return (
-            <li key={config.slug} className="space-y-2 px-4 py-3">
-              <div className="flex flex-wrap gap-1.5">
-                <Badge tone={status.tone}>{status.label}</Badge>
-                {preview && <Badge tone="warn">未公开</Badge>}
+            <li key={config.slug} className={ROW}>
+              <div className="min-w-0 flex-1">
+                <Link
+                  href={contestHref(config.slug)}
+                  className={`text-sm font-semibold break-words ${TITLE_LINK}`}
+                >
+                  {config.title}
+                </Link>
+                <p className="text-fg-muted mt-0.5 text-xs tabular-nums">
+                  {formatter.format(config.startsAt)} 开赛
+                </p>
               </div>
-              <Link
-                href={contestHref(config.slug)}
-                className="block text-sm font-medium break-words hover:text-primary"
-              >
-                {config.title}
-              </Link>
-              <p className="text-fg-muted text-xs">
-                {formatter.format(config.startsAt)} 开赛
-              </p>
+              <span className="flex shrink-0 flex-wrap justify-end gap-2">
+                {preview && <Badge tone="warn">未公开</Badge>}
+                <Badge tone={status.tone}>{status.label}</Badge>
+              </span>
             </li>
           );
         })}
       </ul>
-      {!contests.length && (
-        <p className="text-fg-muted p-4 text-sm">暂无比赛。</p>
-      )}
+      {!contests.length && <p className={EMPTY}>暂无比赛。</p>}
     </HomePanel>
   );
 }
 
-function Domains({ viewer, now }: { viewer: Viewer; now: Date }) {
+/** Solved out of total, once the viewer's progress arrives. */
+async function SolvedCount({
+  problems,
+  progress,
+}: {
+  problems: ProblemView[];
+  progress: Promise<Progress>;
+}) {
+  const { solved } = summarizeProgress(problems, await progress);
+  return solved === null ? problems.length : `${solved}/${problems.length}`;
+}
+
+function Domains({
+  viewer,
+  now,
+  progress,
+}: {
+  viewer: Viewer;
+  now: Date;
+  progress: Promise<Progress> | null;
+}) {
   const groups = new Map<
     string,
-    NonNullable<ReturnType<typeof contestFor>>[]
+    (NonNullable<ReturnType<typeof contestFor>> & { problems: ProblemView[] })[]
   >();
   for (const slug of catalogueSlugs()) {
     const contest = contestFor(slug, viewer, now);
     if (!contest) continue;
     const domain = contest.config.domain ?? "";
     const entries = groups.get(domain) ?? [];
-    entries.push(contest);
+    entries.push({ ...contest, problems: problemsFor(slug, viewer, now) });
     groups.set(domain, entries);
   }
   const ungrouped = groups.get("");
@@ -186,30 +200,40 @@ function Domains({ viewer, now }: { viewer: Viewer; now: Date }) {
   }
   return (
     <HomePanel title="题库分区" href="/problems" className="order-5">
-      <div className="divide-y divide-border">
-        {[...groups].map(([domain, contests]) => (
-          <div key={domain} className="px-4 py-3">
-            <h3 className="text-fg-muted mb-2 text-xs font-medium">
-              {domain || "其他分区"}
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {contests.map(({ config, preview }) => (
+      {[...groups].map(([domain, contests]) => (
+        <div key={domain} className="mt-3">
+          <h3 className="text-fg-muted mb-0.5 text-xs">{domain || "其他分区"}</h3>
+          <ul>
+            {contests.map(({ config, preview, problems }) => (
+              <li key={config.slug}>
                 <Link
-                  key={config.slug}
                   href={contestHref(config.slug)}
-                  className="rounded-md border border-border bg-surface-2/30 px-2.5 py-1.5 text-xs hover:border-primary/40 hover:text-primary"
+                  className={`group flex items-baseline py-1 text-sm ${problems.length ? "text-fg" : "text-fg-subtle"}`}
                 >
-                  {config.title}
-                  {preview ? " · 未公开" : ""}
+                  <span className="underline-offset-2 group-hover:underline">
+                    {config.title}
+                    {preview ? " · 未公开" : ""}
+                  </span>
+                  <span
+                    aria-hidden
+                    className="border-border-strong mx-2 flex-1 -translate-y-1 border-b border-dotted"
+                  />
+                  <span className="text-fg-muted font-mono text-xs tabular-nums">
+                    {progress ? (
+                      <Suspense fallback={problems.length}>
+                        <SolvedCount problems={problems} progress={progress} />
+                      </Suspense>
+                    ) : (
+                      problems.length
+                    )}
+                  </span>
                 </Link>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-      {!groups.size && (
-        <p className="text-fg-muted p-4 text-sm">题库还没有分区。</p>
-      )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      {!groups.size && <p className={EMPTY}>题库还没有分区。</p>}
     </HomePanel>
   );
 }
@@ -219,25 +243,23 @@ function Announcements({ now }: { now: Date }) {
   if (!entries.length) return null;
   return (
     <HomePanel title="公告" href="/announcements" className="order-4">
-      <ul className="divide-y divide-border">
+      <ul>
         {entries.map((entry) => (
-          <li key={entry.slug} className="space-y-2 px-4 py-3">
-            <Link
-              href={`/announcements/${entry.slug}`}
-              className="text-sm font-medium break-words hover:text-primary"
-            >
-              {entry.pinned && (
-                <Badge tone="primary" className="mr-2">
-                  置顶
-                </Badge>
-              )}
-              {entry.title}
-            </Link>
+          <li key={entry.slug} className="border-border space-y-1 border-b py-2.5">
+            <div className="flex flex-wrap items-baseline gap-2">
+              {entry.pinned && <Badge tone="primary">置顶</Badge>}
+              <Link
+                href={`/announcements/${entry.slug}`}
+                className={`text-sm font-semibold break-words ${TITLE_LINK}`}
+              >
+                {entry.title}
+              </Link>
+            </div>
             <p className="text-fg-muted line-clamp-2 text-xs leading-5">
               {entry.summary}
             </p>
             <time
-              className="text-fg-subtle text-xs"
+              className="text-fg-subtle text-xs tabular-nums"
               dateTime={entry.publishedAt}
             >
               {formatter.format(new Date(entry.publishedAt))}
@@ -253,31 +275,33 @@ export async function HomeView() {
   const viewer = await getViewer();
   const now = new Date();
   const rows = homeSubmissions(viewer);
+  const slugs = catalogueSlugs();
+  const progress = viewer.uid !== null && slugs.length > 0
+    ? progressFor(slugs, viewer, now)
+    : null;
+  const entries = site.homeEntries ?? [];
   const Board = siteViews.HomeLeaderboard;
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <HomeHero />
-      <nav
-        aria-label="快捷入口"
-        className="flex flex-wrap items-center gap-x-5 gap-y-2 px-1 text-sm"
-      >
-        {(site.homeEntries ?? []).map((entry) => (
-          <Link
-            key={entry.href}
-            href={entry.href}
-            className="text-fg-muted hover:text-primary"
-          >
-            {entry.title} <span aria-hidden="true">↗</span>
-          </Link>
-        ))}
-        {viewer.uid === null && (
-          <Link href="/login?next=/" className="text-primary ml-auto text-xs">
-            登录
-          </Link>
-        )}
-      </nav>
-      <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6">
-        <div className="contents lg:block lg:min-w-0 lg:space-y-5">
+      {entries.length > 0 && (
+        <nav
+          aria-label="快捷入口"
+          className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm"
+        >
+          {entries.map((entry) => (
+            <Link
+              key={entry.href}
+              href={entry.href}
+              className="text-fg-muted hover:text-fg underline-offset-2 transition-colors hover:underline"
+            >
+              {entry.title}
+            </Link>
+          ))}
+        </nav>
+      )}
+      <div className="flex flex-col gap-9 lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start lg:gap-14">
+        <div className="contents lg:block lg:min-w-0 lg:space-y-9">
           {viewer.uid !== null && (
             <Suspense
               fallback={
@@ -287,6 +311,7 @@ export async function HomeView() {
               <Practice rows={rows} viewer={viewer} now={now} />
             </Suspense>
           )}
+          <Schedule viewer={viewer} now={now} />
           {viewer.uid !== null && (
             <Suspense
               fallback={
@@ -296,11 +321,10 @@ export async function HomeView() {
               <Submissions rows={rows} viewer={viewer} now={now} />
             </Suspense>
           )}
-          <Domains viewer={viewer} now={now} />
-        </div>
-        <div className="contents lg:block lg:min-w-0 lg:space-y-5">
-          <Schedule viewer={viewer} now={now} />
           <Announcements now={now} />
+        </div>
+        <div className="contents lg:block lg:min-w-0 lg:space-y-9">
+          <Domains viewer={viewer} now={now} progress={progress} />
           {viewer.uid !== null &&
             Board &&
             allows("leaderboard.read", null, viewer) && (

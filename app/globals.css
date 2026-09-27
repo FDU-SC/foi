@@ -337,54 +337,6 @@
   }
 }
 
-.contest-event {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 20px;
-  padding: 16px 20px;
-  border-left: 3px solid transparent;
-  transition:
-    background-color 180ms,
-    border-color 180ms;
-}
-.contest-event:hover {
-  background-color: var(--surface-2);
-  border-left-color: var(--primary);
-}
-.contest-date {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px;
-  color: var(--fg-muted);
-  background: var(--surface-2);
-}
-.contest-featured {
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--primary);
-  border-radius: 8px;
-  padding-block: 28px;
-}
-.contest-featured .contest-date {
-  color: var(--primary);
-}
-@media (max-width: 767px) {
-  .contest-event {
-    grid-template-columns: 52px minmax(0, 1fr);
-    gap: 12px;
-    padding: 16px 12px;
-    align-items: start;
-  }
-  .contest-event-actions {
-    grid-column: 2;
-  }
-}
-
 /* The default header and page share geometry. */
 .site-container {
   max-width: var(--site-content-width, 1200px);

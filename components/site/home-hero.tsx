@@ -1,13 +1,12 @@
 import { site } from "@/lib/site";
 import { siteViews } from "@/lib/site-views";
 
+/** The brand already heads every page, so the home page opens with one line. */
 export function DefaultHomeHero() {
   return (
-    <section className="border-border border-b pb-5">
-      <h1 className="text-fg text-2xl font-bold tracking-tight">{site.name}</h1>
-      <p className="text-fg-muted mt-1 max-w-2xl text-sm leading-6">
-        {site.tagline ?? site.description}
-      </p>
+    <section>
+      <h1 className="sr-only">{site.name}</h1>
+      <p className="text-fg-muted text-sm">{site.tagline ?? site.description}</p>
     </section>
   );
 }

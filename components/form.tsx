@@ -19,8 +19,8 @@ export function PendingSubmit({
 }
 
 const TONES = {
-  ok: "text-ok bg-ok-subtle",
-  err: "text-err bg-err-subtle",
+  ok: "text-ok border-ok",
+  err: "text-err border-err",
 } as const;
 
 export function FormMessage({
@@ -31,7 +31,7 @@ export function FormMessage({
   children: ReactNode;
 }) {
   return (
-    <p className={cn("rounded-md px-3 py-2 text-sm leading-6", TONES[tone])}>
+    <p className={cn("border-l-2 py-0.5 pl-3 text-sm leading-6", TONES[tone])}>
       {children}
     </p>
   );

@@ -11,13 +11,13 @@ export function DefaultAuthShell({
 }) {
   return (
     <div className="relative z-10 flex flex-1 items-center justify-center px-4 py-16">
-      <div className="border-border bg-surface w-full max-w-xs rounded-lg border px-6 py-8">
-        <div className="mb-8 text-center text-2xl">
+      <div className="w-full max-w-80">
+        <div className="border-fg mb-6 border-b pb-3 text-2xl">
           <Brand />
         </div>
         {children}
         {footer ? (
-          <p className="text-fg-subtle mt-6 text-center text-xs leading-relaxed">
+          <p className="text-fg-muted border-border mt-6 border-t pt-4 text-xs leading-relaxed">
             {footer}
           </p>
         ) : null}

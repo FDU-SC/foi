@@ -33,7 +33,7 @@ export async function AdminEnrollmentView() {
         <span>分流规则</span>
       </nav>
 
-      <h1 className="text-fg text-2xl font-bold tracking-tight">分流规则</h1>
+      <h1 className="text-fg text-xl font-bold">分流规则</h1>
 
       <Card>
         <CardHeader title="注册策略" />
@@ -74,17 +74,17 @@ export async function AdminEnrollmentView() {
           {rules.length === 0 ? (
             <p className="text-fg-muted text-sm leading-6">暂无分流规则。</p>
           ) : (
-            <div className="border-border overflow-hidden rounded-md border">
+            <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-surface-2">
+                <thead>
                   <tr className="text-fg-muted text-xs">
-                    <th className="border-border border-b px-3 py-2 text-left font-semibold">
+                    <th className="border-fg border-b px-3 py-2 text-left font-medium">
                       说明
                     </th>
-                    <th className="border-border border-b px-3 py-2 text-left font-semibold">
+                    <th className="border-fg border-b px-3 py-2 text-left font-medium">
                       匹配
                     </th>
-                    <th className="border-border border-b px-3 py-2 text-left font-semibold">
+                    <th className="border-fg border-b px-3 py-2 text-left font-medium">
                       用户组
                     </th>
                     {ruleMatches ? (

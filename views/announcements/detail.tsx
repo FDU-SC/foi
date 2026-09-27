@@ -19,12 +19,12 @@ export async function AnnouncementDetailView({
   if (!entry) notFound();
   const Body = siteViews.AnnouncementBody;
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
+    <div className="max-w-3xl space-y-5">
       <Link
         href="/announcements"
-        className="text-fg-muted text-sm hover:text-primary"
+        className="text-fg-muted hover:text-fg text-xs transition-colors"
       >
-        ← 公告
+        公告
       </Link>
       <PageHeader
         title={entry.title}
@@ -33,11 +33,11 @@ export async function AnnouncementDetailView({
           timeStyle: "short",
         }).format(new Date(entry.publishedAt))}
       />
-      <article className="oj-statement min-w-0 overflow-hidden p-5 sm:p-7">
+      <article className="oj-statement border-fg min-w-0 border-t pt-2">
         {Body ? (
           <Body slug={entry.slug} />
         ) : (
-          <p className="whitespace-pre-wrap break-words text-base leading-8">
+          <p className="text-base leading-[1.85] break-words whitespace-pre-wrap">
             {entry.summary}
           </p>
         )}

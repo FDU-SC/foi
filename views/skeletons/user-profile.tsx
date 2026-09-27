@@ -2,7 +2,7 @@ import { Skeleton, SkeletonScreen } from "@/components/ui/skeleton";
 
 function TabsParts() {
   return (
-    <div className="border-border flex h-[37px] items-center gap-4 border-b px-3 lg:pl-[276px] xl:pl-[308px]">
+    <div className="border-border flex h-[37px] items-center gap-5 border-b">
       <Skeleton className="h-4 w-10" />
       <Skeleton className="h-4 w-14" />
       <Skeleton className="h-4 w-14" />
@@ -11,26 +11,19 @@ function TabsParts() {
 }
 
 function FactsParts() {
-  return (
-    <div className="space-y-2">
-      <Skeleton className="h-3.5 w-44" />
-      <Skeleton className="h-3.5 w-32" />
-      <Skeleton className="h-3.5 w-36" />
-    </div>
-  );
+  return <Skeleton className="h-3.5 w-64" />;
 }
 
 function IdentityParts() {
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-4 lg:block lg:space-y-3">
-        <Skeleton className="size-20 shrink-0 rounded-full lg:size-56" />
-        <div className="min-w-0 flex-1 space-y-2">
-          <Skeleton className="h-7 w-36" />
-          <Skeleton className="h-5 w-24" />
+    <div className="space-y-3">
+      <div className="flex items-center gap-4">
+        <Skeleton className="size-10 shrink-0 rounded-full" />
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-3.5 w-20" />
         </div>
       </div>
-      <Skeleton className="h-8 w-full rounded-md" />
       <FactsParts />
     </div>
   );
@@ -38,21 +31,22 @@ function IdentityParts() {
 
 function MainParts() {
   return (
-    <div className="min-w-0 space-y-4">
-      <Skeleton className="h-4 w-20" />
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }, (_, index) => (
-          <div key={index} className="bg-surface border-border space-y-2 rounded-md border p-3">
-            <Skeleton className="h-3.5 w-24" />
-            <Skeleton className="h-1.5 w-full rounded-full" />
-            <Skeleton className="h-3 w-3/4" />
-            <Skeleton className="h-3 w-2/3" />
-          </div>
-        ))}
+    <div className="min-w-0 space-y-9">
+      <div className="space-y-3">
+        <Skeleton className="h-4 w-20" />
+        <div className="grid gap-x-10 gap-y-5 sm:grid-cols-2">
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={index} className="space-y-2">
+              <Skeleton className="h-3.5 w-28" />
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-full" />
+            </div>
+          ))}
+        </div>
       </div>
-      <Skeleton className="h-4 w-40" />
-      <div className="bg-surface border-border rounded-md border p-3">
-        <Skeleton className="h-32 w-full rounded" />
+      <div className="space-y-3">
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-32 w-full" />
       </div>
     </div>
   );
@@ -85,11 +79,9 @@ export function ProfileMainSkeleton() {
 export function UserProfileSkeleton() {
   return (
     <SkeletonScreen label="正在加载用户资料" className="space-y-6">
+      <IdentityParts />
       <TabsParts />
-      <div className="grid items-start gap-6 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[272px_minmax(0,1fr)]">
-        <IdentityParts />
-        <MainParts />
-      </div>
+      <MainParts />
     </SkeletonScreen>
   );
 }

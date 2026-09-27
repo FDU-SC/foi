@@ -132,8 +132,8 @@ export function MazeVisualizer() {
   };
 
   return (
-    <div className="border-border bg-surface my-6 overflow-hidden rounded-lg border">
-      <div className="border-border bg-surface-2/50 flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2.5">
+    <div className="border-border bg-surface my-6 overflow-hidden rounded-sm border">
+      <div className="border-border bg-surface-2 flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2.5">
         <span className="text-fg text-sm font-semibold">交互式演示</span>
         <div className="flex items-center gap-2">
           <Button
@@ -193,7 +193,7 @@ export function MazeVisualizer() {
                     cell === 0 && seen && !onPath && !inFrontier && "bg-info/25",
                     inFrontier && !onPath && "bg-info/60",
                     onPath && "bg-ok text-white",
-                    isStart && "ring-primary ring-2 ring-inset",
+                    isStart && "ring-fg ring-2 ring-inset",
                     isGoal && "ring-warn ring-2 ring-inset",
                   )}
                 >
@@ -206,7 +206,7 @@ export function MazeVisualizer() {
 
         <dl className="min-w-40 space-y-2 text-sm">
           <div>
-            <dt className="text-fg-subtle text-[11px] tracking-wide uppercase">
+            <dt className="text-fg-muted text-xs">
               最短步数
             </dt>
             <dd className="text-fg font-mono text-lg tabular-nums">
@@ -214,7 +214,7 @@ export function MazeVisualizer() {
             </dd>
           </div>
           <div>
-            <dt className="text-fg-subtle text-[11px] tracking-wide uppercase">
+            <dt className="text-fg-muted text-xs">
               已扩展
             </dt>
             <dd className="text-fg font-mono tabular-nums">

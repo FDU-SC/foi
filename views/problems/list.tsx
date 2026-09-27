@@ -231,7 +231,11 @@ export async function ProblemSetView({ params, searchParams }: Props) {
                         <ProgressMark progress={mine} />
                       </td>
                     ) : null}
-                    <td className="text-fg-muted font-mono text-xs">{listed.label ?? problem.slug}</td>
+                    <td className="text-fg-muted font-mono text-xs">
+                      <span className="block max-w-36 truncate" title={listed.label ?? problem.slug}>
+                        {listed.label ?? problem.slug}
+                      </span>
+                    </td>
                     <td>
                       <div className="flex flex-wrap items-center gap-2">
                         <Link className="row-link" href={problemHref(contest.slug, problem.slug)}>
@@ -240,7 +244,7 @@ export async function ProblemSetView({ params, searchParams }: Props) {
                         {view.preview ? <Badge tone="warn">未公开</Badge> : null}
                       </div>
                       {contest.facets.length > 0 ? (
-                        <div className="mt-1 flex flex-wrap gap-1 sm:hidden">
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 sm:hidden">
                           <ProblemBadgesSlot config={problem} offered={contest.facets} />
                         </div>
                       ) : null}
@@ -257,7 +261,7 @@ export async function ProblemSetView({ params, searchParams }: Props) {
                     )}
                     {offersFacets ? (
                       <td className="hidden sm:table-cell">
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                           <ProblemBadgesSlot config={problem} offered={contest.facets} />
                         </div>
                       </td>

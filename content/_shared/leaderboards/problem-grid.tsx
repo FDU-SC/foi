@@ -1,49 +1,49 @@
 import { ProfileLink } from "@/components/account/profile-link";
-import { Avatar } from "@/components/ui/avatar";
 import type { BoardProps } from "@/lib/standings/types";
+import { cn } from "@/lib/utils";
 
 function DefaultCell({ cell }: { cell: unknown }) {
-  if (cell === undefined || cell === null) {
-    return <span className="text-fg-subtle">·</span>;
-  }
-  return <span className="text-fg font-mono text-xs tabular-nums">✓</span>;
+  if (cell === undefined || cell === null) return null;
+  return <span className="text-fg text-xs">✓</span>;
 }
 
 function DefaultTotal({ row }: { row: { total: number } }) {
   return <span className="text-fg font-semibold tabular-nums">{Math.round(row.total)}</span>;
 }
 
-export function ProblemGridBoard({ board, problems }: BoardProps) {
+/**
+ * "Rank | Name | Total | one column per problem", ruled like a printed
+ * scoreboard. The viewer's own row is marked through the rank, name and total.
+ */
+export function ProblemGridBoard({ board, problems, highlight }: BoardProps) {
   const Cell = board.renderers.Cell ?? DefaultCell;
   const Total = board.renderers.Total ?? DefaultTotal;
   const { standings } = board;
 
   if (standings.rows.length === 0) {
     return (
-      <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
+      <p className="text-fg-muted border-border border-y py-10 text-center text-sm">
         还没有提交记录。
       </p>
     );
   }
 
   return (
-    <div className="oj-table-frame">
+    <div className="overflow-x-auto">
       <table className="w-full text-sm">
-        <thead className="bg-surface-2">
-          <tr className="text-fg-muted text-xs">
-            <th className="border-border w-12 border-b px-3 py-2.5 text-right font-semibold">
-              #
-            </th>
-            <th className="border-border bg-surface-2 sticky left-0 z-10 min-w-36 border-r border-b px-3 py-2.5 text-left font-semibold">
+        <thead>
+          <tr className="border-fg text-fg-muted border-b text-xs">
+            <th className="w-12 py-2 pr-3 text-right font-medium">#</th>
+            <th className="bg-bg sticky left-0 z-10 min-w-36 py-2 pr-3 text-left font-medium">
               选手
             </th>
-            <th className="border-border w-20 border-b px-3 py-2.5 text-center font-semibold">
+            <th className="w-16 py-2 pr-3 text-center font-medium">
               {standings.totalLabel}
             </th>
             {problems.map((problem) => (
               <th
                 key={problem.key}
-                className="border-border border-b px-2 py-2.5 text-center font-semibold"
+                className="text-fg w-[92px] min-w-[92px] py-2 text-center text-[13px] font-bold"
                 title={problem.title}
               >
                 {problem.label}
@@ -51,33 +51,37 @@ export function ProblemGridBoard({ board, problems }: BoardProps) {
             ))}
           </tr>
         </thead>
-        <tbody className="divide-border divide-y">
-          {standings.rows.map((row) => (
-            <tr
-              key={row.participant.uid}
-              className="hover:bg-surface-2/60"
-            >
-              <td className="text-fg-muted px-3 py-2 text-right font-mono text-xs tabular-nums">
-                {row.rank}
-              </td>
-              <td className="bg-surface border-border sticky left-0 z-10 border-r px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <Avatar of={row.participant} />
-                  <ProfileLink username={row.participant.username} className="text-fg font-medium">
+        <tbody>
+          {standings.rows.map((row) => {
+            const mine = row.participant.uid === highlight;
+            return (
+              <tr
+                key={row.participant.uid}
+                aria-current={mine || undefined}
+                className="border-border border-b"
+              >
+                <td className={cn("text-fg-muted py-1 pr-3 text-right text-xs tabular-nums", mine && "bg-mark")}>
+                  {row.rank}
+                </td>
+                <td className={cn("sticky left-0 z-10 py-1 pr-3", mine ? "bg-mark" : "bg-bg")}>
+                  <ProfileLink
+                    username={row.participant.username}
+                    className={cn("text-fg", mine && "font-semibold")}
+                  >
                     {row.participant.nickname}
                   </ProfileLink>
-                </div>
-              </td>
-              <td className="px-3 py-2 text-center">
-                <Total row={row} />
-              </td>
-              {problems.map((problem) => (
-                <td key={problem.key} className="px-2 py-2 text-center">
-                  <Cell cell={row.cells[problem.key]} problem={problem} />
                 </td>
-              ))}
-            </tr>
-          ))}
+                <td className={cn("py-1 pr-3 text-center", mine && "bg-mark")}>
+                  <Total row={row} />
+                </td>
+                {problems.map((problem) => (
+                  <td key={problem.key} className="p-[3px] text-center">
+                    <Cell cell={row.cells[problem.key]} problem={problem} />
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

@@ -1,16 +1,15 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import { CopyButton } from "./copy-button";
 
-function Pane({ label, content }: { label: string; content: string }) {
+function Pane({ label, content, className }: { label: string; content: string; className?: string }) {
   return (
-    <div className="min-w-0 flex-1">
-      <div className="border-border bg-surface-2/50 flex items-center justify-between border-b px-3 py-1.5">
-        <span className="text-fg-subtle text-[11px] font-medium tracking-wide uppercase">
-          {label}
-        </span>
+    <div className={cn("border-border min-w-0", className)}>
+      <div className="bg-surface-2 flex items-center justify-between px-3 py-1">
+        <span className="text-fg-muted text-xs">{label}</span>
         <CopyButton value={content} />
       </div>
-      <pre className="text-fg overflow-x-auto px-3 py-2.5 font-mono text-[13px] leading-relaxed whitespace-pre">
+      <pre className="text-fg border-border overflow-x-auto border-t px-3 py-2 font-mono text-[13px] leading-relaxed whitespace-pre">
         {content}
       </pre>
     </div>
@@ -28,21 +27,17 @@ export function Sample({
   output: string;
   note?: ReactNode;
 }) {
+  const suffix = n !== undefined ? ` #${n}` : "";
   return (
-    <figure className="border-border my-4 overflow-hidden rounded-lg border">
-      {n !== undefined ? (
-        <figcaption className="border-border bg-surface-2 text-fg border-b px-3 py-1.5 text-xs font-semibold">
-          样例 {n}
-        </figcaption>
-      ) : null}
-      <div className="divide-border flex flex-col divide-y sm:flex-row sm:divide-x sm:divide-y-0">
-        <Pane label="输入" content={input} />
-        <Pane label="输出" content={output} />
+    <figure className="my-4">
+      <div className="border-border grid border sm:grid-cols-2">
+        <Pane label={`输入${suffix}`} content={input} />
+        <Pane label={`输出${suffix}`} content={output} className="border-t sm:border-t-0 sm:border-l" />
       </div>
       {note ? (
-        <div className="border-border bg-surface-2/40 text-fg-muted border-t px-3 py-2 text-sm">
+        <figcaption className="text-fg-muted mt-1.5 font-serif text-[15px] leading-7 [&_p]:my-0 [&_p]:text-inherit">
           {note}
-        </div>
+        </figcaption>
       ) : null}
     </figure>
   );

@@ -45,18 +45,18 @@ export function VerdictDetail({ detail }: { detail: unknown }) {
   return (
     <div className="space-y-3">
       {message ? (
-        <pre className="border-border bg-surface-2 text-fg-muted overflow-x-auto rounded border px-3 py-2 font-mono text-xs whitespace-pre-wrap">
+        <pre className="bg-surface-2 text-fg-muted overflow-x-auto px-3 py-2 font-mono text-xs whitespace-pre-wrap">
           {message}
         </pre>
       ) : null}
 
       {tests ? (
-        <div className="border-border overflow-hidden rounded border">
+        <div className="overflow-x-auto">
           <table className="w-full text-xs">
-            <tbody className="divide-border divide-y">
+            <tbody className="divide-border border-border divide-y border-y">
               {tests.map((test, i) => (
-                <tr key={i} className="hover:bg-surface-2/50">
-                  <td className="text-fg-muted px-3 py-1.5 font-mono">
+                <tr key={i}>
+                  <td className="text-fg-muted py-1.5 pr-3 font-mono">
                     {test.name ?? `#${i + 1}`}
                   </td>
                   <td className="px-3 py-1.5">
@@ -72,7 +72,7 @@ export function VerdictDetail({ detail }: { detail: unknown }) {
                   <td className="text-fg-subtle px-3 py-1.5 text-right font-mono tabular-nums">
                     {test.time !== undefined ? `${test.time}ms` : ""}
                   </td>
-                  <td className="text-fg-subtle px-3 py-1.5 text-right font-mono tabular-nums">
+                  <td className="text-fg-subtle py-1.5 pl-3 text-right font-mono tabular-nums">
                     {test.memory !== undefined ? `${test.memory}KB` : ""}
                   </td>
                 </tr>
@@ -87,12 +87,12 @@ export function VerdictDetail({ detail }: { detail: unknown }) {
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="text-fg-subtle hover:text-fg text-xs transition-colors"
+            className="text-fg-muted hover:text-fg text-xs underline underline-offset-2 transition-colors"
           >
             {expanded ? "收起原始结果" : "展开原始结果"}
           </button>
           {expanded ? (
-            <pre className="border-border bg-surface-2 text-fg-muted mt-2 max-h-64 overflow-auto rounded border px-3 py-2 font-mono text-xs">
+            <pre className="bg-surface-2 text-fg-muted mt-2 max-h-64 overflow-auto px-3 py-2 font-mono text-xs">
               {JSON.stringify(detail, null, 2)}
             </pre>
           ) : null}

@@ -228,11 +228,17 @@
 }
 
 [data-rehype-pretty-code-title] {
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid var(--border);
+  margin-top: 1rem;
+  padding: 0.25rem 1rem;
+  border: 1px solid var(--border);
+  border-bottom: 0;
   color: var(--fg-muted);
   font-family: var(--font-mono);
   font-size: 0.75rem;
+}
+
+[data-rehype-pretty-code-title] + pre {
+  margin-top: 0;
 }
 
 .katex-display {

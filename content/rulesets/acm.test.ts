@@ -215,6 +215,51 @@ describe("acm 排名", () => {
   });
 });
 
+describe("acm 首杀", () => {
+  it("每道题最早通过的人得到首杀，之后通过的人没有", () => {
+    const standings = compute({
+      participants: participants(1, 2),
+      problems,
+      submissions: [solve(2, "b", 5), solve(1, "a", 10), solve(2, "a", 12), solve(1, "b", 20)],
+    });
+
+    expect(cell(standings, 1, "a")?.firstSolve).toBe(true);
+    expect(cell(standings, 2, "a")?.firstSolve).toBe(false);
+    expect(cell(standings, 2, "b")?.firstSolve).toBe(true);
+    expect(cell(standings, 1, "b")?.firstSolve).toBe(false);
+  });
+
+  it("同一分钟内按毫秒比较，同一时刻通过的都算首杀", () => {
+    const sameMinute = compute({
+      participants: participants(1, 2),
+      problems,
+      submissions: [solve(1, "a", 10.25), solve(2, "a", 10.5)],
+    });
+    expect(cell(sameMinute, 1, "a")).toMatchObject({ solvedAt: 10, firstSolve: true });
+    expect(cell(sameMinute, 2, "a")).toMatchObject({ solvedAt: 10, firstSolve: false });
+
+    const tied = compute({
+      participants: participants(1, 2),
+      problems,
+      submissions: [solve(1, "a", 10), solve(2, "a", 10)],
+    });
+    expect(cell(tied, 1, "a")?.firstSolve).toBe(true);
+    expect(cell(tied, 2, "a")?.firstSolve).toBe(true);
+  });
+
+  it("未通过、未揭晓的格子没有首杀，首杀只看已揭晓的通过", () => {
+    const standings = compute({
+      participants: participants(1, 2, 3),
+      problems,
+      submissions: [unjudged(3, "a", 3), fail(2, "a", 5), solve(1, "a", 10)],
+    });
+
+    expect(cell(standings, 3, "a")).toMatchObject({ pending: 1, firstSolve: false });
+    expect(cell(standings, 2, "a")).toMatchObject({ attempts: 1, firstSolve: false });
+    expect(cell(standings, 1, "a")?.firstSolve).toBe(true);
+  });
+});
+
 describe("acm 解题时刻", () => {
   it("solvedAt 以整分钟向下取整", () => {
     const standings = compute({

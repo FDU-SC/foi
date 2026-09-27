@@ -114,7 +114,7 @@ export function AvatarEditor({
             aria-hidden
             className={cn(
               "absolute inset-0 flex items-center justify-center gap-1.5 rounded-full",
-              "bg-black/55 text-xs font-medium text-white transition-opacity",
+              "bg-black/55 text-xs font-medium text-white",
               pending
                 ? "opacity-100"
                 : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100",

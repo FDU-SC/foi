@@ -7,7 +7,7 @@ function JudgeCardSkeleton() {
     <Card>
       <CardHeader
         title={<Skeleton className="h-4 w-32" />}
-        actions={<Skeleton className="h-5 w-20 rounded" />}
+        actions={<Skeleton className="h-5 w-20" />}
       />
       <CardBody className="grid grid-cols-3 gap-3">
         {Array.from({ length: 3 }, (_, metric) => (

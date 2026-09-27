@@ -16,7 +16,7 @@ export function AppErrorView({ error, retry }: AppErrorProps) {
       {error.digest ? (
         <p className="text-fg-subtle text-xs">
           错误编号{" "}
-          <code className="bg-surface-2 rounded px-1.5 py-0.5 font-mono">
+          <code className="bg-surface-2 rounded-sm px-1.5 py-0.5 font-mono">
             {error.digest}
           </code>
         </p>

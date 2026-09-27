@@ -8,7 +8,7 @@ export function SubmissionDetailSkeleton() {
       <Breadcrumb />
       <div className="border-border flex flex-wrap items-center gap-3 border-b pb-4">
         <Skeleton className="h-7 w-48" />
-        <Skeleton className="h-5 w-14 rounded" />
+        <Skeleton className="h-5 w-14" />
         <Skeleton className="ml-auto h-3 w-32" />
       </div>
       <Card>

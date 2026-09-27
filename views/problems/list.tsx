@@ -214,7 +214,7 @@ export async function ProblemSetView({ params, searchParams }: Props) {
             <thead>
               <tr>
                 {showProgress ? <th className="w-12">状态</th> : null}
-                <th className="w-36">题号</th>
+                <th className="hidden w-36 sm:table-cell">题号</th>
                 <th>题目</th>
                 {selected ? null : <th className="hidden md:table-cell">题单</th>}
                 {offersFacets ? <th className="hidden sm:table-cell">标签</th> : null}
@@ -231,7 +231,7 @@ export async function ProblemSetView({ params, searchParams }: Props) {
                         <ProgressMark progress={mine} />
                       </td>
                     ) : null}
-                    <td className="text-fg-muted font-mono text-xs">
+                    <td className="text-fg-muted hidden font-mono text-xs sm:table-cell">
                       <span className="block max-w-36 truncate" title={listed.label ?? problem.slug}>
                         {listed.label ?? problem.slug}
                       </span>

@@ -2,7 +2,7 @@ import { viewsFor } from "@/lib/problems/views";
 
 function JsonDump({ value }: { value: unknown }) {
   return (
-    <pre className="border-border bg-surface-2 text-fg-muted max-h-96 overflow-auto rounded border px-3 py-2 font-mono text-xs whitespace-pre-wrap">
+    <pre className="border-border bg-surface-2 text-fg-muted max-h-96 overflow-auto rounded-sm border px-3 py-2 font-mono text-xs whitespace-pre-wrap">
       {typeof value === "string" ? value : JSON.stringify(value, null, 2)}
     </pre>
   );

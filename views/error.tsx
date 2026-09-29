@@ -11,12 +11,12 @@ export interface AppErrorProps {
 export function AppErrorView({ error, retry }: AppErrorProps) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-12 text-center">
-      <h1 className="text-fg text-2xl font-semibold tracking-tight">出错了</h1>
+      <h1 className="text-fg text-xl font-bold">出错了</h1>
 
       {error.digest ? (
         <p className="text-fg-subtle text-xs">
           错误编号{" "}
-          <code className="bg-surface-2 rounded px-1.5 py-0.5 font-mono">
+          <code className="bg-surface-2 rounded-sm px-1.5 py-0.5 font-mono">
             {error.digest}
           </code>
         </p>

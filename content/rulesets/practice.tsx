@@ -1,4 +1,3 @@
-import { AnimatedNumber } from "@/components/ui/animated-number";
 import {
   assignRanks,
   hasResult,
@@ -51,12 +50,7 @@ export function PracticeCellView({ cell }: { cell: PracticeCell | undefined }) {
 }
 
 export function PracticeTotalView({ row }: { row: StandingsRow<PracticeCell> }) {
-  return (
-    <AnimatedNumber
-      value={Math.round(row.total)}
-      className="text-fg font-mono font-semibold tabular-nums"
-    />
-  );
+  return <span className="text-fg font-semibold tabular-nums">{Math.round(row.total)}</span>;
 }
 
 function cellsOf(row: StandingsRow<PracticeCell>): PracticeCell[] {

@@ -18,7 +18,7 @@ export function ForgotForm() {
         <FormMessage tone="ok">{state.message}</FormMessage>
         <Link
           href="/login"
-          className="border-border text-fg hover:bg-surface-2 block rounded-md border px-3 py-2 text-center text-sm font-medium transition-colors"
+          className="border-border text-fg hover:bg-surface-2 block rounded-sm border px-3 py-2 text-center text-sm font-medium transition-colors"
         >
           返回登录
         </Link>

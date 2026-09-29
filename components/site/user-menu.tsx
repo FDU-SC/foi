@@ -1,15 +1,11 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { logout } from "@/app/actions/auth";
-import { Avatar } from "@/components/ui/avatar";
-import { QUICK } from "@/components/ui/motion";
 import { useDismiss } from "@/components/ui/use-dismiss";
 import { profileHref } from "@/lib/accounts/profile";
 import type { SessionUser } from "@/lib/authz/viewer";
-import { cn } from "@/lib/utils";
 
 const ITEM =
   "text-fg-muted hover:bg-surface-2 hover:text-fg block px-3 py-2 text-sm transition-colors";
@@ -33,10 +29,9 @@ export function UserMenu({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="hover:bg-surface-2 flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors"
+        className="text-fg hover:text-fg-muted flex items-center gap-1.5 py-1.5 text-sm font-medium transition-colors"
       >
-        <Avatar of={user} />
-        <span className="text-fg text-sm font-medium">{user.nickname}</span>
+        {user.nickname}
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -45,77 +40,65 @@ export function UserMenu({
           strokeLinecap="round"
           strokeLinejoin="round"
           aria-hidden
-          className={cn(
-            "text-fg-subtle size-3 transition-transform duration-200",
-            open && "rotate-180",
-          )}
+          className="text-fg-subtle size-3"
         >
           <path d="m6 9 6 6 6-6" />
         </svg>
       </button>
 
-      <AnimatePresence>
-        {open ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -4 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: -4 }}
-            transition={QUICK}
-            // Grows from the button it hangs off, rather than from its middle.
-            className="border-border bg-surface/95 absolute right-0 z-50 mt-1.5 w-44 origin-top-right overflow-hidden rounded-lg border"
-          >
-            <div className="border-border border-b px-3 py-2">
-              <div className="text-fg font-mono text-xs">{user.username}</div>
-              <div className="text-fg-subtle text-[11px]">
-                {groupNames.join(" · ") || "选手"}
-              </div>
+      {open ? (
+        <div className="border-border bg-surface absolute right-0 z-50 mt-1.5 w-44 border">
+          <div className="border-border border-b px-3 py-2">
+            <div className="text-fg font-mono text-xs">{user.username}</div>
+            <div className="text-fg-subtle text-[11px]">
+              {groupNames.join(" · ") || "选手"}
             </div>
-            <Link
-              href={profileHref(user.username)}
-              onClick={() => setOpen(false)}
-              className={ITEM}
+          </div>
+          <Link
+            href={profileHref(user.username)}
+            onClick={() => setOpen(false)}
+            className={ITEM}
+          >
+            个人主页
+          </Link>
+          <Link
+            href="/submissions"
+            onClick={() => setOpen(false)}
+            className={ITEM}
+          >
+            我的提交
+          </Link>
+          <Link
+            href="/settings"
+            onClick={() => setOpen(false)}
+            className={ITEM}
+          >
+            个人设置
+          </Link>
+          {links.length > 0 ? (
+            <div className="border-border border-t">
+              {links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={ITEM}
+                  onClick={() => setOpen(false)}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          ) : null}
+          <form action={logout} className="border-border border-t">
+            <button
+              type="submit"
+              className="text-fg-muted hover:bg-surface-2 hover:text-err w-full px-3 py-2 text-left text-sm transition-colors"
             >
-              个人主页
-            </Link>
-            <Link
-              href="/submissions"
-              onClick={() => setOpen(false)}
-              className={ITEM}
-            >
-              我的提交
-            </Link>
-            <Link
-              href="/settings"
-              onClick={() => setOpen(false)}
-              className={ITEM}
-            >
-              个人设置
-            </Link>
-            {links.length > 0 ? (
-              <div className="border-border border-t py-1">
-                {links.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={ITEM}
-                    onClick={() => setOpen(false)}
-                  >
-                    {link.label}
-                  </Link>
-                ))}
-              </div>
-            ) : null}
-            <form action={logout}>
-              <button
-                type="submit"
-                className="text-fg-muted hover:bg-surface-2 hover:text-err w-full px-3 py-2 text-left text-sm transition-colors"
-              >
-                退出登录
-              </button>
-            </form>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+              退出登录
+            </button>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }

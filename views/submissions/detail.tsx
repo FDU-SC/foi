@@ -59,13 +59,13 @@ export async function SubmissionDetailView({
       </header>
 
       {view.reason ? (
-        <p className="text-warn bg-warn-subtle rounded-md px-3 py-2 text-sm">
+        <p className="text-warn border-warn border-l-2 py-0.5 pl-3 text-sm">
           {view.reason}
         </p>
       ) : null}
 
       {view.runnerStatus ? (
-        <p className="text-fg-muted bg-surface-2 rounded-md px-3 py-2 font-mono text-xs">
+        <p className="text-fg-muted bg-surface-2 px-3 py-2 font-mono text-xs">
           {view.runnerStatus}
         </p>
       ) : null}

@@ -23,7 +23,7 @@ export async function ResetPasswordView({
   if (typeof token !== "string" || token.length === 0) {
     return (
       <AuthShell footer={footer}>
-        <p className="text-err bg-err-subtle rounded-md px-3 py-2 text-sm leading-6">
+        <p className="text-err border-err border-l-2 py-0.5 pl-3 text-sm leading-6">
           链接不完整。
         </p>
       </AuthShell>
@@ -33,7 +33,7 @@ export async function ResetPasswordView({
   return (
     <AuthShell footer={footer}>
       {session ? (
-        <p className="text-warn bg-warn-subtle mb-4 rounded-md px-3 py-2 text-sm leading-6">
+        <p className="text-warn border-warn mb-4 border-l-2 py-0.5 pl-3 text-sm leading-6">
           已登录为 <span className="font-mono">{session.username}</span>
           ，重置该账号密码会退出登录。
         </p>

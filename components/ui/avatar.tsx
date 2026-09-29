@@ -1,5 +1,4 @@
-import type { CSSProperties } from "react";
-import { identiconHue, identiconInitial } from "@/lib/accounts/avatar";
+import { identiconInitial } from "@/lib/accounts/avatar";
 import { cn } from "@/lib/utils";
 
 /**
@@ -16,7 +15,6 @@ const SIZES = {
   sm: { box: "size-6 text-xs", px: 24 },
   md: { box: "size-10 text-base", px: 40 },
   lg: { box: "size-24 text-3xl", px: 96 },
-  xl: { box: "size-20 text-3xl lg:size-56 lg:text-7xl", px: 224 },
 } as const;
 
 export type AvatarSize = keyof typeof SIZES;
@@ -63,12 +61,9 @@ export function Avatar({ of, size = "sm", className }: AvatarProps) {
   return (
     <span
       aria-hidden
-      style={{ "--avatar-hue": String(identiconHue(of.uid)) } as CSSProperties}
       className={cn(
         shape,
-        "flex items-center justify-center font-semibold select-none",
-        "bg-[oklch(94%_0.045_var(--avatar-hue))] text-[oklch(50%_0.16_var(--avatar-hue))]",
-        "dark:bg-[oklch(30%_0.06_var(--avatar-hue))] dark:text-[oklch(74%_0.15_var(--avatar-hue))]",
+        "bg-surface-3 text-fg-muted flex items-center justify-center font-semibold select-none",
       )}
     >
       {identiconInitial(of.nickname)}

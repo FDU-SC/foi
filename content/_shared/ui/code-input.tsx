@@ -63,7 +63,7 @@ export function CodeInput() {
         fallback={
           <div
             aria-hidden
-            className="border-border bg-surface rounded-md border"
+            className="border-border bg-surface rounded-sm border"
             style={{ height: EDITOR_HEIGHT }}
           />
         }

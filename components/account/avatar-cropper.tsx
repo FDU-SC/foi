@@ -53,7 +53,7 @@ export function AvatarCropper({
       onClick={(event) => {
         if (event.target === dialog.current) onCancel();
       }}
-      className="border-border bg-surface text-fg m-auto rounded-lg border p-0 shadow-xl backdrop:bg-black/60"
+      className="border-border bg-surface text-fg m-auto rounded-sm border p-0 backdrop:bg-black/60"
     >
       {image ? (
         <CropPanel
@@ -102,7 +102,7 @@ function CropPanel({
       <h2 className="text-fg text-base font-semibold">调整头像</h2>
 
       <div
-        className="bg-surface-3 relative overflow-hidden rounded-lg"
+        className="bg-surface-3 relative overflow-hidden rounded-sm"
         style={{ width: FRAME, height: FRAME }}
       >
         <Cropper

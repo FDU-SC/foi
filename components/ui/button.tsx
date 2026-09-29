@@ -3,18 +3,16 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 const VARIANTS = {
-  primary:
-    "ui-primary bg-primary text-primary-fg hover:bg-primary-hover disabled:hover:bg-primary",
-  secondary:
-    "bg-surface border border-border text-fg hover:bg-surface-2 hover:border-border-strong",
+  primary: "bg-primary text-primary-fg hover:bg-primary-hover disabled:hover:bg-primary",
+  secondary: "bg-surface border border-border-strong text-fg hover:border-fg",
   ghost: "text-fg-muted hover:bg-surface-2 hover:text-fg",
   danger: "bg-err text-white hover:opacity-90",
 } as const;
 
 const SIZES = {
   sm: "h-7 px-2.5 text-xs gap-1.5",
-  md: "h-9 px-3.5 text-sm gap-2",
-  lg: "h-11 px-5 text-base gap-2",
+  md: "h-8 px-3 text-sm gap-2",
+  lg: "h-10 px-4 text-sm gap-2",
 } as const;
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -36,9 +34,8 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center rounded-md font-medium",
-        "transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-200 ease-out",
-        "motion-safe:active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100",
+        "inline-flex items-center justify-center rounded-sm font-medium whitespace-nowrap",
+        "transition-colors disabled:pointer-events-none disabled:opacity-50",
         VARIANTS[variant],
         SIZES[size],
         className,

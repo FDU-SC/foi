@@ -35,7 +35,7 @@ export function ContestCountdown({
     .map((value) => String(value).padStart(2, "0"))
     .join(":");
   return (
-    <span className="font-mono text-2xl font-semibold tabular-nums">
+    <span className="text-fg font-mono tabular-nums">
       {days > 0 ? `${days} 天 ` : ""}
       {clock}
     </span>

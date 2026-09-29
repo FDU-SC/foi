@@ -1,5 +1,4 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -10,7 +9,7 @@ export interface ListNavEntry {
   current: boolean;
   flags?: { label: string; tone: BadgeTone }[];
 
-  /** Drawn as a count and a bar; `solved` is absent without complete progress. */
+  /** Drawn as a count; `solved` is absent without complete progress. */
   progress?: { solved: number | null; total: number };
 }
 
@@ -23,9 +22,10 @@ export interface ListNavGroup {
 }
 
 /**
- * Entries under direction headings. Headings only label; every link is an
- * entry beneath one. A column on wide screens, one scrolling row of chips on
- * narrow ones, where the headings are not shown.
+ * Entries under direction headings, as a table of contents. A heading that
+ * gathers several lists is itself the entry for all of them; otherwise it only
+ * labels. A column on wide screens, one scrolling row on narrow ones, where
+ * only headings that are entries show.
  */
 export function ListNav({
   label,
@@ -38,31 +38,25 @@ export function ListNav({
 }) {
   return (
     <nav aria-label={label} className="min-w-0 lg:sticky lg:top-20">
-      <ul className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:gap-4 lg:overflow-visible lg:pb-0">
+      <ul className="flex gap-4 overflow-x-auto lg:flex-col lg:gap-5 lg:overflow-visible">
         <li className="shrink-0">
-          <ListLink entry={all} />
+          <ListLink entry={all} heading />
         </li>
         {groups.map((group) => (
           <li key={group.heading ?? "ungrouped"} className="contents lg:block">
-            <p className="text-fg mb-1 hidden px-2 py-1 text-sm font-semibold lg:block">
-              {group.heading ?? "其他"}
-            </p>
-            <ul className="contents lg:block lg:space-y-0.5 lg:pl-3">
-              {group.all ? (
-                <li className="lg:border-border/70 shrink-0 lg:mb-1 lg:border-b lg:pb-1">
-                  <ListLink
-                    entry={group.all}
-                    emphasis
-                    label={<>
-                      <span className="lg:hidden">{group.all.title}</span>
-                      <span className="hidden lg:inline">全部</span>
-                    </>}
-                  />
-                </li>
-              ) : null}
+            {group.all ? (
+              <div className="shrink-0">
+                <ListLink entry={group.all} heading />
+              </div>
+            ) : (
+              <p className="text-fg hidden py-1 pl-3.5 text-sm font-semibold lg:block">
+                {group.heading ?? "其他"}
+              </p>
+            )}
+            <ul className="contents lg:block">
               {group.lists.map((entry) => (
                 <li key={entry.key} className="shrink-0">
-                  <ListLink entry={entry} />
+                  <ListLink entry={entry} indent />
                 </li>
               ))}
             </ul>
@@ -74,69 +68,69 @@ export function ListNav({
 }
 
 /**
- * A chip on narrow screens, a row on wide ones. `emphasis` marks a direction's
- * summary entry apart from the sections beneath it.
+ * Underlined when current on narrow screens, marked by a left rule on wide
+ * ones. A list without problems is greyed.
  */
 function ListLink({
   entry,
-  label = entry.title,
-  emphasis = false,
+  heading = false,
+  indent = false,
 }: {
   entry: ListNavEntry;
-  label?: ReactNode;
-  emphasis?: boolean;
+  heading?: boolean;
+  indent?: boolean;
 }) {
+  const empty = entry.progress?.total === 0;
   return (
     <Link
       href={entry.href}
       aria-current={entry.current ? "page" : undefined}
       className={cn(
-        "block rounded-full border px-3 py-1.5 text-sm whitespace-nowrap transition-colors",
-        "lg:rounded-md lg:border-transparent lg:px-2 lg:whitespace-normal",
+        "flex items-baseline gap-2 border-b-2 py-1 text-sm whitespace-nowrap transition-colors",
+        "lg:border-b-0 lg:border-l-2 lg:pr-1 lg:whitespace-normal",
+        indent ? "lg:pl-6" : "lg:pl-3",
         entry.current
-          ? "border-primary/40 bg-primary-subtle text-primary font-medium"
-          : "border-border text-fg-muted hover:bg-surface-2 hover:text-fg",
+          ? "border-fg text-fg font-semibold"
+          : cn(
+              "hover:text-fg border-transparent",
+              heading ? "text-fg font-semibold" : empty ? "text-fg-subtle" : "text-fg-muted",
+            ),
       )}
     >
-      <div className="flex items-center gap-2">
-        <span className={cn("min-w-0 lg:flex-1", emphasis && "lg:font-semibold", emphasis && !entry.current && "lg:text-fg")}>
-          {label}
-        </span>
-        {entry.flags?.map((flag) => (
-          <Badge key={flag.label} tone={flag.tone}>
-            {flag.label}
-          </Badge>
-        ))}
-        {entry.progress ? (
-          <span className="font-mono text-xs tabular-nums opacity-70">
-            {entry.progress.solved !== null ? `${entry.progress.solved} / ${entry.progress.total}` : entry.progress.total}
-          </span>
-        ) : null}
-      </div>
-      {entry.progress ? (
-        <div className="mt-1.5 hidden lg:block">
-          <Progress {...entry.progress} label={entry.title} />
-        </div>
-      ) : null}
+      <span className="min-w-0 lg:flex-1">{entry.title}</span>
+      {entry.flags?.map((flag) => (
+        <Badge key={flag.label} tone={flag.tone}>
+          {flag.label}
+        </Badge>
+      ))}
+      {entry.progress ? <Count {...entry.progress} label={entry.title} /> : null}
     </Link>
   );
 }
 
-/** Solved out of total as a bar; absent without complete progress or without problems. */
-function Progress({ solved, total, label }: { solved: number | null; total: number; label: string }) {
-  if (solved === null || total === 0) return null;
+/**
+ * Solved out of total. With complete progress and at least one problem the
+ * count is announced as a progress bar; otherwise it is only the total.
+ */
+function Count({ solved, total, label }: { solved: number | null; total: number; label: string }) {
+  const text = solved !== null ? `${solved}/${total}` : String(total);
+  const style = "font-mono text-xs font-normal tabular-nums";
+
+  if (solved === null || total === 0) {
+    return <span className={cn(style, "text-fg-subtle")}>{text}</span>;
+  }
 
   return (
-    <div
+    <span
       role="progressbar"
       aria-label={`${label}完成进度`}
       aria-valuemin={0}
       aria-valuemax={total}
       aria-valuenow={solved}
       aria-valuetext={`${solved} / ${total}`}
-      className="bg-surface-3 h-1.5 overflow-hidden rounded-full"
+      className={cn(style, solved > 0 ? "text-fg" : "text-fg-muted")}
     >
-      <div className="bg-primary h-full rounded-full" style={{ width: `${(solved / total) * 100}%` }} />
-    </div>
+      {text}
+    </span>
   );
 }

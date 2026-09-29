@@ -1,16 +1,9 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
+/** A section with a titled rule, not a box. */
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn(
-        "ui-panel bg-surface border-border min-w-0 overflow-hidden rounded-lg border",
-        className,
-      )}
-      {...props}
-    />
-  );
+  return <div className={cn("min-w-0", className)} {...props} />;
 }
 
 export function CardHeader({
@@ -25,7 +18,7 @@ export function CardHeader({
   return (
     <div
       className={cn(
-        "border-border bg-surface-2/50 flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2.5",
+        "border-fg flex flex-wrap items-center justify-between gap-3 border-b pb-1.5",
         className,
       )}
       {...props}
@@ -40,5 +33,5 @@ export function CardBody({
   className,
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("px-4 py-3", className)} {...props} />;
+  return <div className={cn("py-3", className)} {...props} />;
 }

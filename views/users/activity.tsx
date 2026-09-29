@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import { ProblemRef } from "@/components/problem/problem-ref";
 import { QueueBadge } from "@/components/problem/queue-position";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
-import { ClockIcon, SolvedIcon, TrophyIcon } from "@/components/profile/icons";
 import { Badge } from "@/components/ui/badge";
 import { TableFrame } from "@/components/ui/page";
 import { Tabs } from "@/components/ui/tabs";
@@ -61,57 +60,44 @@ export async function loadProfileData(
 const day = dateFormatter({ dateStyle: "medium" });
 const moment = dateFormatter({ dateStyle: "short", timeStyle: "short" });
 
-/** The counts and places under the name, the way a code host lists followers. */
+/** The counts and places beside the name, as one line of figures. */
 export async function ProfileFacts({ data }: { data: Promise<ProfileData> }) {
   const { activity, records, ranks } = await data;
   const total = ranks.find((rank) => rank.id === undefined);
   return (
-    <div className="text-fg-muted space-y-1.5 text-sm">
-      <p className="flex flex-wrap items-center gap-x-1.5">
-        <SolvedIcon />
-        <strong className="text-fg">{activity.solved}</strong> 通过
-        <span aria-hidden>·</span>
-        <strong className="text-fg">{activity.submissions}</strong> 提交
-        <span aria-hidden>·</span>
+    <>
+      <span className="tabular-nums">
+        <strong className="text-fg">{activity.solved}</strong> 通过 ·{" "}
+        <strong className="text-fg">{activity.submissions}</strong> 提交 ·{" "}
         <strong className="text-fg">{records.length}</strong> 比赛
-      </p>
+      </span>
       {total ? (
-        <p className="flex items-center gap-1.5">
-          <TrophyIcon />
-          题库排名
-          <Link href={leaderboardHref()} className="text-fg font-semibold hover:text-primary">
+        <span className="tabular-nums">
+          题库排名{" "}
+          <Link href={leaderboardHref()} className="text-fg font-semibold underline-offset-2 hover:underline">
             #{total.row.rank}
           </Link>
-          <span className="text-fg-subtle">/ {total.entrants}</span>
-        </p>
+          <span className="text-fg-subtle"> / {total.entrants}</span>
+        </span>
       ) : null}
-      {activity.lastAt ? (
-        <p className="flex items-center gap-1.5">
-          <ClockIcon />
-          最近活跃于 {day.format(activity.lastAt)}
-        </p>
-      ) : null}
-    </div>
+      {activity.lastAt ? <span>最近活跃于 {day.format(activity.lastAt)}</span> : null}
+    </>
   );
 }
 
 function Total({ board, row }: Placement) {
   const Render = board.renderers.Total;
   return Render ? <Render row={row} /> : (
-    <span className="text-fg font-mono font-semibold tabular-nums">{Math.round(row.total)}</span>
+    <span className="text-fg font-semibold tabular-nums">{Math.round(row.total)}</span>
   );
 }
 
 function Empty({ children }: { children: ReactNode }) {
-  return (
-    <p className="text-fg-muted border-border rounded-md border px-4 py-6 text-center text-sm">
-      {children}
-    </p>
-  );
+  return <p className="text-fg-muted py-4 text-sm">{children}</p>;
 }
 
 function SectionTitle({ children }: { children: ReactNode }) {
-  return <h2 className="text-fg mb-2 text-base">{children}</h2>;
+  return <h2 className="text-fg mb-1 text-sm font-semibold">{children}</h2>;
 }
 
 const STATE_LABEL = { solved: "已通过", attempted: "尝试过", untouched: "未尝试" } as const;
@@ -154,7 +140,7 @@ function ProblemsTab({ pairs }: { pairs: PairActivity[] }) {
                   </Link>
                 </td>
                 <td className="hidden md:table-cell">
-                  <Link href={contestHref(contest.slug)} className="text-fg-muted hover:text-primary text-xs">
+                  <Link href={contestHref(contest.slug)} className="text-fg-muted hover:text-fg text-xs">
                     {contest.title}
                   </Link>
                 </td>
@@ -190,7 +176,7 @@ function ProblemsTab({ pairs }: { pairs: PairActivity[] }) {
 function Place({ row, entrants }: Placement) {
   return (
     <span className="text-fg-muted text-xs whitespace-nowrap">
-      第 <strong className="text-fg font-mono">{row.rank}</strong> 名 / {entrants}
+      第 <strong className="text-fg tabular-nums">{row.rank}</strong> 名 / {entrants}
     </span>
   );
 }
@@ -223,7 +209,7 @@ function ContestsTab({ records, ranks }: { records: ContestRecord[]; ranks: Cata
                     </td>
                     <td className="text-fg-subtle text-xs tabular-nums">{day.format(record.contest.startsAt)}</td>
                     <td className="text-right">
-                      <Link href={standingsHref(record.contest.slug)} className="hover:text-primary">
+                      <Link href={standingsHref(record.contest.slug)} className="underline-offset-2 hover:underline">
                         <Place {...record} />
                       </Link>
                     </td>
@@ -276,10 +262,10 @@ function SubmissionsTab({ rows, own }: { rows: SubmissionListItem[]; own: boolea
   return (
     <section>
       <div className="mb-2 flex items-baseline justify-between gap-3">
-        <h2 className="text-fg text-base">最近 {rows.length} 次提交</h2>
+        <h2 className="text-fg text-sm font-semibold">最近 {rows.length} 次提交</h2>
         {own ? (
-          <Link href="/submissions" className="text-fg-muted hover:text-primary text-xs">
-            全部 <span aria-hidden="true">→</span>
+          <Link href="/submissions" className="text-fg-muted hover:text-fg text-xs">
+            全部
           </Link>
         ) : null}
       </div>
@@ -314,7 +300,7 @@ function SubmissionsTab({ rows, own }: { rows: SubmissionListItem[]; own: boolea
                   </span>
                 </td>
                 <td className="text-right">
-                  <Link href={`/submissions/${row.id}`} className="text-fg-subtle hover:text-primary text-xs">
+                  <Link href={`/submissions/${row.id}`} className="text-fg-muted hover:text-fg text-xs">
                     详情
                   </Link>
                 </td>
@@ -348,7 +334,6 @@ export async function ProfileTabs({
   return (
     <Tabs
       label="主页内容"
-      className="lg:pl-[264px] xl:pl-[296px]"
       tabs={[
         { key: "overview", label: "概览", href: base, current: current === "overview" },
         { key: "problems", label: "题目", count: loaded.activity.pairs.length, href: `${base}?tab=problems`, current: current === "problems" },

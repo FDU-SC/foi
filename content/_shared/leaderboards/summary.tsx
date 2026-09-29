@@ -1,7 +1,5 @@
 import type { ComponentType } from "react";
 import { ProfileLink } from "@/components/account/profile-link";
-import { Avatar } from "@/components/ui/avatar";
-import { MotionTr } from "@/components/ui/motion";
 import type { BoardProps, StandingsRow } from "@/lib/standings/types";
 import { cn } from "@/lib/utils";
 
@@ -23,62 +21,60 @@ export function summaryBoard<Cell>(
 
     if (standings.rows.length === 0) {
       return (
-        <p className="text-fg-subtle border-border rounded-lg border py-16 text-center text-sm">
+        <p className="text-fg-muted border-border border-y py-10 text-center text-sm">
           还没有提交记录。
         </p>
       );
     }
 
     return (
-      <div className="oj-table-frame">
+      <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-surface-2">
-            <tr className="text-fg-muted text-xs">
-              <th className="border-border w-14 border-b px-3 py-2.5 text-right font-semibold">#</th>
-              <th className="border-border border-b px-3 py-2.5 text-left font-semibold">用户</th>
-              <th className="border-border border-b px-3 py-2.5 text-right font-semibold">
-                {standings.totalLabel}
-              </th>
+          <thead>
+            <tr className="border-fg text-fg-muted border-b text-xs">
+              <th className="w-12 py-2 pr-3 text-right font-medium">#</th>
+              <th className="py-2 pr-3 text-left font-medium">选手</th>
+              <th className="py-2 pr-3 text-right font-medium">{standings.totalLabel}</th>
               {columns.map((column) => (
-                <th key={column.label} className="border-border border-b px-3 py-2.5 text-right font-semibold">
+                <th key={column.label} className="py-2 pr-2 text-right font-medium">
                   {column.label}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-border divide-y">
+          <tbody>
             {(standings.rows as StandingsRow<Cell>[]).map((row) => {
               const mine = row.participant.uid === highlight;
               return (
-                <MotionTr
+                <tr
                   key={row.participant.uid}
                   aria-current={mine || undefined}
-                  className={cn("hover:bg-surface-2/60", mine && "bg-primary/5")}
+                  className={cn("border-border border-b", mine && "bg-mark")}
                 >
-                  <td className="text-fg-muted px-3 py-2.5 text-right font-mono text-xs tabular-nums">
+                  <td className="text-fg-muted py-2 pr-3 text-right text-xs tabular-nums">
                     {row.rank}
                   </td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <Avatar of={row.participant} />
-                      <ProfileLink username={row.participant.username} className="text-fg font-medium">
-                        {row.participant.nickname}
-                      </ProfileLink>
-                      {row.participant.username ? (
-                        <span className="text-fg-subtle font-mono text-xs">@{row.participant.username}</span>
-                      ) : null}
-                      {mine ? <span className="text-fg-muted text-xs">（我）</span> : null}
-                    </div>
+                  <td className="py-2 pr-3">
+                    <ProfileLink
+                      username={row.participant.username}
+                      className={cn("text-fg", mine && "font-semibold")}
+                    >
+                      {row.participant.nickname}
+                    </ProfileLink>
+                    {row.participant.username ? (
+                      <span className="text-fg-subtle ml-2 text-xs">@{row.participant.username}</span>
+                    ) : null}
+                    {mine ? <span className="text-fg-muted text-xs">（我）</span> : null}
                   </td>
-                  <td className="text-fg px-3 py-2.5 text-right font-mono tabular-nums">
+                  <td className="py-2 pr-3 text-right font-semibold tabular-nums">
                     {Total ? <Total row={row} /> : Math.round(row.total)}
                   </td>
                   {columns.map((column) => (
-                    <td key={column.label} className="text-fg-subtle px-3 py-2.5 text-right font-mono tabular-nums">
+                    <td key={column.label} className="text-fg-muted py-2 pr-2 text-right tabular-nums">
                       {column.value(row)}
                     </td>
                   ))}
-                </MotionTr>
+                </tr>
               );
             })}
           </tbody>

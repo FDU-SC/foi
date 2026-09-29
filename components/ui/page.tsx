@@ -11,15 +11,15 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3">
+    <header className="flex flex-wrap items-baseline justify-between gap-3">
       <div className="min-w-0">
-        <h1 className="text-fg text-2xl font-bold tracking-tight">{title}</h1>
+        <h1 className="text-fg text-xl font-bold">{title}</h1>
         {description ? (
           <p className="text-fg-muted mt-1 text-sm leading-6">{description}</p>
         ) : null}
       </div>
       {actions ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
           {actions}
         </div>
       ) : null}
@@ -37,7 +37,7 @@ export function TableFrame({
 
 export function EmptyState({ children }: { children: ReactNode }) {
   return (
-    <p className="border-border bg-surface text-fg-muted rounded-lg border px-4 py-10 text-center text-sm">
+    <p className="text-fg-muted border-border border-y py-10 text-center text-sm">
       {children}
     </p>
   );

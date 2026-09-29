@@ -35,6 +35,7 @@ import {
 } from "@/lib/problems/selection";
 import type { ProblemProgress } from "@/lib/problems/views";
 import { queryString, readOne, without, type SearchParams } from "@/lib/query";
+import { cn } from "@/lib/utils";
 
 interface Props {
   /** Absent on `/problems`, where every list is shown at once. */
@@ -55,6 +56,25 @@ const STATE_LABEL: Record<ProblemProgress["state"], string> = {
 
 const STATUSES = (Object.keys(STATE_LABEL) as ProblemProgress["state"][])
   .map((value) => ({ value, label: STATE_LABEL[value] }));
+
+const MARK: Record<ProblemProgress["state"], { glyph: string; className: string }> = {
+  solved: { glyph: "✓", className: "text-ok" },
+  attempted: { glyph: "✗", className: "text-err" },
+  untouched: { glyph: "", className: "" },
+};
+
+/** A symbol for the state, read out as the content's own label when it gives one. */
+function ProgressMark({ progress }: { progress: ProblemProgress | undefined }) {
+  if (!progress) return <span className="text-fg-subtle">—</span>;
+  const label = progress.verdict?.label ?? STATE_LABEL[progress.state];
+  const { glyph, className } = MARK[progress.state];
+  return (
+    <span title={label} className={cn("font-semibold", className)}>
+      <span aria-hidden>{glyph}</span>
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
 
 const SORT_LABEL: Record<ProblemSort, string> = {
   listed: "题单序",
@@ -176,7 +196,7 @@ export async function ProblemSetView({ params, searchParams }: Props) {
       ) : null}
 
       {problems.length === 0 ? (
-        <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
+        <p className="text-fg-muted border-border border-y py-10 text-center text-sm">
           {catalogue.length === 0 ? (
             selected ? "这个题单暂无题目。" : direction ? "这个方向暂无题目。" : "题库暂无题目。"
           ) : (
@@ -193,8 +213,8 @@ export async function ProblemSetView({ params, searchParams }: Props) {
           <table>
             <thead>
               <tr>
-                {showProgress ? <th className="w-24">状态</th> : null}
-                <th className="w-36">题号</th>
+                {showProgress ? <th className="w-12">状态</th> : null}
+                <th className="hidden w-36 sm:table-cell">题号</th>
                 <th>题目</th>
                 {selected ? null : <th className="hidden md:table-cell">题单</th>}
                 {offersFacets ? <th className="hidden sm:table-cell">标签</th> : null}
@@ -208,14 +228,14 @@ export async function ProblemSetView({ params, searchParams }: Props) {
                   <tr key={pairKey(contest.slug, problem.slug)}>
                     {showProgress ? (
                       <td>
-                        {mine?.verdict ? (
-                          <Badge tone={mine.verdict.tone}>{mine.verdict.label}</Badge>
-                        ) : (
-                          <span className="text-fg-subtle text-xs">{mine ? STATE_LABEL[mine.state] : "—"}</span>
-                        )}
+                        <ProgressMark progress={mine} />
                       </td>
                     ) : null}
-                    <td className="text-fg-muted font-mono text-xs">{listed.label ?? problem.slug}</td>
+                    <td className="text-fg-muted hidden font-mono text-xs sm:table-cell">
+                      <span className="block max-w-36 truncate" title={listed.label ?? problem.slug}>
+                        {listed.label ?? problem.slug}
+                      </span>
+                    </td>
                     <td>
                       <div className="flex flex-wrap items-center gap-2">
                         <Link className="row-link" href={problemHref(contest.slug, problem.slug)}>
@@ -224,7 +244,7 @@ export async function ProblemSetView({ params, searchParams }: Props) {
                         {view.preview ? <Badge tone="warn">未公开</Badge> : null}
                       </div>
                       {contest.facets.length > 0 ? (
-                        <div className="mt-1 flex flex-wrap gap-1 sm:hidden">
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 sm:hidden">
                           <ProblemBadgesSlot config={problem} offered={contest.facets} />
                         </div>
                       ) : null}
@@ -233,7 +253,7 @@ export async function ProblemSetView({ params, searchParams }: Props) {
                       <td className="hidden md:table-cell">
                         <Link
                           href={contestHref(contest.slug)}
-                          className="text-fg-muted hover:text-primary text-xs transition-colors"
+                          className="text-fg-muted hover:text-fg text-xs transition-colors"
                         >
                           {contest.title}
                         </Link>
@@ -241,7 +261,7 @@ export async function ProblemSetView({ params, searchParams }: Props) {
                     )}
                     {offersFacets ? (
                       <td className="hidden sm:table-cell">
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                           <ProblemBadgesSlot config={problem} offered={contest.facets} />
                         </div>
                       </td>

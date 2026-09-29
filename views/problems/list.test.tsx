@@ -225,7 +225,7 @@ describe("题库全部题目", () => {
 
     expect(html).toContain(heading);
     expect(html).toMatch(new RegExp(`aria-current="page"[^>]*href="/problems\\?q=x&amp;${scope.replaceAll("+", "\\+")}"`));
-    expect(html).toMatch(new RegExp(`href="/problems\\?q=x&amp;${scope.replaceAll("+", "\\+")}"[^>]*>.*?>全部</span>`));
+    expect(html, "方向标题本身就是这个方向的入口").toMatch(new RegExp(`href="/problems\\?q=x&amp;${scope.replaceAll("+", "\\+")}"[^>]*>.*?>${heading}</span>`));
     for (const { contest } of within) {
       expect(html, "切到题单时不带方向").toContain(`href="/problems/${contest.slug}?q=x"`);
     }

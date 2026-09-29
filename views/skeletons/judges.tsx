@@ -7,7 +7,7 @@ function JudgeCardSkeleton() {
     <Card>
       <CardHeader
         title={<Skeleton className="h-4 w-32" />}
-        actions={<Skeleton className="h-5 w-20 rounded" />}
+        actions={<Skeleton className="h-5 w-20" />}
       />
       <CardBody className="grid grid-cols-3 gap-3">
         {Array.from({ length: 3 }, (_, metric) => (
@@ -27,7 +27,7 @@ export function JudgesSkeleton() {
       <PageHeader title="评测机" />
       <div className="space-y-4">
         <Skeleton className="h-3 w-72 max-w-full" />
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-x-10 gap-y-8 lg:grid-cols-2">
           <JudgeCardSkeleton />
           <JudgeCardSkeleton />
         </div>

@@ -17,7 +17,7 @@ export function Breadcrumb() {
 }
 
 /**
- * A bordered table stand-in. Laid out with flex rather than `<table>` — nothing
+ * A ruled table stand-in. Laid out with flex rather than `<table>` — nothing
  * here is tabular data, and the widths are easier to control.
  */
 export function TableSkeleton({
@@ -29,14 +29,14 @@ export function TableSkeleton({
 }) {
   return (
     <div className="oj-table-frame">
-      <div className="bg-surface-2 border-border flex items-center gap-4 border-b px-4 py-3">
+      <div className="border-fg flex items-center gap-4 border-b py-2.5">
         {head.map((width, index) => (
           <Skeleton key={index} className={cn("h-3", width)} />
         ))}
       </div>
       <div className="divide-border divide-y">
         {Array.from({ length: rows }, (_, row) => (
-          <div key={row} className="flex items-center gap-4 px-4 py-3">
+          <div key={row} className="flex items-center gap-4 py-2.5">
             {head.map((width, index) => (
               <Skeleton key={index} className={cn("h-4", width)} />
             ))}

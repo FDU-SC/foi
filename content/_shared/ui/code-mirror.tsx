@@ -30,7 +30,7 @@ const chrome = EditorView.theme({
   "&": { color: "var(--fg)", backgroundColor: "transparent", fontSize: "13px" },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": {
-    fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
+    fontFamily: "var(--font-mono)",
     lineHeight: "1.625",
   },
   ".cm-content": { caretColor: "var(--fg)" },
@@ -39,24 +39,26 @@ const chrome = EditorView.theme({
   ".cm-activeLine": { backgroundColor: "var(--surface-2)" },
   ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--fg-muted)" },
   "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
-    { backgroundColor: "var(--primary-subtle)" },
+    { backgroundColor: "color-mix(in oklch, var(--fg) 16%, transparent)" },
   ".cm-matchingBracket, &.cm-focused .cm-matchingBracket": {
-    backgroundColor: "var(--primary-subtle)",
+    backgroundColor: "var(--surface-3)",
     outline: "none",
   },
   ".cm-placeholder": { color: "var(--fg-subtle)" },
 });
 
+/** The statement code blocks' palette, so a snippet looks the same in both. */
 const highlight = HighlightStyle.define([
-  { tag: tags.keyword, color: "var(--primary)" },
-  { tag: [tags.string, tags.character], color: "var(--ok)" },
-  { tag: tags.comment, color: "var(--fg-subtle)", fontStyle: "italic" },
-  { tag: [tags.number, tags.bool, tags.null, tags.atom], color: "var(--warn)" },
+  { tag: tags.keyword, color: "var(--code-keyword)" },
+  { tag: [tags.string, tags.character], color: "var(--code-string)" },
+  { tag: tags.comment, color: "var(--code-comment)", fontStyle: "italic" },
+  { tag: [tags.number, tags.bool, tags.null, tags.atom], color: "var(--code-number)" },
   {
-    tag: [tags.function(tags.variableName), tags.function(tags.propertyName), tags.typeName, tags.className],
-    color: "var(--info)",
+    tag: [tags.function(tags.variableName), tags.function(tags.propertyName)],
+    color: "var(--code-function)",
   },
-  { tag: [tags.processingInstruction, tags.meta], color: "var(--fg-muted)" },
+  { tag: [tags.typeName, tags.className], color: "var(--code-type)" },
+  { tag: [tags.processingInstruction, tags.meta], color: "var(--code-keyword)" },
 ]);
 
 export default function CodeMirrorEditor({
@@ -82,7 +84,7 @@ export default function CodeMirrorEditor({
       className={cn(
         "overflow-hidden",
         !readOnly &&
-          "border-border bg-surface hover:border-border-strong focus-within:border-primary has-[:focus-visible]:outline-primary rounded-md border transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2",
+          "border-border bg-surface hover:border-border-strong focus-within:border-fg has-[:focus-visible]:outline-fg rounded-sm border transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2",
       )}
     >
       <CodeMirror

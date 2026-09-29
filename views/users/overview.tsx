@@ -25,29 +25,14 @@ const MONTH_ROWS = 6;
 /** Months shown before the rest fold away. */
 const OPEN_MONTHS = 3;
 
+const LINK = "text-fg underline-offset-2 hover:underline";
+
 function Heading({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
   return (
-    <div className="mb-2 flex items-baseline justify-between gap-3">
-      <h2 className="text-fg text-base">{children}</h2>
+    <div className="border-fg mb-3 flex items-baseline justify-between gap-3 border-b pb-1.5">
+      <h2 className="text-fg text-sm font-semibold">{children}</h2>
       {aside}
     </div>
-  );
-}
-
-function Bar({ solved, total }: { solved: number; total: number }) {
-  return (
-    <span
-      role="progressbar"
-      aria-valuemin={0}
-      aria-valuemax={total}
-      aria-valuenow={solved}
-      className="bg-surface-2 block h-1.5 overflow-hidden rounded-full"
-    >
-      <span
-        className="bg-primary block h-full rounded-full"
-        style={{ width: `${total ? (solved / total) * 100 : 0}%` }}
-      />
-    </span>
   );
 }
 
@@ -60,42 +45,44 @@ function Directions({ sections }: { sections: SectionProgress[] }) {
   return (
     <section>
       <Heading>题库进度</Heading>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-x-10 gap-y-5 sm:grid-cols-2">
         {directions.map(({ heading, contests }) => {
           const solved = contests.reduce((sum, { solved }) => sum + solved, 0);
           const total = contests.every(({ total }) => total !== null)
             ? contests.reduce((sum, { total }) => sum + (total ?? 0), 0)
             : null;
           return (
-            <article key={heading ?? ""} className="bg-surface border-border space-y-2 rounded-md border p-3">
-              <div className="flex items-baseline justify-between gap-2">
-                <h3 className="text-primary truncate text-sm font-semibold">{heading ?? "其他分区"}</h3>
-                <span className="text-fg-muted shrink-0 font-mono text-xs tabular-nums">
+            <div key={heading ?? ""} className="min-w-0">
+              <div className="flex items-baseline justify-between gap-2 text-sm font-semibold">
+                <h3 className="truncate">{heading ?? "其他分区"}</h3>
+                <span className="text-fg-muted shrink-0 font-mono text-xs font-normal tabular-nums">
                   {total === null ? `通过 ${solved}` : `${solved}/${total}`}
                 </span>
               </div>
-              {total === null ? null : <Bar solved={solved} total={total} />}
-              <ul className="space-y-1 text-xs">
+              <ul className="mt-1 text-sm">
                 {contests.map(({ contest, solved, total }) => (
-                  <li key={contest.slug} className="flex items-center gap-2">
-                    <Link
-                      href={contestHref(contest.slug)}
-                      className="text-fg-muted hover:text-primary min-w-0 flex-1 truncate"
-                    >
-                      {contest.title}
+                  <li key={contest.slug}>
+                    <Link href={contestHref(contest.slug)} className="group flex items-baseline py-0.5">
+                      <span className="text-fg-muted group-hover:text-fg min-w-0 truncate underline-offset-2 group-hover:underline">
+                        {contest.title}
+                      </span>
+                      <span
+                        aria-hidden
+                        className="border-border-strong mx-2 flex-1 -translate-y-1 border-b border-dotted"
+                      />
+                      <span
+                        className={cn(
+                          "shrink-0 font-mono text-xs tabular-nums",
+                          total !== null && solved === total ? "text-ok" : "text-fg-muted",
+                        )}
+                      >
+                        {total === null ? solved : `${solved}/${total}`}
+                      </span>
                     </Link>
-                    <span
-                      className={cn(
-                        "shrink-0 font-mono tabular-nums",
-                        total !== null && solved === total ? "text-ok" : "text-fg-subtle",
-                      )}
-                    >
-                      {total === null ? solved : `${solved}/${total}`}
-                    </span>
                   </li>
                 ))}
               </ul>
-            </article>
+            </div>
           );
         })}
       </div>
@@ -118,34 +105,31 @@ function Calendar({
   const selected = window.year ?? years[0];
   return (
     <section>
-      <Heading>
-        {window.year === null ? "过去一年" : `${window.year} 年`}提交{" "}
-        <span className="font-mono">{total}</span> 次
-      </Heading>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
-        <div className="bg-surface border-border min-w-0 flex-1 rounded-md border p-3">
-          <ActivityHeatmap days={days} window={window} />
-        </div>
-        {years.length > 1 ? (
-          <nav aria-label="年份" className="flex flex-wrap gap-1 lg:w-16 lg:flex-col">
+      <Heading
+        aside={years.length > 1 ? (
+          <nav aria-label="年份" className="flex flex-wrap gap-x-3 gap-y-1">
             {years.map((year) => (
               <Link
                 key={year}
                 href={`${profileHref(username)}?year=${year}`}
                 aria-current={year === selected ? "page" : undefined}
                 className={cn(
-                  "rounded-md px-3 py-1.5 font-mono text-xs transition-colors",
+                  "text-xs tabular-nums transition-colors",
                   year === selected
-                    ? "bg-primary text-primary-fg"
-                    : "text-fg-muted hover:bg-surface-2 hover:text-fg",
+                    ? "text-fg decoration-fg font-semibold underline decoration-2 underline-offset-4"
+                    : "text-fg-muted hover:text-fg",
                 )}
               >
                 {year}
               </Link>
             ))}
           </nav>
-        ) : null}
-      </div>
+        ) : undefined}
+      >
+        {window.year === null ? "过去一年" : `${window.year} 年`}提交{" "}
+        <span className="tabular-nums">{total}</span> 次
+      </Heading>
+      <ActivityHeatmap days={days} window={window} />
     </section>
   );
 }
@@ -153,7 +137,7 @@ function Calendar({
 function Event({ title, children }: { title: ReactNode; children?: ReactNode }) {
   return (
     <li className="relative">
-      <span className="bg-border border-bg absolute top-1 -left-[1.6rem] size-3 rounded-full border-2" />
+      <span className="bg-fg-subtle absolute top-2 -left-[1.45rem] size-1.5 rounded-full" />
       <p className="text-fg text-sm">{title}</p>
       {children ? <ul className="mt-1.5 space-y-1">{children}</ul> : null}
     </li>
@@ -166,7 +150,7 @@ function PairRow({ pair, children }: { pair: PairActivity; children: ReactNode }
     <li className="flex items-center gap-3 text-xs">
       <Link
         href={problemHref(contest.slug, problem.slug)}
-        className="text-primary min-w-0 truncate font-medium hover:underline"
+        className={cn(LINK, "min-w-0 truncate font-medium")}
       >
         {problem.title}
       </Link>
@@ -184,16 +168,15 @@ function Month({ entry, records }: { entry: MonthActivity; records: ReadonlyMap<
   const most = entry.tried[0]?.count ?? 1;
   return (
     <div>
-      <h3 className="text-fg flex items-center gap-2 text-xs font-semibold">
+      <h3 className="text-fg-muted text-xs font-semibold">
         {monthLabel.format(dayStart(`${entry.month}-01`))}
-        <span className="bg-border h-px flex-1" />
       </h3>
-      <ol className="border-border mt-2 mb-4 ml-1.5 space-y-3 border-l pl-5">
+      <ol className="border-border mt-2 mb-5 ml-1 space-y-3 border-l pl-5">
         {entry.solved.length > 0 ? (
           <Event title={<>通过了 <strong>{entry.solved.length}</strong> 道题</>}>
             {entry.solved.slice(0, MONTH_ROWS).map((pair) => (
               <PairRow key={`${pair.ref.contest.slug}/${pair.ref.problem.slug}`} pair={pair}>
-                <time className="text-fg-subtle" dateTime={pair.solvedAt!.toISOString()}>
+                <time className="text-fg-subtle tabular-nums" dateTime={pair.solvedAt!.toISOString()}>
                   {shortDay.format(pair.solvedAt!)}
                 </time>
               </PairRow>
@@ -206,10 +189,10 @@ function Month({ entry, records }: { entry: MonthActivity; records: ReadonlyMap<
         >
           {entry.tried.slice(0, MONTH_ROWS).map(({ pair, count }) => (
             <PairRow key={`${pair.ref.contest.slug}/${pair.ref.problem.slug}`} pair={pair}>
-              <span className="bg-surface-2 hidden h-1.5 w-20 overflow-hidden rounded-full sm:block">
-                <span className="bg-primary/60 block h-full" style={{ width: `${(count / most) * 100}%` }} />
+              <span className="bg-surface-2 hidden h-1 w-20 overflow-hidden sm:block">
+                <span className="bg-fg/40 block h-full" style={{ width: `${(count / most) * 100}%` }} />
               </span>
-              <span className="text-fg-muted w-8 text-right font-mono tabular-nums">{count}</span>
+              <span className="text-fg-muted w-8 text-right tabular-nums">{count}</span>
             </PairRow>
           ))}
           <More count={entry.tried.length - MONTH_ROWS} />
@@ -222,12 +205,12 @@ function Month({ entry, records }: { entry: MonthActivity; records: ReadonlyMap<
               title={
                 <>
                   参加了{" "}
-                  <Link href={contestHref(contest.slug)} className="text-primary font-medium hover:underline">
+                  <Link href={contestHref(contest.slug)} className={cn(LINK, "font-medium")}>
                     {contest.title}
                   </Link>
                   {record ? (
                     <span className="text-fg-muted">
-                      {" "}· 第 <strong className="text-fg font-mono">{record.row.rank}</strong> 名 / {record.entrants}
+                      {" "}· 第 <strong className="text-fg tabular-nums">{record.row.rank}</strong> 名 / {record.entrants}
                     </span>
                   ) : null}
                 </>
@@ -255,9 +238,7 @@ function Timeline({
     <section>
       <Heading>活动记录</Heading>
       {months.length === 0 ? (
-        <p className="text-fg-muted border-border rounded-md border px-4 py-6 text-center text-sm">
-          这段时间没有提交记录。
-        </p>
+        <p className="text-fg-muted py-4 text-sm">这段时间没有提交记录。</p>
       ) : (
         <>
           {months.slice(0, OPEN_MONTHS).map((entry) => (
@@ -265,7 +246,7 @@ function Timeline({
           ))}
           {months.length > OPEN_MONTHS ? (
             <details className="group">
-              <summary className="border-border text-fg-muted hover:text-primary hover:bg-surface-2 cursor-pointer list-none rounded-md border py-1.5 text-center text-xs transition-colors group-open:mb-4">
+              <summary className="text-fg-muted hover:text-fg w-fit cursor-pointer list-none text-xs underline underline-offset-2 transition-colors group-open:mb-4">
                 <span className="group-open:hidden">显示更早的 {months.length - OPEN_MONTHS} 个月</span>
                 <span className="hidden group-open:inline">收起更早的记录</span>
               </summary>
@@ -294,7 +275,7 @@ export function ProfileOverview({
   username: string;
 }) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-9">
       {activity.sections.length > 0 ? <Directions sections={activity.sections} /> : null}
       <Calendar days={activity.days} window={window} years={years} username={username} />
       <Timeline activity={activity} records={records} window={window} />

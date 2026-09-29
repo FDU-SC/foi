@@ -8,7 +8,7 @@ import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { viewerFor } from "@/lib/authz/viewer";
 import { dateFormatter } from "@/lib/format";
 import { submissionsFor } from "@/lib/submissions/access";
-import { PageHeader } from "@/components/ui/page";
+import { EmptyState, PageHeader, TableFrame } from "@/components/ui/page";
 
 const formatter = dateFormatter({ dateStyle: "short", timeStyle: "medium" });
 
@@ -28,35 +28,27 @@ export async function SubmissionListView() {
       />
 
       {rows.length === 0 ? (
-        <p className="text-fg-subtle border-border rounded-lg border bg-surface py-10 text-center text-sm">
-          还没有提交记录。
-        </p>
+        <EmptyState>还没有提交记录。</EmptyState>
       ) : (
-        <div className="oj-table-frame">
-          <table className="w-full min-w-[560px] text-sm">
-            <thead className="bg-surface-2">
-              <tr className="text-fg-muted text-xs">
-                <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
-                  时间
-                </th>
-                <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
-                  题目
-                </th>
-                <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
-                  结果
-                </th>
-                <th className="border-border border-b px-4 py-2.5 text-right font-semibold">
-                  操作
+        <TableFrame>
+          <table className="min-w-[560px]">
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>题目</th>
+                <th>结果</th>
+                <th className="text-right">
+                  <span className="sr-only">操作</span>
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-border divide-y">
+            <tbody>
               {rows.map((row) => (
-                <tr key={row.id} className="hover:bg-surface-2/60">
-                  <td className="text-fg-subtle px-4 py-2.5 font-mono text-xs whitespace-nowrap">
+                <tr key={row.id}>
+                  <td className="text-fg-muted font-mono text-xs whitespace-nowrap tabular-nums">
                     {formatter.format(new Date(row.createdAt))}
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td>
                     <ProblemRef
                       contestSlug={row.contestSlug}
                       slug={row.problemSlug}
@@ -64,16 +56,16 @@ export async function SubmissionListView() {
                       className="text-fg font-medium"
                     />
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td>
                     <span className="flex flex-wrap items-center gap-2">
                       <VerdictBadge submission={row} />
                       <QueueBadge queue={row.queue} showJudge />
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 text-right">
+                  <td className="text-right">
                     <Link
                       href={`/submissions/${row.id}`}
-                      className="text-fg-subtle hover:text-primary text-xs transition-colors"
+                      className="text-fg-muted hover:text-fg text-xs underline-offset-2 transition-colors hover:underline"
                     >
                       详情
                     </Link>
@@ -82,7 +74,7 @@ export async function SubmissionListView() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableFrame>
       )}
     </div>
   );

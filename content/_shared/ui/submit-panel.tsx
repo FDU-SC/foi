@@ -5,12 +5,10 @@ import { VerdictBody } from "@/components/opaque";
 import { JudgeProgress } from "@/components/problem/judge-progress";
 import { useProblem } from "@/components/problem/problem-context";
 import { QueueBadge } from "@/components/problem/queue-position";
-import { VerdictReveal } from "@/components/problem/verdict-reveal";
+import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { revealClass } from "@/components/ui/reveal";
 import { isSettled } from "@/lib/backend/types";
 import { useSubmit } from "@/lib/submissions/use-submit";
-import { cn } from "@/lib/utils";
 import { SubmitProvider } from "./submit-context";
 
 export function SubmitPanel({ children }: { children: ReactNode }) {
@@ -25,7 +23,7 @@ export function SubmitPanel({ children }: { children: ReactNode }) {
           submission ? (
             <span className="flex items-center gap-2">
               <QueueBadge queue={submission.queue} />
-              <VerdictReveal submission={submission} />
+              <VerdictBadge submission={submission} />
             </span>
           ) : null
         }
@@ -37,7 +35,7 @@ export function SubmitPanel({ children }: { children: ReactNode }) {
               <>
                 请先
                 <a
-                  className="text-primary underline underline-offset-2"
+                  className="text-fg decoration-border-strong hover:decoration-fg underline underline-offset-2"
                   href="/login"
                 >
                   登录
@@ -54,9 +52,7 @@ export function SubmitPanel({ children }: { children: ReactNode }) {
           </SubmitProvider>
         )}
 
-        {error ? (
-          <p className={cn("text-err text-sm", revealClass)}>{error}</p>
-        ) : null}
+        {error ? <p className="text-err mt-3 text-sm">{error}</p> : null}
 
         {submission && !isSettled(submission.state) ? (
           <div className="border-border mt-4 border-t pt-4">
@@ -68,20 +64,13 @@ export function SubmitPanel({ children }: { children: ReactNode }) {
         ) : null}
 
         {submission?.reason ? (
-          <p
-            className={cn(
-              "text-err bg-err-subtle mt-4 rounded-md px-3 py-2 text-sm",
-              revealClass,
-            )}
-          >
+          <p className="text-err border-err mt-4 border-l-2 pl-3 text-sm">
             {submission.reason}
           </p>
         ) : null}
 
         {submission?.detail ? (
-          <div
-            className={cn("border-border mt-4 border-t pt-4", revealClass)}
-          >
+          <div className="border-border mt-4 border-t pt-4">
             <VerdictBody problemSlug={config.slug} detail={submission.detail} />
           </div>
         ) : null}
@@ -90,7 +79,7 @@ export function SubmitPanel({ children }: { children: ReactNode }) {
           <div className="mt-3">
             <a
               href={`/submissions/${submission.id}`}
-              className="text-fg-subtle hover:text-fg text-xs transition-colors"
+              className="text-fg-muted hover:text-fg text-xs underline-offset-2 transition-colors hover:underline"
             >
               查看提交详情
             </a>

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { AnimatedNumber } from "@/components/ui/animated-number";
 import {
   assignRanks,
   elapsed,
@@ -48,12 +47,7 @@ export function OiCellView({ cell }: { cell: OiCell | undefined }) {
 }
 
 export function OiTotalView({ row }: { row: StandingsRow<OiCell> }) {
-  return (
-    <AnimatedNumber
-      value={Math.round(row.total)}
-      className="text-fg font-mono font-semibold tabular-nums"
-    />
-  );
+  return <span className="text-fg font-semibold tabular-nums">{Math.round(row.total)}</span>;
 }
 
 import { ProblemGridBoard } from "@/content/_shared/leaderboards/problem-grid";

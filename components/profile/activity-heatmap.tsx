@@ -5,11 +5,11 @@ import type { ActivityWindow } from "@/lib/profile/timeline";
 import { cn } from "@/lib/utils";
 
 const LEVELS = [
-  "bg-border/50",
-  "bg-primary/25",
-  "bg-primary/45",
-  "bg-primary/70",
-  "bg-primary",
+  "bg-surface-2",
+  "bg-fg/20",
+  "bg-fg/40",
+  "bg-fg/65",
+  "bg-fg",
 ];
 
 const dayLabel = dateFormatter({ dateStyle: "medium" });
@@ -79,7 +79,7 @@ export function ActivityHeatmap({
                   <span
                     key={day}
                     title={`${dayLabel.format(dayStart(day))} · ${count} 次提交`}
-                    className={cn("aspect-square w-full rounded-[2px]", LEVELS[levelOf(count, max)])}
+                    className={cn("aspect-square w-full", LEVELS[levelOf(count, max)])}
                   />
                 );
               })}
@@ -90,13 +90,13 @@ export function ActivityHeatmap({
 
       <div className="text-fg-subtle flex flex-wrap items-center justify-between gap-2 text-xs">
         <span>
-          活跃 <strong className="text-fg-muted font-mono">{active}</strong> 天 · 最长连续{" "}
-          <strong className="text-fg-muted font-mono">{longestStreak(shown, days)}</strong> 天
+          活跃 <strong className="text-fg-muted tabular-nums">{active}</strong> 天 · 最长连续{" "}
+          <strong className="text-fg-muted tabular-nums">{longestStreak(shown, days)}</strong> 天
         </span>
         <span aria-hidden className="flex items-center gap-[3px] text-[10px]">
           <span className="mr-1">少</span>
           {LEVELS.map((level) => (
-            <span key={level} className={cn("size-2.5 rounded-[2px]", level)} />
+            <span key={level} className={cn("size-2.5", level)} />
           ))}
           <span className="ml-1">多</span>
         </span>

@@ -66,22 +66,22 @@ const CALENDAR: Partial<ClassNames> = {
   month: "space-y-2",
   month_caption: "flex h-8 items-center justify-center",
   dropdowns: "flex items-center gap-1",
-  dropdown_root: "relative inline-flex items-center rounded-md hover:bg-surface-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary",
+  dropdown_root: "relative inline-flex items-center hover:bg-surface-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-fg",
   dropdown: "absolute inset-0 z-10 w-full cursor-pointer appearance-none opacity-0",
   caption_label: "text-fg inline-flex items-center gap-1 px-2 py-1 text-sm font-medium tabular-nums [&>svg]:size-3.5 [&>svg]:fill-current",
   nav: "absolute inset-x-0 top-0 flex h-8 items-center justify-between",
-  button_previous: "text-fg-muted hover:bg-surface-2 hover:text-fg inline-flex size-8 items-center justify-center rounded-md disabled:opacity-40",
-  button_next: "text-fg-muted hover:bg-surface-2 hover:text-fg inline-flex size-8 items-center justify-center rounded-md disabled:opacity-40",
+  button_previous: "text-fg-muted hover:bg-surface-2 hover:text-fg inline-flex size-8 items-center justify-center disabled:opacity-40",
+  button_next: "text-fg-muted hover:bg-surface-2 hover:text-fg inline-flex size-8 items-center justify-center disabled:opacity-40",
   chevron: "size-4 fill-current",
   month_grid: "w-full border-collapse",
   weekday: "text-fg-subtle h-8 w-9 text-xs font-normal",
   day: "p-0 text-center",
-  day_button: "text-fg hover:bg-surface-2 size-9 rounded-md text-sm tabular-nums transition-colors focus-visible:outline-2 focus-visible:outline-primary",
+  day_button: "text-fg hover:bg-surface-2 size-9 text-sm tabular-nums transition-colors focus-visible:outline-2 focus-visible:outline-fg",
   outside: "[&>button]:text-fg-subtle",
-  today: "[&>button]:ring-primary/50 [&>button]:ring-1 [&>button]:ring-inset",
-  range_middle: "bg-primary-subtle [&>button]:text-primary [&>button]:rounded-none [&>button]:hover:bg-primary-subtle",
-  range_start: "[&>button]:bg-primary [&>button]:text-primary-fg [&>button]:font-medium [&>button]:hover:bg-primary",
-  range_end: "[&>button]:bg-primary [&>button]:text-primary-fg [&>button]:font-medium [&>button]:hover:bg-primary",
+  today: "[&>button]:ring-fg-subtle [&>button]:ring-1 [&>button]:ring-inset",
+  range_middle: "bg-surface-2 [&>button]:text-fg [&>button]:hover:bg-surface-3",
+  range_start: "[&>button]:bg-fg [&>button]:text-bg [&>button]:font-medium [&>button]:hover:bg-fg",
+  range_end: "[&>button]:bg-fg [&>button]:text-bg [&>button]:font-medium [&>button]:hover:bg-fg",
   hidden: "invisible",
 };
 
@@ -143,10 +143,10 @@ export function DateRangePicker({
         aria-haspopup="dialog"
         aria-label={`${label}：${current ?? "未选择"}`}
         className={cn(
-          "inline-flex h-8 items-center gap-2 rounded-md border px-3 text-sm transition-colors",
+          "inline-flex h-8 items-center gap-2 rounded-sm border px-2.5 text-sm transition-colors",
           current
-            ? "border-primary/40 bg-primary-subtle text-primary"
-            : "border-border text-fg-muted hover:border-border-strong hover:bg-surface-2 hover:text-fg",
+            ? "border-fg text-fg"
+            : "border-border text-fg-muted hover:border-border-strong hover:text-fg",
         )}
       >
         <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="size-4 shrink-0">
@@ -160,10 +160,10 @@ export function DateRangePicker({
         <div
           role="dialog"
           aria-label={label}
-          className="border-border bg-surface absolute top-full left-0 z-30 mt-1.5 max-w-[calc(100vw-2rem)] rounded-lg border shadow-lg"
+          className="border-border bg-surface absolute top-full left-0 z-30 mt-1 max-w-[calc(100vw-2rem)] border"
         >
           <div className="flex flex-col sm:flex-row">
-            <ul aria-label="快捷范围" className="border-border/70 flex flex-wrap gap-1 border-b p-2 sm:w-28 sm:flex-col sm:flex-nowrap sm:border-r sm:border-b-0">
+            <ul aria-label="快捷范围" className="border-border flex flex-wrap gap-1 border-b p-2 sm:w-28 sm:flex-col sm:flex-nowrap sm:border-r sm:border-b-0">
               {presets(today, timeZone).map(({ label: name, range }) => {
                 const { from, to } = fromRange(range, timeZone);
                 const active = from === picked.from && to === picked.to;
@@ -173,8 +173,8 @@ export function DateRangePicker({
                       type="button"
                       onClick={() => choose(range)}
                       className={cn(
-                        "w-full rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap transition-colors",
-                        active ? "bg-primary-subtle text-primary font-medium" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
+                        "w-full px-2 py-1.5 text-left text-sm whitespace-nowrap transition-colors",
+                        active ? "text-fg font-semibold" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
                       )}
                     >
                       {name}
@@ -203,7 +203,7 @@ export function DateRangePicker({
             </div>
           </div>
 
-          <form action={action} className="border-border/70 flex items-center gap-2 border-t p-3">
+          <form action={action} className="border-border flex items-center gap-2 border-t p-3">
             {carried.map((field, index) => (
               <input key={index} type="hidden" name={field.name} value={field.value} />
             ))}

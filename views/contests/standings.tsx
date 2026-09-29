@@ -25,7 +25,7 @@ const formatter = dateFormatter({ dateStyle: "medium", timeStyle: "short" });
 /** Phases where new submissions can still change the board, so polling earns its keep. */
 const MOVING_PHASES: ContestPhase[] = ["running", "frozen"];
 
-const FRAME = "min-w-0 space-y-5 p-4 sm:p-6";
+const FRAME = "min-w-0 space-y-5 pt-1";
 
 export async function standingsMetadata({
   params,
@@ -39,11 +39,11 @@ function UpcomingNotice({ contest }: { contest: ContestConfig }) {
   return (
     <div className={FRAME}>
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-fg text-2xl font-bold tracking-tight">排行榜</h1>
+        <h1 className="text-fg text-xl font-bold">排行榜</h1>
         <Badge tone="info">未开始</Badge>
       </div>
 
-      <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
+      <p className="text-fg-muted border-border border-y py-10 text-center text-sm">
         比赛将于 {formatter.format(contest.startsAt)} 开始。
       </p>
     </div>
@@ -78,7 +78,7 @@ export async function StandingsView({
   return (
     <div className={FRAME}>
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-fg text-2xl font-bold tracking-tight">排行榜</h1>
+        <h1 className="text-fg text-xl font-bold">排行榜</h1>
         {data.frozen ? <Badge tone="warn">已封榜</Badge> : null}
         <span className="text-fg-subtle ml-auto text-xs">
           共 {board.standings.rows.length} 人
@@ -89,7 +89,7 @@ export async function StandingsView({
       {data.boards.length > 1 ? (
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-fg-muted text-sm font-medium">榜单</span>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
             <FilterChips
               path={standingsHref(contest.slug)}
               params={query}

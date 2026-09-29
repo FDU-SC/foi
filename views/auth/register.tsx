@@ -28,7 +28,7 @@ export async function RegisterView({
           </>
         }
       >
-        <p className="text-fg-muted bg-surface-2 rounded-md px-3 py-2 text-sm leading-6">
+        <p className="text-fg-muted border-border border-l-2 py-0.5 pl-3 text-sm leading-6">
           当前未开放注册。
         </p>
       </AuthShell>

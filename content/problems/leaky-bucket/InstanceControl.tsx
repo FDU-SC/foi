@@ -20,7 +20,7 @@ function PermissionNotice({ permission }: { permission: Permission | undefined }
   if (permission?.allowed) return null;
   return <span className="text-fg-muted text-xs">
     {permission?.reason.code === "unauthenticated"
-      ? <><Link href="/login" className="text-primary hover:underline">登录</Link>后可执行此操作。</>
+      ? <><Link href="/login" className="text-fg underline underline-offset-2">登录</Link>后可执行此操作。</>
       : permission?.reason.message ?? "这道题未提供此操作。"}
   </span>;
 }
@@ -115,8 +115,8 @@ export function InstanceControl() {
   };
 
   return (
-    <div className="border-border bg-surface my-6 rounded-lg border">
-      <div className="border-border bg-surface-2/50 flex items-center justify-between gap-3 border-b px-4 py-2.5">
+    <div className="border-border bg-surface my-6 rounded-sm border">
+      <div className="border-border bg-surface-2 flex items-center justify-between gap-3 border-b px-4 py-2.5">
         <span className="text-fg text-sm font-semibold">靶机实例</span>
         {ready ? (
           <Badge tone="ok" mono>
@@ -133,7 +133,7 @@ export function InstanceControl() {
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         {ready ? (
           <>
-            <code className="border-border bg-surface-2 text-fg rounded border px-2 py-1 font-mono text-xs">
+            <code className="border-border bg-surface-2 text-fg rounded-sm border px-2 py-1 font-mono text-xs">
               {ready.endpoint}
             </code>
             <CopyButton value={ready.endpoint} />

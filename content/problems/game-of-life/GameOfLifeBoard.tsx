@@ -251,8 +251,8 @@ export function GameOfLifeBoard({
   };
 
   return (
-    <div className="border-border bg-surface my-6 overflow-hidden rounded-lg border">
-      <div className="border-border bg-surface-2/50 flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2.5">
+    <div className="border-border bg-surface my-6 overflow-hidden rounded-sm border">
+      <div className="border-border bg-surface-2 flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2.5">
         <span className="text-fg text-sm font-semibold">生命游戏模拟器</span>
         <div className="flex flex-wrap items-center gap-1.5">
           <Select
@@ -306,11 +306,11 @@ export function GameOfLifeBoard({
 
         <div className="min-w-44 space-y-2 text-sm">
           <div className="flex items-center gap-2">
-            <span className="text-fg-subtle text-[11px] uppercase tracking-wide">代数</span>
+            <span className="text-fg-muted text-xs">代数</span>
             <span className="text-fg font-mono tabular-nums">{generation}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-fg-subtle text-[11px] uppercase tracking-wide">活细胞</span>
+            <span className="text-fg-muted text-xs">活细胞</span>
             <span className="text-fg font-mono tabular-nums">{alive}</span>
           </div>
           {cycle ? (
@@ -334,7 +334,7 @@ export function GameOfLifeBoard({
                 max={maxGenerations}
                 value={jumpTo}
                 onChange={(e) => setJumpTo(e.target.value)}
-                className="border-border bg-surface-2 text-fg w-20 rounded-md border px-2 py-1 font-mono text-xs"
+                className="border-border bg-surface-2 text-fg w-20 rounded-sm border px-2 py-1 font-mono text-xs"
                 aria-label="跳转到第几代"
               />
               <Button size="sm" variant="secondary" onClick={jump}>
@@ -363,7 +363,7 @@ export function GameOfLifeBoard({
               onChange={(e) => setImportText(e.target.value)}
               rows={4}
               spellCheck={false}
-              className="border-border bg-surface-2 text-fg mt-2 w-full rounded-md border px-2 py-1 font-mono text-[11px]"
+              className="border-border bg-surface-2 text-fg mt-2 w-full rounded-sm border px-2 py-1 font-mono text-[11px]"
               placeholder={".OO..\nO..O.\n.OO.."}
             />
             <Button size="sm" onClick={doImport} className="mt-1">

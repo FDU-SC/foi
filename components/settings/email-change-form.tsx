@@ -29,7 +29,7 @@ export function EmailChangeForm() {
         <FormMessage tone="ok">{state.message}</FormMessage>
       ) : null}
 
-      <PendingSubmit variant="primary" className="w-full" pendingLabel="发送中…">
+      <PendingSubmit variant="primary" pendingLabel="发送中…">
         发送验证链接到新邮箱
       </PendingSubmit>
     </form>

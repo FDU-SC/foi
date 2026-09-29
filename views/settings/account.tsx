@@ -52,12 +52,12 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
   const passwordGate = authorize("account.changePassword", user, viewer);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
-      <h1 className="text-fg text-2xl font-bold tracking-tight">个人设置</h1>
+    <div className="max-w-5xl space-y-6">
+      <h1 className="text-fg text-xl font-bold">个人设置</h1>
 
-      <div className="grid items-start gap-6 lg:grid-cols-2">
-        <section className="min-w-0 space-y-4">
-          <h2 className="text-sm font-semibold">个人资料</h2>
+      <div className="grid items-start gap-x-12 gap-y-8 lg:grid-cols-2">
+        <section className="min-w-0 space-y-6">
+          <h2 className="text-fg-muted text-xs">个人资料</h2>
           <Card>
             <CardHeader title="昵称" />
             <CardBody>
@@ -105,12 +105,12 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
             </CardBody>
           </Card>
         </section>
-        <section className="min-w-0 space-y-4">
-          <h2 className="text-sm font-semibold">账号安全</h2>
+        <section className="min-w-0 space-y-6">
+          <h2 className="text-fg-muted text-xs">账号安全</h2>
           <Card>
             <CardHeader title="邮箱" />
             <CardBody className="space-y-4">
-              <p className="bg-surface-2 text-fg rounded-md px-4 py-3 font-mono text-sm">
+              <p className="bg-surface-2 text-fg px-3 py-2 font-mono text-sm">
                 {user.email ?? "未设置"}
               </p>
               {!emailGate.allow ? (

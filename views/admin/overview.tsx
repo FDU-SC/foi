@@ -24,41 +24,34 @@ export async function AdminOverviewView() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <AdminNav />
       <PageHeader
         title="管理"
         actions={<NavigationLinks viewer={viewer} location="admin" />}
       />
 
-      <div className="grid gap-3 sm:grid-cols-4">
+      <p className="text-fg-muted flex flex-wrap gap-x-5 gap-y-1 text-sm">
         {stats.map((stat) => {
           const content = (
             <>
-              <div className="text-fg-subtle text-xs">{stat.label}</div>
-              <div className="text-fg mt-1 font-mono text-2xl font-semibold tabular-nums">
-                {stat.value}
-              </div>
+              {stat.label}{" "}
+              <span className="text-fg font-semibold tabular-nums">{stat.value}</span>
             </>
           );
           return stat.href ? (
             <Link
               key={stat.label}
               href={stat.href}
-              className="border-border bg-surface hover:border-primary/50 rounded-lg border px-4 py-3 transition-colors"
+              className="hover:text-fg underline-offset-2 transition-colors hover:underline"
             >
               {content}
             </Link>
           ) : (
-            <div
-              key={stat.label}
-              className="border-border bg-surface rounded-lg border px-4 py-3"
-            >
-              {content}
-            </div>
+            <span key={stat.label}>{content}</span>
           );
         })}
-      </div>
+      </p>
 
       <Card>
         <CardHeader title="配置检查" />
@@ -119,14 +112,14 @@ export async function AdminOverviewView() {
       <Card>
         <CardHeader title="授权策略" />
         <CardBody>
-          <div className="border-border overflow-hidden rounded-md border">
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-surface-2">
+              <thead>
                 <tr className="text-fg-muted text-xs">
-                  <th className="border-border border-b px-3 py-2 text-left font-semibold">
+                  <th className="border-fg border-b px-3 py-2 text-left font-medium">
                     动作
                   </th>
-                  <th className="border-border border-b px-3 py-2 text-left font-semibold">
+                  <th className="border-fg border-b px-3 py-2 text-left font-medium">
                     策略
                   </th>
                 </tr>

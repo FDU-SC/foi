@@ -23,8 +23,8 @@ const USAGE = `用法:
 需要环境变量 DATABASE_URL。
 必须显式设置 FOI_ENV=dev。
 
-丢弃 public schema 下的一切并重建空 schema。表结构由应用启动时的自动迁移恢复，
-演示账号由 scripts/demo-seed.cjs 重新建立。`;
+丢弃 public schema 下的一切与 drizzle schema 中的迁移记录，并重建空的 public schema。
+表结构由应用启动时的自动迁移恢复，演示账号由 scripts/demo-seed.cjs 重新建立。`;
 
 async function main() {
   if (process.argv.includes("--help") || process.argv.includes("-h")) {
@@ -49,12 +49,16 @@ async function main() {
     );
     const tables = rows[0]?.tables ?? 0;
 
-    // drop schema 连同表、索引、类型、drizzle 的迁移记录一起走，比逐表 truncate
-    // 干净：迁移记录留着的话，启动时的自动迁移会以为表都还在。
+    // drizzle-orm keeps both migration journals in the `drizzle` schema, outside
+    // public. They have to go with the tables: a journal that outlives them tells
+    // the boot-time migrator every migration has run, and nothing is recreated.
+    await client.query("begin");
     await client.query("drop schema public cascade");
+    await client.query("drop schema if exists drizzle cascade");
     await client.query("create schema public");
+    await client.query("commit");
 
-    console.log(`已清空 public schema（原有 ${tables} 张表）。`);
+    console.log(`已清空 public schema（原有 ${tables} 张表）与迁移记录。`);
   });
 
   console.log("表结构会在应用下次启动时由自动迁移重建。");

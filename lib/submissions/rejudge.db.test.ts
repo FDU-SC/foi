@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   afterAll,
   afterEach,
@@ -11,7 +11,7 @@ import {
 } from "vitest";
 import { INLINE_BACKEND_ID, type Verdict } from "@/lib/backend/types";
 import { db } from "@/lib/db";
-import { accounts, contests, judgingQueue, problems, submissions } from "@/lib/db/schema";
+import { accounts, contests, judgingQueue, problems, runners, submissions } from "@/lib/db/schema";
 import { externallyJudged } from "@/lib/problems/registry";
 import { claimJob, reportDone } from "@/lib/runner/queue";
 import { rejudgeSubmissions } from "./rejudge";
@@ -20,9 +20,15 @@ import { withLockedRow } from "@/test/db-concurrency";
 const USERNAME = "rejudge-alice";
 let ACCOUNT_UID = 0;
 
-const BACKEND = "rejudge-fixture";
-
 const PROBLEM = externallyJudged()[0]!;
+
+/** Where `PROBLEM` is judged now. */
+const BACKEND = PROBLEM.backend.id;
+
+/** A backend `PROBLEM` was judged on before the deployment moved it. */
+const MOVED_FROM = "rejudge-moved-from";
+
+const RUNNER_IDS = ["r-again", "r-declares", "r-nothing", "r-moved"];
 
 const RETIRED = "rejudge-retired-fixture";
 
@@ -92,6 +98,10 @@ describeDb("重判", () => {
 
   afterAll(async () => {
     await db.delete(submissions).where(eq(submissions.uid, ACCOUNT_UID));
+    await db.delete(runners).where(and(
+      inArray(runners.backendId, [BACKEND, MOVED_FROM]),
+      inArray(runners.runnerId, RUNNER_IDS),
+    ));
     await db.delete(accounts).where(eq(accounts.uid, ACCOUNT_UID));
     await db.delete(problems).where(eq(problems.slug, RETIRED));
     await db.delete(contests).where(eq(contests.slug, CONTEST));
@@ -170,6 +180,30 @@ describeDb("重判", () => {
 
       const row = await rowOf(id);
       expect(row.result).toEqual({ status: "accepted", score: 60, maxScore: 60, accepted: true });
+    });
+  });
+
+  describe("题目换了评测后端", () => {
+    it("重判进题目当前后端的队列，旧后端领不到", async () => {
+      const id = await settled("sub_rj_moved", { backendId: MOVED_FROM });
+
+      expect((await rejudgeSubmissions([id])).requeued).toBe(1);
+
+      const [queued] = await db
+        .select()
+        .from(judgingQueue)
+        .where(eq(judgingQueue.submissionId, id));
+      expect(queued.backendId).toBe(BACKEND);
+      await expect(claimJob(MOVED_FROM, "r-moved")).resolves.toBeNull();
+      expect((await claimJob(BACKEND, "r-moved"))?.id).toBe(id);
+    });
+
+    it("提交记录改记当前后端，评测机按它验签", async () => {
+      const id = await settled("sub_rj_moved_row", { backendId: MOVED_FROM });
+
+      await rejudgeSubmissions([id]);
+
+      expect((await rowOf(id)).backendId).toBe(BACKEND);
     });
   });
 

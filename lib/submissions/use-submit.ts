@@ -20,7 +20,9 @@ export function useSubmit() {
   const [error, setError] = useState<string | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
 
-  const nonceRef = useRef<string | null>(null);
+  // The server answers a known nonce with the row it already stored, so an
+  // unanswered nonce may only be reused to retry the identical request.
+  const attemptRef = useRef<{ request: string; nonce: string } | null>(null);
   const generationRef = useRef(0);
 
   useEffect(() => () => {
@@ -39,8 +41,12 @@ export function useSubmit() {
       cleanupRef.current = null;
       setSubmitting(true);
       setError(null);
-      const clientNonce = (nonceRef.current ??= newNonce());
       try {
+        const request = JSON.stringify({ contestSlug, problemSlug: config.slug, payload });
+        const attempt = attemptRef.current?.request === request
+          ? attemptRef.current
+          : { request, nonce: newNonce() };
+        attemptRef.current = attempt;
         const res = await fetch("/api/submissions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -48,12 +54,12 @@ export function useSubmit() {
             contestSlug,
             problemSlug: config.slug,
             payload,
-            clientNonce,
+            clientNonce: attempt.nonce,
           }),
         });
 
         if (generation !== generationRef.current) return null;
-        if (res.status < 500) nonceRef.current = null;
+        if (res.status < 500) attemptRef.current = null;
 
         if (!res.ok) {
           const body = (await res.json().catch(() => null)) as {

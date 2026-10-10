@@ -49,15 +49,4 @@ export const rules: EnrollmentRuleInput[] = [
     email: /^demo\d+@example\.test$/i,
     groups: ["演示账号"],
   },
-  {
-
-    label: "管理员",
-    uids: [1],
-    groups: ["管理员"],
-  },
-  {
-    label: "监考",
-    uids: [2],
-    groups: ["监考"],
-  },
 ];

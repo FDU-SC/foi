@@ -69,7 +69,7 @@ Two entry points in `compute.ts` build that input:
   - A section counts only where the viewer may read its standings and problem set.
   - `lib/contests/warnings.ts` refuses to boot when a board's sections differ in ruleset or configuration.
 
-Both share one cache. Each entry is tagged with the contests it read, so `invalidateStandings(slug)` also clears every catalogue board that includes that contest.
+Both share one cache. Each entry is tagged with the contests it read, so `invalidateStandings(slug)` also clears every catalogue board that includes that contest. Catalogue keys carry the query's date range and sections, so the cache holds at most `MAX_CACHED_BOARDS` boards: each write drops expired boards first, then the oldest.
 
 ## Displaying a Board
 

@@ -24,7 +24,14 @@ const CONFIRM = "yes-fake-verdicts";
 const KERNEL_URL =
   process.env.FOI_KERNEL_URL || process.env.FOI_PUBLIC_URL || "http://localhost:3000";
 
-const BACKEND_IDS = (process.env.FOI_STUB_BACKENDS || "traditional,interactive,performance")
+const DEFAULT_BACKEND_IDS = [
+  "traditional",
+  "interactive",
+  "performance",
+  "leaky-bucket",
+];
+
+const BACKEND_IDS = (process.env.FOI_STUB_BACKENDS || DEFAULT_BACKEND_IDS.join(","))
   .split(",")
   .map((id) => id.trim())
   .filter(Boolean);
@@ -302,4 +309,11 @@ if (require.main === module) {
 }
 
 // 供测试比对签名算法与判定形状。
-module.exports = { sign, verdictFor, main, SIMULATION_NOTE, STATUSES };
+module.exports = {
+  sign,
+  verdictFor,
+  main,
+  SIMULATION_NOTE,
+  STATUSES,
+  DEFAULT_BACKEND_IDS,
+};

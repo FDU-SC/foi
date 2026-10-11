@@ -55,7 +55,7 @@ services:
       FOI_STUB_RUNNER: yes-fake-verdicts
       FOI_KERNEL_URL: http://app:3000
       FOI_BACKEND_SECRET: ${FOI_BACKEND_SECRET:-}
-      FOI_STUB_BACKENDS: ${FOI_STUB_BACKENDS:-traditional,interactive,performance}
+      FOI_STUB_BACKENDS: ${FOI_STUB_BACKENDS:-}
     depends_on:
       - app
     networks:

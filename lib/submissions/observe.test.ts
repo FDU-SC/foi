@@ -154,6 +154,37 @@ describe("提交观察", () => {
     expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
+  it("心跳使用最新分组重新校验读取权限", async () => {
+    vi.mocked(resolveUser).mockResolvedValue({
+      uid: 7,
+      username: "observer",
+      nickname: "Observer",
+      avatarUpdatedAt: null,
+      email: null,
+      emailVerified: false,
+      groups: ["revoked"],
+      status: "active",
+      disabled: false,
+    });
+    vi.mocked(submissionFor).mockImplementation(async (_id, viewer) =>
+      viewer.groups.includes("revoked") ? undefined : read(),
+    );
+    const watching = observe();
+    ready.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(vi.mocked(submissionFor).mock.calls.at(-1)?.[1].groups).toEqual([]);
+    await vi.advanceTimersByTimeAsync(20_000);
+    await watching.done;
+
+    expect(resolveUser).toHaveBeenCalledExactlyOnceWith(7, undefined);
+    expect(vi.mocked(submissionFor).mock.calls.at(-1)?.[1].groups).toEqual([
+      "revoked",
+    ]);
+    expect(watching.onHeartbeat).not.toHaveBeenCalled();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
   it("初始快照已完成时不建立订阅", async () => {
     const watching = observe({ ...initial, state: "completed" });
     await watching.done;

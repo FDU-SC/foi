@@ -5,6 +5,7 @@ import { GET as getSubmission } from "@/app/api/submissions/[id]/route";
 import * as positions from "./queue-position";
 import { log } from "@/lib/log";
 import { db } from "@/lib/db";
+import * as mirror from "@/lib/db/mirror";
 import { accounts, judgingQueue, submissions } from "@/lib/db/schema";
 import {
   INLINE_BACKEND_ID,
@@ -317,6 +318,63 @@ describeDb("内联判题说自己判不了", () => {
     expect(row.result).toBeNull();
     expect(row.detail).toBeNull();
     expect(row.judgedAt).not.toBeNull();
+  });
+});
+
+describeDb("比赛结束前最后一刻的提交", () => {
+  const REF = inlineProblem();
+  const LAST_USERNAME = "rl-last-instant";
+  let LAST_UID = 0;
+
+  beforeAll(async () => {
+    for (const [key, value] of Object.entries(TEST_ENV)) {
+      vi.stubEnv(key, value);
+    }
+    vi.stubGlobal("fetch", fetchMock);
+
+    await db.delete(accounts).where(eq(accounts.username, LAST_USERNAME));
+    const [acct] = await db
+      .insert(accounts)
+      .values({ username: LAST_USERNAME, nickname: LAST_USERNAME })
+      .returning({ uid: accounts.uid });
+    LAST_UID = acct.uid;
+    CALLER_UID = LAST_UID;
+    CALLER_USERNAME = LAST_USERNAME;
+  });
+
+  afterAll(async () => {
+    CALLER_UID = ACCOUNT_UID;
+    CALLER_USERNAME = USERNAME;
+    await db.delete(submissions).where(eq(submissions.uid, LAST_UID));
+    await db.delete(accounts).where(eq(accounts.uid, LAST_UID));
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("放行后写库前时钟越过结束时间，提交仍按放行时刻记录，落在排行榜窗口内", async () => {
+    const { endsAt } = REF.contest;
+    const ensureProblem = mirror.ensureProblem;
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(endsAt);
+    const slowDatabase = vi.spyOn(mirror, "ensureProblem").mockImplementation(async (problem) => {
+      await ensureProblem(problem);
+      vi.setSystemTime(endsAt.getTime() + 1_000);
+    });
+
+    try {
+      const response = await postSubmission(REF);
+      expect(response.status).toBe(201);
+      expect(slowDatabase).toHaveBeenCalledOnce();
+
+      const [row] = await db
+        .select()
+        .from(submissions)
+        .where(eq(submissions.uid, LAST_UID));
+      expect(row.createdAt).toEqual(endsAt);
+    } finally {
+      slowDatabase.mockRestore();
+      vi.useRealTimers();
+    }
   });
 });
 

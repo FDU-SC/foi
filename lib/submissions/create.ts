@@ -86,7 +86,10 @@ export async function createSubmission(
     if (existing) return acknowledge("existing", existing.id, user.uid);
   }
 
-  const gate = submitFor(input.contestSlug, input.problemSlug, viewerFor(user));
+  // Recorded as createdAt too: rulesets score by createdAt, and a clock read
+  // after the awaits below can fall past endsAt for a submission admitted here.
+  const now = new Date();
+  const gate = submitFor(input.contestSlug, input.problemSlug, viewerFor(user), now);
   if (!gate.ok) return { kind: "denied", denial: gate.denial };
   const { contest, problem } = gate.ref;
   const limited = await rateLimit(
@@ -125,7 +128,7 @@ export async function createSubmission(
       backendId: judging.kind === "inline" ? INLINE_BACKEND_ID : judging.backend.id,
       releaseSha: releaseSha(),
       state: "pending",
-      createdAt: new Date(),
+      createdAt: now,
     }).onConflictDoNothing({
       target: [submissions.uid, submissions.clientNonce],
       where: sql`${submissions.clientNonce} is not null`,

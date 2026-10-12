@@ -2,14 +2,15 @@ import type { HTMLAttributes } from "react";
 import type { BadgeTone } from "@/lib/presentation";
 import { cn } from "@/lib/utils";
 
+/** A badge is coloured text: the tone is the only thing it adds. */
 const TONES: Record<BadgeTone, string> = {
-  neutral: "bg-surface-2 text-fg-muted border-border",
-  ok: "bg-ok-subtle text-ok border-ok/25",
-  err: "bg-err-subtle text-err border-err/25",
-  warn: "bg-warn-subtle text-warn border-warn/25",
-  partial: "bg-partial-subtle text-partial border-partial/25",
-  info: "bg-info-subtle text-info border-info/25",
-  primary: "bg-primary-subtle text-primary border-primary/25",
+  neutral: "text-fg-muted",
+  ok: "text-ok",
+  err: "text-err",
+  warn: "text-warn",
+  partial: "text-partial",
+  info: "text-info",
+  primary: "text-fg",
 };
 
 export type { BadgeTone };
@@ -28,9 +29,8 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5",
-        "text-xs leading-none font-medium whitespace-nowrap",
-        mono && "font-mono tabular-nums",
+        "inline-flex items-center gap-1 text-xs leading-none font-medium whitespace-nowrap",
+        mono && "font-mono font-semibold tabular-nums",
         TONES[tone],
         className,
       )}

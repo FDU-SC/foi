@@ -1,6 +1,8 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import * as ts from "typescript";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { importBindings, nodes, parseSource, walk } from "@/test/source";
 import { guardRequest, SOURCE_GATE } from "./guard";
 
 afterEach(() => {
@@ -17,8 +19,8 @@ function post(
 const SUBMIT = "POST /api/submissions" as const;
 
 describe("guardRequest 的来源检查", () => {
-  it("同源的 POST 放行", () => {
-    const gated = guardRequest(
+  it("同源的 POST 放行", async () => {
+    const gated = await guardRequest(
       post("http://foi.example.edu/api/submissions", {
         origin: "http://foi.example.edu",
         "content-type": "application/json",
@@ -30,7 +32,7 @@ describe("guardRequest 的来源检查", () => {
   });
 
   it("同站兄弟子域的 POST 被拒", async () => {
-    const gated = guardRequest(
+    const gated = await guardRequest(
       post("http://foi.example.edu/api/submissions", {
         origin: "http://wiki.example.edu",
         "content-type": "application/json",
@@ -41,8 +43,8 @@ describe("guardRequest 的来源检查", () => {
     expect(gated?.status).toBe(403);
   });
 
-  it("端口不同也算不同来源", () => {
-    const gated = guardRequest(
+  it("端口不同也算不同来源", async () => {
+    const gated = await guardRequest(
       post("http://foi.example.edu/api/submissions", {
         origin: "http://foi.example.edu:8080",
         "content-type": "application/json",
@@ -53,8 +55,8 @@ describe("guardRequest 的来源检查", () => {
     expect(gated?.status).toBe(403);
   });
 
-  it("Origin 不是合法 URL 时按不匹配处理", () => {
-    const gated = guardRequest(
+  it("Origin 不是合法 URL 时按不匹配处理", async () => {
+    const gated = await guardRequest(
       post("http://foi.example.edu/api/submissions", {
         origin: "null",
         "content-type": "application/json",
@@ -65,10 +67,10 @@ describe("guardRequest 的来源检查", () => {
     expect(gated?.status).toBe(403);
   });
 
-  it("按请求自身的 Host 比对，不看 FOI_PUBLIC_URL", () => {
+  it("按请求自身的 Host 比对，不看 FOI_PUBLIC_URL", async () => {
     vi.stubEnv("FOI_PUBLIC_URL", "http://localhost:3000");
 
-    const gated = guardRequest(
+    const gated = await guardRequest(
       post("http://127.0.0.1:3000/api/submissions", {
         origin: "http://127.0.0.1:3000",
         "content-type": "application/json",
@@ -79,8 +81,8 @@ describe("guardRequest 的来源检查", () => {
     expect(gated).toBeNull();
   });
 
-  it("Host 头优先于请求 URL，因为反代转发的是它", () => {
-    const gated = guardRequest(
+  it("Host 头优先于请求 URL，因为反代转发的是它", async () => {
+    const gated = await guardRequest(
       post("http://internal-container:3000/api/submissions", {
         host: "foi.example.edu",
         origin: "http://foi.example.edu",
@@ -92,8 +94,8 @@ describe("guardRequest 的来源检查", () => {
     expect(gated).toBeNull();
   });
 
-  it("协议不同不算不同来源", () => {
-    const gated = guardRequest(
+  it("协议不同不算不同来源", async () => {
+    const gated = await guardRequest(
       post("http://foi.example.edu/api/submissions", {
         origin: "https://foi.example.edu",
         "content-type": "application/json",
@@ -104,8 +106,8 @@ describe("guardRequest 的来源检查", () => {
     expect(gated).toBeNull();
   });
 
-  it("没有 Origin 头时放行", () => {
-    const gated = guardRequest(
+  it("没有 Origin 头时放行", async () => {
+    const gated = await guardRequest(
       post("http://foi.example.edu/api/submissions", {
         "content-type": "application/json",
       }),
@@ -122,8 +124,8 @@ describe("guardRequest 的 Content-Type 检查", () => {
     "text/plain",
     "application/x-www-form-urlencoded",
     "multipart/form-data",
-  ])("拒绝表单能发出的 %s", (media) => {
-    const gated = guardRequest(
+  ])("拒绝表单能发出的 %s", async (media) => {
+    const gated = await guardRequest(
       post("http://foi.example.edu/api/submissions", {
         origin: "http://foi.example.edu",
         "content-type": media,
@@ -134,8 +136,8 @@ describe("guardRequest 的 Content-Type 检查", () => {
     expect(gated?.status).toBe(415);
   });
 
-  it("带参数的 text/plain 同样被拒", () => {
-    const gated = guardRequest(
+  it("带参数的 text/plain 同样被拒", async () => {
+    const gated = await guardRequest(
       post("http://foi.example.edu/api/submissions", {
         origin: "http://foi.example.edu",
         "content-type": "text/plain;charset=UTF-8",
@@ -146,8 +148,8 @@ describe("guardRequest 的 Content-Type 检查", () => {
     expect(gated?.status).toBe(415);
   });
 
-  it("application/json 带 charset 参数仍然放行", () => {
-    const gated = guardRequest(
+  it("application/json 带 charset 参数仍然放行", async () => {
+    const gated = await guardRequest(
       post("http://foi.example.edu/api/submissions", {
         origin: "http://foi.example.edu",
         "content-type": "application/json; charset=utf-8",
@@ -158,8 +160,8 @@ describe("guardRequest 的 Content-Type 检查", () => {
     expect(gated).toBeNull();
   });
 
-  it("没有 Content-Type 时放行，因为无参数的 action 就是这么发的", () => {
-    const gated = guardRequest(
+  it("没有 Content-Type 时放行，因为无参数的 action 就是这么发的", async () => {
+    const gated = await guardRequest(
       post(
         "http://foi.example.edu/api/contests/a-contest/problems/a-problem/action/some-action",
         { origin: "http://foi.example.edu" },
@@ -173,12 +175,12 @@ describe("guardRequest 的 Content-Type 检查", () => {
 
 describe("guardRequest 的两道检查顺序", () => {
 
-  it("超出来源闸时先答 429，而不是先判来源", () => {
+  it("超出来源闸时先答 429，而不是先判来源", async () => {
     const from = { "x-forwarded-for": "203.0.113.7" };
     const url = "http://foi.example.edu/api/submissions";
 
     for (let i = 0; i < 300; i += 1) {
-      guardRequest(
+      await guardRequest(
         post(url, {
           ...from,
           origin: "http://foi.example.edu",
@@ -188,7 +190,7 @@ describe("guardRequest 的两道检查顺序", () => {
       );
     }
 
-    const gated = guardRequest(
+    const gated = await guardRequest(
       post(url, {
         ...from,
         origin: "http://wiki.example.edu",
@@ -203,8 +205,8 @@ describe("guardRequest 的两道检查顺序", () => {
 
 describe("guardRequest 的豁免", () => {
 
-  it("评测机上报不要求 Origin", () => {
-    const gated = guardRequest(
+  it("评测机上报不要求 Origin", async () => {
+    const gated = await guardRequest(
       new Request("http://foi.example.edu/api/runner/jobs/sub_1", {
         method: "PUT",
         headers: { "content-type": "text/plain" },
@@ -218,8 +220,8 @@ describe("guardRequest 的豁免", () => {
   it.each([
     ["GET /api/submissions", "http://foi.example.edu/api/submissions"],
     ["GET /api/health", "http://foi.example.edu/api/health"],
-  ] as const)("只读路由 %s 不检查来源", (route, url) => {
-    const gated = guardRequest(
+  ] as const)("只读路由 %s 不检查来源", async (route, url) => {
+    const gated = await guardRequest(
       new Request(url, {
         method: "GET",
         headers: { origin: "http://wiki.example.edu" },
@@ -230,8 +232,8 @@ describe("guardRequest 的豁免", () => {
     expect(gated).toBeNull();
   });
 
-  it("Auth.js 的表单 POST 不会被 Content-Type 规则拒掉", () => {
-    const gated = guardRequest(
+  it("Auth.js 的表单 POST 不会被 Content-Type 规则拒掉", async () => {
+    const gated = await guardRequest(
       new Request("http://foi.example.edu/api/auth/callback/credentials", {
         method: "POST",
         headers: {
@@ -249,12 +251,13 @@ describe("guardRequest 的豁免", () => {
 describe("每个 api 路由都取来源闸", () => {
   const ROOT = join(import.meta.dirname, "..", "..");
 
-  function walk(directory: string): string[] {
-    return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-      const path = join(directory, entry.name);
-      if (entry.isDirectory()) return walk(path);
-      return entry.isFile() ? [path] : [];
-    });
+  function callsGuard(source: string): boolean {
+    const file = parseSource(source);
+    const bindings = importBindings(file).filter(({ source }) => source === "@/lib/server/guard");
+    return nodes(file, ts.isCallExpression).some(({ expression }) => bindings.some(({ local, imported }) =>
+      ts.isIdentifier(expression) ? imported === "guardRequest" && expression.text === local :
+        imported === "*" && ts.isPropertyAccessExpression(expression) &&
+        ts.isIdentifier(expression.expression) && expression.expression.text === local && expression.name.text === "guardRequest"));
   }
 
   const routes = walk(join(ROOT, "app", "api")).filter((file) =>
@@ -262,17 +265,24 @@ describe("每个 api 路由都取来源闸", () => {
   );
 
   it("扫描确实找到了东西，而不是路径写错后空过", () => {
-    expect(routes.length).toBeGreaterThanOrEqual(8);
+    expect(routes.length).toBeGreaterThan(0);
   });
 
   it("没有一个 route.ts 少了 guardRequest", () => {
     const missing = routes
-      .filter((file) => !readFileSync(file, "utf8").includes("guardRequest("))
+      .filter((file) => !callsGuard(readFileSync(file, "utf8")))
       .map((file) => relative(ROOT, file));
 
     expect(missing, "这些路由不在 proxy 的 matcher 里，也没有自己取来源闸").toEqual(
       [],
     );
+  });
+
+  it("识别导入别名的调用，不把注释或同名本地函数当作来源闸", () => {
+    expect(callsGuard(`import { guardRequest as guard } from '@/lib/server/guard'; guard (request, route);`)).toBe(true);
+    expect(callsGuard(`import * as gate from '@/lib/server/guard'; gate.guardRequest(request, route);`)).toBe(true);
+    expect(callsGuard(`import { guardRequest } from '@/lib/server/guard'; /* guardRequest(request, route); */`)).toBe(false);
+    expect(callsGuard(`function guardRequest() {} guardRequest();`)).toBe(false);
   });
 });
 

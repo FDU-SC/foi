@@ -15,8 +15,9 @@ import {
 import { FormMessage } from "@/components/form";
 import { Avatar, type AvatarSize, type AvatarSubject } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { AvatarCropper } from "./avatar-cropper";
+import { AvatarCropper, type PickedImage } from "./avatar-cropper";
 import { ACCEPTED_TYPES, sourceRejection } from "./encode";
 
 /**
@@ -55,7 +56,7 @@ export function AvatarEditor({
   );
 
   const input = useRef<HTMLInputElement>(null);
-  const [picked, setPicked] = useState<ImageBitmap | null>(null);
+  const [picked, setPicked] = useState<PickedImage | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
   async function onPick(event: ChangeEvent<HTMLInputElement>) {
@@ -74,17 +75,21 @@ export function AvatarEditor({
 
     setProblem(null);
     try {
-      // Decoded here rather than in the dialog: an event handler owns the
-      // bitmap's lifetime plainly, where an effect would have to survive the
-      // setup/cleanup/setup that StrictMode puts every effect through.
-      setPicked(await createImageBitmap(file));
+      // Created here rather than in the dialog: an event handler owns the
+      // bitmap's and the URL's lifetime plainly, where an effect would have to
+      // survive the setup/cleanup/setup that StrictMode puts every effect through.
+      const bitmap = await createImageBitmap(file);
+      setPicked({ bitmap, url: URL.createObjectURL(file) });
     } catch {
-      setProblem("无法读取图片，请选择其他图片。");
+      setProblem("无法读取图片。");
     }
   }
 
   function discard() {
-    picked?.close();
+    if (picked) {
+      picked.bitmap.close();
+      URL.revokeObjectURL(picked.url);
+    }
     setPicked(null);
   }
 
@@ -108,14 +113,14 @@ export function AvatarEditor({
           <span
             aria-hidden
             className={cn(
-              "absolute inset-0 flex items-center justify-center rounded-full",
-              "bg-black/55 text-xs font-medium text-white transition-opacity",
+              "absolute inset-0 flex items-center justify-center gap-1.5 rounded-full",
+              "bg-black/55 text-xs font-medium text-white",
               pending
                 ? "opacity-100"
                 : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100",
             )}
           >
-            {pending ? "处理中…" : "更换"}
+            {pending ? <><Spinner />处理中…</> : "更换"}
           </span>
         </button>
 
@@ -127,22 +132,15 @@ export function AvatarEditor({
           className="hidden"
         />
 
-        {withControls ? (
-          <div className="min-w-0 space-y-2">
-            <p className="text-fg-muted text-sm leading-6">
-              点击头像选择图片并裁剪。
-            </p>
-            {current.avatarUpdatedAt ? (
-              <Button
-                type="button"
-                size="sm"
-                disabled={pending}
-                onClick={() => send({ intent: "remove" })}
-              >
-                移除当前头像
-              </Button>
-            ) : null}
-          </div>
+        {withControls && current.avatarUpdatedAt ? (
+          <Button
+            type="button"
+            size="sm"
+            disabled={pending}
+            onClick={() => send({ intent: "remove" })}
+          >
+            移除当前头像
+          </Button>
         ) : null}
       </div>
 

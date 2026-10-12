@@ -13,6 +13,7 @@ import { log } from "@/lib/log";
 import { sendPasswordReset, type Recipient } from "@/lib/mail/notify";
 import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
+import { parseInput } from "@/lib/validation";
 
 export interface ForgotState {
   error?: string;
@@ -23,24 +24,17 @@ const schema = z.object({
   identifier: z.string().trim().min(1, "请填写用户名或邮箱"),
 });
 
-const SENT = "如果该账号存在且已验证邮箱，我们已经发送了重置链接，请查收。";
+const SENT = "如果该账号可以找回密码，重置邮件已发出。";
 
 export async function requestPasswordReset(
   _prev: ForgotState,
   formData: FormData,
 ): Promise<ForgotState> {
-  const parsed = schema.safeParse({ identifier: formData.get("identifier") });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  const parsed = parseInput(schema, { identifier: formData.get("identifier") });
+  if (!parsed.ok) return { error: parsed.error };
 
   const rule = ACTION_LIMITS.requestPasswordReset;
-  const limit = rateLimitBySource(
-    "forgot",
-    sourceFrom(await headers()),
-    rule.max,
-    rule.windowSeconds * 1000,
-  );
+  const limit = await rateLimitBySource("forgot", sourceFrom(await headers()), rule);
   if (!limit.ok) {
     return { error: "请求过于频繁，请稍后再试。" };
   }
@@ -78,8 +72,8 @@ async function notifyQuietly(to: Recipient): Promise<void> {
     if (!fp) return;
 
     await sendPasswordReset(to, fp);
-    log.info(`找回密码: 已向 uid=${to.uid} 发出重置链接`);
+    log.info({ uid: to.uid }, "已发出密码重置链接");
   } catch (error) {
-    log.error(`找回密码: 向 uid=${to.uid} 投递重置邮件失败`, error);
+    log.error({ uid: to.uid, err: error }, "密码重置邮件投递失败");
   }
 }

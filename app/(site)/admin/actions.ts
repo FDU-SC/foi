@@ -12,22 +12,15 @@ import { log } from "@/lib/log";
 import { sendPasswordReset } from "@/lib/mail/notify";
 import { rateLimit } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
+import { parseInput } from "@/lib/validation";
 
 export interface ActionState {
   error?: string;
   message?: string;
 }
 
-/**
- * A bare "forbidden" usually means the button outlived the permission behind
- * it. Denials that name a specific rule speak for themselves.
- */
 function refused(denial: Denial): ActionState {
-  const stale =
-    denial.reason.code === "forbidden"
-      ? " 请刷新页面后重试。"
-      : "";
-  return { error: `${denial.reason.message}${stale}` };
+  return { error: denial.reason.message };
 }
 
 const issueSchema = z.object({
@@ -41,21 +34,15 @@ export async function resendPasswordResetAction(
   const actor = await getViewer();
 
   const rule = ACTION_LIMITS.resendPasswordResetAction;
-  const limited = rateLimit(
-    `resend-reset:${actor.uid}`,
-    rule.max,
-    rule.windowSeconds * 1000,
-  );
+  const limited = await rateLimit(`resend-reset:${actor.uid}`, rule);
   if (!limited.ok) {
     return {
       error: `代发重置邮件过于频繁，请 ${Math.ceil(limited.retryAfterMs / 60_000)} 分钟后再试。`,
     };
   }
 
-  const parsed = issueSchema.safeParse({ uid: formData.get("uid") });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  const parsed = parseInput(issueSchema, { uid: formData.get("uid") });
+  if (!parsed.ok) return { error: parsed.error };
 
   const user = await resolveUser(parsed.data.uid);
   if (!user) return { error: "没有这个账号" };
@@ -64,15 +51,12 @@ export async function resendPasswordResetAction(
   if (!decision.allow) return refused(decision);
 
   if (!user.email || !user.emailVerified) {
-    return {
-      error:
-        "该账号没有已验证的邮箱，无法发送重置邮件。",
-    };
+    return { error: "该账号没有已验证的邮箱。" };
   }
 
   const fp = await getPasswordFingerprint(user.uid);
   if (!fp) {
-    return { error: "该账号尚未设置密码，无法发送重置链接。" };
+    return { error: "该账号尚未设置密码。" };
   }
 
   try {
@@ -81,15 +65,13 @@ export async function resendPasswordResetAction(
       fp,
     );
   } catch (error) {
-    log.error("重置密码邮件发送失败", error);
-    return {
-      error: `邮件发送失败：${error instanceof Error ? error.message : "未知错误"}`,
-    };
+    log.error({ err: error }, "重置密码邮件发送失败");
+    return { error: "邮件发送失败。" };
   }
 
   revalidatePath("/admin/accounts");
   return {
-    message: `已向 ${user.username} 的邮箱发送重置链接，1 小时内有效。`,
+    message: `已向 ${user.username} 发送重置邮件。`,
   };
 }
 
@@ -104,13 +86,11 @@ export async function suspendAccountAction(
 ): Promise<ActionState> {
   const actor = await getViewer();
 
-  const parsed = moderateSchema.safeParse({
+  const parsed = parseInput(moderateSchema, {
     uid: formData.get("uid"),
     reason: formData.get("reason"),
   });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  if (!parsed.ok) return { error: parsed.error };
 
   const target = await resolveUser(parsed.data.uid);
   if (!target) return { error: "没有这个账号" };
@@ -125,7 +105,7 @@ export async function suspendAccountAction(
   );
 
   revalidatePath("/admin/accounts");
-  return { message: `已封禁 ${target.username}，其已登录的会话在下一个请求即失效。` };
+  return { message: `已封禁 ${target.username}。` };
 }
 
 export async function reinstateAccountAction(
@@ -134,10 +114,8 @@ export async function reinstateAccountAction(
 ): Promise<ActionState> {
   const actor = await getViewer();
 
-  const parsed = moderateSchema.safeParse({ uid: formData.get("uid") });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  const parsed = parseInput(moderateSchema, { uid: formData.get("uid") });
+  if (!parsed.ok) return { error: parsed.error };
 
   const target = await resolveUser(parsed.data.uid);
   if (!target) return { error: "没有这个账号" };
@@ -148,7 +126,7 @@ export async function reinstateAccountAction(
   if (target.status !== "suspended") {
     revalidatePath("/admin/accounts");
     return {
-      error: `${target.username} 当前未被封禁，本次未作修改。请刷新页面。`,
+      error: `${target.username} 当前未被封禁。`,
     };
   }
 

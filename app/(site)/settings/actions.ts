@@ -5,27 +5,27 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSelf, signIn } from "@/auth";
-import { avatarRejection } from "@/lib/accounts/avatar";
+import { normalizeAvatar } from "@/lib/accounts/avatar-image";
 import { setPassword, verifyPassword } from "@/lib/accounts/password";
 import {
   clearAvatar,
   getAccount,
   getAccountByUsername,
   setAvatar,
+  updateBio,
   updateNickname,
   updateUsername,
 } from "@/lib/accounts/queries";
 import type { ResolvedUser } from "@/lib/accounts/types";
-import { nicknameSchema, usernameSchema } from "@/lib/accounts/types";
-import {
-  USERNAME_CHANGE_COOLDOWN_DAYS,
-  usernameChangeAvailableAt,
-} from "@/lib/accounts/username";
+import { bioSchema, nicknameSchema, usernameSchema } from "@/lib/accounts/types";
+import { usernameChangeAvailableAt } from "@/lib/accounts/username";
+import { formatMoment } from "@/lib/format";
 import { log } from "@/lib/log";
 import { sendSecurityNotice } from "@/lib/mail/notify";
 import type { SecurityChangeKind } from "@/lib/mail/types";
 import { rateLimit } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
+import { parseInput } from "@/lib/validation";
 import { site } from "@/lib/site";
 
 export interface SettingsState {
@@ -35,18 +35,6 @@ export interface SettingsState {
 
 const TOO_MANY = "操作过于频繁，请稍后再试。";
 const WRONG_PASSWORD = "当前密码不正确。";
-
-function within(activity: string, uid: number, rule: { max: number; windowSeconds: number }): boolean {
-  return rateLimit(`${activity}:${uid}`, rule.max, rule.windowSeconds * 1000).ok;
-}
-
-function formatMoment(at: Date): string {
-  return new Intl.DateTimeFormat(site.lang, {
-    dateStyle: "long",
-    timeStyle: "short",
-    timeZone: site.timezone,
-  }).format(at);
-}
 
 /**
  * The change already happened; a failed notice must never surface as a failed action.
@@ -65,7 +53,7 @@ async function notify(
       detail,
     );
   } catch (error) {
-    log.error("安全变更通知邮件发送失败", error);
+    log.error({ err: error }, "安全变更通知邮件发送失败");
   }
 }
 
@@ -87,17 +75,15 @@ export async function updateNicknameAction(
 ): Promise<SettingsState> {
   const viewer = await requireSelf("account.changeNickname");
 
-  const parsed = nicknameForm.safeParse({ nickname: formData.get("nickname") });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  const parsed = parseInput(nicknameForm, { nickname: formData.get("nickname") });
+  if (!parsed.ok) return { error: parsed.error };
 
   const { nickname } = parsed.data;
   if (nickname === viewer.nickname) {
     return { error: "新昵称和当前昵称相同。" };
   }
 
-  if (!within("settings:nickname", viewer.uid, ACTION_LIMITS.updateNicknameAction)) {
+  if (!(await rateLimit(`settings:nickname:${viewer.uid}`, ACTION_LIMITS.updateNicknameAction)).ok) {
     return { error: TOO_MANY };
   }
 
@@ -105,6 +91,27 @@ export async function updateNicknameAction(
   if (!updated) return { error: "更新失败，请重试。" };
 
   return { message: `昵称已更新为 ${nickname}。` };
+}
+
+const bioForm = z.object({ bio: bioSchema });
+
+export async function updateBioAction(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const viewer = await requireSelf("account.changeBio");
+
+  const parsed = parseInput(bioForm, { bio: formData.get("bio") ?? "" });
+  if (!parsed.ok) return { error: parsed.error };
+
+  if (!(await rateLimit(`settings:bio:${viewer.uid}`, ACTION_LIMITS.updateBioAction)).ok) {
+    return { error: TOO_MANY };
+  }
+
+  const { bio } = parsed.data;
+  if (!(await updateBio(viewer.uid, bio))) return { error: "更新失败，请重试。" };
+
+  return { message: bio ? "简介已更新。" : "简介已清空。" };
 }
 
 export async function updateAvatarAction(
@@ -116,19 +123,17 @@ export async function updateAvatarAction(
   const file = formData.get("avatar");
   if (!(file instanceof File)) return { error: "请选择一张图片。" };
 
-  if (!within("settings:avatar", viewer.uid, ACTION_LIMITS.updateAvatarAction)) {
+  if (!(await rateLimit(`settings:avatar:${viewer.uid}`, ACTION_LIMITS.updateAvatarAction)).ok) {
     return { error: TOO_MANY };
   }
 
   // The browser re-encodes through a canvas before uploading, but nothing
-  // stops a client from posting something else, and these are the exact bytes
-  // that get served back from this origin.
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  // stops a client from posting something else; only the server's own
+  // re-encode gets served back from this origin.
+  const avatar = await normalizeAvatar(new Uint8Array(await file.arrayBuffer()));
+  if (!avatar.ok) return { error: avatar.error };
 
-  const rejected = avatarRejection(bytes);
-  if (rejected) return { error: rejected };
-
-  if (!(await setAvatar(viewer.uid, bytes))) {
+  if (!(await setAvatar(viewer.uid, avatar.bytes))) {
     return { error: "更新失败，请重试。" };
   }
 
@@ -144,7 +149,7 @@ export async function removeAvatarAction(
 
   if (!viewer.avatarUpdatedAt) return { error: "当前没有设置头像。" };
 
-  if (!within("settings:avatar", viewer.uid, ACTION_LIMITS.removeAvatarAction)) {
+  if (!(await rateLimit(`settings:avatar:${viewer.uid}`, ACTION_LIMITS.removeAvatarAction)).ok) {
     return { error: TOO_MANY };
   }
 
@@ -167,20 +172,18 @@ export async function updateUsernameAction(
 ): Promise<SettingsState> {
   const viewer = await requireSelf("account.changeUsername");
 
-  const parsed = usernameForm.safeParse({
+  const parsed = parseInput(usernameForm, {
     username: formData.get("username"),
     currentPassword: formData.get("currentPassword"),
   });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  if (!parsed.ok) return { error: parsed.error };
 
   const { username, currentPassword } = parsed.data;
   if (username === viewer.username) {
     return { error: "新用户名和当前用户名相同。" };
   }
 
-  if (!within("settings:username", viewer.uid, ACTION_LIMITS.updateUsernameAction)) {
+  if (!(await rateLimit(`settings:username:${viewer.uid}`, ACTION_LIMITS.updateUsernameAction)).ok) {
     return { error: TOO_MANY };
   }
 
@@ -189,11 +192,7 @@ export async function updateUsernameAction(
 
   const availableAt = usernameChangeAvailableAt(account.usernameChangedAt);
   if (availableAt && availableAt.getTime() > Date.now()) {
-    return {
-      error:
-        `用户名每 ${USERNAME_CHANGE_COOLDOWN_DAYS} 天只能修改一次，` +
-        `${formatMoment(availableAt)} 之后才能再次修改。`,
-    };
+    return { error: `${formatMoment(availableAt)} 之后才能再改用户名。` };
   }
 
   if (!(await verifyPassword(viewer.uid, currentPassword)).ok) {
@@ -217,7 +216,7 @@ export async function updateUsernameAction(
 
   await notify(viewer, "username", `新用户名：${username}`);
 
-  return { message: `用户名已更新为 ${username}，下次登录请使用新用户名。` };
+  return { message: `用户名已更新为 ${username}。` };
 }
 
 const MIN_PASSWORD = site.passwordMinLength ?? 8;
@@ -243,16 +242,14 @@ export async function changePasswordAction(
 ): Promise<SettingsState> {
   const viewer = await requireSelf("account.changePassword");
 
-  const parsed = passwordForm.safeParse({
+  const parsed = parseInput(passwordForm, {
     currentPassword: formData.get("currentPassword"),
     password: formData.get("password"),
     confirm: formData.get("confirm"),
   });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  if (!parsed.ok) return { error: parsed.error };
 
-  if (!within("settings:password", viewer.uid, ACTION_LIMITS.changePasswordAction)) {
+  if (!(await rateLimit(`settings:password:${viewer.uid}`, ACTION_LIMITS.changePasswordAction)).ok) {
     return { error: TOO_MANY };
   }
 
@@ -277,7 +274,7 @@ export async function changePasswordAction(
     reissued = true;
   } catch (error) {
     if (!(error instanceof AuthError)) throw error;
-    log.error("改密后自动重新登录失败", error);
+    log.error({ err: error }, "改密后自动重新登录失败");
   }
 
   // signIn put the new session on the *response*. Re-rendering here would still read

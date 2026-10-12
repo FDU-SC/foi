@@ -1,6 +1,11 @@
 import { knownGroups } from "@/lib/enrollment/registry";
 import { allProblems } from "@/lib/problems/registry";
-import { catalogueSlugs, STANDINGS_SEGMENT } from "./catalogue";
+import {
+  catalogueBoardSections,
+  catalogueLeaderboards,
+  catalogueSlugs,
+  STANDINGS_SEGMENT,
+} from "./catalogue";
 import { orphanedProblems } from "./refs";
 import { allContests, catalogueContests, contestBySlug } from "./registry";
 
@@ -19,20 +24,43 @@ export function orphanedProblemComplaints(): string[] {
 }
 
 /**
- * A problem its own contest's leaderboard page hides.
+ * A problem its own contest's leaderboard address hides.
  *
- * `/problems/<contest>/standings` is a static segment and beats
- * `/problems/<contest>/[slug]`, so this problem has no address at all — the
- * same loss as an orphan, and refused the same way.
+ * The proxy redirects `/problems/<contest>/standings` to the leaderboard before
+ * `/problems/<contest>/[slug]` can answer, so this problem has no address at
+ * all — the same loss as an orphan, and refused the same way.
  */
 export function catalogueComplaints(): string[] {
-  return catalogueContests().flatMap((contest) => {
+  const shadowing = catalogueContests().flatMap((contest) => {
     const shadowed = contest.problems.some(
       (entry) => entry.slug === STANDINGS_SEGMENT,
     );
     if (!shadowed) return [];
 
     return `题库比赛 "${contest.slug}" 的题单里有题目 "${STANDINGS_SEGMENT}"，会被排行榜页挡住。`;
+  });
+  return [...shadowing, ...boardComplaints()];
+}
+
+/**
+ * A catalogue board computes the main leaderboards of its sections as one, so
+ * those sections must score with the same ruleset and configuration.
+ */
+function boardComplaints(): string[] {
+  const boards = [
+    ...catalogueLeaderboards().map(({ id }) => ({ name: `题库排行榜 "${id}"`, board: id })),
+    { name: "题库总榜", board: undefined },
+  ];
+
+  return boards.flatMap(({ name, board }) => {
+    const mains = (catalogueBoardSections(board) ?? []).flatMap((slug) => {
+      const main = contestBySlug(slug)?.leaderboards[0];
+      return main ? [{ slug, ruleset: JSON.stringify([main.ruleset.id, main.ruleset.config ?? null]) }] : [];
+    });
+    const odd = mains.find(({ ruleset }) => ruleset !== mains[0].ruleset);
+    return odd
+      ? [`${name}的分区主榜赛制不一致："${mains[0].slug}" 与 "${odd.slug}"。`]
+      : [];
   });
 }
 

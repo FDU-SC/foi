@@ -8,6 +8,9 @@ export interface NavItem {
   /** Defaults to the primary header navigation. */
   location?: "primary" | "account" | "catalogue" | "submissions" | "admin";
 
+  /** Other paths the link counts as current on, besides its own and those below it. */
+  matches?: string[];
+
   /**
    * Hide the link unless this action is permitted. It names the same action the
    * destination enforces, so the nav cannot drift from what the page allows.
@@ -18,7 +21,6 @@ export interface NavItem {
 export interface HomeEntry {
   href: string;
   title: string;
-  description: string;
 }
 
 export interface FooterConfig {
@@ -44,7 +46,11 @@ export interface CatalogueLeaderboard {
 }
 
 export interface SiteConfig {
-  /** Direction boards for catalogue sections; omitted preserves per-contest boards. */
+  /**
+   * Direction boards over catalogue sections, each computing its sections'
+   * main leaderboards as one. The total spans every section except those named
+   * only by boards without `includeInTotal`.
+   */
   catalogueLeaderboards?: CatalogueLeaderboard[];
   announcements?: readonly Announcement[];
   name: string;

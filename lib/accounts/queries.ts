@@ -113,6 +113,18 @@ export async function updateNickname(
   return row;
 }
 
+export async function updateBio(
+  uid: number,
+  bio: string | null,
+): Promise<AccountRow | undefined> {
+  const [row] = await db
+    .update(accounts)
+    .set({ bio, updatedAt: sql`now()` })
+    .where(eq(accounts.uid, uid))
+    .returning(accountColumns);
+  return row;
+}
+
 export async function getAvatar(
   uid: number,
 ): Promise<AccountAvatarRow | undefined> {

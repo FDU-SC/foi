@@ -15,6 +15,15 @@ export const nicknameSchema = z
   .min(1, "请填写昵称")
   .max(64, "昵称过长");
 
+export const BIO_MAX_LENGTH = 200;
+
+/** An empty bio clears it. */
+export const bioSchema = z
+  .string()
+  .trim()
+  .max(BIO_MAX_LENGTH, `简介最多 ${BIO_MAX_LENGTH} 个字符`)
+  .transform((bio) => bio || null);
+
 export const emailSchema = z
   .string()
   .trim()

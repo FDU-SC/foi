@@ -30,7 +30,7 @@ describe("题库的挂载点", () => {
 
     for (const slug of mounted) {
       expect(contestHref(slug)).toBe(`${CATALOGUE}/${slug}`);
-      expect(standingsHref(slug)).toBe(`${CATALOGUE}/${slug}/standings`);
+      expect(standingsHref(slug)).toBe(`/leaderboard?section=${slug}`);
     }
 
     for (const contest of others) {
@@ -41,7 +41,7 @@ describe("题库的挂载点", () => {
     }
   });
 
-  it("索引在 /problems，每张卡片都从这里下去", () => {
+  it("索引在 /problems，每个题单都从这里下去", () => {
     expect(catalogueHref()).toBe(CATALOGUE);
     for (const slug of mounted) {
       expect(contestHref(slug).startsWith(`${CATALOGUE}/`)).toBe(true);
@@ -103,9 +103,8 @@ describe("题库在 /contests 下的旧地址", () => {
       const old = `${CONTESTS}/${slug}`;
 
       expect(catalogueRedirect(old)).toBe(`${CATALOGUE}/${slug}`);
-      expect(catalogueRedirect(`${old}/standings`)).toBe(
-        `${CATALOGUE}/${slug}/standings`,
-      );
+      expect(catalogueRedirect(`${old}/standings`)).toBe(standingsHref(slug));
+      expect(catalogueRedirect(`${CATALOGUE}/${slug}/standings`)).toBe(standingsHref(slug));
       expect(catalogueRedirect(`${old}/problems/some-problem`)).toBe(
         `${CATALOGUE}/${slug}/some-problem`,
       );

@@ -10,7 +10,7 @@ export function SendLinkForm({ invalidToken }: { invalidToken?: boolean }) {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | undefined>(
-    invalidToken ? "验证链接无效或已过期，请重新获取。" : undefined,
+    invalidToken ? "验证链接无效或已过期。" : undefined,
   );
   const [busy, startTransition] = useTransition();
 
@@ -29,7 +29,7 @@ export function SendLinkForm({ invalidToken }: { invalidToken?: boolean }) {
 
   return (
     <div className="space-y-4">
-      <Field label="邮箱" hint="用于验证身份">
+      <Field label="邮箱">
         <Input
           type="email"
           autoComplete="email"
@@ -47,16 +47,15 @@ export function SendLinkForm({ invalidToken }: { invalidToken?: boolean }) {
       {error ? <FormMessage tone="err">{error}</FormMessage> : null}
 
       {sent ? (
-        <FormMessage tone="ok">
-          验证链接已发送，请打开邮件中的链接继续注册。未收到时可检查垃圾邮件。
-        </FormMessage>
+        <FormMessage tone="ok">验证链接已发送。</FormMessage>
       ) : null}
 
       <Button
         type="button"
         variant="primary"
         className="w-full"
-        disabled={busy || email.trim().length === 0}
+        pending={busy}
+        disabled={email.trim().length === 0}
         onClick={submit}
       >
         {busy ? "发送中…" : sent ? "重新发送" : "发送验证链接"}

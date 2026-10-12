@@ -25,7 +25,6 @@ import { dateFormatter } from "@/lib/format";
 import { isInlineBackend, toPublicConfig } from "@/lib/problems/types";
 import { submitFor } from "@/lib/submissions/gate";
 import { cn } from "@/lib/utils";
-import workspaceStyles from "@/components/contests/workspace.module.css";
 
 const gateFormatter = dateFormatter({
   dateStyle: "medium",
@@ -134,10 +133,10 @@ async function ProblemDetail({
   // exactly three ways that happens. Naming the wrong one is worse than saying
   // nothing: "你不在其中" reads as a mistake to someone who is in the audience.
   const why = !hasContestStarted(contest, now)
-    ? `将在比赛「${contest.title}」于 ${gateFormatter.format(contest.startsAt)} 开始时公开。`
+    ? `将于 ${gateFormatter.format(contest.startsAt)} 公开。`
     : !showsStatements(contest, now)
-      ? `比赛「${contest.title}」已经结束，并且不再公开它的题面。`
-      : "你不在这场比赛的参赛范围内。";
+      ? "比赛已结束，题面不再公开。"
+      : "你不在参赛范围内。";
 
   return (
     <ProblemProvider
@@ -149,22 +148,14 @@ async function ProblemDetail({
     >
       <article className="min-w-0">
         {view.preview ? (
-          <div className={cn("border-warn/40 bg-warn/10 mb-4 rounded-lg border px-4 py-3", embedded && "mx-4 mt-4 sm:mx-6 sm:mt-6")}>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge tone="warn">预览</Badge>
-              <span className="text-fg text-sm font-medium">
-                这道题目尚未对选手公开
-              </span>
-            </div>
-            <p className="text-fg-muted mt-1.5 text-xs leading-5">
-              {why}
-              {submit.allowed ? null : submit.reason.message}
-            </p>
+          <div className="border-warn mb-4 flex flex-wrap items-center gap-2 border-l-2 py-1 pl-3">
+            <Badge tone="warn">预览</Badge>
+            <span className="text-fg text-sm">{why}</span>
           </div>
         ) : null}
 
         {!embedded ? (
-          <nav className="text-fg-subtle mb-4 flex items-center gap-1.5 text-xs">
+          <nav className="text-fg-muted mb-5 flex flex-wrap items-center gap-1.5 text-xs">
             {isCatalogue(contest.slug) ? (
               <>
                 <Link
@@ -194,15 +185,15 @@ async function ProblemDetail({
           </nav>
         ) : null}
 
-        <header className={cn("border-border border-b", embedded ? "px-4 py-5 sm:px-6" : "mb-6 pb-5")}>
-          <div className="flex flex-wrap items-center gap-3">
-            {embedded ? <span className="text-fg-muted max-w-full font-mono text-sm font-medium wrap-anywhere">{entry.label ?? problem.slug}</span> : null}
-            <h1 className={cn("text-fg min-w-0 text-2xl font-bold tracking-tight wrap-anywhere", embedded && "lg:text-3xl")}>
+        <header className={cn("mb-4", embedded && "pt-2")}>
+          <p className="text-fg-muted font-mono text-xs wrap-anywhere">{entry.label ?? problem.slug}</p>
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <h1 className="text-fg min-w-0 text-[28px] leading-tight font-bold wrap-anywhere">
               {problem.title}
             </h1>
             {embedded ? <span className="text-fg-muted text-sm tabular-nums">{entry.points ?? problem.maxScore} 分</span> : null}
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2 empty:mt-0">
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 empty:mt-0">
             <ProblemBadgesSlot config={problem} offered={contest.facets} />
           </div>
         </header>
@@ -210,45 +201,39 @@ async function ProblemDetail({
         <div
           className={embedded
             ? "min-w-0"
-            : "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px]"}
+            : "grid items-start gap-x-12 gap-y-6 lg:grid-cols-[minmax(0,1fr)_240px]"}
         >
           {!embedded ? (
-            <aside className="oj-sidebar lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1">
-              <h2 className="mb-3 text-sm font-semibold">所属比赛</h2>
+            <aside className="oj-sidebar lg:sticky lg:top-16 lg:col-start-2 lg:row-start-1 lg:pt-1">
+              <h2 className="text-fg-muted text-xs">所属比赛</h2>
               <Link
                 href={contestHref(contest.slug)}
-                className="text-primary text-sm font-medium hover:underline"
+                className="text-fg decoration-border-strong hover:decoration-fg mt-0.5 block text-sm font-semibold underline underline-offset-2"
               >
                 {contest.title}
               </Link>
               <dl className="mt-3 grid-cols-2 lg:grid-cols-1">
                 <div>
                   <dt>开始时间</dt>
-                  <dd>{gateFormatter.format(contest.startsAt)}</dd>
+                  <dd className="tabular-nums">{gateFormatter.format(contest.startsAt)}</dd>
                 </div>
                 <div>
                   <dt>结束时间</dt>
-                  <dd>{gateFormatter.format(contest.endsAt)}</dd>
-                </div>
-                <div>
-                  <dt>状态</dt>
-                  <dd>
-                    <Badge tone={status.tone}>{status.label}</Badge>
-                  </dd>
+                  <dd className="tabular-nums">{gateFormatter.format(contest.endsAt)}</dd>
                 </div>
               </dl>
               <nav
                 aria-label="题目相关页面"
-                className="mt-4 flex gap-4 border-t pt-3 text-sm"
+                className="border-border mt-4 flex gap-4 border-t pt-3 text-sm lg:flex-col lg:gap-1.5"
               >
                 <Link
-                  className="text-primary hover:underline"
+                  className="text-fg underline-offset-2 hover:underline"
                   href={contestHref(contest.slug)}
                 >
                   返回题单
                 </Link>
                 <Link
-                  className="text-primary hover:underline"
+                  className="text-fg underline-offset-2 hover:underline"
                   href={standingsHref(contest.slug)}
                 >
                   排行榜
@@ -256,7 +241,7 @@ async function ProblemDetail({
               </nav>
             </aside>
           ) : null}
-          <div className={cn("oj-statement p-4 sm:p-6 lg:col-start-1 lg:row-start-1", embedded ? workspaceStyles.statement : "bg-surface border-border rounded-lg border")}>
+          <div className="oj-statement lg:col-start-1 lg:row-start-1">
             <Statement />
           </div>
         </div>

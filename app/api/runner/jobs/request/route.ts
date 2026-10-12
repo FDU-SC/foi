@@ -12,7 +12,7 @@ const MAX_BODY_BYTES = 4 * 1024;
 
 export async function POST(request: Request) {
 
-  const gated = guardRequest(request, "POST /api/runner/jobs/request");
+  const gated = await guardRequest(request, "POST /api/runner/jobs/request");
   if (gated) return gated;
 
   const read = await readJsonBody(request, MAX_BODY_BYTES);

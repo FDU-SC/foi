@@ -90,15 +90,14 @@ export async function deliver(message: MailMessage): Promise<void> {
 
   if (!smtp) {
     log.info(
-      [
-        "──────── 邮件打印到控制台，未实际投递 ────────",
-        `From:    ${from}`,
-        `To:      ${message.to}`,
-        `Subject: ${message.subject}`,
-        "",
-        message.text,
-        "────────────────────────────────────────────────────",
-      ].join("\n"),
+      {
+        delivery: "console",
+        from,
+        to: message.to,
+        subject: message.subject,
+        text: message.text,
+      },
+      "邮件打印到控制台，未实际投递",
     );
     return;
   }

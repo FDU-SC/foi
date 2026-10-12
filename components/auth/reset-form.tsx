@@ -18,7 +18,7 @@ export function ResetForm({ token }: { token: string }) {
         <FormMessage tone="ok">{state.message}</FormMessage>
         <Link
           href="/login"
-          className="bg-primary text-primary-fg hover:bg-primary-hover block rounded-md px-3 py-2 text-center text-sm font-medium transition-colors"
+          className="bg-primary text-primary-fg hover:bg-primary-hover block rounded-sm px-3 py-2 text-center text-sm font-medium transition-colors"
         >
           前往登录
         </Link>

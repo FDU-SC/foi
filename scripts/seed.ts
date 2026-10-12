@@ -5,10 +5,8 @@ import { Pool } from "pg";
 import { accounts } from "../lib/db/schema";
 import ARGON2_OPTIONS from "../lib/accounts/argon2-options.cjs";
 
-if (process.env.NODE_ENV === "production") {
-  console.error(
-    "seed 仅限本地开发，会写入统一弱密码；NODE_ENV=production 时拒绝运行。",
-  );
+if (process.env.FOI_ENV !== "dev") {
+  console.error("seed 会写入统一弱密码，FOI_ENV 必须显式设为 dev。");
   process.exit(1);
 }
 
@@ -51,27 +49,19 @@ async function main() {
   const passwordHash = await hash(password, ARGON2_OPTIONS);
 
   for (const entry of SEED_ACCOUNTS) {
-    await db
-      .insert(accounts)
-      .values({
-        username: entry.username,
-        nickname: entry.nickname,
-        email: entry.email,
-        status: "active",
-        passwordHash,
-        passwordSetAt: sql`now()`,
-      })
-      .onConflictDoUpdate({
-        target: accounts.username,
-        set: {
-          nickname: sql`excluded.nickname`,
-          email: sql`excluded.email`,
-          status: sql`'active'`,
-          passwordHash: sql`excluded.password_hash`,
-          passwordSetAt: sql`excluded.password_set_at`,
-          updatedAt: sql`now()`,
-        },
-      });
+    // Usernames are unique case-insensitively through an index on
+    // lower(username); drizzle's conflict target only takes plain columns.
+    await db.execute(sql`
+      insert into ${accounts} (username, nickname, email, status, password_hash, password_set_at)
+      values (${entry.username}, ${entry.nickname}, ${entry.email}, 'active', ${passwordHash}, now())
+      on conflict (lower(username)) do update set
+        nickname = excluded.nickname,
+        email = excluded.email,
+        status = 'active',
+        password_hash = excluded.password_hash,
+        password_set_at = excluded.password_set_at,
+        updated_at = now()
+    `);
 
     console.log(`  ${entry.username.padEnd(8)} ${entry.email ?? "（无邮箱）"}`);
   }

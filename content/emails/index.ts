@@ -75,9 +75,5 @@ export function securityNotice(input: SecurityNoticeMail): MailBody {
         : []),
     ],
     link: { label: "不是你本人操作？立即重置密码", url: input.recoverUrl },
-    footnote: [
-      "此邮件为变更通知，无需回复。",
-      "如果确认不是你本人操作，请在重置密码后联系管理员。",
-    ],
   });
 }

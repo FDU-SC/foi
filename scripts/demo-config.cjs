@@ -77,18 +77,11 @@ function patchSite(source, what) {
     what,
   );
 
-  // 首页入口卡片是现成的位置，放演示账号说明不需要动平台的任何组件。
+  // 首页标语显示在站名下方，放演示账号说明不需要改动平台组件。
   next = replaceOnce(
     next,
-    "^  homeEntries: \\[$",
-    [
-      "  homeEntries: [",
-      "    {",
-      '      href: "/login",',
-      '      title: "演示账号",',
-      `      description: "${demoAccountHint()}",`,
-      "    },",
-    ].join("\n"),
+    '^  tagline: ".*",$',
+    `  tagline: "${demoAccountHint()}",`,
     what,
   );
 

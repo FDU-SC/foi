@@ -14,11 +14,9 @@ export async function EmailConfirmView({
   const { token } = await searchParams;
   if (!token) {
     return (
-      <div className="mx-auto max-w-lg space-y-4">
-        <h1 className="text-fg text-2xl font-bold tracking-tight">
-          确认修改邮箱
-        </h1>
-        <p className="text-err bg-err-subtle rounded-md px-3 py-2 text-sm">
+      <div className="max-w-lg space-y-4">
+        <h1 className="text-fg text-xl font-bold">确认修改邮箱</h1>
+        <p className="text-err border-err border-l-2 py-0.5 pl-3 text-sm">
           链接不完整。
         </p>
         <Link
@@ -34,24 +32,22 @@ export async function EmailConfirmView({
   const result = await confirmEmailChangeAction(token);
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
-      <h1 className="text-fg text-2xl font-bold tracking-tight">
-        确认修改邮箱
-      </h1>
+    <div className="max-w-lg space-y-4">
+      <h1 className="text-fg text-xl font-bold">确认修改邮箱</h1>
 
       {result.error ? (
-        <p className="text-err bg-err-subtle rounded-md px-3 py-2 text-sm">
+        <p className="text-err border-err border-l-2 py-0.5 pl-3 text-sm">
           {result.error}
         </p>
       ) : (
-        <p className="text-fg-muted bg-surface-2 rounded-md px-3 py-2 text-sm">
+        <p className="text-fg border-border border-l-2 py-0.5 pl-3 text-sm">
           {result.message}
         </p>
       )}
 
       <Link
         href="/"
-        className="bg-primary text-primary-fg hover:bg-primary-hover block rounded-md px-3 py-2 text-center text-sm font-medium transition-colors"
+        className="bg-primary text-primary-fg hover:bg-primary-hover inline-flex h-8 items-center rounded-sm px-3 text-sm font-medium transition-colors"
       >
         返回首页
       </Link>

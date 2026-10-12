@@ -30,8 +30,7 @@ export function CopyButton({
       type="button"
       onClick={copy}
       className={cn(
-        "text-fg-subtle hover:text-fg hover:bg-surface-3 rounded px-1.5 py-0.5",
-        "text-[11px] font-medium transition-colors",
+        "text-fg-muted hover:text-fg py-0.5 text-xs underline-offset-2 transition-colors hover:underline",
         className,
       )}
     >

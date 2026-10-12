@@ -104,16 +104,7 @@ export async function AdminAccountsView({
         <span>账号</span>
       </nav>
 
-      <div>
-        <h1 className="text-fg text-2xl font-bold tracking-tight">账号</h1>
-        <p className="text-fg-muted mt-2 text-sm leading-6">
-          用户组由{" "}
-          <Link href="/admin/enrollment" className="hover:text-fg underline">
-            分流规则
-          </Link>
-          自动分配。
-        </p>
-      </div>
+      <h1 className="text-fg text-xl font-bold">账号</h1>
 
       <form className="flex flex-wrap items-end gap-2" action="/admin/accounts">
         <Field label="">
@@ -141,7 +132,7 @@ export async function AdminAccountsView({
 
       <div className="oj-table-frame">
         <table className="w-full text-sm">
-          <thead className="bg-surface-2">
+          <thead>
             <tr className="text-fg-muted text-xs">
               <th className="border-border border-b px-4 py-2.5 text-left font-semibold">
                 用户名
@@ -173,7 +164,7 @@ export async function AdminAccountsView({
               const row = byUid.get(account.uid);
               const status = STATUS[account.status];
               return (
-                <tr key={account.uid} className="hover:bg-surface-2/60">
+                <tr key={account.uid}>
                   <td className="text-fg px-4 py-2.5 font-mono text-xs">
                     {account.username}
                   </td>

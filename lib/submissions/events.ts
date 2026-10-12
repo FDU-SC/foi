@@ -54,7 +54,7 @@ function fail(listener: Listener, error: unknown) {
   }
   const subscribers = [...listener.channels.values()].flatMap((c) => [...c.subscribers]);
   listener.channels.clear();
-  log.error("提交事件监听失败", error);
+  log.error({ err: error }, "提交事件监听失败");
   for (const sub of subscribers) report(sub, error);
   void listener.client.end().catch(() => {});
 }
@@ -63,7 +63,7 @@ function report(sub: Subscriber, error: unknown) {
   try {
     sub.error(error);
   } catch (error) {
-    log.error("提交事件订阅者退出失败", error);
+    log.error({ err: error }, "提交事件订阅者退出失败");
   }
 }
 

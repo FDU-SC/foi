@@ -13,7 +13,7 @@ export function NicknameForm({ current }: { current: string }) {
 
   return (
     <form action={formAction} className="space-y-4">
-      <Field label="昵称" hint="显示在排行榜和提交记录里，可以随时修改。">
+      <Field label="昵称">
         <Input
           name="nickname"
           defaultValue={current}

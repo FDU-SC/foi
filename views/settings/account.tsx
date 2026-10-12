@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getResolvedUser } from "@/auth";
 import { AvatarEditor } from "@/components/account/avatar-editor";
 import { FormMessage } from "@/components/form";
+import { BioForm } from "@/components/settings/bio-form";
 import { EmailChangeForm } from "@/components/settings/email-change-form";
 import { NicknameForm } from "@/components/settings/nickname-form";
 import { PasswordForm } from "@/components/settings/password-form";
@@ -14,15 +15,8 @@ import {
 } from "@/lib/accounts/username";
 import { authorize } from "@/lib/authz/engine";
 import { viewerFor } from "@/lib/authz/viewer";
+import { formatMoment } from "@/lib/format";
 import { site } from "@/lib/site";
-
-function formatMoment(at: Date): string {
-  return new Intl.DateTimeFormat(site.lang, {
-    dateStyle: "long",
-    timeStyle: "short",
-    timeZone: site.timezone,
-  }).format(at);
-}
 
 function usernameHint(changedAt: Date | null): string {
   const availableAt = usernameChangeAvailableAt(changedAt);
@@ -31,7 +25,7 @@ function usernameHint(changedAt: Date | null): string {
     return `可在 ${formatMoment(availableAt)} 之后再次修改。`;
   }
 
-  return `登录时使用，只能包含字母、数字、下划线和连字符。每 ${USERNAME_CHANGE_COOLDOWN_DAYS} 天只能修改一次。`;
+  return `字母、数字、下划线或连字符，每 ${USERNAME_CHANGE_COOLDOWN_DAYS} 天可改一次。`;
 }
 
 /** Stands in for a form the viewer may not submit. */
@@ -52,17 +46,18 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
   const viewer = viewerFor(user);
   const nicknameGate = authorize("account.changeNickname", user, viewer);
   const avatarGate = authorize("account.changeAvatar", user, viewer);
+  const bioGate = authorize("account.changeBio", user, viewer);
   const usernameGate = authorize("account.changeUsername", user, viewer);
   const emailGate = authorize("account.changeEmail", user, viewer);
   const passwordGate = authorize("account.changePassword", user, viewer);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
-      <h1 className="text-fg text-2xl font-bold tracking-tight">个人设置</h1>
+    <div className="max-w-5xl space-y-6">
+      <h1 className="text-fg text-xl font-bold">个人设置</h1>
 
-      <div className="grid items-start gap-6 lg:grid-cols-2">
-        <section className="min-w-0 space-y-4">
-          <h2 className="text-sm font-semibold">个人资料</h2>
+      <div className="grid items-start gap-x-12 gap-y-8 lg:grid-cols-2">
+        <section className="min-w-0 space-y-6">
+          <h2 className="text-fg-muted text-xs">个人资料</h2>
           <Card>
             <CardHeader title="昵称" />
             <CardBody>
@@ -86,6 +81,17 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
           </Card>
 
           <Card>
+            <CardHeader title="个人简介" />
+            <CardBody>
+              {bioGate.allow ? (
+                <BioForm current={account?.bio ?? null} />
+              ) : (
+                <Unavailable>{bioGate.reason.message}</Unavailable>
+              )}
+            </CardBody>
+          </Card>
+
+          <Card>
             <CardHeader title="用户名" />
             <CardBody>
               {usernameGate.allow ? (
@@ -99,31 +105,19 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
             </CardBody>
           </Card>
         </section>
-        <section className="min-w-0 space-y-4">
-          <h2 className="text-sm font-semibold">账号安全</h2>
+        <section className="min-w-0 space-y-6">
+          <h2 className="text-fg-muted text-xs">账号安全</h2>
           <Card>
             <CardHeader title="邮箱" />
             <CardBody className="space-y-4">
-              <div className="bg-surface-2 rounded-md px-4 py-3">
-                <p className="text-fg-muted text-xs">当前邮箱</p>
-                <p className="text-fg mt-0.5 font-mono text-sm">
-                  {user.email ?? "未设置"}
-                </p>
-              </div>
+              <p className="bg-surface-2 text-fg px-3 py-2 font-mono text-sm">
+                {user.email ?? "未设置"}
+              </p>
               {!emailGate.allow ? (
                 <Unavailable>{emailGate.reason.message}</Unavailable>
               ) : user.email ? (
-                <>
-                  <p className="text-fg-muted text-sm leading-6">
-                    验证链接会发到新邮箱，确认后生效。
-                  </p>
-                  <EmailChangeForm />
-                </>
-              ) : (
-                <Unavailable>
-                  当前账号没有设置邮箱，无法使用修改邮箱功能。
-                </Unavailable>
-              )}
+                <EmailChangeForm />
+              ) : null}
             </CardBody>
           </Card>
 
@@ -132,7 +126,7 @@ export async function SettingsView({ searchParams }: PageProps<"/settings">) {
             <CardBody className="space-y-4">
               {password === "updated" ? (
                 <FormMessage tone="ok">
-                  密码已更新，其他设备上的登录状态已全部失效。
+                  密码已更新，其他设备已退出登录。
                 </FormMessage>
               ) : null}
               {passwordGate.allow ? (

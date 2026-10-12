@@ -2,6 +2,12 @@ import type { ComponentType } from "react";
 import type { SubmissionRecordState } from "@/lib/backend/types";
 
 export interface ContestProblem {
+  /**
+   * What cells and submissions are keyed by. A board may span contests that
+   * carry the same problem, so the key names the pair, never the slug alone.
+   */
+  key: string;
+  contestSlug: string;
   slug: string;
   label: string;
   title: string;
@@ -16,14 +22,17 @@ export interface Participant {
   uid: number;
   nickname: string;
 
-  /** Optional so a ruleset's own fixtures need not know about avatars. */
+  /** Optional so a ruleset's own fixtures need not know about accounts. */
+  username?: string;
   avatarUpdatedAt?: Date | null;
 }
 
 export interface SubmissionRecord {
   id: string;
   uid: number;
-  problemSlug: string;
+  contestSlug: string;
+  /** Matches the `key` of the problem it was made to. */
+  problemKey: string;
   state: SubmissionRecordState;
   /** May be `null` even when state is "completed" (freeze-masked). */
   result: unknown;
@@ -39,7 +48,9 @@ export interface ContestWindow {
 export interface StandingsInput {
 
   config: unknown;
-  contest: ContestWindow;
+
+  /** Every contest the board spans. Each submission is scored in its own. */
+  contests: ContestWindow[];
   problems: ContestProblem[];
   participants: Participant[];
   submissions: SubmissionRecord[];
@@ -86,6 +97,9 @@ export interface BoardProps {
     renderers: RulesetRenderers;
   };
   problems: ContestProblem[];
+
+  /** The viewer's uid, for a board that marks their own row. */
+  highlight?: number | null;
 }
 
 /** Fixed comparator: total descending, tiebreak ascending. Not customizable by rulesets. */
@@ -111,18 +125,37 @@ export function assignRanks<Cell>(
   });
 }
 
+function windowOf(
+  input: StandingsInput,
+  submission: SubmissionRecord,
+): ContestWindow | undefined {
+  return input.contests.find((contest) => contest.slug === submission.contestSlug);
+}
+
+/** Submissions inside their own contest's `startsAt`..`endsAt`, oldest first. */
 export function submissionsInWindow(
   input: StandingsInput,
 ): SubmissionRecord[] {
-  const { startsAt, endsAt } = input.contest;
   return input.submissions
-    .filter(
-      (submission) =>
+    .filter((submission) => {
+      const window = windowOf(input, submission);
+      return (
+        window !== undefined &&
         submission.state !== "disrupted" &&
-        submission.createdAt >= startsAt &&
-        submission.createdAt <= endsAt,
-    )
+        submission.createdAt >= window.startsAt &&
+        submission.createdAt <= window.endsAt
+      );
+    })
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+}
+
+/** Milliseconds from the start of the submission's own contest. */
+export function elapsed(
+  input: StandingsInput,
+  submission: SubmissionRecord,
+): number {
+  const start = windowOf(input, submission)?.startsAt.getTime() ?? 0;
+  return submission.createdAt.getTime() - start;
 }
 
 export function scoredSubmissions(input: StandingsInput): SubmissionRecord[] {

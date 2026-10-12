@@ -23,6 +23,7 @@ import { sendVerificationLink } from "@/lib/mail/notify";
 import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { site } from "@/lib/site";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
+import { parseInput } from "@/lib/validation";
 
 function normalize(email: string): string {
   return normalizeEmail(email, {
@@ -40,34 +41,32 @@ export async function sendVerificationLinkAction(
 ): Promise<SendLinkState> {
   if (!registrationOpen()) return { error: REJECTIONS.closed };
 
-  const parsed = emailSchema.safeParse(rawEmail);
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "请填写有效的邮箱地址" };
-  }
+  const parsed = parseInput(emailSchema, rawEmail, "请填写有效的邮箱地址");
+  if (!parsed.ok) return { error: parsed.error };
 
   const email = normalize(parsed.data);
+
+  // Counted before the lookup: the reply says whether an address is taken, and
+  // must not be free to ask about every address in turn.
+  const limit = await rateLimitBySource(
+    "send-verification-link",
+    sourceFrom(await headers()),
+    ACTION_LIMITS.sendVerificationLinkAction,
+  );
+  if (!limit.ok) return { error: "请求过于频繁，请稍后再试。" };
 
   if (!domainAllowed(email)) {
     return { error: "这个邮箱域名不在允许注册的范围内。" };
   }
   if (await findAccountByEmail(email)) {
-    return { error: "这个邮箱已经注册过了。如果是你本人，请用「找回密码」。" };
+    return { error: "这个邮箱已经注册过了。" };
   }
-
-  const { max, windowSeconds } = ACTION_LIMITS.sendVerificationLinkAction;
-  const limit = rateLimitBySource(
-    "send-verification-link",
-    sourceFrom(await headers()),
-    max,
-    windowSeconds * 1000,
-  );
-  if (!limit.ok) return { error: "请求过于频繁，请稍后再试。" };
 
   try {
     await sendVerificationLink(email);
   } catch (error) {
-    log.error("验证邮件发送失败", error);
-    return { error: "邮件发送失败，请稍后再试或联系管理员。" };
+    log.error({ err: error }, "验证邮件发送失败");
+    return { error: "邮件发送失败，请稍后再试。" };
   }
 
   return { sent: true };
@@ -98,8 +97,8 @@ const REJECTIONS: Record<RegisterRejection, string> = {
   closed: "当前未开放注册。",
   "username-taken": USERNAME_UNAVAILABLE,
   "email-domain": "这个邮箱域名不在允许注册的范围内。",
-  "email-taken": "这个邮箱已经注册过了。如果是你本人，请用「找回密码」。",
-  "email-unverified": "验证链接无效或已过期，请重新获取。",
+  "email-taken": "这个邮箱已经注册过了。",
+  "email-unverified": "验证链接无效或已过期。",
 };
 
 export async function registerAction(
@@ -108,7 +107,7 @@ export async function registerAction(
 ): Promise<RegisterState> {
   if (!registrationOpen()) return { error: REJECTIONS.closed };
 
-  const parsed = schema.safeParse({
+  const parsed = parseInput(schema, {
     username: formData.get("username"),
     nickname: formData.get("nickname"),
     email: formData.get("email"),
@@ -116,17 +115,10 @@ export async function registerAction(
     confirm: formData.get("confirm"),
     token: formData.get("token"),
   });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  if (!parsed.ok) return { error: parsed.error };
 
   const reg = ACTION_LIMITS.registerAction;
-  const limit = rateLimitBySource(
-    "register",
-    sourceFrom(await headers()),
-    reg.max,
-    reg.windowSeconds * 1000,
-  );
+  const limit = await rateLimitBySource("register", sourceFrom(await headers()), reg);
   if (!limit.ok) {
     return { error: "注册过于频繁，请稍后再试。" };
   }
@@ -143,7 +135,7 @@ export async function registerAction(
   } catch (error) {
     if (!(error instanceof AuthError)) throw error;
 
-    log.error("注册后自动登录失败", error);
+    log.error({ err: error }, "注册后自动登录失败");
     return { createdNeedsLogin: true };
   }
 

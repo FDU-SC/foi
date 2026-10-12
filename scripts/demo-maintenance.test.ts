@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const ROOT = join(import.meta.dirname, "..");
-const SCRIPTS = ["db-reset.cjs", "demo-seed.cjs"] as const;
+const SCRIPTS = ["db-reset.cjs", "demo-seed.cjs", "seed.ts"] as const;
 
 function run(script: (typeof SCRIPTS)[number], foiEnv?: string) {
   const env: NodeJS.ProcessEnv = {
@@ -17,7 +17,10 @@ function run(script: (typeof SCRIPTS)[number], foiEnv?: string) {
   if (foiEnv === undefined) delete env.FOI_ENV;
   else env.FOI_ENV = foiEnv;
 
-  return spawnSync(process.execPath, [join(ROOT, "scripts", script)], {
+  const path = join(ROOT, "scripts", script);
+  const args = script.endsWith(".ts") ? ["--import", "tsx", path] : [path];
+
+  return spawnSync(process.execPath, args, {
     cwd: ROOT,
     env,
     encoding: "utf8",

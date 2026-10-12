@@ -10,4 +10,8 @@ describe("不透明 JSON 结果", () => {
       expect(verdictSchema.safeParse(input).success).toBe(false);
     }
   });
+  it("保留可选的 detail", () => {
+    const verdict = { result: { status: "checked" }, detail: { tests: [] } };
+    expect(verdictSchema.parse(verdict)).toEqual(verdict);
+  });
 });

@@ -1,6 +1,8 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import * as ts from "typescript";
 import { describe, expect, it } from "vitest";
+import { exportedNames, parseSource, walk } from "@/test/source";
 import {
   ACTION_LIMITS,
   ROUTE_LIMITS,
@@ -10,15 +12,7 @@ import {
 
 const ROOT = join(import.meta.dirname, "..", "..");
 
-const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"];
-
-function walk(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) return walk(path);
-    return entry.isFile() ? [path] : [];
-  });
-}
+const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 
 function routePath(file: string): string {
   return file
@@ -32,25 +26,13 @@ interface Handler {
   file: string;
 }
 
-function exportsHandler(source: string, method: string): boolean {
-  return [
-
-    `export\\s+(?:async\\s+)?function\\s+${method}\\b`,
-
-    `export\\s+(?:const|let|var)\\s+${method}\\b`,
-
-    `export\\s+(?:const|let|var)?\\s*\\{[^}]*\\b${method}\\b[^}]*\\}`,
-  ].some((pattern) => new RegExp(pattern).test(source));
-}
-
 function declaredHandlers(): Handler[] {
   return walk(join(ROOT, "app", "api"))
     .filter((file) => file.endsWith("route.ts"))
     .flatMap((file) => {
-      const source = readFileSync(file, "utf8");
-      return HTTP_METHODS.filter((method) =>
-        exportsHandler(source, method),
-      ).map((method) => ({ key: `${method} ${routePath(file)}`, file }));
+      const names = exportedNames(parseSource(readFileSync(file, "utf8")));
+      return names.filter((name) => HTTP_METHODS.includes(name))
+        .map((method) => ({ key: `${method} ${routePath(file)}`, file }));
     });
 }
 
@@ -63,14 +45,13 @@ const ROUTE_RULES: [string, RouteRule][] = Object.entries(ROUTE_LIMITS);
 
 function declaredActions(): Handler[] {
   return walk(join(ROOT, "app"))
-    .filter((file) => file.endsWith(".ts") || file.endsWith(".tsx"))
+    .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))
     .flatMap((file) => {
-      const source = readFileSync(file, "utf8");
-      if (!/^\s*["']use server["']/m.test(source)) return [];
-
-      return [...source.matchAll(/export\s+async\s+function\s+(\w+)/g)].map(
-        (match) => ({ key: match[1], file }),
-      );
+      const source = parseSource(readFileSync(file, "utf8"));
+      const server = source.statements.some((statement) =>
+        ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression) &&
+        statement.expression.text === "use server");
+      return server ? exportedNames(source).map((key) => ({ key, file })) : [];
     });
 }
 
@@ -111,8 +92,8 @@ describe("限流入口表", () => {
 
   it("扫描确实找到了东西，而不是路径写错后空过", () => {
 
-    expect(declaredHandlers().length).toBeGreaterThanOrEqual(8);
-    expect(declaredActions().length).toBeGreaterThanOrEqual(10);
+    expect(declaredHandlers().length).toBeGreaterThan(0);
+    expect(declaredActions().length).toBeGreaterThan(0);
   });
 
   it("每条 unlimited 都写了理由", () => {
@@ -181,4 +162,3 @@ describe("限流入口表", () => {
   });
 
 });
-

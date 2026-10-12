@@ -2,12 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
 
 const mocks = vi.hoisted(() => ({
-  avatarRejection: vi.fn(),
   clearAvatar: vi.fn(),
+  normalizeAvatar: vi.fn(),
   rateLimit: vi.fn(),
   requireSelf: vi.fn(),
   revalidatePath: vi.fn(),
   setAvatar: vi.fn(),
+  updateBio: vi.fn(),
 }));
 
 vi.mock("next-auth", () => ({
@@ -27,8 +28,8 @@ vi.mock("@/auth", () => ({
   signIn: vi.fn(),
 }));
 
-vi.mock("@/lib/accounts/avatar", () => ({
-  avatarRejection: mocks.avatarRejection,
+vi.mock("@/lib/accounts/avatar-image", () => ({
+  normalizeAvatar: mocks.normalizeAvatar,
 }));
 
 vi.mock("@/lib/accounts/password", () => ({
@@ -41,6 +42,7 @@ vi.mock("@/lib/accounts/queries", () => ({
   getAccount: vi.fn(),
   getAccountByUsername: vi.fn(),
   setAvatar: mocks.setAvatar,
+  updateBio: mocks.updateBio,
   updateNickname: vi.fn(),
   updateUsername: vi.fn(),
 }));
@@ -57,7 +59,7 @@ vi.mock("@/lib/ratelimit", () => ({
   rateLimit: mocks.rateLimit,
 }));
 
-const { removeAvatarAction, updateAvatarAction } = await import("./actions");
+const { removeAvatarAction, updateAvatarAction, updateBioAction } = await import("./actions");
 
 const viewer = {
   uid: 42,
@@ -71,6 +73,8 @@ const viewer = {
   disabled: false,
 };
 
+const normalized = Uint8Array.of(9, 9, 9);
+
 function upload(bytes: Uint8Array<ArrayBuffer>): FormData {
   const form = new FormData();
   form.set("avatar", new File([bytes], "avatar.webp", { type: "image/webp" }));
@@ -80,10 +84,65 @@ function upload(bytes: Uint8Array<ArrayBuffer>): FormData {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireSelf.mockResolvedValue(viewer);
-  mocks.rateLimit.mockReturnValue({ ok: true });
-  mocks.avatarRejection.mockReturnValue(null);
+  mocks.rateLimit.mockResolvedValue({ ok: true });
+  mocks.normalizeAvatar.mockResolvedValue({ ok: true, bytes: normalized });
   mocks.setAvatar.mockResolvedValue(new Date("2026-09-08T00:00:00Z"));
   mocks.clearAvatar.mockResolvedValue(true);
+  mocks.updateBio.mockResolvedValue({ uid: viewer.uid });
+});
+
+function bio(value: string): FormData {
+  const form = new FormData();
+  form.set("bio", value);
+  return form;
+}
+
+describe("updateBioAction", () => {
+  it("权限拒绝时不限流也不写数据库", async () => {
+    const denied = new Error("forbidden");
+    mocks.requireSelf.mockRejectedValue(denied);
+
+    await expect(updateBioAction({}, bio("hi"))).rejects.toBe(denied);
+
+    expect(mocks.requireSelf).toHaveBeenCalledWith("account.changeBio");
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.updateBio).not.toHaveBeenCalled();
+  });
+
+  it("超长时返回理由且不消耗限流额度", async () => {
+    const result = await updateBioAction({}, bio("字".repeat(201)));
+
+    expect(result.error).toMatch(/200/);
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.updateBio).not.toHaveBeenCalled();
+  });
+
+  it("去掉首尾空白后保存", async () => {
+    const result = await updateBioAction({}, bio("  写题的人\n  "));
+
+    expect(result).toEqual({ message: "简介已更新。" });
+    expect(mocks.rateLimit).toHaveBeenCalledWith(
+      `settings:bio:${viewer.uid}`,
+      ACTION_LIMITS.updateBioAction,
+    );
+    expect(mocks.updateBio).toHaveBeenCalledWith(viewer.uid, "写题的人");
+  });
+
+  it("留空即清除", async () => {
+    const result = await updateBioAction({}, bio("   "));
+
+    expect(result).toEqual({ message: "简介已清空。" });
+    expect(mocks.updateBio).toHaveBeenCalledWith(viewer.uid, null);
+  });
+
+  it("限流拒绝时不写数据库", async () => {
+    mocks.rateLimit.mockResolvedValue({ ok: false, retryAfterMs: 1_000 });
+
+    const result = await updateBioAction({}, bio("hi"));
+
+    expect(result).toEqual({ error: "操作过于频繁，请稍后再试。" });
+    expect(mocks.updateBio).not.toHaveBeenCalled();
+  });
 });
 
 describe("updateAvatarAction", () => {
@@ -97,29 +156,28 @@ describe("updateAvatarAction", () => {
 
     expect(mocks.requireSelf).toHaveBeenCalledWith("account.changeAvatar");
     expect(mocks.rateLimit).not.toHaveBeenCalled();
-    expect(mocks.avatarRejection).not.toHaveBeenCalled();
+    expect(mocks.normalizeAvatar).not.toHaveBeenCalled();
     expect(mocks.setAvatar).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
   it("限流拒绝时不校验或保存上传内容", async () => {
-    mocks.rateLimit.mockReturnValue({ ok: false, retryAfterMs: 1_000 });
+    mocks.rateLimit.mockResolvedValue({ ok: false, retryAfterMs: 1_000 });
 
     const result = await updateAvatarAction({}, upload(Uint8Array.of(1)));
 
     expect(result).toEqual({ error: "操作过于频繁，请稍后再试。" });
     expect(mocks.rateLimit).toHaveBeenCalledWith(
       `settings:avatar:${viewer.uid}`,
-      ACTION_LIMITS.updateAvatarAction.max,
-      ACTION_LIMITS.updateAvatarAction.windowSeconds * 1_000,
+      ACTION_LIMITS.updateAvatarAction,
     );
-    expect(mocks.avatarRejection).not.toHaveBeenCalled();
+    expect(mocks.normalizeAvatar).not.toHaveBeenCalled();
     expect(mocks.setAvatar).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
   it("校验拒绝时原样返回理由且不保存", async () => {
-    mocks.avatarRejection.mockReturnValue("头像格式不支持。");
+    mocks.normalizeAvatar.mockResolvedValue({ ok: false, error: "头像格式不支持。" });
 
     const result = await updateAvatarAction({}, upload(Uint8Array.of(1, 2)));
 
@@ -128,15 +186,15 @@ describe("updateAvatarAction", () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
-  it("保存原始字节并刷新所有头像入口", async () => {
+  it("保存重新编码后的字节并刷新所有头像入口", async () => {
     const bytes = Uint8Array.of(1, 2, 3, 255);
 
     const result = await updateAvatarAction({}, upload(bytes));
 
     expect(result).toEqual({ message: "头像已更新。" });
     expect(mocks.requireSelf).toHaveBeenCalledWith("account.changeAvatar");
-    expect(mocks.avatarRejection).toHaveBeenCalledWith(bytes);
-    expect(mocks.setAvatar).toHaveBeenCalledWith(viewer.uid, bytes);
+    expect(mocks.normalizeAvatar).toHaveBeenCalledWith(bytes);
+    expect(mocks.setAvatar).toHaveBeenCalledWith(viewer.uid, normalized);
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/", "layout");
   });
 
@@ -163,7 +221,7 @@ describe("removeAvatarAction", () => {
   });
 
   it("限流拒绝时不移除头像", async () => {
-    mocks.rateLimit.mockReturnValue({ ok: false, retryAfterMs: 1_000 });
+    mocks.rateLimit.mockResolvedValue({ ok: false, retryAfterMs: 1_000 });
 
     const result = await removeAvatarAction({}, new FormData());
 
@@ -179,8 +237,7 @@ describe("removeAvatarAction", () => {
     expect(mocks.requireSelf).toHaveBeenCalledWith("account.changeAvatar");
     expect(mocks.rateLimit).toHaveBeenCalledWith(
       `settings:avatar:${viewer.uid}`,
-      ACTION_LIMITS.removeAvatarAction.max,
-      ACTION_LIMITS.removeAvatarAction.windowSeconds * 1_000,
+      ACTION_LIMITS.removeAvatarAction,
     );
     expect(mocks.clearAvatar).toHaveBeenCalledWith(viewer.uid);
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/", "layout");

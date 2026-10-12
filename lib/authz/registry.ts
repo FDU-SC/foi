@@ -1,4 +1,5 @@
 import { policyModules } from "@/content/_modules/policies";
+import { issueList } from "@/lib/validation";
 import { ACTION_IDS, isQueryable, type ActionId } from "./actions";
 import { builtinPolicies } from "./builtin";
 import { compiledPolicySchema, type CompiledPolicy } from "./types";
@@ -31,11 +32,8 @@ function contentSources(): Source[] {
 function validate(candidate: unknown, path: string, index: number): CompiledPolicy {
   const parsed = compiledPolicySchema.safeParse(candidate);
   if (!parsed.success) {
-    const issues = parsed.error.issues
-      .map((issue) => `  - ${issue.path.join(".") || "(root)"}: ${issue.message}`)
-      .join("\n");
     throw new Error(
-      `${path} 第 ${index + 1} 条策略不合法:\n${issues}\n` +
+      `${path} 第 ${index + 1} 条策略不合法:\n${issueList(parsed.error)}\n` +
         `策略必须用 lib/authz/types.ts 的 policy() 构造。`,
     );
   }

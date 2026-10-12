@@ -2,6 +2,7 @@ import type { z } from "zod";
 import { declaredGroupIds } from "@/lib/authz/groups";
 import { isPrivilegedGroup, privilegedGroups } from "@/lib/authz/introspect";
 import { log } from "@/lib/log";
+import { issueList } from "@/lib/validation";
 import { enrollmentSources } from "./modules";
 import {
   enrollmentPolicySchema,
@@ -30,10 +31,7 @@ interface Registry {
 }
 
 function fail(path: string, what: string, error: z.ZodError): never {
-  const issues = error.issues
-    .map((issue) => `  - ${issue.path.join(".") || "(root)"}: ${issue.message}`)
-    .join("\n");
-  throw new Error(`${path} 的${what}不合法:\n${issues}`);
+  throw new Error(`${path} 的${what}不合法:\n${issueList(error)}`);
 }
 
 function buildRegistry(): Registry {
@@ -133,7 +131,8 @@ export function groupsFor(uid: number, email: string | null): string[] {
     for (const id of produced) {
       if (!mayGrantPrivilege && isPrivilegedGroup(id)) {
         log.warn(
-          `分流规则「${rule.label}」算出了带权限的用户组 "${id}"，已忽略。`,
+          { rule: rule.label, group: id },
+          "分流规则算出了带权限的用户组，已忽略",
         );
         continue;
       }

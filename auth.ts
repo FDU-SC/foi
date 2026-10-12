@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { z } from "zod";
 import { authConfig } from "./auth.config";
 import { resolveUser, resolveUserByUsername } from "@/lib/accounts/resolve";
@@ -27,25 +28,15 @@ const credentialsSchema = z.object({
 const PER_UID = ACTION_LIMITS.login;
 const PER_SOURCE = ACTION_LIMITS.login.also;
 
-function withinLoginRate(uid: number, request: Request | undefined): boolean {
-  if (
-    !rateLimit(
-      `login:uid:${uid}`,
-      PER_UID.max,
-      PER_UID.windowSeconds * 1000,
-    ).ok
-  ) {
-    return false;
-  }
+async function withinLoginRate(
+  uid: number,
+  request: Request | undefined,
+): Promise<boolean> {
+  if (!(await rateLimit(`login:uid:${uid}`, PER_UID)).ok) return false;
 
   const source = request ? sourceFrom(request.headers) : "unknown";
 
-  return rateLimitBySource(
-    "login:ip",
-    source,
-    PER_SOURCE.max,
-    PER_SOURCE.windowSeconds * 1000,
-  ).ok;
+  return (await rateLimitBySource("login:ip", source, PER_SOURCE)).ok;
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -74,16 +65,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!account) {
           const source = request ? sourceFrom(request.headers) : "unknown";
-          rateLimitBySource(
-            "login:ip",
-            source,
-            PER_SOURCE.max,
-            PER_SOURCE.windowSeconds * 1000,
-          );
+          await rateLimitBySource("login:ip", source, PER_SOURCE);
           return null;
         }
 
-        if (!withinLoginRate(account.uid, request)) return null;
+        if (!(await withinLoginRate(account.uid, request))) return null;
 
         if (account.status !== "active") {
           await verifyPassword(account.uid, password);
@@ -103,7 +89,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
 });
 
-export async function getResolvedUser(): Promise<ResolvedUser | null> {
+export const getResolvedUser = cache(async (): Promise<ResolvedUser | null> => {
   const session = await auth();
   const uid = session?.user?.uid;
   if (!uid) return null;
@@ -117,7 +103,7 @@ export async function getResolvedUser(): Promise<ResolvedUser | null> {
 
     return user;
   });
-}
+});
 
 export async function getSessionUser(): Promise<SessionUser | null> {
   const user = await getResolvedUser();

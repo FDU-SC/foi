@@ -2,6 +2,7 @@ import { contestModules } from "@/content/_modules/contests";
 import { problemBySlug } from "@/lib/problems/registry";
 import { slugFromGlobPath } from "@/lib/slug-from-path";
 import { rulesetFor } from "@/lib/standings/registry";
+import { issueList } from "@/lib/validation";
 import { catalogueSlugs } from "./catalogue";
 import { contestConfigSchema, type ContestConfig } from "./types";
 
@@ -19,12 +20,7 @@ function buildRegistry(): Map<string, ContestConfig> {
 
     const parsed = contestConfigSchema.safeParse(exported);
     if (!parsed.success) {
-      const issues = parsed.error.issues
-        .map(
-          (issue) => `  - ${issue.path.join(".") || "(root)"}: ${issue.message}`,
-        )
-        .join("\n");
-      throw new Error(`${path} 的比赛配置不合法:\n${issues}`);
+      throw new Error(`${path} 的比赛配置不合法:\n${issueList(parsed.error)}`);
     }
 
     if (parsed.data.slug !== dirSlug) {

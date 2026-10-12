@@ -42,6 +42,9 @@ export const accounts = pgTable(
      */
     avatarUpdatedAt: timestamp("avatar_updated_at", { withTimezone: true }),
 
+    /** Plain text shown on the profile. Null when the owner has written none. */
+    bio: text("bio"),
+
     email: text("email"),
 
     passwordHash: text("password_hash"),
@@ -266,6 +269,16 @@ export const judgingAttempts = pgTable(
   ],
 );
 
+/**
+ * Counters for rate-limiter-flexible. Rows are keyed by the library; the
+ * platform never reads this table itself.
+ */
+export const rateLimits = pgTable("rate_limits", {
+  key: text("key").primaryKey(),
+  points: integer("points").notNull().default(0),
+  expire: bigint("expire", { mode: "number" }),
+});
+
 export const runners = pgTable(
   "runners",
   {
@@ -290,4 +303,5 @@ export type ContestRow = typeof contests.$inferSelect;
 export type SubmissionRow = typeof submissions.$inferSelect;
 export type JudgingQueueRow = typeof judgingQueue.$inferSelect;
 export type JudgingAttemptRow = typeof judgingAttempts.$inferSelect;
+export type RateLimitRow = typeof rateLimits.$inferSelect;
 export type RunnerRow = typeof runners.$inferSelect;

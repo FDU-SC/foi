@@ -1,210 +1,116 @@
-import { describe, expect, it } from "vitest";
-import { AS_PLAYER } from "@/test/auth-support";
-import { allows } from "@/lib/authz/engine";
-import { viewerFor } from "@/lib/authz/viewer";
-import { allContests } from "@/lib/contests/registry";
-import { groupWith } from "@/test/content-shapes";
-import {
-  at,
-  input,
-  participants,
-  problem,
-  solve,
-  fail,
-} from "@/test/standings-support";
-import { listRulesets } from "./registry";
-import type { AnyRuleset, SubmissionRecord } from "./types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ANONYMOUS, viewerFor, type Viewer } from "@/lib/authz/viewer";
+import * as catalogue from "@/lib/contests/catalogue";
+import * as contests from "@/lib/contests/registry";
+import { pairKey, type ContestConfig } from "@/lib/contests/types";
+import { openContestProblem, viewerWith } from "@/test/content-shapes";
+import { invalidateStandings } from "./cache";
+import { catalogueStandingsFor, standingsFor } from "./compute";
+import { rulesetFor } from "./registry";
 
-const allRulesets = listRulesets();
+const query = vi.hoisted(() => ({ orderBy: vi.fn() }));
+vi.mock("@/lib/db", () => ({
+  db: { select: () => ({ from: () => ({ innerJoin: () => ({ where: () => query }) }) }) },
+}));
 
-const problems = [problem("a", "A"), problem("b", "B")];
+const freezeAt = new Date("2030-01-01T04:00:00Z");
+const { contest: base, problem } = openContestProblem(freezeAt);
+const frozen: ContestConfig = {
+  ...base,
+  startsAt: new Date("2030-01-01T00:00:00Z"),
+  endsAt: new Date("2030-01-01T05:00:00Z"),
+  freezeAt,
+};
+const clear: ContestConfig = { ...frozen, slug: "kernel-unfrozen", freezeAt: undefined };
+const duringFreeze = new Date(freezeAt.getTime() + 60_000);
 
-/**
- * Simulate the freeze masking that `loadAndCompute` applies:
- * submissions after `freezeAt` get `result: null`.
- */
-function maskResults(
-  subs: SubmissionRecord[],
-  freezeAt: Date,
-): SubmissionRecord[] {
-  return subs.map((s) =>
-    s.createdAt >= freezeAt ? { ...s, result: null } : s,
-  );
+function row(contest: ContestConfig, offset: number) {
+  return {
+    id: `${contest.slug}:${offset}`,
+    uid: 1,
+    contestSlug: contest.slug,
+    problemSlug: problem.slug,
+    state: "completed" as const,
+    result: { opaque: [offset, "result"] },
+    createdAt: new Date(freezeAt.getTime() + offset),
+    username: "participant",
+    nickname: "Participant",
+    avatarUpdatedAt: null,
+  };
 }
 
-describe("封榜：result 屏蔽后赛制行为", () => {
-  it("至少有一种赛制可测", () => {
-    expect(allRulesets.length).toBeGreaterThan(0);
-  });
+const rows = [-1, 0, 1].map((offset) => row(frozen, offset));
+const ruleset = rulesetFor(frozen.leaderboards[0].ruleset.id)!;
 
-  const freezeAt = at(240);
-
-  it.each(allRulesets.map((r) => ({ ruleset: r, id: r.id })))(
-    "$id：封榜后的提交被屏蔽后，公开分 ≤ 全量分",
-    ({ ruleset }) => {
-      const subs = [solve(1, "a", 10), solve(1, "b", 250)];
-      const base = input({
-        participants: participants(1),
-        problems,
-        submissions: subs,
-      });
-
-      const full = ruleset.compute(base);
-
-      const masked = input({
-        participants: participants(1),
-        problems,
-        submissions: maskResults(subs, freezeAt),
-      });
-      const pub = ruleset.compute(masked);
-
-      expect(full.rows[0].total).toBeGreaterThanOrEqual(pub.rows[0].total);
-    },
-  );
-
-  it.each(allRulesets.map((r) => ({ ruleset: r, id: r.id })))(
-    "$id：封榜前的提交不受影响",
-    ({ ruleset }) => {
-      const subs = [solve(1, "a", 10), solve(1, "b", 60)];
-      const base = input({
-        participants: participants(1),
-        problems,
-        submissions: subs,
-      });
-
-      const masked = input({
-        participants: participants(1),
-        problems,
-        submissions: maskResults(subs, freezeAt),
-      });
-
-      const shape = (b: { rows: { total: number; tiebreak: number }[] }) =>
-        b.rows.map((r) => [r.total, r.tiebreak]);
-
-      expect(shape(ruleset.compute(masked))).toEqual(
-        shape(ruleset.compute(base)),
-      );
-    },
-  );
-
-  it.each(allRulesets.map((r) => ({ ruleset: r, id: r.id })))(
-    "$id：管理员视角（不屏蔽）看到完整分数",
-    ({ ruleset }) => {
-      const subs = [solve(1, "a", 10), solve(1, "b", 250)];
-      const base = input({
-        participants: participants(1),
-        problems,
-        submissions: subs,
-      });
-
-      const full = ruleset.compute(base);
-      expect(full.rows[0].total).toBeGreaterThan(0);
-    },
-  );
+beforeEach(() => {
+  vi.spyOn(contests, "contestBySlug").mockImplementation((slug) =>
+    [frozen, clear].find((contest) => contest.slug === slug));
+  vi.spyOn(catalogue, "catalogueBoardSections").mockReturnValue([frozen.slug]);
+  query.orderBy.mockResolvedValue(rows);
 });
 
-describe("封榜 pending 语义（赛制 Cell 含 pending 字段的）", () => {
-  const freezeAt = at(240);
+afterEach(() => {
+  invalidateStandings(frozen.slug);
+  invalidateStandings(clear.slug);
+  vi.restoreAllMocks();
+});
 
-  // Find rulesets whose cells expose { pending, attempts } — test them specifically.
-  function cellShape(ruleset: AnyRuleset) {
-    const base = input({
-      participants: participants(1),
-      problems,
-      submissions: [solve(1, "a", 10)],
-    });
-    const cell = ruleset.compute(base).rows[0]?.cells["a"];
-    return cell && typeof (cell as Record<string, unknown>).pending === "number";
+describe.each(["contest", "catalogue"] as const)("%s 封榜计算入口", (entry) => {
+  async function read(viewer: Viewer, now = duringFreeze) {
+    const compute = vi.spyOn(ruleset, "compute").mockReturnValue({ rows: [], totalLabel: "" });
+    compute.mockClear();
+    const board = entry === "contest"
+      ? await standingsFor(frozen.slug, viewer, now)
+      : await catalogueStandingsFor({}, viewer, now);
+    expect(board).not.toBeNull();
+    return { board, submissions: compute.mock.lastCall?.[0].submissions };
   }
 
-  const withPending = allRulesets.filter(cellShape);
-
-  it("至少有一种赛制的 Cell 含 pending 字段", () => {
-    expect(withPending.length).toBeGreaterThan(0);
+  it("公开视角保留封榜前结果，屏蔽封榜时刻及之后的结果", async () => {
+    const original = structuredClone(rows);
+    const { board, submissions } = await read(ANONYMOUS);
+    expect(board?.frozen).toBe(true);
+    expect(submissions).toEqual(rows.map((source, index) => ({
+      id: source.id,
+      uid: source.uid,
+      contestSlug: source.contestSlug,
+      problemKey: pairKey(source.contestSlug, source.problemSlug),
+      state: source.state,
+      createdAt: source.createdAt,
+      result: index === 0 ? source.result : null,
+    })));
+    expect(rows).toEqual(original);
   });
 
-  it.each(withPending.map((r) => ({ ruleset: r, id: r.id })))(
-    "$id：封榜后的 AC 提交在公开视角下标记为 pending",
-    ({ ruleset }) => {
-      const subs = [solve(1, "a", 250)];
-      const base = input({
-        participants: participants(1),
-        problems,
-        submissions: maskResults(subs, freezeAt),
-      });
+  it("未封榜视角不污染普通选手的缓存", async () => {
+    const privileged = await read(viewerWith("standings.readUnfrozen"));
+    expect(privileged.submissions?.map(({ result }) => result)).toEqual(rows.map(({ result }) => result));
 
-      const result = ruleset.compute(base);
-      const cell = result.rows[0].cells["a"] as {
-        pending: number;
-        attempts: number;
-      };
-      expect(cell.pending).toBe(1);
-      expect(cell.attempts).toBe(0);
-    },
-  );
+    const player = await read(viewerFor({ uid: 1, groups: [] }));
+    expect(player.submissions?.map(({ result }) => result)).toEqual([rows[0].result, null, null]);
+  });
 
-  it.each(withPending.map((r) => ({ ruleset: r, id: r.id })))(
-    "$id：封榜前的提交正常计分，pending 为 0",
-    ({ ruleset }) => {
-      const subs = [solve(1, "a", 10)];
-      const base = input({
-        participants: participants(1),
-        problems,
-        submissions: maskResults(subs, freezeAt),
-      });
-
-      const result = ruleset.compute(base);
-      const cell = result.rows[0].cells["a"] as {
-        pending: number;
-        attempts: number;
-      };
-      expect(cell.pending).toBe(0);
-      expect(cell.attempts).toBeGreaterThanOrEqual(1);
-    },
-  );
-
-  it.each(withPending.map((r) => ({ ruleset: r, id: r.id })))(
-    "$id：封榜前 WA + 封榜后 AC → 公开视角：有失败 + 有 pending",
-    ({ ruleset }) => {
-      const subs = [fail(1, "a", 100), solve(1, "a", 250)];
-      const base = input({
-        participants: participants(1),
-        problems,
-        submissions: maskResults(subs, freezeAt),
-      });
-
-      const result = ruleset.compute(base);
-      const cell = result.rows[0].cells["a"] as {
-        pending: number;
-        attempts: number;
-      };
-      expect(cell.attempts).toBeGreaterThanOrEqual(1);
-      expect(cell.pending).toBe(1);
-    },
-  );
+  it("比赛结束后恢复全部结果", async () => {
+    await read(ANONYMOUS);
+    const { board, submissions } = await read(ANONYMOUS, new Date(frozen.endsAt.getTime() + 1));
+    expect(board?.frozen).toBe(false);
+    expect(submissions?.map(({ result }) => result)).toEqual(rows.map(({ result }) => result));
+  });
 });
 
-describe("谁能看穿封榜", () => {
-  const contest = allContests()[0];
+it("题库榜按各分区的封榜状态屏蔽，同题在其他分区的结果不受影响", async () => {
+  const other = row(clear, 1);
+  query.orderBy.mockResolvedValue([...rows, other]);
+  vi.mocked(catalogue.catalogueBoardSections).mockReturnValue([frozen.slug, clear.slug]);
+  const compute = vi.spyOn(ruleset, "compute").mockReturnValue({ rows: [], totalLabel: "" });
 
-  it.skipIf(!contest)("选手不能", () => {
-    expect(
-      allows("standings.readUnfrozen", contest!, viewerFor({ uid: 1, groups: [] })),
-    ).toBe(false);
-    expect(allows("standings.readUnfrozen", contest!, AS_PLAYER)).toBe(false);
-  });
+  const board = await catalogueStandingsFor({}, ANONYMOUS, duringFreeze);
 
-  it.skipIf(!contest)("被策略点名的组能", () => {
-    const group = groupWith("standings.readUnfrozen");
-    expect(
-      allows("standings.readUnfrozen", contest!, viewerFor({ uid: 2, groups: [group] })),
-    ).toBe(true);
-  });
-
-  it.skipIf(!contest)("能读他人提交的人也能看穿，否则他自己就能把分加出来", () => {
-    const group = groupWith("submission.read");
-    const viewer = viewerFor({ uid: 3, groups: [group] });
-
-    expect(allows("standings.readUnfrozen", contest!, viewer)).toBe(true);
-  });
+  expect(board?.sections.map(({ slug }) => slug)).toEqual([frozen.slug, clear.slug]);
+  expect(compute.mock.lastCall?.[0].submissions.map(({ id, result }) => [id, result])).toEqual([
+    [rows[0].id, rows[0].result],
+    [rows[1].id, null],
+    [rows[2].id, null],
+    [other.id, other.result],
+  ]);
 });

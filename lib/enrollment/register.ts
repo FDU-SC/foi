@@ -58,7 +58,7 @@ export async function register(input: {
     stripSubaddress: enrollmentPolicy.stripSubaddress,
   });
 
-  const payload = verifyToken(input.token, "email-verify");
+  const payload = await verifyToken(input.token, "email-verify");
   if (!payload || payload.s !== email) {
     return { ok: false, reason: "email-unverified" };
   }

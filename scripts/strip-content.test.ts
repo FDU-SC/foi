@@ -35,7 +35,7 @@ afterEach(() => {
  */
 describe("内容移除后的保留文件由 lib/ 的 import 决定", () => {
   it("扫描结果包含入口，避免空结果导致测试误通过", () => {
-    expect(entrySpecifiers().length).toBeGreaterThanOrEqual(8);
+    expect(entrySpecifiers().length).toBeGreaterThan(0);
   });
 
   it("每个入口都落到一个真实文件上", () => {

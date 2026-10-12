@@ -7,7 +7,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "demo-ctf",
   title: "演示赛 · CTF 动态分值",
-  description: "比赛已结束，题目仍可提交；赛后提交不计入排行榜。",
+  description: "赛后提交不计入排行榜。",
 
   leaderboards: [
     {

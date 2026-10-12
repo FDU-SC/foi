@@ -33,7 +33,8 @@ export function TextInput() {
         <Button
           type="submit"
           variant="primary"
-          disabled={submitting || !value.trim()}
+          pending={submitting}
+          disabled={!value.trim()}
         >
           {submitting ? "提交中…" : "提交"}
         </Button>

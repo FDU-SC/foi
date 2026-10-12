@@ -37,10 +37,9 @@ export const site: SiteConfig = {
   ],
 
   navigation: [
-    { href: "/problems", label: "题库" },
+    { href: "/problems", label: "题库", matches: ["/leaderboard"] },
     { href: "/contests", label: "比赛" },
     { href: "/submissions", label: "我的提交" },
-    { href: "/leaderboard", label: "总排行榜", location: "catalogue", visibleWhen: "leaderboard.read" },
     { href: "/judges", label: "评测状态", location: "submissions", visibleWhen: "judge.readBoard" },
     { href: "/judges", label: "评测机", location: "admin", visibleWhen: "judge.readBoard" },
     { href: "/admin", label: "管理", location: "account", visibleWhen: "admin.enter" },
@@ -51,22 +50,4 @@ export const site: SiteConfig = {
   footer: {
     links: [{ href: "https://github.com/FDU-SC/foi", label: "源码" }],
   },
-
-  homeEntries: [
-    {
-      href: "/problems",
-      title: "题库",
-      description: "按方向分类的练习题单。",
-    },
-    {
-      href: "/contests",
-      title: "比赛",
-      description: "查看赛程与历届比赛。",
-    },
-    {
-      href: "/submissions",
-      title: "我的提交",
-      description: "查看自己的提交与评测结果。",
-    },
-  ],
 };

@@ -48,7 +48,7 @@ export interface ProblemViews {
 
   describeResult?: (result: unknown) => VerdictPreset;
 
-  /** Complete readable history for one viewer, contest and problem. */
+  /** One person's complete history for one contest and problem, as the viewer may see it. */
   progress?: (history: readonly ProgressSubmission[]) => ProblemProgress;
 
   /**

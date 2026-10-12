@@ -6,6 +6,7 @@ import type { Permission } from "@/lib/authz/adapters";
 import { useProblem } from "@/components/problem/problem-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { CopyButton } from "@/content/_shared/mdx/copy-button";
 
 type InstanceView =
@@ -19,7 +20,7 @@ function PermissionNotice({ permission }: { permission: Permission | undefined }
   if (permission?.allowed) return null;
   return <span className="text-fg-muted text-xs">
     {permission?.reason.code === "unauthenticated"
-      ? <><Link href="/login" className="text-primary hover:underline">登录</Link>后可执行此操作。</>
+      ? <><Link href="/login" className="text-fg underline underline-offset-2">登录</Link>后可执行此操作。</>
       : permission?.reason.message ?? "这道题未提供此操作。"}
   </span>;
 }
@@ -114,8 +115,8 @@ export function InstanceControl() {
   };
 
   return (
-    <div className="border-border bg-surface my-6 rounded-lg border">
-      <div className="border-border bg-surface-2/50 flex items-center justify-between gap-3 border-b px-4 py-2.5">
+    <div className="border-border bg-surface my-6 rounded-sm border">
+      <div className="border-border bg-surface-2 flex items-center justify-between gap-3 border-b px-4 py-2.5">
         <span className="text-fg text-sm font-semibold">靶机实例</span>
         {ready ? (
           <Badge tone="ok" mono>
@@ -132,22 +133,23 @@ export function InstanceControl() {
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         {ready ? (
           <>
-            <code className="border-border bg-surface-2 text-fg rounded border px-2 py-1 font-mono text-xs">
+            <code className="border-border bg-surface-2 text-fg rounded-sm border px-2 py-1 font-mono text-xs">
               {ready.endpoint}
             </code>
             <CopyButton value={ready.endpoint} />
-            <Button size="sm" variant="danger" onClick={destroy} disabled={busy || !destroyPermission?.allowed}>
-              销毁实例
+            <Button size="sm" variant="danger" onClick={destroy} pending={busy} disabled={!destroyPermission?.allowed}>
+              {busy ? "销毁中…" : "销毁实例"}
             </Button>
             <PermissionNotice permission={destroyPermission} />
           </>
         ) : pulling ? (
           <>
-            <span className="text-fg-muted text-xs">
-              实例正在启动，就绪后显示访问地址。
+            <span className="text-fg-muted inline-flex items-center gap-1.5 text-xs">
+              <Spinner />
+              实例正在启动…
             </span>
-            <Button size="sm" variant="danger" onClick={destroy} disabled={busy || !destroyPermission?.allowed}>
-              取消
+            <Button size="sm" variant="danger" onClick={destroy} pending={busy} disabled={!destroyPermission?.allowed}>
+              {busy ? "取消中…" : "取消"}
             </Button>
             <PermissionNotice permission={destroyPermission} />
             <PermissionNotice permission={pollPermission} />
@@ -156,11 +158,11 @@ export function InstanceControl() {
           <PermissionNotice permission={spawnPermission} />
         ) : (
           <>
-            <Button size="sm" variant="primary" onClick={spawn} disabled={busy}>
+            <Button size="sm" variant="primary" onClick={spawn} pending={busy}>
               {busy ? "启动中…" : "启动实例"}
             </Button>
             <span className="text-fg-subtle text-xs">
-              实例有效期 30 分钟，到期自动回收。
+              有效期 30 分钟。
             </span>
           </>
         )}

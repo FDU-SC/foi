@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { AnimatedNumber } from "@/components/ui/animated-number";
 import {
   assignRanks,
+  elapsed,
   hasResult,
   submissionsInWindow,
   type Ruleset,
@@ -47,12 +47,7 @@ export function OiCellView({ cell }: { cell: OiCell | undefined }) {
 }
 
 export function OiTotalView({ row }: { row: StandingsRow<OiCell> }) {
-  return (
-    <AnimatedNumber
-      value={Math.round(row.total)}
-      className="text-fg font-mono font-semibold tabular-nums"
-    />
-  );
+  return <span className="text-fg font-semibold tabular-nums">{Math.round(row.total)}</span>;
 }
 
 import { ProblemGridBoard } from "@/content/_shared/leaderboards/problem-grid";
@@ -62,15 +57,13 @@ export const renderers = { Cell: OiCellView, Total: OiTotalView, Board: ProblemG
 export const ruleset: Ruleset<OiCell> = {
   id: "oi",
   name: "OI",
-  description: "每题取最高分（或最后一次提交），按总分排名。",
+  description: "按总分排名。",
 
   compute(input: StandingsInput) {
     const { take } = configSchema.parse(input.config ?? {});
-    const start = input.contest.startsAt.getTime();
-
     const worth = new Map(
       input.problems.map((problem) => [
-        problem.slug,
+        problem.key,
         problem.points ?? problem.maxScore,
       ]),
     );
@@ -84,15 +77,15 @@ export const ruleset: Ruleset<OiCell> = {
       const cells = byUser.get(submission.uid);
       if (!cells) continue;
 
-      const maxScore = worth.get(submission.problemSlug) ?? 0;
-      const cell = cells.get(submission.problemSlug) ?? {
+      const maxScore = worth.get(submission.problemKey) ?? 0;
+      const cell = cells.get(submission.problemKey) ?? {
         score: 0,
         maxScore,
         attempts: 0,
         pending: 0,
         at: null,
       };
-      cells.set(submission.problemSlug, cell);
+      cells.set(submission.problemKey, cell);
 
       if (!hasResult(submission)) {
         cell.pending += 1;
@@ -111,7 +104,7 @@ export const ruleset: Ruleset<OiCell> = {
 
       if (take === "last" || score > cell.score) {
         cell.score = score;
-        cell.at = submission.createdAt.getTime() - start;
+        cell.at = elapsed(input, submission);
       }
     }
 

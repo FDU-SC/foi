@@ -90,7 +90,7 @@ export function submissionStream({ id, viewer, initial, signal, onClose }: {
         flush();
       }, (error) => {
         if (closed) return;
-        log.error(`提交 ${id} 事件流失败`, error);
+        log.error({ id, err: error }, "提交事件流失败");
         finish(error);
       });
       flush();

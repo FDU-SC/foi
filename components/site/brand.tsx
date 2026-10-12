@@ -9,7 +9,7 @@ import { siteViews } from "@/lib/site-views";
  */
 export function DefaultBrand() {
   return (
-    <Link href="/" className="text-fg font-bold tracking-tight">
+    <Link href="/" className="text-fg font-serif font-bold tracking-wide">
       {site.name}
     </Link>
   );

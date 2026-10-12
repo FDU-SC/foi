@@ -16,7 +16,6 @@ const DISRUPTION_WINDOW_MS = 60 * 60 * 1000;
 export interface DriftFinding {
   severity: DriftSeverity;
   title: string;
-  detail: string;
   items: string[];
 }
 
@@ -29,8 +28,6 @@ export interface AdminOverview {
 
   activeUids: number;
 
-  mirroredProblems: number;
-  mirroredContests: number;
   findings: DriftFinding[];
 }
 
@@ -61,8 +58,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     findings.push({
       severity: "warn",
       title: "启动时发现的配置提醒",
-      detail:
-        "应用启动时记录了以下配置问题。",
       items: bootWarnings,
     });
   }
@@ -75,8 +70,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     findings.push({
       severity: "warn",
       title: "有账号的邮箱不匹配任何分流规则",
-      detail:
-        "这些账号未分配用户组，无法参加限定用户组的比赛。",
       items: untagged.map(String),
     });
   }
@@ -87,8 +80,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     findings.push({
       severity: "info",
       title: "分流规则中有不存在的账号",
-      detail:
-        "以下用户编号未匹配到账号。",
       items: unclaimed.map(String),
     });
   }
@@ -110,8 +101,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     findings.push({
       severity: "warn",
       title: "评测任务回收未按时完成",
-      detail:
-        "失联评测机的任务回收、重试耗尽和排队超时处理可能受影响。",
       items: [
         reaper.ranAt
           ? `最后一次回收：${reaper.ranAt.toISOString()}`
@@ -125,8 +114,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     findings.push({
       severity: "warn",
       title: "近期有评测中断的提交",
-      detail:
-        "这些提交没有评测结果，不计入成绩。查看中断原因，修复后重新评测。",
       items: [`最近一小时 ${disrupted} 条`],
     });
   }
@@ -136,8 +123,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     findings.push({
       severity: "info",
       title: "有未关联题目的评测后端",
-      detail:
-        "选手只能查看关联了可见题目的评测队列，以下后端不在其中。",
       items: unusedJudges,
     });
   }
@@ -146,8 +131,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     findings.push({
       severity: "info",
       title: "有已移除题目或比赛的历史记录",
-      detail:
-        "正常保留数据，用于记录历史提交的题目和比赛归属。",
       items: orphanMirrors,
     });
   }
@@ -160,8 +143,6 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     contestCount: registryContests.length,
     submissionCount: submissionStats[0]?.total ?? 0,
     activeUids: submissionStats[0]?.uids ?? 0,
-    mirroredProblems: problemRows.length,
-    mirroredContests: contestRows.length,
     findings,
   };
 }

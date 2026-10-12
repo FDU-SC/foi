@@ -10,6 +10,7 @@ import { allows } from "@/lib/authz/engine";
 import { verifyToken } from "@/lib/tokens/stateless";
 import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
+import { parseInput } from "@/lib/validation";
 import { site } from "@/lib/site";
 
 export interface ResetState {
@@ -32,29 +33,22 @@ export async function resetPasswordAction(
   _prev: ResetState,
   formData: FormData,
 ): Promise<ResetState> {
-  const parsed = schema.safeParse({
+  const parsed = parseInput(schema, {
     token: formData.get("token"),
     password: formData.get("password"),
     confirm: formData.get("confirm"),
   });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  if (!parsed.ok) return { error: parsed.error };
 
   const rule = ACTION_LIMITS.resetPasswordAction;
-  const limit = rateLimitBySource(
-    "reset",
-    sourceFrom(await headers()),
-    rule.max,
-    rule.windowSeconds * 1000,
-  );
+  const limit = await rateLimitBySource("reset", sourceFrom(await headers()), rule);
   if (!limit.ok) {
     return { error: "尝试过于频繁，请稍后再试。" };
   }
 
-  const payload = verifyToken(parsed.data.token, "password-reset");
+  const payload = await verifyToken(parsed.data.token, "password-reset");
   if (!payload) {
-    return { error: "链接无效或已过期，请重新申请一封重置邮件" };
+    return { error: "链接无效或已过期" };
   }
 
   const uid = parseInt(payload.s, 10);
@@ -64,15 +58,15 @@ export async function resetPasswordAction(
 
   const fp = await getPasswordFingerprint(uid);
   if (!fp || fp !== payload.fp) {
-    return { error: "链接已失效（密码已被修改），请重新申请" };
+    return { error: "链接已失效" };
   }
 
   const row = await getAccount(uid);
   const user = row ? resolveFromRow(row) : null;
   if (!user || !allows("account.resetPassword", user, await getViewer())) {
-    return { error: "该账号当前无法登录，请联系管理员" };
+    return { error: "该账号当前无法登录" };
   }
 
   await setPassword(uid, parsed.data.password);
-  return { message: `密码已更新，现在可以用 ${user.username} 登录了。` };
+  return { message: `密码已更新，用户名为 ${user.username}。` };
 }

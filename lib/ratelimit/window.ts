@@ -1,3 +1,8 @@
+/**
+ * Process-local fixed window. Used by `proxy.ts` on every page request, where
+ * a database round-trip would be the wrong cost. Account- and action-level
+ * limits live in `index.ts` and are shared across instances.
+ */
 import { makeRoom } from "@/lib/bounded-map";
 
 export type RateLimitResult =

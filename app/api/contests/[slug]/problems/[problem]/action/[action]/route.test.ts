@@ -145,7 +145,7 @@ describe("交互端点的配置错误不回传原文", () => {
   beforeEach(() => {
 
     vi.stubEnv("FOI_BACKEND_SECRET", undefined);
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(process.stdout, "write").mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -186,9 +186,18 @@ describe("交互端点的配置错误不回传原文", () => {
 
     await post(action);
 
-    expect(console.error).toHaveBeenCalledWith(
-      expect.stringContaining("题目后端配置错误"),
-      expect.objectContaining({ message: expect.stringContaining("FOI_") }),
+    const records = (process.stdout.write as ReturnType<typeof vi.fn>).mock.calls
+      .map(([chunk]) => String(chunk).trim())
+      .filter((line) => line.startsWith("{"))
+      .map((line) => JSON.parse(line) as { msg?: string; err?: { message?: string } });
+
+    expect(records).toContainEqual(
+      expect.objectContaining({
+        msg: "题目后端配置错误，无法发起交互动作",
+        err: expect.objectContaining({
+          message: expect.stringContaining("FOI_"),
+        }),
+      }),
     );
   });
 });

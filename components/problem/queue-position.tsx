@@ -17,7 +17,6 @@ export function QueueBadge({
       ) : (
         <Badge tone="warn" mono>
           队列第 {queue.ahead + 1} 位
-          {queue.ahead > 0 ? ` · 前面 ${queue.ahead} 个` : ""}
         </Badge>
       )}
       {showJudge ? (

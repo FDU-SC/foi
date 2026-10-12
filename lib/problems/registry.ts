@@ -5,6 +5,7 @@ import {
   problemStatementModules,
 } from "@/content/_modules/problems";
 import { slugFromGlobPath } from "@/lib/slug-from-path";
+import { issueList } from "@/lib/validation";
 import {
   isInlineBackend,
   problemConfigSchema,
@@ -43,12 +44,7 @@ function buildRegistry(): Map<string, ProblemConfig> {
 
     const parsed = problemConfigSchema.safeParse(exported);
     if (!parsed.success) {
-      const issues = parsed.error.issues
-        .map(
-          (issue) => `  - ${issue.path.join(".") || "(root)"}: ${issue.message}`,
-        )
-        .join("\n");
-      throw new Error(`${path} 的题目配置不合法:\n${issues}`);
+      throw new Error(`${path} 的题目配置不合法:\n${issueList(parsed.error)}`);
     }
 
     if (parsed.data.slug !== dirSlug) {

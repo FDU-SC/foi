@@ -6,6 +6,7 @@ import { getViewer } from "@/auth";
 import { authorize } from "@/lib/authz/engine";
 import { rateLimit } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
+import { parseInput } from "@/lib/validation";
 import {
   rejudgeSubmissions,
   submissionStateOf,
@@ -35,24 +36,18 @@ export async function rejudgeSubmissionAction(
   const actor = await getViewer();
 
   const rule = ACTION_LIMITS.rejudgeSubmissionAction;
-  const limited = rateLimit(
-    `rejudge:${actor.uid}`,
-    rule.max,
-    rule.windowSeconds * 1000,
-  );
+  const limited = await rateLimit(`rejudge:${actor.uid}`, rule);
   if (!limited.ok) {
     return {
       error: `重判过于频繁，请 ${Math.ceil(limited.retryAfterMs / 60_000)} 分钟后再试。`,
     };
   }
 
-  const parsed = rejudgeSchema.safeParse({
+  const parsed = parseInput(rejudgeSchema, {
     id: formData.get("id"),
     includeAccepted: formData.get("includeAccepted") !== null,
   });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "参数不合法" };
-  }
+  if (!parsed.ok) return { error: parsed.error };
 
   const row = await submissionStateOf(parsed.data.id);
   if (!row) return { error: "提交不存在" };
@@ -61,7 +56,7 @@ export async function rejudgeSubmissionAction(
   if (!decision.allow) return { error: decision.reason.message };
 
   if (row.state === "pending") {
-    return { error: "提交尚未完成评测，暂不能重判。" };
+    return { error: "评测尚未完成。" };
   }
 
   const skipFilter = parsed.data.includeAccepted
@@ -74,29 +69,25 @@ export async function rejudgeSubmissionAction(
 
   if (result.skippedInline > 0) {
     return {
-      error:
-        "这道题不经过评测机判定，请直接重新提交。",
+      error: "这道题无法重判。",
     };
   }
 
   if (result.skippedNotDispatched > 0) {
     return {
-      error:
-        "这道题的评测方式已变更，无法重判。请让选手重新提交。",
+      error: "这道题无法重判。",
     };
   }
 
   if (result.skippedByFilter > 0) {
     return {
-      error:
-        "该提交已通过。如需覆盖结果，请勾选「包含已通过的提交」。",
+      error: "该提交已通过。",
     };
   }
 
   if (result.requeued === 0) {
-
     revalidatePath(`/submissions/${parsed.data.id}`);
-    return { error: "提交状态已变更，本次未作修改。请刷新页面。" };
+    return { error: "提交状态已变更。" };
   }
 
   revalidatePath(`/submissions/${parsed.data.id}`);

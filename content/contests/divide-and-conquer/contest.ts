@@ -7,7 +7,7 @@ import type { ContestConfigInput } from "@/lib/contests/types";
 export const contest = {
   slug: "divide-and-conquer",
   title: "递归与分治",
-  description: "将问题分解为同类子问题，合并子问题的解。",
+  description: "汉诺塔与逆序对。",
 
   domain: "算法与数据结构",
   facets: ["difficulty", "tags"],
@@ -16,7 +16,7 @@ export const contest = {
     {
       id: "main",
       title: "总分榜",
-      ruleset: { id: "oi", config: { take: "best" } },
+      ruleset: { id: "practice" },
     },
   ],
 

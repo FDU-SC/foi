@@ -1,6 +1,10 @@
-export interface AlsoBound {
+/** At most `max` takes per `windowSeconds`. */
+export interface Bound {
   max: number;
   windowSeconds: number;
+}
+
+export interface AlsoBound extends Bound {
   why: string;
 }
 
@@ -158,6 +162,10 @@ export const ACTION_LIMITS = {
     windowSeconds: 3600,
   },
   updateNicknameAction: {
+    max: 20,
+    windowSeconds: 3600,
+  },
+  updateBioAction: {
     max: 20,
     windowSeconds: 3600,
   },

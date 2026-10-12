@@ -35,6 +35,7 @@ export function resolveContestProblems(
 
 export interface ResolvedParticipant {
   uid: number;
+  username: string;
   nickname: string;
   avatarUpdatedAt: Date | null;
 }
@@ -68,6 +69,7 @@ export async function resolveParticipants(
 
     matched.push({
       uid: account.uid,
+      username: account.username,
       nickname: account.nickname,
       avatarUpdatedAt: account.avatarUpdatedAt,
     });

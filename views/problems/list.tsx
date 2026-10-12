@@ -3,86 +3,145 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getViewer } from "@/auth";
 import { ProblemBadgesSlot } from "@/components/problem/badges-slot";
-import { ProblemFilters, type FilterRow } from "@/components/problem/filters";
 import { Badge } from "@/components/ui/badge";
+import { FilterBar, type FilterRow } from "@/components/ui/filter-bar";
+import { TableFrame } from "@/components/ui/page";
+import { Pagination } from "@/components/ui/pagination";
 import { contestFor } from "@/lib/contests/access";
+import { catalogueContests } from "@/lib/contests/registry";
 import {
   catalogueHref,
+  catalogueSlugs,
   contestHref,
   isCatalogue,
   problemHref,
-  standingsHref,
 } from "@/lib/contests/catalogue";
-import { contestPhase, contestStatus } from "@/lib/contests/types";
-import { problemsFor } from "@/lib/problems/access";
-import { selectProblems, SELECTION_PARAMS, DEFAULT_PROBLEM_SORT } from "@/lib/problems/selection";
+import {
+  directionsOf,
+  gathers,
+} from "@/lib/contests/scope";
+import {
+  pairKey,
+  type ContestConfig,
+} from "@/lib/contests/types";
+import { problemsFor, type ProblemView } from "@/lib/problems/access";
 import { progressFor } from "@/lib/problems/progress";
-import { TableFrame } from "@/components/ui/page";
+import {
+  DEFAULT_PROBLEM_SORT,
+  SELECTION_PARAMS,
+  progressKey,
+  selectProblems,
+  type ProblemSort,
+} from "@/lib/problems/selection";
+import type { ProblemProgress } from "@/lib/problems/views";
+import { queryString, readOne, without, type SearchParams } from "@/lib/query";
+import { cn } from "@/lib/utils";
 
-type Props = PageProps<"/problems/[section]">;
+interface Props {
+  /** Absent on `/problems`, where every list is shown at once. */
+  params?: Promise<{ section?: string }>;
+  searchParams: Promise<SearchParams>;
+}
 
 const { search: SEARCH, status: STATUS, sort: SORT, facet: FACET } = SELECTION_PARAMS;
 
-const STATUSES = [
-  { value: "solved", label: "已通过" },
-  { value: "attempted", label: "尝试过" },
-  { value: "untouched", label: "未尝试" },
-] as const;
+/** Selects a direction on `/problems`; its value is the `contest.domain` label. */
+const DOMAIN = "domain";
 
-const SORTS = [
-  { value: "newest", label: "最新" },
-  { value: "listed", label: "题单序" },
-  { value: "score", label: "分值" },
-];
+const STATE_LABEL: Record<ProblemProgress["state"], string> = {
+  solved: "已通过",
+  attempted: "尝试过",
+  untouched: "未尝试",
+};
 
-/** The catalogued contest this URL names, refused the way a missing page is. */
-function sectionFor(section: string) {
-  return isCatalogue(section) ? section : undefined;
+const STATUSES = (Object.keys(STATE_LABEL) as ProblemProgress["state"][])
+  .map((value) => ({ value, label: STATE_LABEL[value] }));
+
+const MARK: Record<ProblemProgress["state"], { glyph: string; className: string }> = {
+  solved: { glyph: "✓", className: "text-ok" },
+  attempted: { glyph: "✗", className: "text-err" },
+  untouched: { glyph: "", className: "" },
+};
+
+/** A symbol for the state, read out as the content's own label when it gives one. */
+function ProgressMark({ progress }: { progress: ProblemProgress | undefined }) {
+  if (!progress) return <span className="text-fg-subtle">—</span>;
+  const label = progress.verdict?.label ?? STATE_LABEL[progress.state];
+  const { glyph, className } = MARK[progress.state];
+  return (
+    <span title={label} className={cn("font-semibold", className)}>
+      <span aria-hidden>{glyph}</span>
+      <span className="sr-only">{label}</span>
+    </span>
+  );
 }
 
-export async function problemListMetadata({
-  params,
-}: Props): Promise<Metadata> {
-  const { section } = await params;
-  const slug = sectionFor(section);
-  const view = slug ? contestFor(slug, await getViewer()) : undefined;
+const SORT_LABEL: Record<ProblemSort, string> = {
+  listed: "题单序",
+  newest: "最新",
+  score: "分值",
+};
 
-  return { title: view?.config.title ?? "题库" };
+/** One catalogued contest as a list: the gate it passed and what it holds. */
+interface List {
+  contest: ContestConfig;
+  preview: boolean;
+  problems: ProblemView[];
+}
+
+/** The catalogued contest a URL names, refused the way a missing page is. */
+async function sectionOf(params: Props["params"]): Promise<string | undefined> {
+  const section = (await params)?.section;
+  if (section !== undefined && !isCatalogue(section)) notFound();
+  return section;
+}
+
+export async function problemSetMetadata({ params, searchParams }: Props): Promise<Metadata> {
+  const section = (await params)?.section;
+  if (section !== undefined) {
+    const view = isCatalogue(section) ? contestFor(section, await getViewer()) : undefined;
+    return { title: view?.config.title ?? "题库" };
+  }
+  const domain = readOne(await searchParams, DOMAIN);
+  const known = catalogueContests().some((contest) => contest.domain === domain);
+  return { title: known ? domain : "题库" };
 }
 
 /**
- * One catalogued contest's problem set, listed by problem rather than by the
- * round it belongs to.
- *
- * It asks the same `problem.read` gate the detail page does, so a card here
- * never leads to a refusal — and the status badge counts only work done in
- * this contest, the way its own leaderboard does.
+ * The catalogue problem panel body. Title and tabs live in the shared shell;
+ * this is the filters, table and pagination under them.
  */
-export async function ProblemListView({ params, searchParams }: Props) {
-  const [{ section }, query] = await Promise.all([params, searchParams]);
-
-  const mounted = sectionFor(section);
-  if (mounted === undefined) notFound();
-
+export async function ProblemSetView({ params, searchParams }: Props) {
+  const [section, query] = await Promise.all([sectionOf(params), searchParams]);
   const viewer = await getViewer();
 
-  // Through `contest.read`, the same gate `/contests/[slug]` uses. Reading the
-  // config straight out of the registry would show the title and description of
-  // a section whose audience this viewer is not in.
-  const view = contestFor(mounted, viewer);
-  if (!view) notFound();
+  const lists: List[] = catalogueSlugs().flatMap((slug) => {
+    const view = contestFor(slug, viewer);
+    return view ? [{ contest: view.config, preview: view.preview, problems: problemsFor(slug, viewer) }] : [];
+  });
+  const selected = section === undefined ? undefined : lists.find(({ contest }) => contest.slug === section);
+  if (section !== undefined && !selected) notFound();
 
-  const contest = view.config;
-  const catalogue = problemsFor(contest.slug, viewer);
-  const path = contestHref(contest.slug);
+  const progress = viewer.authenticated
+    ? await progressFor(lists.map(({ contest }) => contest.slug), viewer)
+    : null;
 
-  const statuses = viewer.authenticated ? await progressFor(contest.slug, viewer) : null;
-  const offered = contest.facets;
+  const directions = directionsOf(lists.map(({ contest }) => contest));
+  const listOf = new Map(lists.map((list) => [list.contest.slug, list]));
+  const within = (contests: ContestConfig[]) => contests.flatMap(({ slug }) => listOf.get(slug) ?? []);
+  const asked = selected ? undefined : readOne(query, DOMAIN);
+  const direction = directions.filter(gathers).find(({ heading }) => heading === asked);
+  const shown = selected ? [selected] : direction ? within(direction.contests) : lists;
+  const catalogue = shown.flatMap(({ problems }) => problems);
+  const path = selected ? contestHref(selected.contest.slug) : catalogueHref();
+  const clearHref = path + (direction ? queryString({ [DOMAIN]: direction.heading }) : "");
+
   const {
-    problems, groups, selection, counts, status, sort, statusCounts,
-    summary: { complete: completeProgress, showProgress, solved },
-    narrowed, filtered, params: filterParams, searchValue,
-  } = selectProblems({ problems: catalogue, offered, progress: statuses, query });
+    problems, matched, page, pages, groups, selection, counts, status, sort, sorts, statusCounts,
+    summary: { complete: completeProgress, showProgress },
+    narrowed, filtered, params: selectionParams, searchValue,
+  } = selectProblems({ problems: catalogue, progress, query });
+  const filterParams = direction ? selectionParams : without(selectionParams, DOMAIN);
 
   const rows: FilterRow[] = groups.map((group) => ({
     key: FACET + group.key,
@@ -95,95 +154,55 @@ export async function ProblemListView({ params, searchParams }: Props) {
       count: counts.get(group.key)?.get(value),
     })),
   }));
-
   if (completeProgress) {
     rows.push({
       key: STATUS,
       label: "状态",
       selected: status ? [status] : [],
-      choices: STATUSES.map((choice) => ({
-        ...choice,
-        count: statusCounts.get(choice.value),
-      })),
+      choices: STATUSES.map((choice) => ({ ...choice, count: statusCounts.get(choice.value) })),
     });
   }
-
   rows.push({
     key: SORT,
     label: "排序",
     selected: [sort],
     fallback: DEFAULT_PROBLEM_SORT,
-    choices: SORTS,
+    choices: sorts.map((value) => ({ value, label: SORT_LABEL[value] })),
   });
 
-  // A catalogue section's normal state is open, and saying so on every visit is
-  // noise. Anything else changes what a visitor can do here, so it gets a badge.
-  const state =
-    contestPhase(contest) === "running" ? null : contestStatus(contest);
+  const offersFacets = catalogue.some(({ ref }) => ref.contest.facets.length > 0);
 
   return (
     <div className="space-y-3">
-      <nav className="text-fg-subtle flex items-center gap-1.5 text-xs">
-        <Link
-          href={catalogueHref()}
-          className="hover:text-fg transition-colors"
-        >
-          题库
-        </Link>
-        <span>/</span>
-        <span>{contest.title}</span>
-      </nav>
+      {narrowed ? (
+        <p className="text-fg-subtle text-right text-sm">{matched} / {catalogue.length} 题</p>
+      ) : null}
 
-      <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-fg text-2xl font-bold tracking-tight">
-          {contest.title}
-        </h1>
-        {state ? <Badge tone={state.tone}>{state.label}</Badge> : null}
-        <Link
-          href={standingsHref(contest.slug)}
-          className="text-primary ml-auto text-sm hover:underline"
-        >
-          查看排行榜 →
-        </Link>
-        <span className="text-fg-subtle text-sm">
-          {narrowed
-            ? `${problems.length} / ${catalogue.length} 题`
-            : `共 ${catalogue.length} 题`}
-        </span>
-      </div>
-
-      <div className="text-fg-muted flex flex-wrap items-center justify-between gap-2 text-xs leading-5">
-        {contest.description ? <p>{contest.description}</p> : null}
-        {solved !== null ? (
-          <span className="shrink-0 font-mono tabular-nums">
-            已通过 {solved} / {catalogue.length} 题
-          </span>
-        ) : null}
-      </div>
+      {selected?.contest.description ? (
+        <p className="text-fg-muted text-xs leading-5">{selected.contest.description}</p>
+      ) : null}
 
       {catalogue.length > 0 ? (
-        <ProblemFilters
+        <FilterBar
           path={path}
           params={filterParams}
           rows={rows}
           searchKey={SEARCH}
           searchValue={searchValue}
-          searchPlaceholder="按题目名或标识搜索"
+          searchPlaceholder="搜索题目"
           filtered={filtered}
+          clearHref={clearHref}
         />
       ) : null}
 
       {problems.length === 0 ? (
-        <p className="text-fg-subtle border-border rounded-lg border py-12 text-center text-sm">
+        <p className="text-fg-muted border-border border-y py-10 text-center text-sm">
           {catalogue.length === 0 ? (
-            "这个分区暂无题目。"
+            selected ? "这个题单暂无题目。" : direction ? "这个方向暂无题目。" : "题库暂无题目。"
           ) : (
             <>
               没有符合条件的题目。
-              <Link
-                href={path}
-                className="hover:text-fg ml-1.5 underline underline-offset-2 transition-colors"
-              >
+              <Link href={clearHref} className="hover:text-fg ml-1.5 underline underline-offset-2 transition-colors">
                 清除筛选
               </Link>
             </>
@@ -194,59 +213,57 @@ export async function ProblemListView({ params, searchParams }: Props) {
           <table>
             <thead>
               <tr>
-                <th className="w-36">题号</th>
+                {showProgress ? <th className="w-12">状态</th> : null}
+                <th className="hidden w-36 sm:table-cell">题号</th>
                 <th>题目</th>
-                {offered.length > 0 ? (
-                  <th className="hidden sm:table-cell">标签</th>
-                ) : null}
-                {showProgress ? <th className="w-28">我的状态</th> : null}
+                {selected ? null : <th className="hidden md:table-cell">题单</th>}
+                {offersFacets ? <th className="hidden sm:table-cell">标签</th> : null}
               </tr>
             </thead>
             <tbody>
-              {problems.map(({ ref: { problem, entry }, preview }) => {
-                const mine = statuses?.get(problem.slug);
-                const preset = mine?.verdict;
+              {problems.map((view) => {
+                const { contest, problem, entry: listed } = view.ref;
+                const mine = progress?.get(progressKey(view));
                 return (
-                  <tr key={problem.slug}>
-                    <td className="text-fg-muted font-mono text-xs">
-                      {entry.label ?? problem.slug}
+                  <tr key={pairKey(contest.slug, problem.slug)}>
+                    {showProgress ? (
+                      <td>
+                        <ProgressMark progress={mine} />
+                      </td>
+                    ) : null}
+                    <td className="text-fg-muted hidden font-mono text-xs sm:table-cell">
+                      <span className="block max-w-36 truncate" title={listed.label ?? problem.slug}>
+                        {listed.label ?? problem.slug}
+                      </span>
                     </td>
                     <td>
                       <div className="flex flex-wrap items-center gap-2">
-                        <Link
-                          className="row-link"
-                          href={problemHref(contest.slug, problem.slug)}
-                        >
+                        <Link className="row-link" href={problemHref(contest.slug, problem.slug)}>
                           {problem.title}
                         </Link>
-                        {preview ? <Badge tone="warn">未公开</Badge> : null}
+                        {view.preview ? <Badge tone="warn">未公开</Badge> : null}
                       </div>
-                      {offered.length > 0 ? (
-                        <div className="mt-1 flex flex-wrap gap-1 sm:hidden">
-                          <ProblemBadgesSlot
-                            config={problem}
-                            offered={offered}
-                          />
+                      {contest.facets.length > 0 ? (
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 sm:hidden">
+                          <ProblemBadgesSlot config={problem} offered={contest.facets} />
                         </div>
                       ) : null}
                     </td>
-                    {offered.length > 0 ? (
-                      <td className="hidden sm:table-cell">
-                        <div className="flex flex-wrap gap-1">
-                          <ProblemBadgesSlot
-                            config={problem}
-                            offered={offered}
-                          />
-                        </div>
+                    {selected ? null : (
+                      <td className="hidden md:table-cell">
+                        <Link
+                          href={contestHref(contest.slug)}
+                          className="text-fg-muted hover:text-fg text-xs transition-colors"
+                        >
+                          {contest.title}
+                        </Link>
                       </td>
-                    ) : null}
-                    {showProgress ? (
-                      <td>
-                        {preset ? (
-                          <Badge tone={preset.tone}>{preset.label}</Badge>
-                        ) : (
-                          <span className="text-fg-subtle text-xs">{mine?.state === "untouched" ? "未尝试" : mine?.state === "attempted" ? "尝试过" : mine?.state === "solved" ? "已通过" : "—"}</span>
-                        )}
+                    )}
+                    {offersFacets ? (
+                      <td className="hidden sm:table-cell">
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                          <ProblemBadgesSlot config={problem} offered={contest.facets} />
+                        </div>
                       </td>
                     ) : null}
                   </tr>
@@ -256,6 +273,8 @@ export async function ProblemListView({ params, searchParams }: Props) {
           </table>
         </TableFrame>
       )}
+
+      <Pagination path={path} params={filterParams} page={page} pages={pages} />
     </div>
   );
 }

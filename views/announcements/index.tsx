@@ -8,21 +8,17 @@ const formatter = dateFormatter({ dateStyle: "long" });
 export function AnnouncementListView() {
   const entries = publishedAnnouncements();
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
+    <div className="max-w-3xl space-y-5">
       <PageHeader title="公告" />
       {entries.length ? (
-        <ul className="ui-panel divide-y divide-border rounded-lg border border-border bg-surface">
+        <ul className="border-fg border-t">
           {entries.map((entry) => (
-            <li key={entry.slug} className="space-y-2 p-5">
-              <h2 className="text-base font-semibold break-words">
-                {entry.pinned && (
-                  <Badge tone="primary" className="mr-2">
-                    置顶
-                  </Badge>
-                )}
+            <li key={entry.slug} className="border-border space-y-1.5 border-b py-4">
+              <h2 className="flex flex-wrap items-baseline gap-2 text-base font-semibold break-words">
+                {entry.pinned && <Badge tone="primary">置顶</Badge>}
                 <Link
                   href={`/announcements/${entry.slug}`}
-                  className="hover:text-primary"
+                  className="underline-offset-2 hover:underline"
                 >
                   {entry.title}
                 </Link>
@@ -31,7 +27,7 @@ export function AnnouncementListView() {
                 {entry.summary}
               </p>
               <time
-                className="text-fg-subtle text-xs"
+                className="text-fg-subtle text-xs tabular-nums"
                 dateTime={entry.publishedAt}
               >
                 {formatter.format(new Date(entry.publishedAt))}

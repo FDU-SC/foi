@@ -12,6 +12,7 @@ import {
   submissions,
 } from "@/lib/db/schema";
 import { externallyJudged } from "@/lib/problems/registry";
+import { pairKey } from "@/lib/contests/types";
 import { scoredSubmissions } from "@/lib/standings/types";
 import { rejudgeSubmissions } from "@/lib/submissions/rejudge";
 import { withLockedRow } from "@/test/db-concurrency";
@@ -353,6 +354,7 @@ describeDb("runner 领取任务与上报", () => {
         .select({
           id: submissions.id,
           uid: submissions.uid,
+          contestSlug: submissions.contestSlug,
           problemSlug: submissions.problemSlug,
           state: submissions.state,
           result: submissions.result,
@@ -364,14 +366,17 @@ describeDb("runner 领取任务与上报", () => {
 
       const scored = scoredSubmissions({
         config: null,
-        contest: {
+        contests: [{
           slug: CONTEST,
           startsAt: new Date(Date.now() - 3_600_000),
           endsAt: new Date(Date.now() + 3_600_000),
-        },
+        }],
         problems: [],
         participants: [],
-        submissions: rows,
+        submissions: rows.map(({ problemSlug, ...row }) => ({
+          ...row,
+          problemKey: pairKey(row.contestSlug, problemSlug),
+        })),
       });
 
       expect(scored.map((row) => row.id)).toEqual([settled]);

@@ -62,7 +62,8 @@ export const contestConfigSchema = z
     description: z.string().optional(),
 
     /**
-     * The heading this contest sits under on the catalogue index.
+     * The direction this contest sits under in the catalogue's list sidebar.
+     * One gathering several contests is also a list of all their problems.
      *
      * A label the platform groups by and never interprets. Headings appear in
      * the order their first contest appears in `site.catalogue`, so the order
@@ -185,6 +186,15 @@ export type ContestClock = Pick<
 export type ContestSchedule = ContestClock & { afterEnd: ContestAfterEnd };
 
 export type Participants = ContestConfig["participants"];
+
+/**
+ * One string per (contest, problem) pair. A problem may sit in several
+ * contests, so anything spanning contests keys by the pair; slugs cannot
+ * contain `/`, which keeps the join unambiguous.
+ */
+export function pairKey(contestSlug: string, problemSlug: string): string {
+  return `${contestSlug}/${problemSlug}`;
+}
 
 /**
  * Whether someone falls inside the declared competitor set. This is the roster

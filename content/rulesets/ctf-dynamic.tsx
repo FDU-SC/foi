@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { AnimatedNumber } from "@/components/ui/animated-number";
 import {
   assignRanks,
+  elapsed,
   hasResult,
   submissionsInWindow,
   type Ruleset,
@@ -69,12 +69,7 @@ export function CtfCellView({ cell }: { cell: CtfCell | undefined }) {
 }
 
 export function CtfTotalView({ row }: { row: StandingsRow<CtfCell> }) {
-  return (
-    <AnimatedNumber
-      value={Math.round(row.total)}
-      className="text-fg font-mono font-semibold tabular-nums"
-    />
-  );
+  return <span className="text-fg font-semibold tabular-nums">{Math.round(row.total)}</span>;
 }
 
 import { ProblemGridBoard } from "@/content/_shared/leaderboards/problem-grid";
@@ -84,11 +79,10 @@ export const renderers = { Cell: CtfCellView, Total: CtfTotalView, Board: Proble
 export const ruleset: Ruleset<CtfCell> = {
   id: "ctf-dynamic",
   name: "CTF 动态分值",
-  description: "题目分值随解出人数衰减，前三名解出者获得一/二/三血加成。",
+  description: "分值随解出人数衰减，前三名有加成。",
 
   compute(input: StandingsInput) {
     const config = configSchema.parse(input.config ?? {});
-    const start = input.contest.startsAt.getTime();
 
     const cellsByUser = new Map<number, Record<string, CtfCell>>();
     for (const participant of input.participants) {
@@ -103,7 +97,7 @@ export const ruleset: Ruleset<CtfCell> = {
     for (const submission of submissionsInWindow(input)) {
       if (!cellsByUser.has(submission.uid)) continue;
 
-      const key = `${submission.uid}:${submission.problemSlug}`;
+      const key = `${submission.uid}:${submission.problemKey}`;
       if (solvedKeys.has(key)) continue;
 
       if (!hasResult(submission)) {
@@ -115,24 +109,24 @@ export const ruleset: Ruleset<CtfCell> = {
       if (!isAccepted(submission)) continue;
 
       solvedKeys.add(key);
-      const list = solves.get(submission.problemSlug) ?? [];
+      const list = solves.get(submission.problemKey) ?? [];
       list.push({
         uid: submission.uid,
-        at: submission.createdAt.getTime() - start,
+        at: elapsed(input, submission),
       });
-      solves.set(submission.problemSlug, list);
+      solves.set(submission.problemKey, list);
     }
 
     for (const problem of input.problems) {
-      const list = (solves.get(problem.slug) ?? []).sort((a, b) => a.at - b.at);
+      const list = (solves.get(problem.key) ?? []).sort((a, b) => a.at - b.at);
       const value = decayedValue(config, list.length);
 
       list.forEach((solve, index) => {
         const cells = cellsByUser.get(solve.uid);
         if (!cells) return;
         const bonus = config.bloodBonus[index] ?? 0;
-        const key = `${solve.uid}:${problem.slug}`;
-        cells[problem.slug] = {
+        const key = `${solve.uid}:${problem.key}`;
+        cells[problem.key] = {
           score: value * (1 + bonus),
           solvedAt: solve.at,
           blood: index < config.bloodBonus.length ? index + 1 : null,

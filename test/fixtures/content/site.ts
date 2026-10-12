@@ -20,5 +20,5 @@ export const site: SiteConfig = {
 
   passwordMinLength: 8,
 
-  homeEntries: [{ href: "/contests", title: "比赛", description: "浏览比赛。" }],
+  homeEntries: [{ href: "/contests", title: "比赛" }],
 };

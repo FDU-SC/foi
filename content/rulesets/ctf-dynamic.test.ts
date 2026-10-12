@@ -10,10 +10,10 @@ function compute(options: Parameters<typeof input>[0]) {
 function cell(
   standings: ReturnType<typeof compute>,
   uid: number,
-  slug: string,
+  key: string,
 ): CtfCell | undefined {
   const row = standings.rows.find((entry) => entry.participant.uid === uid);
-  return row?.cells[slug] as CtfCell | undefined;
+  return row?.cells[key] as CtfCell | undefined;
 }
 
 const problems = [problem("a", "A"), problem("b", "B")];

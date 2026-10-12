@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { carried, readAll, readOne, toggled, withParam } from "./query";
+import { carried, queryString, readAll, readOne, toggled, withParam, without } from "./query";
 
 describe("读参数", () => {
   it("缺席的键读出 undefined 和空数组", () => {
@@ -81,5 +81,19 @@ describe("carried", () => {
     expect(carried({ q: undefined, t: "x" })).toEqual([
       { name: "t", value: "x" },
     ]);
+  });
+});
+
+describe("queryString", () => {
+  it("原样拼出查询串，没有参数时是空串", () => {
+    expect(queryString({ q: "a b", t: ["x", "y"], none: undefined })).toBe("?q=a+b&t=x&t=y");
+    expect(queryString({})).toBe("");
+  });
+});
+
+describe("without", () => {
+  it("去掉指定的键，别的键与取值原样留着", () => {
+    expect(without({ q: "a", page: "3", t: ["x", "y"] }, "page")).toEqual({ q: "a", t: ["x", "y"] });
+    expect(without({ q: "a" }, "page", "section")).toEqual({ q: "a" });
   });
 });

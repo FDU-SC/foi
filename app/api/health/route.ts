@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const gated = guardRequest(request, "GET /api/health");
+  const gated = await guardRequest(request, "GET /api/health");
   if (gated) return gated;
 
   try {
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     );
   } catch (error) {
 
-    log.error("健康检查失败：数据库不可达", error);
+    log.error({ err: error }, "健康检查失败：数据库不可达");
     return NextResponse.json(
       { ok: false, database: "down" },
       { status: 503, headers: { "cache-control": "no-store" } },

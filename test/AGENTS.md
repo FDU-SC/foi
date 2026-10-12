@@ -77,9 +77,9 @@ in — one limits entry to a group and overrides a rate limit, one runs whatever
 the clock says so route tests can reach it, one is visible to nobody, one has
 not started, and three have ended one way each: readable and closed, readable
 and still collecting, sealed. One problem is externally judged with a declared
-action, one is inline, and the ruleset implements the freeze contract. Add a
-shape when a new kernel test needs one, and add the matching assertion to
-`fixture.test.ts` so the next editor learns why it exists.
+action, one is inline, and the ruleset accepts masked results. Add a shape when
+a kernel behavior test needs it; require it in that test or its shape helper.
+Keep `fixture.test.ts` focused on content redirection and import boundaries.
 
 Three of those contests are catalogued, across two `domain` headings, so both a
 heading holding one card and a heading holding two are covered — and two of them

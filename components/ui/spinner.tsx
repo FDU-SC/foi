@@ -12,7 +12,7 @@ export function Spinner({ className }: { className?: string }) {
       viewBox="0 0 24 24"
       fill="none"
       aria-hidden
-      className={cn("size-3.5 animate-spin", className)}
+      className={cn("size-3.5 motion-safe:animate-spin", className)}
     >
       <circle
         cx="12"

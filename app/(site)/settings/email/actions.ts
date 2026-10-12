@@ -16,6 +16,7 @@ import { sendEmailChangeLink } from "@/lib/mail/notify";
 import { rateLimitBySource, sourceFrom } from "@/lib/ratelimit";
 import { ACTION_LIMITS } from "@/lib/ratelimit/policy";
 import { verifyToken } from "@/lib/tokens/stateless";
+import { parseInput } from "@/lib/validation";
 
 export interface EmailChangeState {
   error?: string;
@@ -32,12 +33,12 @@ export async function requestEmailChangeAction(
 ): Promise<EmailChangeState> {
   const viewer = await requireSelf("account.changeEmail");
 
-  const parsed = emailChangeSchema.safeParse({
-    newEmail: formData.get("newEmail"),
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "请填写有效的邮箱地址" };
-  }
+  const parsed = parseInput(
+    emailChangeSchema,
+    { newEmail: formData.get("newEmail") },
+    "请填写有效的邮箱地址",
+  );
+  if (!parsed.ok) return { error: parsed.error };
 
   const newEmail = normalizeEmail(parsed.data.newEmail, {
     stripSubaddress: enrollmentPolicy.stripSubaddress,
@@ -56,12 +57,7 @@ export async function requestEmailChangeAction(
   }
 
   const rule = ACTION_LIMITS.requestEmailChangeAction;
-  const limit = rateLimitBySource(
-    "email-change",
-    sourceFrom(await headers()),
-    rule.max,
-    rule.windowSeconds * 1000,
-  );
+  const limit = await rateLimitBySource("email-change", sourceFrom(await headers()), rule);
   if (!limit.ok) {
     return { error: "请求过于频繁，请稍后再试。" };
   }
@@ -78,11 +74,11 @@ export async function requestEmailChangeAction(
       fp,
     );
   } catch (error) {
-    log.error("换绑邮箱邮件发送失败", error);
+    log.error({ err: error }, "换绑邮箱邮件发送失败");
     return { error: "邮件发送失败，请稍后再试。" };
   }
 
-  return { message: `验证链接已发送到 ${newEmail}，请查收并点击确认。` };
+  return { message: `验证链接已发送到 ${newEmail}。` };
 }
 
 export interface ConfirmEmailChangeState {
@@ -96,17 +92,16 @@ export async function confirmEmailChangeAction(
   const viewer = await requireSelf("account.changeEmail");
 
   const rule = ACTION_LIMITS.confirmEmailChangeAction;
-  const limit = rateLimitBySource(
+  const limit = await rateLimitBySource(
     "email-change-confirm",
     sourceFrom(await headers()),
-    rule.max,
-    rule.windowSeconds * 1000,
+    rule,
   );
   if (!limit.ok) {
     return { error: "请求过于频繁，请稍后再试。" };
   }
 
-  const payload = verifyToken(token, "email-change");
+  const payload = await verifyToken(token, "email-change");
   if (!payload) {
     return { error: "链接无效或已过期，请重新申请。" };
   }
@@ -122,7 +117,7 @@ export async function confirmEmailChangeAction(
 
   const fp = await getEmailFingerprint(viewer.uid);
   if (!fp || fp !== payload.fp) {
-    return { error: "链接已失效（邮箱已被修改），请重新申请。" };
+    return { error: "链接已失效。" };
   }
 
   if (await findAccountByEmail(data.newEmail)) {

@@ -51,10 +51,10 @@ export async function AdminContestsView() {
         <span>比赛</span>
       </nav>
 
-      <h1 className="text-fg text-2xl font-bold tracking-tight">比赛</h1>
+      <h1 className="text-fg text-xl font-bold">比赛</h1>
 
       {all.length === 0 ? (
-        <p className="text-fg-muted border-border bg-surface rounded-lg border py-10 text-center text-sm">
+        <p className="text-fg-muted border-border border-y py-10 text-center text-sm">
           还没有比赛。
         </p>
       ) : (
@@ -69,7 +69,7 @@ export async function AdminContestsView() {
                   <span className="flex flex-wrap items-center gap-2">
                     <Link
                       href={contestHref(contest.slug)}
-                      className="hover:text-primary transition-colors"
+                      className="hover:text-fg transition-colors"
                     >
                       {contest.title}
                     </Link>
@@ -95,7 +95,7 @@ export async function AdminContestsView() {
                 actions={
                   <Link
                     href={standingsHref(contest.slug)}
-                    className="text-fg-subtle hover:text-primary text-xs transition-colors"
+                    className="text-fg-subtle hover:text-fg text-xs transition-colors"
                   >
                     排行榜
                   </Link>

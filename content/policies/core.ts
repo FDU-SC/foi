@@ -10,10 +10,11 @@ export const policies = [
   policy({
     id: "self-service",
     effect: "permit",
-    describe: "每个人都可以改自己的昵称、头像、用户名、邮箱与密码",
+    describe: "每个人都可以改自己的昵称、头像、简介、用户名、邮箱与密码",
     action: [
       "account.changeNickname",
       "account.changeAvatar",
+      "account.changeBio",
       "account.changeUsername",
       "account.changeEmail",
       "account.changePassword",
@@ -29,6 +30,14 @@ export const policies = [
   }),
 
   policy({
+    id: "public-activity",
+    effect: "permit",
+    describe: "登录用户可以查看选手的做题统计与比赛记录，提交内容与评测详情不在其中",
+    action: "account.readActivity",
+    principal: { authenticated: true },
+  }),
+
+  policy({
     id: "own-submissions",
     effect: "permit",
     describe: "允许用户查看自己的提交内容与评测结果",
@@ -39,14 +48,14 @@ export const policies = [
   policy({
     id: "registration-open",
     effect: "permit",
-    describe: "允许注册账号，邮箱域名仍受注册规则限制",
+    describe: "允许注册账号",
     action: "account.register",
   }),
 
   policy({
     id: "password-recovery",
     effect: "permit",
-    describe: "已经验证过邮箱的账号可以自助找回密码，请求的人不必是本人",
+    describe: "邮箱已验证的账号可以找回密码",
     action: "account.sendPasswordReset",
     when: ({ resource }) => resource.emailVerified,
   }),
@@ -54,7 +63,7 @@ export const policies = [
   policy({
     id: "password-reset-by-link",
     effect: "permit",
-    describe: "允许通过找回链接重置账号密码，链接验证由重置流程完成",
+    describe: "允许凭找回链接重置密码",
     action: "account.resetPassword",
   }),
 ];

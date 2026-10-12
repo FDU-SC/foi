@@ -31,7 +31,6 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
-  ],
+    "**/*.mts", "content/problems/lu/statement.mdx"  ],
   "exclude": ["node_modules"]
 }

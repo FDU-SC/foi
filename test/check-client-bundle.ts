@@ -22,6 +22,12 @@ collect(root);
 const STRUCTURAL = [
   { label: "外挂后端配置 (backend.id)", pattern: /backend:\{id:"/ },
   { label: "内联判题配置 (backend.kind)", pattern: /backend:\{kind:"inline"/ },
+  // Every file a problem ships under `code/` reaches the server bundle through
+  // tools/judge-file-loader.cjs, which tags its output with this prefix. So one
+  // occurrence here means a problem's makefile, driver or testdata crossed into
+  // the browser — and it is the only marker below that also catches a *binary*
+  // asset, whose bytes would not match any extracted text string.
+  { label: "题目判题文件 (code/)", pattern: /foi-judge-file:base64:/ },
 ];
 
 // ------------------------------------------------------------------

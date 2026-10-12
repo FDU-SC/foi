@@ -1,0 +1,70 @@
+import { Callout } from "@/content/_shared/mdx/callout";
+import { Constraints } from "@/content/_shared/mdx/constraints";
+import { SubmitPanel } from "@/content/_shared/ui/submit-panel";
+import { CodeInput } from "@/content/_shared/ui/code-input";
+
+<Constraints time="30 s" memory="不设上限" extra={{ 语言: "CUDA C++（nvcc）", 评测: "GPU 上精确比对", 设备: "评测机自带一张卡" }} />
+
+## 题目描述
+
+给定两个长度为 $n$ 的 `float` 数组 $a$、$b$，求 $c_i = a_i + b_i$。
+
+**你只需要实现一个函数**，评测驱动会自己准备数据、分配显存、调用它，再逐元素比对：
+
+```cpp title="kernel.cu"
+void launch_vector_add(const float* a, const float* b, float* c, int n);
+```
+
+`a`、`b`、`c` 都是**设备指针**——数据已经在显存里了，你负责把结果写进 `c`。
+`n` 不保证是块大小的整数倍。提交里只有这一个文件。
+
+## 评测方式
+
+- 评测机用 `nvcc -O2 -arch=native` 编译驱动与你的 `kernel.cu`（`-arch=native` 让
+  nvcc 按这台评测机的卡生成代码，你不需要指定架构）
+- 三个测试点：$n = 1000$、$n = 4194304$、$n = 16777219$，分别值 20、30、50 分
+- **精确比对**：数据取成和能被 `float` 精确表示，所以 `c[i]` 必须与 `a[i] + b[i]`
+  完全相等，没有容差
+- 驱动会先把 `c` 整块填成 NaN 字节；没被写到的位置一定判错，不会因为显存里
+  恰好留着旧数据而蒙混过去
+- 三个测试点各跑一次，互不影响，每一份都从 0 分重新算
+
+<Callout kind="warning" title="不要写 main">
+
+驱动里已经有 `main` 了。提交里再定义一个会链接失败，评测机会在编译前就拒绝它，
+并告诉你"本题只提交实现"。提交内容只有 `kernel.cu` 一个文件。
+
+</Callout>
+
+<Callout kind="tip" title="起手式">
+
+```cpp title="kernel.cu"
+__global__ void add(const float* a, const float* b, float* c, int n) {
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < n) c[i] = a[i] + b[i];
+}
+
+void launch_vector_add(const float* a, const float* b, float* c, int n) {
+  add<<<(n + 255) / 256, 256>>>(a, b, c, n);
+}
+```
+
+`if (i < n)` 是这道题真正的考点：$n = 1000$ 和 $n = 16777219$ 都不是 256 的整数倍，
+漏掉边界检查最后一段元素就会保持 NaN。启动配置非法（比如每块 2048 个线程，超过
+任何一张卡的上限）会得到运行错误而不是分数。
+
+</Callout>
+
+<Callout kind="note" title="这道题也在测评测链路">
+
+它是本分区第一道 GPU 题，同时用来验证评测链路本身。所以：
+
+- 看到**「评测中断」**而不是分数，多半不是你的代码——可能当前没有评测机在领这一类
+  任务（那台机器没起来，或平台上还没登记它）
+- 看到**编译错误**且报错里出现 `nvcc`、`GPU` 或架构字样，则是那台评测机没有卡
+  （容器没带 `--gpus all`），或镜像里没装 CUDA 工具链
+- 这两种情况都不计入成绩，修好评测机后重新提交即可
+
+</Callout>
+
+<SubmitPanel><CodeInput /></SubmitPanel>

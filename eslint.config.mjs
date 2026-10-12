@@ -19,8 +19,10 @@ const eslintConfig = defineConfig([
     },
   },
   {
-
-    files: ["scripts/**/*.cjs"],
+    // `.cjs` 里 require 是唯一写法（写 import 会直接语法报错），而 Turbopack 正是用
+    // require 加载 loader 文件的，所以这条规则对 CommonJS 文件永远没有意义。
+    // 按后缀而不是按目录开豁免：这个坑先在 scripts/ 踩过，又在 tools/ 踩了一次。
+    files: ["**/*.cjs"],
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
 

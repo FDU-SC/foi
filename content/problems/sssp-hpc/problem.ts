@@ -40,25 +40,25 @@ const files = judgeFiles(
  */
 const CASES = [
   {
-    name: "1e5 点 / 2e5 边",
-    argv: ["./sssp", "100000", "200000", "42", "10", "10", "5"],
-    threads: 16,
-    timeLimitMs: 30000,
-    maxScore: 20,
-  },
-  {
-    name: "1e5 点 / 1e6 边",
-    argv: ["./sssp", "100000", "1000000", "42", "5", "15", "60"],
-    threads: 16,
-    timeLimitMs: 30000,
-    maxScore: 20,
-  },
-  {
     name: "1e6 点 / 2e6 边",
-    argv: ["./sssp", "1000000", "2000000", "42", "5", "5", "1200"],
+    argv: ["./sssp", "1000000", "2000000", "42", "10", "120"],
     threads: 16,
     timeLimitMs: 60000,
     maxScore: 10,
+  },
+  {
+    name: "1e7 点 / 2e7 边",
+    argv: ["./sssp", "10000000", "20000000", "42", "20", "1000"],
+    threads: 16,
+    timeLimitMs: 30000,
+    maxScore: 20,
+  },
+  {
+    name: "1e7 点 / 1e7 边",
+    argv: ["./sssp", "10000000", "10000000", "42", "20", "700"],
+    threads: 16,
+    timeLimitMs: 30000,
+    maxScore: 20,
   },
 ];
 
@@ -76,11 +76,11 @@ export const problem = {
         target: "all",
         artifact: "sssp",
         wallMs: 120000,
-        memoryMb: 2048,
+        memoryMb: 4096,
         threads: 16,
       },
       run: {
-        argv: ["./sssp", "100000", "200000", "42", "10", "10", "5"],
+        argv: ["./sssp", "1000000", "2000000", "42", "20", "5000"],
       },
       result: { required: true },
       cases: CASES.map((item) => ({
@@ -91,10 +91,10 @@ export const problem = {
         maxScore: item.maxScore,
       })),
       seed: 42,
-      memoryLimitMb: 1024,
+      memoryLimitMb: 4096,
       // 每线程 32 MB 栈，足以覆盖深递归解法。判题机据此推导地址空间
       // （1024 + 16×32 + 16 = 1552 MB），所以栈一定装得下。
-      stackLimitMb: 32,
+      stackLimitMb: 128,
     },
   },
   ui: {

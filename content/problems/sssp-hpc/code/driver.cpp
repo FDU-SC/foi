@@ -6,6 +6,8 @@
 #include <queue>
 #include <random>
 #include <vector>
+#include <omp.h>
+#include <iostream>
 
 const uint64_t MAX_WEIGHT = 1e7;
 const uint64_t INF = 1e18;
@@ -66,18 +68,25 @@ static void reference(uint32_t n, uint32_t m, const std::vector<uint32_t> &edges
     }
 }
 
+void setup_omp_env() {\
+    putenv((char*)"OMP_NUM_THREADS=16");
+    putenv((char*)"OMP_PROC_BIND=close");
+    putenv((char*)"OMP_PLACES=cores");
+    putenv((char*)"OMP_SCHEDULE=static");
+}
+
 int main(int argc, char **argv) {
-    if (argc != 7) {
-        fprintf(stderr, "usage: %s <n> <m> <seed> <base> <perf> <goal_ms>\
+    setup_omp_env();
+    if (argc != 6) {
+        fprintf(stderr, "usage: %s <n> <m> <seed> <maxscore> <goal_ms>\
 ", argv[0]);
         return 2;
     }
     uint32_t n = (uint32_t)strtoul(argv[1], nullptr, 10);
     uint32_t m = (uint32_t)strtoul(argv[2], nullptr, 10);
     uint32_t seed = (uint32_t)strtoul(argv[3], nullptr, 10);
-    int base = atoi(argv[4]);
-    int perf = atoi(argv[5]);
-    double goal_ms = atof(argv[6]);
+    int maxscore = atoi(argv[4]);
+    double goal_ms = atof(argv[5]);
 
     std::vector<uint32_t> edges((size_t)m * 3);
     random_edges(n, m, seed, edges);
@@ -106,18 +115,20 @@ int main(int argc, char **argv) {
         printf("FOI_RESULT {\"score\":0,\"maxScore\":%d,\"status\":\"wrong_answer\","
                "\"message\":\"%zu/%u 个距离不对，首个是 dis[%u]=%llu（应为 %llu）\"}\
 ",
-               base + perf, wrong, n, first_bad, (unsigned long long)mine[first_bad],
+               maxscore, wrong, n, first_bad, (unsigned long long)mine[first_bad],
                (unsigned long long)want[first_bad]);
         return 0;
     }
 
     double ratio = goal_ms > 0 ? goal_ms / (time_ms > 0 ? time_ms : goal_ms) : 0.0;
     if (ratio > 1.0) ratio = 1.0;
-    int score = base + (int)(perf * ratio);
+    int score = (int)round(exp(log((double)maxscore) * ratio));
+    score = std::min(score, (int)maxscore);
+    score = std::max(score, 0);
     printf("FOI_RESULT {\"score\":%d,\"maxScore\":%d,\"status\":\"%s\","
            "\"message\":\"n=%u m=%u，耗时 %.1f ms（goal %.1f ms）\"}\
 ",
-           score, base + perf, score >= base + perf ? "accepted" : "partial",
+           score, maxscore, score >= maxscore ? "accepted" : "partial",
            n, m, time_ms, goal_ms);
     return 0;
 }

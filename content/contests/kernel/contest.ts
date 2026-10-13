@@ -5,8 +5,8 @@ import type { ContestConfigInput } from "@/lib/contests/types";
  *
  * Most of its problems are scored against a baseline rather than checked for
  * correctness alone. Each one ships its own driver through the `interactive`
- * backend — or, for the GPU problem, through `interactive-cuda-12-8`, which is
- * the same judge in an image carrying nvcc 12.8 — so the baseline, the scoring
+ * backend; the GPU problem uses the same queue, since that image carries nvcc 12.8
+ * as well — so the baseline, the scoring
  * formula and the compile flags all live in the problem's own config.
  *
  * `vadd` is the section's entry point and the exception: correctness only, no

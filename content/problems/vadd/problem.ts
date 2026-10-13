@@ -14,7 +14,7 @@ import type { ProblemConfigInput } from "@/lib/problems/types";
  *
  * 三个与卡绑定的前提，缺一样都跑不起来：
  *  - 评测机那台机必须有卡（容器带 --gpus all），并在平台上声明服务
- *    `interactive-cuda-12-8` 队列（见 content/backends.ts）；
+ *    `interactive` 队列——GPU 题与 CPU 题共用同一支队列，因为判题镜像里既有 nvcc 也有 g++（见 content/backends.ts）；
  *  - makefile 用 `nvcc -arch=native` 让 nvcc 自己问卡，同一道题在 5060 与 A800
  *    上都能编。判题机不向沙箱注入任何 GPU 变量，题目想知道卡就自己问设备；
  *  - `addressSpace: "unbounded"`：CUDA runtime 初始化时会映射整个统一地址空间，
@@ -117,7 +117,7 @@ export const problem = {
   title: "vadd · 向量加法",
   maxScore: 100,
   backend: {
-    id: "interactive-cuda-12-8",
+    id: "interactive",
     config: {
       files: [
         { path: "makefile", content: MAKEFILE },

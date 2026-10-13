@@ -32,5 +32,4 @@ export const backends: Record<string, ProblemBackend> = {
    * 没有 URL，和 interactive 一样：它们都是主动来领活的，平台不需要知道地址。
    * 密钥取 FOI_BACKEND_INTERACTIVE_CUDA_12_8_SECRET，未设置时回落到 FOI_BACKEND_SECRET。
    */
-  "interactive-cuda-12-8": fromEnv("interactive-cuda-12-8"),
 };

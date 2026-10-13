@@ -43,6 +43,13 @@
       "when": 1790419006516,
       "tag": "0005_profile_bio",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791892964413,
+      "tag": "0006_parched_leader",
+      "breakpoints": true
     }
   ]
 }

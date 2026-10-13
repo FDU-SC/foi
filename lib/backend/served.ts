@@ -1,3 +1,4 @@
+import { libraryGeneration } from "@/lib/problems/library";
 import { externallyJudged } from "@/lib/problems/registry";
 
 /**
@@ -6,26 +7,37 @@ import { externallyJudged } from "@/lib/problems/registry";
  * Kept apart from `access.ts` so the policy engine can read it while deciding
  * whether someone may know a backend exists. Inline judges never appear here —
  * they run in-process and have no backend to expose.
+ *
+ * Rebuilt when the set of authored problems changes, for the same reason the
+ * (contest, problem) index is: an authored problem is loaded at runtime and a
+ * backend it routes to must not go on looking unused.
  */
 
-function buildIndex(): Map<string, string[]> {
-  const index = new Map<string, string[]>();
-
-  for (const problem of externallyJudged()) {
-    const slugs = index.get(problem.backend.id);
-    if (slugs) slugs.push(problem.slug);
-    else index.set(problem.backend.id, [problem.slug]);
-  }
-
-  return index;
+interface BackendIndex {
+  generation: number;
+  byBackend: Map<string, string[]>;
 }
 
-const problemsByBackend = buildIndex();
+let cached: BackendIndex | null = null;
+
+function index(): BackendIndex {
+  const generation = libraryGeneration();
+  if (cached?.generation === generation) return cached;
+
+  const byBackend = new Map<string, string[]>();
+  for (const problem of externallyJudged()) {
+    const slugs = byBackend.get(problem.backend.id);
+    if (slugs) slugs.push(problem.slug);
+    else byBackend.set(problem.backend.id, [problem.slug]);
+  }
+
+  return (cached = { generation, byBackend });
+}
 
 export function problemsServedBy(backendId: string): string[] {
-  return problemsByBackend.get(backendId) ?? [];
+  return index().byBackend.get(backendId) ?? [];
 }
 
 export function servingBackendIds(): string[] {
-  return [...problemsByBackend.keys()];
+  return [...index().byBackend.keys()];
 }

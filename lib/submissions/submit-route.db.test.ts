@@ -412,7 +412,7 @@ describeDb("提交的幂等键", () => {
     expect(created.queue).toMatchObject({ state: "queued" });
     expect(Object.keys(created).sort()).toEqual([
       "id", "problemSlug", "contestSlug", "state", "result", "detail", "reason",
-      "runnerStatus", "createdAt", "judgedAt", "queue",
+      "runnerStatus", "viewsPreset", "createdAt", "judgedAt", "queue",
     ].sort());
     const poll = () => getSubmission(
       new Request(`http://localhost:3000/api/submissions/${created.id}`),

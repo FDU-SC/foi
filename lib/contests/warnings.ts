@@ -7,7 +7,7 @@ import {
   STANDINGS_SEGMENT,
 } from "./catalogue";
 import { orphanedProblems } from "./refs";
-import { allContests, catalogueContests, contestBySlug } from "./registry";
+import { allContests, catalogueContests, contestBySlug, contestProblemsOf } from "./registry";
 
 /**
  * Report problems absent from every contest: they have no URL or submission entry.
@@ -32,7 +32,7 @@ export function orphanedProblemComplaints(): string[] {
  */
 export function catalogueComplaints(): string[] {
   const shadowing = catalogueContests().flatMap((contest) => {
-    const shadowed = contest.problems.some(
+    const shadowed = contestProblemsOf(contest).some(
       (entry) => entry.slug === STANDINGS_SEGMENT,
     );
     if (!shadowed) return [];

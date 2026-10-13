@@ -1,1 +1,10 @@
 pnpm-lock.yaml linguist-generated
+
+# Judge sources are handed to a Linux judge byte for byte, so their line endings
+# are part of what the problem means. A CRLF checkout would put a `\r` at the end
+# of every makefile recipe line — where POSIX shells fold it into the last
+# argument rather than treating it as whitespace, so `rm -f sssp` would look for
+# a file literally named "sssp\r". Pin these to LF so every platform checks out
+# the same bytes, and so a Windows editor cannot quietly introduce CRLF.
+content/problems/*/code/* text eol=lf
+

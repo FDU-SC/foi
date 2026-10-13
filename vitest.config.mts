@@ -95,6 +95,10 @@ export default defineConfig({
           include: DB_ONLY,
           exclude: [...NOT_SOURCE, ...ANY_DEPLOYMENT, ...TOOLS],
 
+          // The suite runs against whatever database `DATABASE_URL` names, so it
+          // puts back the mirror rows it had to create. See test/db-mirrors.ts.
+          globalSetup: ["./test/db-mirrors.ts"],
+
           fileParallelism: false,
         },
       },

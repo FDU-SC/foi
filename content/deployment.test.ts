@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { authoring, listPresets, listUiFields, presetViews } from "@/lib/authoring/registry";
 import type { ActionId } from "@/lib/authz/actions";
 import { allows, authorize } from "@/lib/authz/engine";
 import { listGroups } from "@/lib/authz/groups";
@@ -18,6 +19,7 @@ import { allProblems, externallyJudged } from "@/lib/problems/registry";
 import { backends } from "@/lib/backend/registry";
 import { undeclaredBackends } from "@/lib/backend/access";
 import { viewsFor } from "@/lib/problems/views";
+import { problemFacets } from "@/content/_shared/ui/problem-facets";
 import { listRulesets } from "@/lib/standings/registry";
 import { viewerFor } from "@/lib/authz/viewer";
 import { viewerWith } from "@/test/content-shapes";
@@ -88,6 +90,52 @@ describe("这套 content 自身自洽", () => {
       (problem) => viewsFor(problem.slug).PayloadView !== undefined,
     );
     expect(declared.length, "没有一道题拿到渲染，八成是 glob 没扫到").toBeGreaterThan(0);
+  });
+});
+
+/**
+ * 在线出题：表单只收集，平台不解释。所以"这套部署允许写哪些展示字段"、
+ * "在线出的题由哪个后端评测"、"每个 preset 渲染成什么样"都必须是自洽的，
+ * 否则出题人会在表单里填一个页面读不到的值。
+ */
+describe("在线出题的声明", () => {
+  it("在线出的题指向一个登记过的后端，否则库里的题没人领", () => {
+    expect(backends[authoring.authoredBackend]).toBeDefined();
+  });
+
+  it("facets 读的每个键都能在表单里填出来", () => {
+    // 反过来不成立：languages 与 placeholder 是提交框读的，不是筛选维度。
+    // 但 facets 读的键如果表单填不出来，筛选栏里就有一个永远空着的维度。
+    const offered = new Set(listUiFields().map((field) => field.key));
+
+    const facets = problemFacets({
+      slug: "probe",
+      title: "probe",
+      maxScore: 100,
+      submit: {},
+    });
+
+    expect(facets.length).toBeGreaterThan(0);
+    for (const facet of facets) {
+      expect(offered.has(facet.key), `facets 读了 "${facet.key}"，表单里却没有这个字段`).toBe(
+        true,
+      );
+    }
+  });
+
+  it("默认 preset 给得出提交内容的渲染与个人进度", () => {
+    const views = presetViews(null).views;
+
+    expect(views.PayloadView, "没有 PayloadView 的题目看不到提交内容").toBeDefined();
+    expect(views.progress, "没有 progress 的题目会让所在分区失去完成度与筛选").toBeDefined();
+    expect(views.describeResult, "没有 describeResult 的题目只会显示「已评测」").toBeDefined();
+  });
+
+  it("每个 preset 的 id 与说明都不为空", () => {
+    for (const preset of listPresets()) {
+      expect(preset.label.length).toBeGreaterThan(0);
+      expect(preset.description.length).toBeGreaterThan(0);
+    }
   });
 });
 

@@ -3,7 +3,7 @@ import { Constraints } from "@/content/_shared/mdx/constraints";
 import { SubmitPanel } from "@/content/_shared/ui/submit-panel";
 import { CodeInput } from "@/content/_shared/ui/code-input";
 
-<Constraints time="按测试点" memory="1 GB" extra={{ 线程: "16", 评测: "基数分 + 加速比", 题源: "hpcgame-problems-3rd" }} />
+<Constraints time="按测试点" memory="4 GB" extra={{ 线程: "16" }} />
 
 ## 题目描述
 
@@ -39,18 +39,13 @@ void calculate(uint32_t n, uint32_t m, uint32_t *edges, uint64_t *dis);
 
 ## 计分
 
-每个测试点独立计分：
-
-$$
-\text{score} = \text{base} + \text{perf} \times \min\left(1,\ \frac{\text{goal}}{\text{time}}\right)
-$$
+每个测试点独立计分：`min(maxscore, maxscore^(time/goal))`
 
 - **结果不正确 → 该测试点 0 分**，与快慢无关
 - `time` 是 `calculate()` 的耗时，不含造图与计时开销
-- `goal` 是拿满性能分的时间；跑得比它快不会超过 `perf`
-- 上限：`base + perf`
+- `goal` 是拿满分的时间；
 
-也就是说，**正确性是门槛**。正确但慢只会拿到 `base`，快过 `goal` 才拿满。
+也就是说，**正确性是门槛**。快过 `goal` 才拿满。
 
 <Callout kind="warning" title="注意">
 
@@ -62,14 +57,11 @@ $$
 
 ## 数据规模
 
-| 测试点 | $n$ | $m$ | 基数分 | 性能分 | 拿满性能分的时间 |
-| --- | --- | --- | --- | --- | --- |
-| 1 | $10^5$ | $2 \times 10^5$ | 10 | 10 | 5 ms |
-| 2 | $10^5$ | $10^6$ | 5 | 15 | 60 ms |
-| 3 | $10^6$ | $2 \times 10^6$ | 5 | 5 | 1200 ms |
-
-第二档虽然点数与第一档相同，但边多了五倍——**稀疏和稠密的最优写法不一样**，
-建议分别调优。
+| 测试点 | $n$ | $m$ | 满分 | 拿满分的时间 |
+| --- | --- | --- | --- | --- |
+| 1 | $10^6$ | $2 \times 10^6$ | 10 | 120 ms |
+| 2 | $10^7$ | $2 \times 10^7$ | 20 | 1000 ms |
+| 3 | $10^7$ | $10^7$ | 20 | 700 ms |
 
 <Callout kind="tip" title="优化思路">
 

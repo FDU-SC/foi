@@ -6,6 +6,8 @@ import {
 } from "@/content/_modules/problems";
 import { slugFromGlobPath } from "@/lib/slug-from-path";
 import { issueList } from "@/lib/validation";
+import { libraryProblem, libraryProblems, libraryStatement } from "./library";
+import { statementComponent } from "./statement";
 import {
   isInlineBackend,
   problemConfigSchema,
@@ -69,13 +71,19 @@ const statementLoaders = new Map<string, () => Promise<unknown>>(
 );
 
 /**
- * Every problem the deployment ships, in slug order.
+ * Every problem this deployment can reach, in slug order.
  *
  * Not a catalogue: a problem is reachable only through a contest that carries
  * it, so this is the raw inventory that boot checks and backend routing read.
+ *
+ * Repository problems win a slug collision, which an authored problem may not
+ * create anyway: publishing refuses a slug the repository already has.
  */
 export function allProblems(): ProblemConfig[] {
-  return [...registry.values()].sort((a, b) => a.slug.localeCompare(b.slug));
+  const merged = new Map<string, ProblemConfig>(libraryProblems());
+  for (const [slug, config] of registry) merged.set(slug, config);
+
+  return [...merged.values()].sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
 export function externallyJudged(): ExternallyJudged[] {
@@ -85,6 +93,17 @@ export function externallyJudged(): ExternallyJudged[] {
 }
 
 export function problemBySlug(slug: string): ProblemConfig | undefined {
+  return registry.get(slug) ?? libraryProblem(slug);
+}
+
+/**
+ * A problem that ships in the repository, as opposed to one authored here.
+ *
+ * Authoring asks this rather than `problemBySlug`, because a slug the repository
+ * already owns may not be taken by a row: the mirror that keeps `submissions`
+ * referable would overwrite whichever of the two it did not mean.
+ */
+export function filesystemProblem(slug: string): ProblemConfig | undefined {
   return registry.get(slug);
 }
 
@@ -92,7 +111,11 @@ export async function loadStatement(
   slug: string,
 ): Promise<ComponentType | null> {
   const load = statementLoaders.get(slug);
-  if (!load) return null;
-  const mod = (await load()) as { default?: ComponentType };
-  return mod.default ?? null;
+  if (load) {
+    const mod = (await load()) as { default?: ComponentType };
+    return mod.default ?? null;
+  }
+
+  const authored = libraryStatement(slug);
+  return authored === undefined ? null : statementComponent(authored);
 }

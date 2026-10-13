@@ -14,8 +14,8 @@ export const policies = [
   policy({
     id: "staff:console",
     effect: "permit",
-    describe: "进入运维台，查看评测机与评测队列",
-    action: ["admin.enter", "judge.readBoard"],
+    describe: "进入运维台，查看评测机与评测队列，在题库里出题",
+    action: ["admin.enter", "judge.readBoard", "problem.author"],
     principal: { group: STAFF },
   }),
 

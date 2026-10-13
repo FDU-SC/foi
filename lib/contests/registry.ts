@@ -1,10 +1,15 @@
 import { contestModules } from "@/content/_modules/contests";
 import { problemBySlug } from "@/lib/problems/registry";
+import { libraryLinksIn } from "@/lib/problems/library";
 import { slugFromGlobPath } from "@/lib/slug-from-path";
 import { rulesetFor } from "@/lib/standings/registry";
 import { issueList } from "@/lib/validation";
 import { catalogueSlugs } from "./catalogue";
-import { contestConfigSchema, type ContestConfig } from "./types";
+import {
+  contestConfigSchema,
+  type ContestConfig,
+  type ContestProblemConfig,
+} from "./types";
 
 function buildRegistry(): Map<string, ContestConfig> {
   const registry = new Map<string, ContestConfig>();
@@ -61,6 +66,40 @@ export function allContests(): ContestConfig[] {
 
 export function contestBySlug(slug: string): ContestConfig | undefined {
   return registry.get(slug);
+}
+
+/**
+ * The contest's problem list: what `contest.ts` declares, plus the problems
+ * authored here that were put in this contest.
+ *
+ * A contest is repository content, and an image that has been built cannot edit
+ * it. So an authored problem's belonging is a `problem_contests` row instead,
+ * appended after the declared entries in `position` order — the declared list
+ * keeps the order it was written in, and a new problem lands at the tail, which
+ * is where a catalogue's "newest" sort looks for it.
+ *
+ * This is the only merge point. Everything that builds a (contest, problem) pair
+ * reads the list through here, so an authored problem has exactly one URL, and
+ * removing it from a contest is deleting a row rather than editing a file.
+ */
+export function contestProblemsOf(
+  contest: ContestConfig,
+): ContestProblemConfig[] {
+  const links = libraryLinksIn(contest.slug);
+  if (links.length === 0) return contest.problems;
+
+  const declared = new Set(contest.problems.map((entry) => entry.slug));
+
+  return [
+    ...contest.problems,
+    ...links
+      .filter((link) => !declared.has(link.slug))
+      .map((link) =>
+        link.label === null
+          ? { slug: link.slug }
+          : { slug: link.slug, label: link.label },
+      ),
+  ];
 }
 
 /**

@@ -1,6 +1,7 @@
 import { accountSnapshot } from "@/lib/accounts/cache";
 import { groupsFor } from "@/lib/enrollment/registry";
 import { problemBySlug } from "@/lib/problems/registry";
+import { contestProblemsOf } from "./registry";
 import { matchesParticipants, type ContestConfig } from "./types";
 
 export interface ResolvedContestProblem {
@@ -16,7 +17,7 @@ export interface ResolvedContestProblem {
 export function resolveContestProblems(
   contest: ContestConfig,
 ): ResolvedContestProblem[] {
-  return contest.problems.flatMap((entry) => {
+  return contestProblemsOf(contest).flatMap((entry) => {
 
     const problem = problemBySlug(entry.slug);
     if (!problem) return [];

@@ -17,7 +17,7 @@ export interface PairSubmission extends ProgressSubmission {
 
 /** Whether this problem's content interprets progress at all. */
 export function interpretsProgress(ref: ContestProblemRef): boolean {
-  return viewsFor(ref.problem.slug).progress !== undefined;
+  return viewsFor(ref.problem.slug, ref.problem.viewsPreset).progress !== undefined;
 }
 
 /** Rows grouped into each pair's history, keyed by `pairKey`, in the order given. */
@@ -44,7 +44,7 @@ export function interpretProgress(
 ): Map<string, ProblemProgress> {
   const progress = new Map<string, ProblemProgress>();
   for (const ref of refs) {
-    const interpret = viewsFor(ref.problem.slug).progress;
+    const interpret = viewsFor(ref.problem.slug, ref.problem.viewsPreset).progress;
     if (!interpret) continue;
     const key = pairKey(ref.contest.slug, ref.problem.slug);
     progress.set(key, interpret(histories.get(key) ?? []));
@@ -60,7 +60,7 @@ export function solvingSubmission(
   ref: ContestProblemRef,
   history: readonly ProgressSubmission[],
 ): ProgressSubmission | undefined {
-  const interpret = viewsFor(ref.problem.slug).progress;
+  const interpret = viewsFor(ref.problem.slug, ref.problem.viewsPreset).progress;
   if (!interpret) return undefined;
   for (let end = 1; end <= history.length; end++) {
     if (interpret(history.slice(0, end)).state === "solved") return history[end - 1];

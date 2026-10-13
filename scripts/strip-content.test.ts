@@ -74,6 +74,24 @@ describe("内容移除后的保留文件由 lib/ 的 import 决定", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("入口用别名引到的 content 模块也留下", () => {
+    // 内容是可以用 `@/content/...` 别名引共享模板的（题面词表、出题词表、
+    // 示例题目都这么写）。只跟相对路径会把 _shared/ 整目录删掉，留下入口点
+    // 引着已经不存在的模块 —— 抽空后的类型检查就是这么红的。
+    const root = mkdtempSync(join(tmpdir(), "foi-strip-alias-"));
+    temporaryRoots.push(root);
+
+    // 拼出来而不是写出来，免得别的扫描器把这里的字面量当成真的 content 引用。
+    const alias = ["@", "content"].join("/");
+
+    writeFixture(root, "lib/registry.ts", `export { entry } from "${alias}/entry";`);
+    writeFixture(root, "content/entry.ts", `export { Callout } from "${alias}/_shared/callout";`);
+    writeFixture(root, "content/_shared/callout.ts", "export const Callout = true;");
+    writeFixture(root, "content/problems/demo.ts", "export const demo = true;");
+
+    expect([...keepIn("content", root)].sort()).toEqual(["_shared", "entry.ts"]);
+  });
+
   it("示例内容会被删掉，不是原样留着", () => {
     for (const root of CONTENT_ROOTS) {
       if (!existsSync(join(ROOT, root))) continue;

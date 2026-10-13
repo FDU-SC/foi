@@ -29,17 +29,40 @@ interface Accumulator {
 }
 
 /**
- * Both the registry and the view table are fixed at module load, so a problem's
- * facets never change and the content-side parse runs once per slug.
+ * A repository problem's `ui` is fixed at module load, so its facets are too.
+ * An authored problem's is edited live, so the memo is keyed on everything the
+ * answer depends on and the entry for a replaced value simply ages out.
+ *
+ * The key is derived once per config object: a problem list asks for its facets
+ * repeatedly while filtering, and re-serializing `ui` on every ask would make
+ * reading a list cost more than building it.
  */
 const cache = new Map<string, ProblemFacet[]>();
 
+const keys = new WeakMap<ProblemConfig, string>();
+
+const CACHE_LIMIT = 512;
+
+function cacheKey(config: ProblemConfig): string {
+  const held = keys.get(config);
+  if (held !== undefined) return held;
+
+  const key = `${config.slug}\u0000${config.viewsPreset ?? ""}\u0000${JSON.stringify(config.ui ?? null)}`;
+  keys.set(config, key);
+  return key;
+}
+
 function declaredFacets(config: ProblemConfig): ProblemFacet[] {
-  const hit = cache.get(config.slug);
+  const key = cacheKey(config);
+
+  const hit = cache.get(key);
   if (hit) return hit;
 
-  const facets = viewsFor(config.slug).facets?.(toPublicConfig(config)) ?? [];
-  cache.set(config.slug, facets);
+  const facets =
+    viewsFor(config.slug, config.viewsPreset).facets?.(toPublicConfig(config)) ?? [];
+
+  if (cache.size >= CACHE_LIMIT) cache.clear();
+  cache.set(key, facets);
   return facets;
 }
 

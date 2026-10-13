@@ -13,7 +13,19 @@ describe("结果显示", () => {
     const submission = { problemSlug: "opaque", state: "completed" as const, result };
     expect(renderToStaticMarkup(<VerdictBadge submission={submission} />)).toContain("CONTENT");
     expect(describeVerdict).toHaveBeenCalledTimes(1);
-    expect(describeVerdict).toHaveBeenCalledWith("opaque", result);
+    // 没有 preset 时也要原样传下去：署名自建 views 的题目靠它区分"没有 preset"与"预设是空"。
+    expect(describeVerdict).toHaveBeenCalledWith("opaque", result, undefined);
+  });
+  it("把题目选的展示 preset 一并交给解释器", () => {
+    vi.mocked(describeVerdict).mockClear();
+    const submission = {
+      problemSlug: "opaque",
+      state: "completed" as const,
+      result: 1,
+      viewsPreset: "fixture-bare",
+    };
+    renderToStaticMarkup(<VerdictBadge submission={submission} />);
+    expect(describeVerdict).toHaveBeenCalledWith("opaque", 1, "fixture-bare");
   });
   it("没有结果时使用提交生命周期状态", () => {
     vi.mocked(describeVerdict).mockClear();

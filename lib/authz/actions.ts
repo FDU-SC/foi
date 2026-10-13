@@ -160,6 +160,11 @@ export const ACTIONS = {
     describe: "进入运维台",
     denial: { code: "not-found", message: "页面不存在" },
   },
+  "problem.author": {
+    resource: "site",
+    describe: "新建、编辑、发布与下架题库中的题目",
+    denial: { code: "not-found", message: "页面不存在" },
+  },
   "judge.readBoard": {
     resource: "site",
     describe: "查看评测机与评测队列",

@@ -1,8 +1,5 @@
 import type { ContestConfigInput } from "@/lib/contests/types";
 
-/**
- * The CTF section for everything that is not Web, Pwn, Reverse, or Crypto.
- */
 export const contest = {
   slug: "misc",
   title: "Misc",

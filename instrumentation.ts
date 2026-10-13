@@ -34,6 +34,24 @@ export async function register() {
       log.info("数据库迁移已应用");
     }
 
+    // Problems authored in the console live in the database, and the registries
+    // that reach a problem are synchronous. Loading them once here is what puts
+    // them in front of every reader; publishing reloads them in the process that
+    // published, and this process looks again on its own timer in case another
+    // one did.
+    const { refreshLibrary, startLibraryRefresh } = await import("@/lib/problems/library");
+    await refreshLibrary();
+    startLibraryRefresh();
+
+    // The boot checks above ran before the library existed, so an authored
+    // problem is checked here instead. Losing its last contest — which happens
+    // when the repository drops the contest rather than when anyone edits the
+    // problem — leaves it with no URL, and that is worth saying at start-up
+    // rather than discovering as a 404.
+    const { log } = await import("@/lib/log");
+    const { orphanedProblemComplaints } = await import("@/lib/contests/warnings");
+    for (const complaint of orphanedProblemComplaints()) log.warn(complaint);
+
     const { startReaping } = await import("@/lib/runner/reaper");
 
     globalThis.__foiReaper?.();

@@ -71,7 +71,11 @@ export function SubmitPanel({ children }: { children: ReactNode }) {
 
         {submission?.detail ? (
           <div className="border-border mt-4 border-t pt-4">
-            <VerdictBody problemSlug={config.slug} detail={submission.detail} />
+            <VerdictBody
+              problemSlug={config.slug}
+              preset={config.viewsPreset}
+              detail={submission.detail}
+            />
           </div>
         ) : null}
 

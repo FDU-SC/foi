@@ -93,6 +93,12 @@ export const ROUTE_LIMITS = {
     guard: "same-origin",
   },
 
+  "POST /api/admin/problems/[slug]/files": {
+    max: 60,
+    windowSeconds: 3600,
+    guard: "same-origin",
+  },
+
   "POST /api/runner/jobs/request": {
     unlimited: true,
     why: "评测机无账号可计数；由 SOURCE_GATE 在读 body 与验签之前挡住",
@@ -204,6 +210,27 @@ export const ACTION_LIMITS = {
 
   rejudgeSubmissionAction: {
     max: 120,
+    windowSeconds: 3600,
+  },
+
+  createProblemAction: {
+    max: 30,
+    windowSeconds: 3600,
+  },
+  saveProblemAction: {
+    max: 240,
+    windowSeconds: 3600,
+  },
+  publishProblemAction: {
+    max: 60,
+    windowSeconds: 3600,
+  },
+  unpublishProblemAction: {
+    max: 60,
+    windowSeconds: 3600,
+  },
+  deleteProblemAction: {
+    max: 30,
     windowSeconds: 3600,
   },
 } as const satisfies Record<string, RateLimitRule>;

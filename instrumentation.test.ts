@@ -5,8 +5,13 @@ const mocks = vi.hoisted(() => ({
   assertBootConfiguration: vi.fn(),
   existsSync: vi.fn(),
   info: vi.fn(),
+  error: vi.fn(),
+  warn: vi.fn(),
   migrate: vi.fn(),
   prepareDeploymentMigrationJournal: vi.fn(),
+  refreshLibrary: vi.fn(),
+  startLibraryRefresh: vi.fn(),
+  libraryProblems: vi.fn(() => new Map<string, unknown>()),
   startReaping: vi.fn(),
 }));
 
@@ -26,7 +31,18 @@ vi.mock("@/lib/db/migration-journal", () => ({
   prepareDeploymentMigrationJournal: mocks.prepareDeploymentMigrationJournal,
 }));
 vi.mock("@/lib/db", () => ({ db }));
-vi.mock("@/lib/log", () => ({ log: { info: mocks.info } }));
+vi.mock("@/lib/log", () => ({
+  log: { info: mocks.info, warn: mocks.warn, error: mocks.error },
+}));
+vi.mock("@/lib/problems/library", () => ({
+  refreshLibrary: mocks.refreshLibrary,
+  startLibraryRefresh: mocks.startLibraryRefresh,
+  libraryProblems: mocks.libraryProblems,
+  libraryProblem: () => undefined,
+  libraryStatement: () => undefined,
+  libraryLinksIn: () => [],
+  libraryGeneration: () => 0,
+}));
 vi.mock("@/lib/runner/reaper", () => ({
   startReaping: mocks.startReaping,
 }));
@@ -51,6 +67,8 @@ describe("instrumentation 运行时隔离", () => {
     expect(mocks.assertBootConfiguration).not.toHaveBeenCalled();
     expect(mocks.prepareDeploymentMigrationJournal).not.toHaveBeenCalled();
     expect(mocks.migrate).not.toHaveBeenCalled();
+    expect(mocks.refreshLibrary).not.toHaveBeenCalled();
+    expect(mocks.startLibraryRefresh).not.toHaveBeenCalled();
     expect(mocks.startReaping).not.toHaveBeenCalled();
   });
 
@@ -77,6 +95,8 @@ describe("instrumentation 运行时隔离", () => {
       migrationsTable: "__drizzle_local_migrations",
     });
     expect(mocks.info).toHaveBeenCalledWith("数据库迁移已应用");
+    expect(mocks.refreshLibrary).toHaveBeenCalledOnce();
+    expect(mocks.startLibraryRefresh).toHaveBeenCalledOnce();
     expect(stopPrevious).toHaveBeenCalledOnce();
     expect(mocks.startReaping).toHaveBeenCalledWith(15_000);
     expect(globalThis.__foiReaper).toBe(stopCurrent);
@@ -96,5 +116,28 @@ describe("instrumentation 运行时隔离", () => {
       migrationsFolder: "drizzle",
       migrationsTable: "__drizzle_migrations",
     });
+  });
+
+  it("载入库中题目后，没有比赛的题在启动时说出来", async () => {
+    mocks.libraryProblems.mockReturnValueOnce(
+      new Map([
+        [
+          "authored-orphan",
+          {
+            slug: "authored-orphan",
+            title: "没有比赛的题",
+            maxScore: 100,
+            backend: { id: "fixture-backend" },
+            submit: {},
+          },
+        ],
+      ]),
+    );
+    vi.stubEnv("NEXT_RUNTIME", "nodejs");
+    vi.stubEnv("FOI_AUTO_MIGRATE", "false");
+
+    await register();
+
+    expect(mocks.warn.mock.calls.flat().join("\n")).toMatch(/authored-orphan/);
   });
 });

@@ -54,7 +54,7 @@ behaviour, and `lib/ratelimit/policy.test.ts` scans this tree for rate-limit cov
 
 The platform discovers content through fourteen entry points: the seven registries under `content/_modules/`, plus `content/site.ts`, `site-views.tsx`, `backends.ts`, `schema.ts`, `theme.css`, `authoring.ts` and `statements.tsx`. The `app/`, `views/` and `components/` layers NEVER import from `content/` directly — only `lib/` does, and only through those fourteen. `test/slots.test.ts` enforces it.
 
-`scripts/strip-content.ts` derives the content-free CI file list from those imports and follows their relative dependencies. Adding an entry point requires no separate list update.
+`scripts/strip-content.ts` derives the content-free CI file list from those imports and follows what each entry point reaches, by relative path or by the `@/content/...` alias — the alias is how content names the shared templates, so following only relative paths deletes `_shared/` and leaves the entry points that use it uncompilable. Adding an entry point requires no separate list update.
 
 Tests enforce the same boundary. The `unit` and `db` vitest projects resolve all fourteen to `test/fixtures/content/`, so a kernel test asserts what the platform does and never what a deployment happens to contain. Only the `deployment` project sees a deployment's own content — `content/` plus whatever a fork put in the slots. A fork may delete any group, problem or contest without turning the kernel suites red.
 

@@ -72,6 +72,14 @@ function within(file: string, directories: string[]): boolean {
  * Every file inside a content root the entry points reach, entry points
  * included. A fork's `_modules/` may point across roots at the upstream's
  * `_globs.ts`; that lands here too, because both roots count as inside.
+ *
+ * A reached file may name its own dependencies either way. The relative form is
+ * how the discovery files find each other; the `@/content/...` alias is how
+ * content names the shared templates — `content/statements.tsx` and
+ * `content/authoring.ts` both build themselves out of `_shared/`, and the sample
+ * problems do too. Following only the relative form deletes `_shared/` and
+ * leaves those entry points importing modules that are gone, which is a compile
+ * error in the tree this script exists to produce.
  */
 export function reachableFiles(root = ROOT): Set<string> {
   const roots = CONTENT_ROOTS.map((name) => join(root, name)).filter((path) =>
@@ -90,9 +98,18 @@ export function reachableFiles(root = ROOT): Set<string> {
 
     if (!PARSEABLE.test(file)) continue;
 
-    for (const [, specifier] of readFileSync(file, "utf8").matchAll(RELATIVE_IMPORT)) {
+    const source = readFileSync(file, "utf8");
+
+    for (const [, specifier] of source.matchAll(RELATIVE_IMPORT)) {
       const target = resolveFile(resolve(dirname(file), specifier!));
       if (target && within(target, roots)) queue.push(target);
+    }
+
+    for (const [, specifier] of source.matchAll(ENTRY_IMPORT)) {
+      for (const path of roots) {
+        const target = resolveFile(join(path, specifier!));
+        if (target) queue.push(target);
+      }
     }
   }
 

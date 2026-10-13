@@ -14,6 +14,12 @@ this directory; its edits go in the slots.
 | `deployment` | `content/` and every `.local` root | that deployment | whatever tsconfig resolves |
 | `tools` | `scripts/**/*.test.{ts,tsx}` | operator and demo-site tooling | not redirected — must not import it |
 
+`db` runs against whatever `DATABASE_URL` names, so it is also the project that
+has to put the database back: `test/db-mirrors.ts` is its `globalSetup`, and
+removes the `problems` / `contests` mirror rows the suite inserted for its
+foreign keys. A row that was already there, or that a submission points at, is
+left alone.
+
 `deployment` covers the sample as well as the slots. A fork that fills the
 content slot still inherits most of `content/` by fallback — its rulesets,
 judges, mail templates — and the tests beside those files still describe what
@@ -25,9 +31,9 @@ Tests a fork writes beside its own overrides — under `content.local/`,
 one deployment against its real content, which is the opposite of what a kernel
 test does. `test/content-roots.mjs` is the single list of slots.
 
-The redirect covers the twelve entry points the platform discovers content
+The redirect covers the fourteen entry points the platform discovers content
 through — the seven `_modules/` registries plus `site.ts`, `site-views.tsx`,
-`backends.ts`, `schema.ts` and `theme.css`.
+`backends.ts`, `schema.ts`, `theme.css`, `authoring.ts` and `statements.tsx`.
 
 Kernel tests must remain valid when deployments remove groups or contests.
 Assert deployment facts in `content/deployment.test.ts`, which the fork owns.

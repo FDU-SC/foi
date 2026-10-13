@@ -9,6 +9,7 @@ import {
   submissions,
 } from "@/lib/db/schema";
 import type { SubmissionRow } from "@/lib/db/schema";
+import { problemBySlug } from "@/lib/problems/registry";
 import type { SubmissionListItem, SubmissionView } from "./types";
 
 /**
@@ -48,6 +49,7 @@ export function toView(
     detail: row.detail ?? null,
     reason: failureReason({ state, error: row.error }),
     runnerStatus: row.state === "pending" ? queueInfo?.runnerStatus ?? null : null,
+    viewsPreset: problemBySlug(row.problemSlug)?.viewsPreset ?? null,
     createdAt: row.createdAt.toISOString(),
     judgedAt: row.judgedAt?.toISOString() ?? null,
     queue: null,

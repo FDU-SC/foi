@@ -10,14 +10,16 @@ function JsonDump({ value }: { value: unknown }) {
 
 export function PayloadBody({
   problemSlug,
+  preset,
   payload,
 }: {
   problemSlug: string;
+  preset?: string | null;
   payload: unknown;
 }) {
   if (payload === undefined || payload === null) return null;
 
-  const View = viewsFor(problemSlug).PayloadView;
+  const View = viewsFor(problemSlug, preset ?? undefined).PayloadView;
   if (View) return <View payload={payload} />;
 
   return <JsonDump value={payload} />;
@@ -25,14 +27,16 @@ export function PayloadBody({
 
 export function VerdictBody({
   problemSlug,
+  preset,
   detail,
 }: {
   problemSlug: string;
+  preset?: string | null;
   detail: unknown;
 }) {
   if (detail === undefined || detail === null) return null;
 
-  const Detail = viewsFor(problemSlug).VerdictDetail;
+  const Detail = viewsFor(problemSlug, preset ?? undefined).VerdictDetail;
   if (Detail) return <Detail detail={detail} />;
 
   return <JsonDump value={detail} />;

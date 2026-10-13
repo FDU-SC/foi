@@ -15,6 +15,15 @@ export interface SubmissionView {
 
   runnerStatus: string | null;
 
+  /**
+   * Which display preset interprets this problem's results.
+   *
+   * Absent for a problem that ships its own views, and null once no contest
+   * carries it any more. It travels with the submission because the browser
+   * reads results too, and it has no snapshot of the database to resolve from.
+   */
+  viewsPreset?: string | null;
+
   createdAt: string;
   judgedAt: string | null;
 

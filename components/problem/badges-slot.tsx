@@ -15,7 +15,7 @@ export function ProblemBadgesSlot({
   config: ProblemConfig;
   offered: readonly string[];
 }) {
-  const Badges = viewsFor(config.slug).Badges;
+  const Badges = viewsFor(config.slug, config.viewsPreset).Badges;
   if (!Badges || offered.length === 0) return null;
 
   return (

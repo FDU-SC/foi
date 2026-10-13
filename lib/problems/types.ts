@@ -94,6 +94,15 @@ export const problemConfigSchema = z.object({
     .default({}),
 
   ui: z.unknown().optional(),
+
+  /**
+   * Which built-in display preset renders this problem.
+   *
+   * A repository problem has its own `views.tsx` and names none. An authored one
+   * has no module to render it, so it names one of the deployment's presets, and
+   * the name travels with the problem because the browser resolves views too.
+   */
+  viewsPreset: z.string().min(1).optional(),
 });
 
 export type ProblemConfig = z.infer<typeof problemConfigSchema>;

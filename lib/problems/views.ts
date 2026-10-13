@@ -1,5 +1,6 @@
 import type { SubmissionRecordState } from "@/lib/backend/types";
 import type { ComponentType } from "react";
+import { presetViews } from "@/lib/authoring/registry";
 import { problemViews } from "@/content/_modules/problem-views";
 import type { VerdictPreset } from "@/lib/presentation";
 import type { PublicProblemConfig } from "@/lib/problems/types";
@@ -72,6 +73,20 @@ const registry = new Map<string, ProblemViews>(
   Object.entries(problemViews),
 );
 
-export function viewsFor(slug: string): ProblemViews {
-  return registry.get(slug) ?? {};
+/**
+ * How one problem renders.
+ *
+ * A problem that ships a `views.tsx` is keyed by slug and needs nothing else.
+ * An authored one has no module — it names a preset, and the deployment's
+ * presets answer for it. The preset therefore has to arrive from the caller:
+ * `PublicProblemConfig` carries it, because the same lookup happens in the
+ * browser, where there is no snapshot of the database to consult.
+ *
+ * An unknown slug with no preset renders nothing, which is what an unrecognised
+ * problem looks like everywhere else rather than a guess at a shape.
+ */
+export function viewsFor(slug: string, preset?: string): ProblemViews {
+  const own = registry.get(slug);
+  if (own) return own;
+  return preset ? presetViews(preset).views : {};
 }

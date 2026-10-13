@@ -12,6 +12,7 @@ import {
   standingsHref,
 } from "@/lib/contests/catalogue";
 import { contestStatus } from "@/lib/contests/types";
+import { contestProblemsOf } from "@/lib/contests/registry";
 import { dateFormatter } from "@/lib/format";
 import { rulesetFor } from "@/lib/standings/registry";
 
@@ -117,11 +118,11 @@ export async function AdminContestsView() {
                   </div>
                 </dl>
 
-                {contest.problems.length === 0 ? (
+                {contestProblemsOf(contest).length === 0 ? (
                   <p className="text-fg-subtle text-xs">尚未添加题目。</p>
                 ) : (
                   <ul className="flex flex-wrap gap-2">
-                    {contest.problems.map((problem) => (
+                    {contestProblemsOf(contest).map((problem) => (
                       <li key={problem.slug}>
                         <Badge tone="primary" mono>
                           {problem.label

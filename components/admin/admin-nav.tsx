@@ -7,6 +7,7 @@ export function AdminNav() {
       items={[
         { href: "/admin", label: "概况" },
         { href: "/admin/accounts", label: "账号" },
+        { href: "/admin/problems", label: "题目" },
         { href: "/admin/contests", label: "比赛" },
         { href: "/admin/enrollment", label: "分流规则" },
       ]}

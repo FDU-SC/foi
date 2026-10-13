@@ -52,11 +52,11 @@ behaviour, and `lib/ratelimit/policy.test.ts` scans this tree for rate-limit cov
 
 ## Platform → Content Boundary
 
-The platform discovers content through twelve entry points: the seven registries under `content/_modules/`, plus `content/site.ts`, `site-views.tsx`, `backends.ts`, `schema.ts` and `theme.css`. The `app/`, `views/` and `components/` layers NEVER import from `content/` directly — only `lib/` does, and only through those twelve. `test/slots.test.ts` enforces it.
+The platform discovers content through fourteen entry points: the seven registries under `content/_modules/`, plus `content/site.ts`, `site-views.tsx`, `backends.ts`, `schema.ts`, `theme.css`, `authoring.ts` and `statements.tsx`. The `app/`, `views/` and `components/` layers NEVER import from `content/` directly — only `lib/` does, and only through those fourteen. `test/slots.test.ts` enforces it.
 
 `scripts/strip-content.ts` derives the content-free CI file list from those imports and follows their relative dependencies. Adding an entry point requires no separate list update.
 
-Tests enforce the same boundary. The `unit` and `db` vitest projects resolve all twelve to `test/fixtures/content/`, so a kernel test asserts what the platform does and never what a deployment happens to contain. Only the `deployment` project sees a deployment's own content — `content/` plus whatever a fork put in the slots. A fork may delete any group, problem or contest without turning the kernel suites red.
+Tests enforce the same boundary. The `unit` and `db` vitest projects resolve all fourteen to `test/fixtures/content/`, so a kernel test asserts what the platform does and never what a deployment happens to contain. Only the `deployment` project sees a deployment's own content — `content/` plus whatever a fork put in the slots. A fork may delete any group, problem or contest without turning the kernel suites red.
 
 ## Slots
 
@@ -191,6 +191,25 @@ Difficulty, tags and anything like them live in `problem.ui`, which the platform
 
 `contest.facets` names which of those keys that contest's pages offer. It drives the filter bar and the problem badges together, so a dimension cannot be hidden from one and left showing on the other. The default is empty, so no facets or corresponding badges are shown. A table spanning several contests filters and badges each row by its own contest's facets.
 
+### A Problem May Also Be Authored Here
+
+A problem can be a row instead of a directory. `/admin/problems` uploads its judge files, collects its parameters and takes its statement as Markdown; it is a `draft` until publishing, and only a `published` row joins the registries. The gate is `problem.author`, and every entry point asks it — the page and the Server Action both.
+
+The registries that reach a problem are synchronous and are built at module load, so `lib/problems/library.ts` holds published rows as a snapshot with a `generation` counter. `instrumentation.ts` loads it at boot and reloads it on a timer; publishing reloads it at once, in the process that published. The (contest, problem) index in `lib/contests/refs.ts` and the backend reverse index in `lib/backend/served.ts` are memoized on that counter, which is what makes a newly published problem visible to the pair every gate is asked about without making those readers async. The reload is never driven from a reader: reading a problem is synchronous and sits on paths that must not touch the database at all.
+
+The snapshot is held on `globalThis`, not in a module binding, and that is not an implementation detail: a page and the route handler its form posts to do not always share a module instance, so a module-local snapshot is one the page can render and the submission cannot find. `globalThis` is the one store those graphs share, and the same reason the platform keeps its pool, its rate limiters and its standings cache there.
+
+A contest is still a file, so an authored problem's belonging is a `problem_contests` row and `contestProblemsOf(contest)` is the one place the declared list and those rows are read together — declared entries keep their order and the rows follow in `position` order. Repository problems keep their belonging in `contest.ts`; neither source is migrated into the other.
+
+Six things follow from a problem having no directory, and each has one home:
+
+- **Statements.** `lib/problems/statement.tsx` compiles the stored Markdown at request time with the same plugin set `next.config.ts` configures, and `content/statements.tsx` is the whole component vocabulary. An authored statement names a component rather than importing one, so `checkDraft` refuses `import` and `export`. The editor's preview renders in the page rather than in a frame: every path, including the admin's, carries `X-Frame-Options: DENY`, and a browser shows that refusal as a dead frame.
+- **Display.** An author picks a preset, never a view: `content/authoring.ts` declares the presets and `problems.views_preset` stores the id. The id travels in `PublicProblemConfig` and `SubmissionView` because the browser resolves views too and has no snapshot to consult.
+- **Presentation metadata.** `problem.ui` stays opaque. `content/authoring.ts` declares which fields the form offers and what values they take, and `checkDraft` checks against that declaration rather than knowing the keys.
+- **Judge files.** `problem_files` holds only what travels with `problem.config` — a script, drivers, a checker, a generator. Test data is megabytes and is generated by the script from the submission's seed instead. `lib/problems/judge-file.ts` owns the encoding rule and refuses credential-shaped paths. The form states every parameter the judge accepts, because an authored problem has no file to add a missing one to; a field the author leaves blank is absent from `config`, which is how the judge's own default is asked for.
+- **Validation.** `checkDraft` restates the repository's invariants for a row: slug uniqueness against the repository, the encoding claim in place of the byte round trip, and a required `problem_contests` row. `docs/出题前端.md` records which invariant each one replaces.
+- **Backend.** The deployment names the backend authored problems are judged by, in `content/authoring.ts`; the platform stores the id and never invents one.
+
 ## Key Contracts
 
 When writing content, you implement these platform-defined interfaces:
@@ -209,6 +228,8 @@ When writing content, you implement these platform-defined interfaces:
 | Chrome slots | `SiteViews` | `content/site-views.tsx` |
 | Deployment tables | drizzle table objects | `content/schema.ts` |
 | Colour tokens | CSS custom properties | `content/theme.css` |
+| Authoring vocabulary | `AuthoringConfig` | `content/authoring.ts` |
+| Statement components | `MDXComponents` | `content/statements.tsx` |
 
 ## Copywriting
 

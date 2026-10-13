@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { ComponentType } from "react";
 import { getResolvedUser } from "@/auth";
 import { ProblemBadgesSlot } from "@/components/problem/badges-slot";
 import { ProblemProvider } from "@/components/problem/problem-context";
@@ -14,6 +15,7 @@ import {
   standingsHref,
 } from "@/lib/contests/catalogue";
 import { contestProblemRefs } from "@/lib/contests/refs";
+import { log } from "@/lib/log";
 import {
   contestStatus,
   hasContestStarted,
@@ -35,9 +37,12 @@ type Props = PageProps<"/contests/[slug]/problems/[problem]">;
 type CatalogueProps = PageProps<"/problems/[section]/[problem]">;
 
 /**
- * Every pair except the catalogued ones. Those answer under `/problems`, and
- * the route has `dynamicParams = false`, so leaving them out is what keeps a
- * pair from having two URLs.
+ * Every pair except the catalogued ones, which answer under `/problems`.
+ *
+ * Neither list is what makes a pair reachable: the routes accept any pair at
+ * request time, because one can be authored and published while the server is
+ * running. They are the build-time subset, and each says which namespace its
+ * pairs belong to.
  */
 export function problemDetailParams() {
   return contestProblemRefs()
@@ -109,8 +114,21 @@ async function ProblemDetail({
   if (!view) notFound();
 
   const { contest, entry, problem } = view.ref;
-  const Statement = await loadStatement(problemSlug);
-  if (!Statement) notFound();
+
+  // An authored statement is compiled here, and a compile can fail on text the
+  // author has not fixed yet. That is one problem's content error, not a reason
+  // to take the page down: the contestant still gets the title, the panel and
+  // their own progress, and the notice says the statement is what is missing.
+  let Statement: ComponentType | null = null;
+  let statementBroken = false;
+  try {
+    Statement = await loadStatement(problemSlug);
+  } catch (error) {
+    statementBroken = true;
+    log.error({ slug: problemSlug, err: error }, "题面无法编译");
+  }
+
+  if (!Statement && !statementBroken) notFound();
 
   // The panel is enabled by the same question the submit endpoint will ask,
   // and when it refuses, it explains itself in the same words.
@@ -242,7 +260,7 @@ async function ProblemDetail({
             </aside>
           ) : null}
           <div className="oj-statement lg:col-start-1 lg:row-start-1">
-            <Statement />
+            {Statement ? <Statement /> : <p className="text-fg-muted">题面暂不可用。</p>}
           </div>
         </div>
       </article>

@@ -1,4 +1,6 @@
 export const FIXTURE_CONTENT = [
+  { specifier: "authoring", file: "authoring.ts" },
+  { specifier: "statements", file: "statements.tsx" },
   { specifier: "site", file: "site.ts" },
   { specifier: "site-views", file: "site-views.ts" },
   { specifier: "backends", file: "backends.ts" },

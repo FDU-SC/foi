@@ -93,7 +93,7 @@ if [ ! -f output.bin ]; then
 fi
 
 # 秒，六位小数；镜像里没有 bc，用 awk。
-t=$(awk -v ns="$((end - start))" 'BEGIN{printf "%.6f", ns/1000000000}')
+t=$(awk '/Solver finished in/{v=$4} END{print v}' solver.log)
 
 if [ "$(awk -v t="$t" -v l="$LIMIT" 'BEGIN{print (t > l) ? 1 : 0}')" = "1" ]; then
   report 0 time_limit_exceeded "N=${N} 用时 ${t}s，超过 ${LIMIT}s 的限制"

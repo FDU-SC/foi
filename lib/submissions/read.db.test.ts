@@ -36,7 +36,7 @@ async function insert(id: string, state: "pending" | "completed" | "disrupted" =
   });
 }
 
-const publicFields = ["id", "problemSlug", "contestSlug", "state", "result", "detail", "reason", "runnerStatus", "createdAt", "judgedAt", "queue"].sort();
+const publicFields = ["id", "problemSlug", "contestSlug", "state", "result", "detail", "reason", "runnerStatus", "viewsPreset", "createdAt", "judgedAt", "queue"].sort();
 
 describeDb("提交读取快照", () => {
   beforeAll(async () => {

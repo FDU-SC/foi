@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   catalogueHref,
@@ -15,6 +17,45 @@ const mounted = catalogueSlugs();
 
 const CATALOGUE = "/problems";
 const CONTESTS = "/contests";
+
+const ROOT = join(import.meta.dirname, "..", "..");
+
+/**
+ * The two problem routes must take whatever pair was asked for.
+ *
+ * A problem can be authored and published while the server is running, and
+ * `next build` never sees the library, so `dynamicParams = false` — which turns
+ * "not in `generateStaticParams`" into a 404 — makes every authored problem
+ * unreachable. It looks like it guards the two namespaces and does not: the
+ * one-URL property is held by `problemHref`, by the proxy redirect, and by the
+ * namespace check in the page body, all covered above.
+ */
+describe("题目路由的参数集合", () => {
+  const ROUTES = [
+    "app/(site)/problems/[section]/[problem]/page.tsx",
+    "app/(site)/contests/[slug]/(workspace)/problems/[problem]/page.tsx",
+  ];
+
+  it("两份路由壳都不把参数集合关在构建期", () => {
+    for (const route of ROUTES) {
+      const source = readFileSync(join(ROOT, route), "utf8");
+
+      expect(
+        /export\s+const\s+dynamicParams\s*=\s*false/.test(source),
+        `${route} 把 dynamicParams 设成了 false：运行期发布的题目会 404`,
+      ).toBe(false);
+    }
+  });
+
+  it("确实读到了这两份路由壳，而不是路径写错后空过", () => {
+    for (const route of ROUTES) {
+      const source = readFileSync(join(ROOT, route), "utf8");
+
+      expect(source, route).toContain("@/views/problems/detail");
+      expect(source, route).toContain("force-dynamic");
+    }
+  });
+});
 
 describe("题库的挂载点", () => {
   it("夹具指名了几场比赛，否则下面每一条都是空真", () => {

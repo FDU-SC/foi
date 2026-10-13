@@ -18,6 +18,8 @@
 - **并行**：否（`fileParallelism: false`）
 - **依赖**：`DATABASE_URL`（若未设置则整组 `describe.skip`）；同样使用夹具
 - **职责**：验证事务语义、并发竞态、幂等行为
+- **收尾**：`globalSetup`（`test/db-mirrors.ts`）在整组跑完后，把测试为满足外键而
+  插入的 `problems` / `contests` 镜像行删掉 —— 只删本次新增、且没有任何提交引用的那些
 
 ### deployment — 内容部署校验
 
@@ -69,6 +71,12 @@ it("比赛已结束时是 contest-mismatch", () => {
 - 文件名带 `.db.test.ts` 后缀
 - `const describeDb = process.env.DATABASE_URL ? describe : describe.skip;`
 - 测试完清理自己写入的行（`afterAll` 中 DELETE）
+
+`submissions.problem_slug` 与 `contest_slug` 是外键，所以写提交的测试必须先往
+`problems` / `contests` 插一行 —— 有的是直接插，有的是走 `createSubmission` 里的
+`ensureProblem` / `ensureContest`。这些行不需要测试自己删：`test/db-mirrors.ts`
+在整组结束时把本次新增、且没有提交引用的镜像行收回。自己插入的行仍按惯例自己清理，
+这条只是兜底，免得以后新写的测试忘了就污染 `DATABASE_URL` 指向的库。
 
 ---
 

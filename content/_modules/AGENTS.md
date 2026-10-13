@@ -1,6 +1,6 @@
 # _modules/ — Registry Entries
 
-This directory, plus `content/site.ts`, `site-views.tsx`, `backends.ts`, `schema.ts` and `theme.css`, is the **only interface** between the platform (`lib/`) and content. The platform must not import other `content/` paths.
+This directory, plus `content/site.ts`, `site-views.tsx`, `backends.ts`, `authoring.ts`, `statements.tsx`, `schema.ts` and `theme.css`, is the **only interface** between the platform (`lib/`) and content. The platform must not import other `content/` paths.
 
 Each file here re-exports one slice of content discovery. The platform's registries in `lib/` import from here and validate the shape.
 
@@ -20,13 +20,15 @@ The `import.meta.glob` calls themselves live one level up, in `content/_globs.ts
 
 Glob patterns are shown relative to the content root, which is where they are written.
 
-The remaining five entry points need no discovery, so they have no file here — each is a single declared file the platform imports directly:
+The remaining seven entry points need no discovery, so they have no file here — each is a single declared file the platform imports directly:
 
 | File | Platform consumer | What it declares |
 |---|---|---|
 | `site.ts` | `lib/site.ts` | Brand, locale, navigation, footer |
 | `site-views.tsx` | `lib/site-views.ts` | Chrome slots (`SiteViews`) |
 | `backends.ts` | `lib/backend/registry.ts` | External backend connections |
+| `authoring.ts` | `lib/authoring/registry.ts` | What the authoring form offers |
+| `statements.tsx` | `lib/problems/statement.tsx` | MDX components an authored statement may name |
 | `schema.ts` | `lib/db/index.ts` | Tables this deployment adds |
 | `theme.css` | `lib/theme.ts` | Colour tokens |
 

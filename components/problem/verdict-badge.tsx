@@ -7,6 +7,7 @@ export interface VerdictBadgeSubject {
   problemSlug: string;
   state: SubmissionState;
   result: unknown;
+  viewsPreset?: string | null;
 }
 
 export function VerdictBadge({
@@ -27,7 +28,11 @@ export function VerdictBadge({
     );
   }
 
-  const { short, label, tone } = describeVerdict(submission.problemSlug, submission.result);
+  const { short, label, tone } = describeVerdict(
+    submission.problemSlug,
+    submission.result,
+    submission.viewsPreset,
+  );
 
   return (
     <Badge tone={tone} title={label} mono>

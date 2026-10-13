@@ -74,7 +74,11 @@ export async function SubmissionDetailView({
         <Card>
           <CardHeader title="评测详情" />
           <CardBody>
-            <VerdictBody problemSlug={view.problemSlug} detail={view.detail} />
+            <VerdictBody
+              problemSlug={view.problemSlug}
+              preset={problem?.viewsPreset}
+              detail={view.detail}
+            />
           </CardBody>
         </Card>
       ) : null}
@@ -82,7 +86,11 @@ export async function SubmissionDetailView({
       <Card>
         <CardHeader title="提交内容" />
         <CardBody>
-          <PayloadBody problemSlug={row.problemSlug} payload={row.payload} />
+          <PayloadBody
+            problemSlug={row.problemSlug}
+            preset={problem?.viewsPreset}
+            payload={row.payload}
+          />
         </CardBody>
       </Card>
     </div>

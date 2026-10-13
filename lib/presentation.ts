@@ -19,7 +19,10 @@ export interface VerdictPreset {
 export function describeVerdict(
   problemSlug: string | undefined,
   result: unknown,
+  preset?: string | null,
 ): VerdictPreset {
-  const describe = problemSlug ? viewsFor(problemSlug).describeResult : undefined;
+  const describe = problemSlug
+    ? viewsFor(problemSlug, preset ?? undefined).describeResult
+    : undefined;
   return describe?.(result) ?? { label: "已评测", short: "已评测", tone: "neutral" };
 }

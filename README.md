@@ -26,8 +26,9 @@ lib/         平台核心：类型契约、注册表、机制
 content/     赛事内容。题目、比赛、计分规则、报名、邮件、站点配置
 ```
 
-平台通过十二个入口发现内容：`content/_modules/` 下的七个注册表，加上 `content/` 里的
-`site.ts`、`site-views.tsx`、`backends.ts`、`schema.ts` 与 `theme.css`。这是两层之间唯一的接口。
+平台通过十四个入口发现内容：`content/_modules/` 下的七个注册表，加上 `content/` 里的
+`site.ts`、`site-views.tsx`、`backends.ts`、`schema.ts`、`theme.css`、`authoring.ts`
+与 `statements.tsx`。这是两层之间唯一的接口。
 
 ## 本地运行
 
@@ -208,10 +209,10 @@ hash 和时间戳转移旧的部署记录，再应用尚未执行的迁移；无
 
 ### 覆盖 content 入口
 
-十二个入口分两类，行为不同。
+十四个入口分两类，行为不同。
 
-`site.ts`、`site-views.tsx`、`backends.ts`、`schema.ts`、`theme.css` 各是一个文件：插槽里
-放一份就整个替换。
+`site.ts`、`site-views.tsx`、`backends.ts`、`schema.ts`、`theme.css`、`authoring.ts`、
+`statements.tsx` 各是一个文件：插槽里放一份就整个替换。
 
 其余七个是 glob 注册表，接管它们要多两个文件：
 

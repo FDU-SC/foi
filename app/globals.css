@@ -36,6 +36,8 @@
   --partial-subtle: #f6efd6;
   --info: #1d5fbf;
   --info-subtle: #e7effc;
+  --gold: #a16207;
+  --gold-subtle: #fdf3d7;
 
   --mark: #fff1a8;
 
@@ -79,6 +81,8 @@
   --partial-subtle: #332b12;
   --info: #7ea8ff;
   --info-subtle: #16233d;
+  --gold: #f5c451;
+  --gold-subtle: #33291a;
 
   --mark: #3a3413;
 
@@ -149,6 +153,8 @@
   --color-partial-subtle: var(--partial-subtle);
   --color-info: var(--info);
   --color-info-subtle: var(--info-subtle);
+  --color-gold: var(--gold);
+  --color-gold-subtle: var(--gold-subtle);
 
   --color-mark: var(--mark);
 

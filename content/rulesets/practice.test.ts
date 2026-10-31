@@ -118,3 +118,86 @@ describe("practice 解题、提交与首杀", () => {
     expect(cell(standings, 2, "later-a")?.firstBlood).toBe(true);
   });
 });
+
+describe("practice 金标", () => {
+  it("每题的最高分标金，并列都算", () => {
+    const standings = compute({
+      participants: participants(1, 2, 3),
+      problems,
+      submissions: [scored(1, "a", 10, 90), scored(2, "a", 20, 90), scored(3, "a", 30, 80)],
+    });
+
+    expect(cell(standings, 1, "a")?.gold).toBe(true);
+    expect(cell(standings, 2, "a")?.gold).toBe(true);
+    expect(cell(standings, 3, "a")?.gold).toBe(false);
+  });
+
+  it("0 分的题不标金", () => {
+    const standings = compute({
+      participants: participants(1),
+      problems,
+      submissions: [scored(1, "a", 10, 0)],
+    });
+
+    expect(cell(standings, 1, "a")?.gold).toBe(false);
+  });
+
+  it("分数没有上限时，金标给最高的那一格", () => {
+    const standings = compute({
+      participants: participants(1, 2),
+      problems: [problem("a", "A", 10000)],
+      submissions: [scored(1, "a", 10, 7400, 10000), scored(2, "a", 20, 6100, 10000)],
+    });
+
+    expect(cell(standings, 1, "a")?.gold).toBe(true);
+    expect(cell(standings, 2, "a")?.gold).toBe(false);
+  });
+});
+
+describe("practice 隐藏挑战", () => {
+  it("判定里带 challenge 的格子单独标出来", () => {
+    const base = scored(1, "a", 10, 50);
+    const standings = compute({
+      participants: participants(1),
+      problems,
+      submissions: [{ ...base, result: { ...(base.result as object), challenge: true } }],
+    });
+
+    expect(cell(standings, 1, "a")?.challenge).toBe(true);
+  });
+
+  it("没有 challenge 的判定不标", () => {
+    const standings = compute({
+      participants: participants(1),
+      problems,
+      submissions: [scored(1, "a", 10, 90)],
+    });
+
+    expect(cell(standings, 1, "a")?.challenge).toBe(false);
+  });
+});
+
+describe("practice 金标渲染", () => {
+  it("金标格子渲染金色 ★", () => {
+    const html = renderToStaticMarkup(
+      createElement(renderers.Cell, {
+        cell: { score: 7400, maxScore: 10000, attempts: 1, pending: 0, solved: false, firstBlood: false, at: 0, gold: true, challenge: false },
+        problem: problems[0],
+      }),
+    );
+    expect(html).toContain("★");
+    expect(html).toContain("text-gold");
+    expect(html).toContain("该题最高分");
+  });
+
+  it("隐藏挑战格子渲染 ✦ 并写明来源", () => {
+    const html = renderToStaticMarkup(
+      createElement(renderers.Cell, {
+        cell: { score: 120, maxScore: 100, attempts: 1, pending: 0, solved: true, firstBlood: false, at: 0, gold: false, challenge: true },
+        problem: problems[0],
+      }),
+    );
+    expect(html).toContain("✦");
+    expect(html).toContain("已通过隐藏挑战");
+  });
+});

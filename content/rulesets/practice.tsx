@@ -23,6 +23,21 @@ export interface PracticeCell {
 
   /** When the best score was first reached, in epoch milliseconds. */
   at: number | null;
+
+  /**
+   * This cell holds the problem's best score on the board (ties included).
+   *
+   * The score has no upper bound any more, so "who is fastest" is the only
+   * thing left that separates people.  Gold is the board saying it out loud.
+   */
+  gold: boolean;
+
+  /**
+   * The judge ran the problem's hidden tier for this submission and marked the
+   * verdict with `challenge: true`.  The platform never looks inside a result;
+   * this flag is read here, in content, like every other verdict field.
+   */
+  challenge: boolean;
 }
 
 /** The submission's score out of `worth`, or 0 when the result carries none. */
@@ -39,6 +54,19 @@ export function PracticeCellView({ cell }: { cell: PracticeCell | undefined }) {
   }
   if (cell.attempts === 0) {
     return <span className="text-info font-mono text-xs tabular-nums">?</span>;
+  }
+
+  if (cell.gold || cell.challenge) {
+    return (
+      <span
+        className="text-gold font-mono text-xs font-semibold tabular-nums"
+        title={cell.challenge ? "已通过隐藏挑战" : "该题最高分"}
+        aria-label={`${Math.round(cell.score)} 分，${cell.challenge ? "已通过隐藏挑战" : "该题最高分"}`}
+      >
+        {cell.gold ? "★" : "✦"}
+        {Math.round(cell.score)}
+      </span>
+    );
   }
 
   const tone = cell.solved ? "text-ok" : cell.score > 0 ? "text-partial" : "text-err";
@@ -61,6 +89,13 @@ export const renderers = {
   Cell: PracticeCellView,
   Total: PracticeTotalView,
   Board: summaryBoard<PracticeCell>([
+    {
+      label: "金标",
+      value: (row) => {
+        const count = cellsOf(row).filter((cell) => cell.gold).length;
+        return count > 0 ? <span className="text-gold font-semibold">★{count}</span> : count;
+      },
+    },
     { label: "解题数", value: (row) => cellsOf(row).filter((cell) => cell.solved).length },
     { label: "提交次数", value: (row) => cellsOf(row).reduce((sum, cell) => sum + cell.attempts, 0) },
     { label: "首杀", value: (row) => cellsOf(row).filter((cell) => cell.firstBlood).length },
@@ -96,6 +131,8 @@ export const ruleset: Ruleset<PracticeCell> = {
         solved: false,
         firstBlood: false,
         at: null,
+        gold: false,
+        challenge: false,
       };
       cells.set(submission.problemKey, cell);
 
@@ -105,6 +142,9 @@ export const ruleset: Ruleset<PracticeCell> = {
       }
 
       cell.attempts += 1;
+      if ((submission.result as { challenge?: unknown } | null)?.challenge === true) {
+        cell.challenge = true;
+      }
       const score = scaled(submission, maxScore);
       if (score > cell.score) {
         cell.score = score;
@@ -130,8 +170,23 @@ export const ruleset: Ruleset<PracticeCell> = {
       return { participant, total, tiebreak: reachedAt, cells };
     });
 
+    const ranked = assignRanks<PracticeCell>(rows);
+
+    // 每题的最高分标金：分数没有上限以后，单题的「最快」就是唯一可比的坐标。
+    const best = new Map<string, number>();
+    for (const row of ranked) {
+      for (const [key, cell] of Object.entries(row.cells)) {
+        if (cell && cell.score > (best.get(key) ?? 0)) best.set(key, cell.score);
+      }
+    }
+    for (const row of ranked) {
+      for (const [key, cell] of Object.entries(row.cells)) {
+        if (cell && cell.score > 0 && cell.score === best.get(key)) cell.gold = true;
+      }
+    }
+
     return {
-      rows: assignRanks<PracticeCell>(rows),
+      rows: ranked,
       totalLabel: "总分",
     };
   },

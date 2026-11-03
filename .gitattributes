@@ -1,1 +1,6 @@
 pnpm-lock.yaml linguist-generated
+
+# Judge sources are handed to a Linux judge byte for byte; a CRLF checkout would
+# break makefile recipes and shell scripts.
+content/**/code/** text eol=lf
+content/_shared/judges/scripts/** text eol=lf

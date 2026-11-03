@@ -30,6 +30,18 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   pageExtensions: ["ts", "tsx", "mdx"],
 
+  // `?raw` imports a file as its text, as Vite (and so Vitest) already does.
+  // Judge sources such as a makefile or a .cpp have no module type otherwise.
+  turbopack: {
+    rules: {
+      "*": {
+        condition: { all: [{ not: "foreign" }, { query: "?raw" }] },
+        loaders: ["./lib/raw-text-loader.cjs"],
+        as: "*.js",
+      },
+    },
+  },
+
   output: "standalone",
   experimental: {
     serverActions: { bodySizeLimit: SERVER_ACTION_BODY_LIMIT },

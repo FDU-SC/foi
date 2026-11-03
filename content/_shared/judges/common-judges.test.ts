@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { externallyJudged } from "@/lib/problems/registry";
 import { judgeFiles } from "./judge-files";
 import { makefileJudge } from "./makefile";
 import { stdioJudge } from "./stdio";
@@ -137,4 +138,25 @@ describe("stdioJudge", () => {
       stdioJudge({ ...options, languages: ["cpp"], files: files.slice(0, 1) }),
     ).toThrow(/std\.cpp/);
   });
+});
+
+describe("挂在 common 上的题目", () => {
+  const problems = externallyJudged().filter((problem) => problem.backend.id === "common");
+
+  it("存在", () => {
+    expect(problems.length).toBeGreaterThan(0);
+  });
+
+  it.each(problems.map((problem) => [problem.slug, problem] as const))(
+    "%s：脚本与选手文件都在 files 里，测试点分值之和等于满分",
+    (_slug, problem) => {
+      const config = problem.backend.config as CommonConfig;
+      const paths = config.files.map((file) => file.path);
+      expect(paths).toContain(config.script);
+      if (config.contestant !== undefined) expect(paths).toContain(config.contestant);
+      expect(new Set(paths).size).toBe(paths.length);
+      expect(config.files.every((file) => file.content.length > 0)).toBe(true);
+      expect(config.cases.reduce((sum, testCase) => sum + testCase.maxScore, 0)).toBe(problem.maxScore);
+    },
+  );
 });

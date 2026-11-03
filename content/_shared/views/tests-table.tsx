@@ -11,6 +11,20 @@ interface TestLike {
   time?: number;
   memory?: number;
   message?: string;
+  data?: unknown;
+}
+
+/**
+ * The judge measures a whole run of the problem's script, compilation and test
+ * generation included. A script that measures the submission itself reports
+ * `time` / `memory` in its `data`, and those are what the row shows.
+ */
+function measured(test: TestLike, key: "time" | "memory"): number | undefined {
+  const own =
+    typeof test.data === "object" && test.data !== null
+      ? (test.data as Record<string, unknown>)[key]
+      : undefined;
+  return typeof own === "number" ? own : test[key];
 }
 
 function toneFor(test: TestLike): BadgeTone {
@@ -70,10 +84,10 @@ export function VerdictDetail({ detail }: { detail: unknown }) {
                       : ""}
                   </td>
                   <td className="text-fg-subtle px-3 py-1.5 text-right font-mono tabular-nums">
-                    {test.time !== undefined ? `${test.time}ms` : ""}
+                    {measured(test, "time") !== undefined ? `${measured(test, "time")}ms` : ""}
                   </td>
                   <td className="text-fg-subtle py-1.5 pl-3 text-right font-mono tabular-nums">
-                    {test.memory !== undefined ? `${test.memory}KB` : ""}
+                    {measured(test, "memory") !== undefined ? `${measured(test, "memory")}KB` : ""}
                   </td>
                 </tr>
               ))}

@@ -256,6 +256,36 @@ judge({ payload, config, user }) {
 
 The `result` may be any non-null JSON value. Its meaning is your decision. The platform stores it as opaque JSONB. Your ruleset interprets it; your VerdictDetail renders the detail.
 
+### Externally Judged Problems
+
+The sample's external problems use the `common` judge from
+[FDU-SC/foi-runners](https://github.com/FDU-SC/foi-runners). It runs a judging
+script the problem ships and reads the script's `FOI_RESULT` lines; the whole
+payload reaches the script, and each result line may carry a `data` value that
+lands in `detail.tests[i].data` for the problem's views.
+
+Keep the problem's judge files under `content/problems/<slug>/code/` and build
+the backend with one of the `_shared/judges/` helpers:
+
+```typescript
+backend: stdioJudge({
+  files: judgeFiles(
+    import.meta.glob(["./code/*", "./code/**/*"], { query: "?raw", import: "default", eager: true }),
+  ),
+  generator: "gen.cpp",     // gen <subtask> <test> <seed> prints one test's input
+  solution: "std.cpp",      // reads the input, prints the expected output
+  languages: ["cpp", "python", "java"],
+  timeLimitMs: 1000,
+  memoryLimitMb: 256,
+  subtasks: [{ name: "小数据", score: 30, tests: 5 }, /* ... */],
+}),
+```
+
+`makefileJudge` instead builds the problem's makefile once per submission and
+runs each case's command, typically a driver that runs and scores the
+submission itself. Files under `code/` are text and must not reach the browser:
+import them only from `problem.ts`.
+
 ## Practice Leaderboard
 
 `/leaderboard` is the catalogue's leaderboard view, gated by

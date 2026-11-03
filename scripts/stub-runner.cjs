@@ -24,7 +24,7 @@ const CONFIRM = "yes-fake-verdicts";
 const KERNEL_URL =
   process.env.FOI_KERNEL_URL || process.env.FOI_PUBLIC_URL || "http://localhost:3000";
 
-const BACKEND_IDS = (process.env.FOI_STUB_BACKENDS || "traditional,interactive,performance")
+const BACKEND_IDS = (process.env.FOI_STUB_BACKENDS || "common")
   .split(",")
   .map((id) => id.trim())
   .filter(Boolean);
@@ -162,12 +162,16 @@ function seedOf(payload) {
  * 判定的形状必须满足 content/ 里组件的读法：result.accepted 供 acm 与 ctf-dynamic
  * 排行榜读，result.score / maxScore 供 oi 排行榜读，result.status 必须落在
  * content/_shared/verdicts.ts 的九个键里，detail.tests[] 由 tests-table 渲染。
+ *
+ * 测试点取 common 评测机配置的 cases，没写 cases 时是顶层 maxScore 描述的单个测试点。
  */
 function verdictFor(details) {
   const config = details.problem?.config ?? {};
-  const declared = Array.isArray(config.subtasks) ? config.subtasks : [];
+  const declared = Array.isArray(config.cases) ? config.cases : [];
   const subtasks =
-    declared.length > 0 ? declared : [{ name: "全部数据", score: 100 }];
+    declared.length > 0
+      ? declared.map((entry) => ({ name: entry.name, score: entry.maxScore }))
+      : [{ name: "评测", score: typeof config.maxScore === "number" ? config.maxScore : 100 }];
 
   const next = seedOf(details.payload);
   const source = String(details.payload?.source ?? details.payload?.flag ?? "");

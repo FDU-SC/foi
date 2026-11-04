@@ -20,7 +20,7 @@ const eslintConfig = defineConfig([
   },
   {
 
-    files: ["scripts/**/*.cjs"],
+    files: ["scripts/**/*.cjs", "lib/**/*.cjs"],
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
 

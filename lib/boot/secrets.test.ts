@@ -31,17 +31,6 @@ describe("placeholderSecrets", () => {
     expect(complaints.join("\n")).toContain("FOI_BACKEND_SECRET");
   });
 
-  it("按形状认出后来新增的每队列密钥", () => {
-    const complaints = placeholderSecrets({
-      AUTH_SECRET: REAL,
-      FOI_BACKEND_SECRET: REAL,
-      FOI_BACKEND_LEAKY_BUCKET_SECRET: "dev-secret",
-    });
-
-    expect(complaints).toHaveLength(1);
-    expect(complaints[0]).toContain("FOI_BACKEND_LEAKY_BUCKET_SECRET");
-  });
-
   it("大小写与首尾空白不影响判定", () => {
     expect(
       placeholderSecrets({ AUTH_SECRET: "  Dev-Secret  " }),

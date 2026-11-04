@@ -202,6 +202,15 @@ export const ACTION_LIMITS = {
     why: "同 suspendAccountAction",
   },
 
+  issueRunnerTokenAction: {
+    max: 20,
+    windowSeconds: 3600,
+  },
+  revokeRunnerTokenAction: {
+    unlimited: true,
+    why: "仅更新本地数据库的一行，不调用外部服务；吊销是止损操作，不应被限流拦住",
+  },
+
   rejudgeSubmissionAction: {
     max: 120,
     windowSeconds: 3600,

@@ -50,6 +50,7 @@ COPY --from=builder --chown=foi:nodejs /app/drizzle ./drizzle
 COPY --from=builder --chown=foi:nodejs /app/package.json /app/drizzle.loca[l] ./drizzle.local/
 COPY --from=builder --chown=foi:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=foi:nodejs /app/lib/accounts/argon2-options.cjs ./lib/accounts/
+COPY --from=builder --chown=foi:nodejs /app/lib/backend/keys.cjs ./lib/backend/
 
 USER foi
 EXPOSE 3000

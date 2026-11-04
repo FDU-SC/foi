@@ -43,6 +43,13 @@
       "when": 1790419006516,
       "tag": "0005_profile_bio",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793792455875,
+      "tag": "0006_runner_tokens",
+      "breakpoints": true
     }
   ]
 }

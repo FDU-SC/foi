@@ -261,11 +261,23 @@ export const problemConfigModules = { ...upstream, ...local };
 `content/_shared/judges/` 提供两种现成的判题方式：`stdioJudge`（多语言、按子任务比对标准
 输出，数据由生成器与标程现场产生）与 `makefileJudge`（题目的 makefile 编出驱动，由驱动判分）。
 
-评测机主动领取任务，平台无需配置评测机地址，双方使用相同密钥认证。协议在
-`lib/backend/` 定义，包含领取任务、获取任务详情和上报结果三个端点，均使用 HMAC 签名。
-`scripts/stub-runner.cjs` 提供模拟结果，可用作领取、心跳和上报协议的参考。
+评测机主动领取任务，平台无需配置评测机地址。协议在 `lib/backend/` 定义，包含领取任务、
+获取任务详情和上报结果三个端点，均使用 HMAC 签名。`scripts/stub-runner.cjs` 提供模拟
+结果，可用作领取、心跳和上报协议的参考。
 
-例外是需要平台主动发起的交互动作（比如为选手拉起一台靶机），那种后端要额外配一个地址。
+评测机用以下两种凭据之一签名：
+
+- **评测机令牌**：在运维台「评测机令牌」页为某个后端签发，评测机只需配置
+  `FOI_KERNEL_URL` 与 `FOI_RUNNER_TOKEN`。每台宿主一个令牌，可以单独吊销，即时生效，
+  平台无需重启。
+- **队列密钥**：每个后端一把，用 `pnpm backend:key <后端 id>`（容器内为
+  `node scripts/backend-key.cjs <后端 id>`）输出。
+
+两者都由 `FOI_BACKEND_SECRET` 派生，平台侧只维护这一个值。令牌可以逐个吊销；队列密钥
+不能单独更换，更换 `FOI_BACKEND_SECRET` 会让所有队列密钥与令牌一起失效。
+
+需要平台主动发起交互动作的后端（比如为选手拉起一台靶机）要额外配一个地址
+`FOI_BACKEND_<ID>_URL`，并用队列密钥校验平台发来的请求。
 
 ## 部署
 
@@ -278,8 +290,7 @@ docker compose up -d              # 想连模拟评测机一起，加 --profile 
 
 数据库迁移在应用启动时自动执行，可以用 `FOI_AUTO_MIGRATE=false` 关掉。
 
-生产环境会检查启动配置。例如 `AUTH_SECRET` 仍为示例占位值，或多个评测队列使用同一
-密钥时，应用会拒绝启动。
+生产环境会检查启动配置。例如 `AUTH_SECRET` 仍为示例占位值时，应用会拒绝启动。
 
 ## 管理与排查
 

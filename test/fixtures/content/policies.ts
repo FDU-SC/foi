@@ -42,6 +42,7 @@ export const policies = [
       "leaderboard.read",
       "backend.read",
       "backend.inspect",
+      "backend.manageTokens",
     ],
     principal: { group: FULL },
   }),

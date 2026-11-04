@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   releaseSha: vi.fn(() => null as string | null),
   tier: vi.fn(() => "dev" as "dev" | "prod"),
   placeholderSecrets: vi.fn(() => [] as string[]),
-  backendsSharingSecret: vi.fn(() => [] as string[]),
+  ignoredBackendSecrets: vi.fn(() => [] as string[]),
   backendsMissingActionUrl: vi.fn(() => [] as string[]),
   undeclaredBackends: vi.fn(() => [] as string[]),
   problemsServedBy: vi.fn(() => [] as string[]),
@@ -40,7 +40,7 @@ vi.mock("./secrets", () => ({
   placeholderSecrets: mocks.placeholderSecrets,
 }));
 vi.mock("@/lib/backend/boot", () => ({
-  backendsSharingSecret: mocks.backendsSharingSecret,
+  ignoredBackendSecrets: mocks.ignoredBackendSecrets,
   backendsMissingActionUrl: mocks.backendsMissingActionUrl,
 }));
 vi.mock("@/lib/backend/access", () => ({
@@ -74,7 +74,7 @@ import { assertBootConfiguration, savedBootWarnings } from "./checks";
 
 const complaintMocks = [
   mocks.placeholderSecrets,
-  mocks.backendsSharingSecret,
+  mocks.ignoredBackendSecrets,
   mocks.backendsMissingActionUrl,
   mocks.mailDeliveryComplaints,
   mocks.mailTemplateWarnings,

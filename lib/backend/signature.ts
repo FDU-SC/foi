@@ -3,6 +3,13 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 export const TIMESTAMP_HEADER = "x-foi-timestamp";
 export const SIGNATURE_HEADER = "x-foi-signature";
 
+/**
+ * Names the runner token a request is signed with. Absent means the request is
+ * signed with the backend's own key. It stays out of the canonical string: a
+ * different key id selects a different key, which already fails verification.
+ */
+export const KEY_ID_HEADER = "x-foi-key-id";
+
 export const MAX_CLOCK_SKEW_SECONDS = 300;
 
 export interface SignedRequest {
@@ -66,11 +73,13 @@ export function verifySignature(options: {
 export function signedHeaders(
   secret: string,
   request: SignedRequest,
+  keyId?: string,
 ): Record<string, string> {
   const timestamp = Math.floor(Date.now() / 1000);
   return {
     "content-type": "application/json",
     [TIMESTAMP_HEADER]: String(timestamp),
     [SIGNATURE_HEADER]: sign(secret, timestamp, request),
+    ...(keyId === undefined ? {} : { [KEY_ID_HEADER]: keyId }),
   };
 }

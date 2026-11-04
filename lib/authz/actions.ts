@@ -181,6 +181,11 @@ export const ACTIONS = {
     describe: "查看后端细节",
     denial: { code: "forbidden", message: "没有查看后端细节的权限" },
   },
+  "backend.manageTokens": {
+    resource: "backend",
+    describe: "签发与吊销评测机令牌",
+    denial: { code: "forbidden", message: "没有管理评测机令牌的权限" },
+  },
 } as const satisfies Record<string, ActionSpec>;
 
 export type ActionId = keyof typeof ACTIONS;

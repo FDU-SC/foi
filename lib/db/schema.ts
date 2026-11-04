@@ -295,6 +295,34 @@ export const runners = pgTable(
   ],
 );
 
+/**
+ * Credentials issued to runners from the admin console. The signing key is
+ * derived from `FOI_BACKEND_SECRET`, the backend id and the key id, so no row
+ * holds anything a runner could sign with.
+ */
+export const runnerTokens = pgTable(
+  "runner_tokens",
+  {
+    keyId: text("key_id").primaryKey(),
+    backendId: text("backend_id").notNull(),
+    label: text("label").notNull(),
+
+    createdBy: integer("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+
+    /** Refreshed at most once a minute, not on every request. */
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+
+    revokedBy: integer("revoked_by"),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("runner_tokens_backend_idx").on(table.backendId, table.createdAt),
+  ],
+);
+
 export type AccountRow = Omit<typeof accounts.$inferSelect, "passwordHash">;
 export type AccountAvatarRow = typeof accountAvatars.$inferSelect;
 export type AccountSuspensionRow = typeof accountSuspensions.$inferSelect;
@@ -305,3 +333,4 @@ export type JudgingQueueRow = typeof judgingQueue.$inferSelect;
 export type JudgingAttemptRow = typeof judgingAttempts.$inferSelect;
 export type RateLimitRow = typeof rateLimits.$inferSelect;
 export type RunnerRow = typeof runners.$inferSelect;
+export type RunnerTokenRow = typeof runnerTokens.$inferSelect;

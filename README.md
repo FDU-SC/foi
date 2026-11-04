@@ -51,7 +51,8 @@ FOI_STUB_RUNNER=yes-fake-verdicts pnpm backend:stub
 ```
 
 该命令读取 `.env.local`，仅生成模拟结果，不编译或执行提交代码，也不提供交互动作服务。
-真实评测和交互动作需要独立部署的评测机。
+真实评测需要部署 [FDU-SC/foi-runners](https://github.com/FDU-SC/foi-runners) 的 `common`
+评测机。
 
 ## 增加自定义内容
 
@@ -254,7 +255,11 @@ export const problemConfigModules = { ...upstream, ...local };
 
 ## 评测机
 
-需要真实评测的题目由独立部署的评测机服务，实现不在这个仓库里。
+需要真实评测的题目由独立部署的评测机服务，实现在
+[FDU-SC/foi-runners](https://github.com/FDU-SC/foi-runners)。示例题目使用其中的 `common`
+评测机：题目在自己的 `code/` 目录放判题文件，评测机运行其中的判题脚本并读回结果。
+`content/_shared/judges/` 提供两种现成的判题方式：`stdioJudge`（多语言、按子任务比对标准
+输出，数据由生成器与标程现场产生）与 `makefileJudge`（题目的 makefile 编出驱动，由驱动判分）。
 
 评测机主动领取任务，平台无需配置评测机地址，双方使用相同密钥认证。协议在
 `lib/backend/` 定义，包含领取任务、获取任务详情和上报结果三个端点，均使用 HMAC 签名。

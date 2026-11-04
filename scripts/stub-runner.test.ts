@@ -98,12 +98,12 @@ describe("stub-runner 的判定", () => {
     expect(result.accepted).toBe(false);
   });
 
-  it("按题目声明的子任务出测试点，分数对得上", () => {
+  it("按题目声明的测试点出结果，分数对得上", () => {
     const config = {
-      subtasks: [
-        { name: "样例", score: 20 },
-        { name: "小数据", score: 30 },
-        { name: "大数据", score: 50 },
+      cases: [
+        { name: "样例", maxScore: 20 },
+        { name: "小数据", maxScore: 30 },
+        { name: "大数据", maxScore: 50 },
       ],
     };
     const { result, detail } = stub.verdictFor(job({ source: "x" }, config));
@@ -116,10 +116,14 @@ describe("stub-runner 的判定", () => {
     );
   });
 
-  it("没有子任务声明时退回单个测试点", () => {
+  it("没有 cases 时退回单个测试点", () => {
     const { detail, result } = stub.verdictFor(job({ source: "x" }));
     expect(detail.tests).toHaveLength(1);
     expect(result.maxScore).toBe(100);
+
+    const implicit = stub.verdictFor(job({ source: "x" }, { maxScore: 40 }));
+    expect(implicit.detail.tests).toHaveLength(1);
+    expect(implicit.result.maxScore).toBe(40);
   });
 
   it("accepted 与满分一致", () => {

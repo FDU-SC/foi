@@ -131,8 +131,48 @@ function extractInlineAnswers(): Marker[] {
   return markers;
 }
 
+function entriesOf(directory: string): import("node:fs").Dirent[] {
+  try {
+    return readdirSync(directory, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+}
+
+function filesUnder(directory: string): string[] {
+  return entriesOf(directory).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) return filesUnder(path);
+    return entry.isFile() ? [path] : [];
+  });
+}
+
+// A judge file reaches the bundle as a string literal, which keeps a line intact
+// unless it holds characters a minifier escapes. Pick the longest line without them.
+const LITERAL_SAFE = /^[\x20-\x7e]+$/;
+const ESCAPED = /["'`\\$]/;
+
+function extractJudgeFiles(): Marker[] {
+  const roots = [
+    join(process.cwd(), "content", "_shared", "judges", "scripts"),
+    ...entriesOf(contentRoot)
+      .filter((dir) => dir.isDirectory() && !dir.name.startsWith("_"))
+      .map((dir) => join(contentRoot, dir.name, "code")),
+  ];
+
+  return roots.flatMap(filesUnder).flatMap((file) => {
+    const line = (readIfExists(file) ?? "")
+      .split("\n")
+      .map((text) => text.trim())
+      .filter((text) => text.length >= 30 && LITERAL_SAFE.test(text) && !ESCAPED.test(text))
+      .sort((a, b) => b.length - a.length)[0];
+    return line ? [{ label: `判题文件 ${relative(process.cwd(), file)}`, value: line }] : [];
+  });
+}
+
 const judgeMarkers = extractJudgeExports();
 const answerMarkers = extractInlineAnswers();
+const judgeFileMarkers = extractJudgeFiles();
 
 const findings: string[] = [];
 for (const file of files) {
@@ -145,7 +185,7 @@ for (const file of files) {
     }
   }
 
-  for (const marker of [...judgeMarkers, ...answerMarkers]) {
+  for (const marker of [...judgeMarkers, ...answerMarkers, ...judgeFileMarkers]) {
     if (source.includes(marker.value)) {
       findings.push(`${marker.label}: ${short}`);
     }
@@ -157,11 +197,13 @@ if (findings.length > 0) {
   for (const finding of findings) console.error(`  - ${finding}`);
   process.exitCode = 1;
 } else {
-  const total = STRUCTURAL.length + judgeMarkers.length + answerMarkers.length;
+  const total =
+    STRUCTURAL.length + judgeMarkers.length + answerMarkers.length + judgeFileMarkers.length;
   console.log(
     `客户端边界检查通过（扫描 ${files.length} 个 JavaScript 文件，` +
       `${STRUCTURAL.length} 条结构 marker + ` +
       `${judgeMarkers.length} 条判题函数 + ` +
-      `${answerMarkers.length} 条答案 marker = ${total} 条）`,
+      `${answerMarkers.length} 条答案 marker + ` +
+      `${judgeFileMarkers.length} 条判题文件 marker = ${total} 条）`,
   );
 }

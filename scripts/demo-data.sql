@@ -73,7 +73,7 @@ SELECT
   jsonb_build_object(
     'message', CASE WHEN plan.ok THEN '种子数据：通过' ELSE '种子数据：未通过' END
   ),
-  'traditional',
+  'common',
   w.at + (plan.minute || ' minutes')::interval,
   w.at + (plan.minute || ' minutes')::interval
 FROM resolved_uids plan

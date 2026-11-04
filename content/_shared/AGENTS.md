@@ -24,10 +24,14 @@ _shared/
     flag-payload.tsx    Renders { flag } payloads
     text-payload.tsx    Renders { text } payloads
     tests-table.tsx     Renders { tests: [...] } verdict detail as a table
-  judges/          Inline judge templates
+  judges/          Inline judge templates, and configs for the common judge
     output-only.ts      Judge for answer-submission problems (compare against expected values)
     roulette.ts         Judge for randomized scoring problems
     life-oscillator.ts  Judge for Game of Life oscillator problems
+    judge-files.ts      A problem's code/ directory as the common judge's files
+    stdio.ts            stdioJudge: multi-language, stdout compared per subtask, tests generated on the spot
+    makefile.ts         makefileJudge: the problem's makefile builds a driver that scores the submission
+    scripts/            The judging scripts stdio.ts and makefile.ts ship to the common judge
   mdx/             MDX components for problem statements
     callout.tsx         Callout boxes (note, tip, warning, danger)
     constraints.tsx     Time/memory limit display

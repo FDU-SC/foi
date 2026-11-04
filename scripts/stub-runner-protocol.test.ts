@@ -2,6 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { deriveBackendSecret } from "@/lib/backend/keys.cjs";
 import { verifySignature } from "@/lib/backend/signature";
 
 const SCRIPT = fileURLToPath(new URL("./stub-runner.cjs", import.meta.url));
@@ -36,7 +37,7 @@ describe("stub-runner 的进程协议", () => {
     expect(result.stderr).toContain("FOI_STUB_RUNNER=yes-fake-verdicts");
   });
 
-  it("生产环境中签名领取任务、携带 lease 获取详情、心跳并上报模拟结果", async () => {
+  it("生产环境中用派生的队列密钥签名领取任务、携带 lease 获取详情、心跳并上报模拟结果", async () => {
     const ticket = { id: "a-job/1", lease: "a-lease/+?" };
     const path = `/api/runner/jobs/${encodeURIComponent(ticket.id)}`;
     let claimed = false;
@@ -51,7 +52,7 @@ describe("stub-runner 的进程协议", () => {
         for await (const chunk of request) chunks.push(Buffer.from(chunk));
         const body = Buffer.concat(chunks).toString();
         expect(verifySignature({
-          secret: SECRET,
+          secret: deriveBackendSecret(SECRET, BACKEND),
           timestamp: request.headers["x-foi-timestamp"]?.toString() ?? null,
           signature: request.headers["x-foi-signature"]?.toString() ?? null,
           request: { method: request.method ?? "", path: request.url ?? "", body },

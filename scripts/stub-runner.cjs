@@ -18,6 +18,7 @@
 
 const { createHmac, createHash, randomBytes } = require("node:crypto");
 const { hostname } = require("node:os");
+const { deriveBackendSecret } = require("../lib/backend/keys.cjs");
 
 const CONFIRM = "yes-fake-verdicts";
 
@@ -58,15 +59,11 @@ function positiveInt(raw, fallback) {
 }
 
 function secretFor(backendId) {
-  const fragment = backendId.replace(/-/g, "_").toUpperCase();
-  const secret =
-    process.env[`FOI_BACKEND_${fragment}_SECRET`] || process.env.FOI_BACKEND_SECRET;
-  if (!secret) {
-    throw new Error(
-      `缺少 ${backendId} 的签名密钥：设置 FOI_BACKEND_${fragment}_SECRET 或 FOI_BACKEND_SECRET`,
-    );
+  const master = process.env.FOI_BACKEND_SECRET;
+  if (!master) {
+    throw new Error(`缺少 ${backendId} 的签名密钥：设置 FOI_BACKEND_SECRET`);
   }
-  return secret;
+  return deriveBackendSecret(master, backendId);
 }
 
 /**

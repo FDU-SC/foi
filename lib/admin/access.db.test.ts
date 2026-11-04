@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { AS_PLAYER } from "@/test/auth-support";
 import { viewerFor } from "@/lib/authz/viewer";
+import { listBackendIds } from "@/lib/backend/registry";
 import { db } from "@/lib/db";
 import { allContests } from "@/lib/contests/registry";
 import { listRules } from "@/lib/enrollment/registry";
@@ -10,6 +11,7 @@ import {
   adminAccountsFor,
   adminContestsFor,
   adminOverviewFor,
+  adminRunnerTokensFor,
   enrollmentViewFor,
 } from "./access";
 
@@ -131,6 +133,25 @@ describeDb("运维台门禁", () => {
       for (const [, count] of view?.groupCounts ?? []) {
         expect(count).toBeGreaterThanOrEqual(0);
       }
+    });
+  });
+
+  describe("adminRunnerTokensFor", () => {
+    const tokenManager = viewerWith("backend.manageTokens");
+    const noTokens = viewerAllowedOnly("admin.enter", "backend.manageTokens", 87);
+
+    it("能管理令牌的人看到每个登记过的后端", async () => {
+      const groups = await adminRunnerTokensFor(tokenManager);
+
+      expect(groups?.map((group) => group.backendId)).toEqual(listBackendIds());
+    });
+
+    it("选手拿到 null", async () => {
+      expect(await adminRunnerTokensFor(player)).toBeNull();
+    });
+
+    it("只能进运维台、不能管理令牌时拿到页面，但一个后端都没有", async () => {
+      expect(await adminRunnerTokensFor(noTokens)).toEqual([]);
     });
   });
 });

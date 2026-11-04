@@ -14,21 +14,12 @@ const PLACEHOLDERS = new Set([
   "password",
 ]);
 
-/** Secrets that are always present, regardless of which backends are declared. */
-const ALWAYS_GUARDED = ["AUTH_SECRET", "FOI_BACKEND_SECRET"];
-
-/** Per-backend overrides. Matched by shape so backends added later are covered. */
-const PER_BACKEND = /^FOI_BACKEND_[A-Z0-9_]+_SECRET$/;
+const GUARDED = ["AUTH_SECRET", "FOI_BACKEND_SECRET"];
 
 export function placeholderSecrets(
   env: Record<string, string | undefined> = process.env,
 ): string[] {
-  const names = new Set(ALWAYS_GUARDED);
-  for (const name of Object.keys(env)) {
-    if (PER_BACKEND.test(name)) names.add(name);
-  }
-
-  return [...names]
+  return GUARDED
     .filter((name) => {
       const value = env[name]?.trim().toLowerCase();
       return value !== undefined && value !== "" && PLACEHOLDERS.has(value);

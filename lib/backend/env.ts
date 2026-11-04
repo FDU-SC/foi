@@ -8,18 +8,11 @@ export function backendUrl(id: string): string | undefined {
   return process.env[`FOI_BACKEND_${envFragment(id)}_URL`] || undefined;
 }
 
-export function backendSecret(id: string): string | undefined {
-  return process.env[`FOI_BACKEND_${envFragment(id)}_SECRET`] || undefined;
-}
-
-export function sharedSecret(): string | undefined {
+/** Every backend key and runner token derives from it. */
+export function masterSecret(): string | undefined {
   return process.env.FOI_BACKEND_SECRET || undefined;
 }
 
-export function effectiveSecretFromEnv(id: string): string | undefined {
-  return backendSecret(id) || sharedSecret();
-}
-
 export function fromEnv(id: string): ProblemBackend {
-  return { url: backendUrl(id), secret: backendSecret(id) };
+  return { url: backendUrl(id) };
 }

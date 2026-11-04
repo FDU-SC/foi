@@ -1,35 +1,39 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ProblemBackend } from "@/lib/backend/types";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { backends } from "@/lib/backend/registry";
+import { deriveBackendSecret } from "./keys.cjs";
 import { resolveBackend } from "./resolve";
 
-describe("密钥优先级", () => {
+describe("队列密钥", () => {
   const id = Object.keys(backends)[0];
-  let saved: ProblemBackend;
-
-  beforeEach(() => {
-    vi.stubEnv("FOI_BACKEND_SECRET", "test-secret");
-    saved = backends[id];
-  });
 
   afterEach(() => {
-    backends[id] = saved;
     vi.unstubAllEnvs();
   });
 
-  it("专属密钥压过共享密钥", () => {
-    backends[id] = { ...saved, secret: "dedicated-key" };
+  it("由主密钥派生，而不是直接用主密钥", () => {
+    vi.stubEnv("FOI_BACKEND_SECRET", "test-secret");
 
-    expect(resolveBackend(id).secret).toBe("dedicated-key");
+    const secret = resolveBackend(id).secret;
+    expect(secret).toBe(deriveBackendSecret("test-secret", id));
+    expect(secret).not.toBe("test-secret");
   });
 
-  it("没有专属密钥时回落到共享密钥", () => {
-    backends[id] = { ...saved, secret: undefined };
+  it("平台侧的专属密钥变量不起作用", () => {
+    vi.stubEnv("FOI_BACKEND_SECRET", "test-secret");
+    vi.stubEnv(`FOI_BACKEND_${id.replace(/-/g, "_").toUpperCase()}_SECRET`, "dedicated-key");
 
-    expect(resolveBackend(id).secret).toBe("test-secret");
+    expect(resolveBackend(id).secret).toBe(deriveBackendSecret("test-secret", id));
+  });
+
+  it("没有主密钥时解析失败，并说出该设哪个变量", () => {
+    vi.stubEnv("FOI_BACKEND_SECRET", "");
+
+    expect(() => resolveBackend(id)).toThrow("FOI_BACKEND_SECRET");
   });
 
   it("未登记的后端解析不出来", () => {
+    vi.stubEnv("FOI_BACKEND_SECRET", "test-secret");
+
     expect(() => resolveBackend("no-such-backend")).toThrow(
       '未知的题目后端 "no-such-backend"',
     );

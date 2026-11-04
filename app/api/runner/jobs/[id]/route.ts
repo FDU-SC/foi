@@ -37,7 +37,7 @@ async function authorizeJob(
   const backendId = await backendOf(id);
 
   if (backendId) {
-    const signature = verifyRunner(backendId, request, signed);
+    const signature = await verifyRunner(backendId, request, signed);
     if (signature.ok) return null;
     return NextResponse.json({ error: UNPROVEN }, { status: 401 });
   }

@@ -47,8 +47,6 @@ async function loadChecks(): Promise<Check[]> {
 
     { complaints: mail.mailDeliveryComplaints, fatalIn: ONLY_PROD },
 
-    { complaints: backend.backendsSharingSecret, fatalIn: ONLY_PROD },
-
     { complaints: backend.backendsMissingActionUrl, fatalIn: ONLY_PROD },
 
     { complaints: contests.catalogueComplaints, fatalIn: ALWAYS },
@@ -59,6 +57,7 @@ async function loadChecks(): Promise<Check[]> {
     { complaints: contests.catalogueWarnings, fatalIn: NEVER },
     { complaints: contests.contestWarnings, fatalIn: NEVER },
     { complaints: authz.policyWarnings, fatalIn: NEVER },
+    { complaints: () => backend.ignoredBackendSecrets(), fatalIn: NEVER },
     {
       complaints: () =>
         access.undeclaredBackends().map(

@@ -9,6 +9,7 @@ export function AdminNav() {
         { href: "/admin/accounts", label: "账号" },
         { href: "/admin/contests", label: "比赛" },
         { href: "/admin/enrollment", label: "分流规则" },
+        { href: "/admin/runners", label: "评测机令牌" },
       ]}
     />
   );

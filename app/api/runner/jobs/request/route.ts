@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "领取请求格式不合法" }, { status: 400 });
   }
 
-  const signature = verifyRunner(parsed.data.backendId, request, {
+  const signature = await verifyRunner(parsed.data.backendId, request, {
     method: "POST",
     path: CLAIM_PATH,
     body: read.raw,

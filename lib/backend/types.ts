@@ -5,8 +5,6 @@ export interface ProblemBackend {
 
   url?: string;
 
-  secret?: string;
-
   replyTimeoutMs?: number;
 }
 

@@ -14,7 +14,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "node --env-file=.env.local --import tsx scripts/seed.ts",
-    "backend:stub": "node --env-file=.env.local scripts/stub-runner.cjs"
+    "backend:stub": "node --env-file=.env.local scripts/stub-runner.cjs",
+    "backend:key": "node --env-file=.env.local scripts/backend-key.cjs"
   },
   "dependencies": {
     "@codemirror/lang-cpp": "^6.0.3",

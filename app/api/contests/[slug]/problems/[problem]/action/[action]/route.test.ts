@@ -159,8 +159,6 @@ describe("交互端点的配置错误不回传原文", () => {
   });
 
   it("缺少签名密钥时不把环境变量名写进 500 响应", async () => {
-    patch({ secret: undefined });
-
     const response = await post(action);
     const body = await response.text();
 
@@ -182,8 +180,6 @@ describe("交互端点的配置错误不回传原文", () => {
   });
 
   it("原文进日志，运维还是拿得到能动手的那句", async () => {
-    patch({ secret: undefined });
-
     await post(action);
 
     const records = (process.stdout.write as ReturnType<typeof vi.fn>).mock.calls
@@ -228,14 +224,10 @@ describe("页面预检与交互执行共享 gate", () => {
 
   it("不能提交的人仍能执行获准的交互动作", async () => {
     const { ref, invokeOnly, allowedAction } = independentProblemPermissions();
-    const backend = backends[ref.problem.backend.id];
-    const original = backend.secret;
-    backend.secret = "test-action-secret";
+    vi.stubEnv("FOI_BACKEND_SECRET", "test-action-secret");
     vi.mocked(callBackendAction).mockResolvedValue({ status: 200, contentType: "application/json", body: '{"ok":true}' });
-    try {
-      const response = await post(allowedAction, { contest: ref.contest.slug, problem: ref.problem.slug, user: authenticated([...invokeOnly.groups]) });
-      expect(response.status).toBe(200);
-      expect(callBackendAction).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ action: allowedAction, contestSlug: ref.contest.slug }));
-    } finally { backend.secret = original; }
+    const response = await post(allowedAction, { contest: ref.contest.slug, problem: ref.problem.slug, user: authenticated([...invokeOnly.groups]) });
+    expect(response.status).toBe(200);
+    expect(callBackendAction).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ action: allowedAction, contestSlug: ref.contest.slug }));
   });
 });

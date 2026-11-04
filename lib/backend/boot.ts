@@ -1,22 +1,23 @@
 import { externallyJudged } from "@/lib/problems/registry";
-import { problemsServedBy } from "./access";
-import { envFragment, sharedSecret } from "./env";
+import { envFragment } from "./env";
 import { backends } from "./registry";
-import { effectiveSecret } from "./resolve";
 
-export function backendsSharingSecret(): string[] {
-  const onSharedValue = Object.keys(backends).filter(
-    (id) => problemsServedBy(id).length > 0 && effectiveSecret(id) === sharedSecret(),
-  );
+const PER_BACKEND_SECRET = /^FOI_BACKEND_[A-Z0-9_]+_SECRET$/;
 
-  const borrowed = onSharedValue.some((id) => !backends[id].secret);
-  if (!borrowed) return [];
-  if (onSharedValue.length <= 1) return [];
-
-  return [
-    `后端 ${onSharedValue.join("、")} ` +
-      `使用的 FOI_BACKEND_SECRET 相同。`
-  ];
+/**
+ * Every queue key derives from `FOI_BACKEND_SECRET`, so a per-backend key
+ * variable on the platform has no effect. Naming it keeps an operator from
+ * handing that value to a runner, whose every request would then fail to verify.
+ */
+export function ignoredBackendSecrets(
+  env: Record<string, string | undefined> = process.env,
+): string[] {
+  return Object.keys(env)
+    .filter((name) => PER_BACKEND_SECRET.test(name) && env[name])
+    .sort()
+    .map(
+      (name) => `${name} 不生效：队列密钥一律由 FOI_BACKEND_SECRET 派生。`,
+    );
 }
 
 export function backendsMissingActionUrl(): string[] {

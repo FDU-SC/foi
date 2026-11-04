@@ -58,6 +58,14 @@ export const policies = [
   }),
 
   policy({
+    id: "staff:runner-tokens",
+    effect: "permit",
+    describe: "为评测机签发令牌，吊销不再使用的令牌",
+    action: "backend.manageTokens",
+    principal: { group: STAFF },
+  }),
+
+  policy({
     id: "proctor:console",
     effect: "permit",
     describe: "允许监考查看管理概况与评测队列，不提供账号列表与邮箱",

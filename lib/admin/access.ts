@@ -6,6 +6,7 @@ import {
   accountsFor,
   type AccountDirectory,
 } from "@/lib/accounts/access";
+import { listBackendIds } from "@/lib/backend/registry";
 import { allContests } from "@/lib/contests/registry";
 import { resolveParticipants } from "@/lib/contests/resolve";
 import type { ContestConfig } from "@/lib/contests/types";
@@ -20,6 +21,7 @@ import {
   type EnrollmentPolicy,
   type EnrollmentRule,
 } from "@/lib/enrollment/types";
+import { listRunnerTokens, type RunnerTokenListing } from "@/lib/runner/tokens";
 import { loadAdminOverview, type AdminOverview } from "./drift";
 
 export async function adminOverviewFor(
@@ -53,6 +55,28 @@ export async function adminContestsFor(
       entrants: (await resolveParticipants(config))?.length ?? null,
     })),
   );
+}
+
+export interface RunnerTokenGroup {
+  backendId: string;
+  tokens: RunnerTokenListing[];
+}
+
+/** One entry per backend whose tokens the viewer may manage. */
+export async function adminRunnerTokensFor(
+  viewer: Viewer,
+): Promise<RunnerTokenGroup[] | null> {
+  if (!allows("admin.enter", null, viewer)) return null;
+
+  const manageable = listBackendIds().filter((id) =>
+    allows("backend.manageTokens", { id }, viewer),
+  );
+  const tokens = await listRunnerTokens(manageable);
+
+  return manageable.map((backendId) => ({
+    backendId,
+    tokens: tokens.filter((token) => token.backendId === backendId),
+  }));
 }
 
 export interface EnrollmentView {

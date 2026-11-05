@@ -38,6 +38,14 @@ export const policies = [
   }),
 
   policy({
+    id: "public-judge-board",
+    effect: "permit",
+    describe: "登录用户可以查看评测队列的排队与评测情况，题目、评测机与后端地址不在其中",
+    action: "judge.readBoard",
+    principal: { authenticated: true },
+  }),
+
+  policy({
     id: "own-submissions",
     effect: "permit",
     describe: "允许用户查看自己的提交内容与评测结果",

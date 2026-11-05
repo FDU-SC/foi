@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { JudgesView } from "@/views/judges";
 
-export const metadata: Metadata = { title: "评测机" };
+export const metadata: Metadata = { title: "评测队列" };
 
 export const dynamic = "force-dynamic";
 

@@ -19,7 +19,7 @@ import { backends } from "@/lib/backend/registry";
 import { undeclaredBackends } from "@/lib/backend/access";
 import { viewsFor } from "@/lib/problems/views";
 import { listRulesets } from "@/lib/standings/registry";
-import { viewerFor } from "@/lib/authz/viewer";
+import { ANONYMOUS, viewerFor } from "@/lib/authz/viewer";
 import { viewerWith } from "@/test/content-shapes";
 import { ignoresLateSubmissions } from "@/test/standings-support";
 
@@ -111,6 +111,13 @@ describe("这套 content 的策略集", () => {
       actionsWithoutPermit(),
       "这些动作对所有人永远拒绝：要么忘了在 content/policies/ 里接上，要么最后一个放行它的策略被改掉了",
     ).toEqual([]);
+  });
+
+  it("登录用户都能打开评测队列，游客不能", () => {
+    const member = viewerFor({ uid: 50, groups: groupsFor(50, "alice@example.test") });
+
+    expect(allows("judge.readBoard", null, member)).toBe(true);
+    expect(allows("judge.readBoard", null, ANONYMOUS)).toBe(false);
   });
 
   it("有用户组被策略指定，否则运维台无人可进", () => {

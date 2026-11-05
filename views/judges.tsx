@@ -18,10 +18,10 @@ export async function JudgesView() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="评测机" />
+      <PageHeader title="评测队列" />
 
       {visible.length === 0 ? (
-        <EmptyState>暂无评测机。</EmptyState>
+        <EmptyState>暂无评测队列。</EmptyState>
       ) : (
         <JudgeStatusBoard
           initial={visible}

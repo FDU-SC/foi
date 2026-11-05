@@ -40,7 +40,7 @@ export const site: SiteConfig = {
     { href: "/problems", label: "题库", matches: ["/leaderboard"] },
     { href: "/contests", label: "比赛" },
     { href: "/submissions", label: "我的提交" },
-    { href: "/judges", label: "评测状态", location: "submissions", visibleWhen: "judge.readBoard" },
+    { href: "/judges", label: "评测队列", visibleWhen: "judge.readBoard" },
     { href: "/judges", label: "评测机", location: "admin", visibleWhen: "judge.readBoard" },
     { href: "/admin", label: "管理", location: "account", visibleWhen: "admin.enter" },
   ],

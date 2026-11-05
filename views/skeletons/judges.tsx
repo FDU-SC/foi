@@ -23,8 +23,8 @@ function JudgeCardSkeleton() {
 
 export function JudgesSkeleton() {
   return (
-    <SkeletonScreen label="正在加载评测机状态" className="space-y-5">
-      <PageHeader title="评测机" />
+    <SkeletonScreen label="正在加载评测队列" className="space-y-5">
+      <PageHeader title="评测队列" />
       <div className="space-y-4">
         <Skeleton className="h-3 w-72 max-w-full" />
         <div className="grid gap-x-10 gap-y-8 lg:grid-cols-2">

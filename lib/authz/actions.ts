@@ -51,10 +51,11 @@ export const ACTIONS = {
   /**
    * Asked only once competing is refused, so a viewer who may compete always
    * does. A trial is judged as usual and stays out of every leaderboard.
+   * `invocation` names the interactive action, and is null for a submission.
    */
   "problem.trial": {
     resource: "problem",
-    describe: "不以参赛者身份向比赛中的题目试交，不计入排行榜",
+    describe: "不以参赛者身份向比赛中的题目试交或执行交互操作，不计入排行榜",
     denial: { code: "not-open", message: "这道题现在不接受提交" },
   },
 

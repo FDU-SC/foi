@@ -18,6 +18,10 @@ import { allProblems, externallyJudged } from "@/lib/problems/registry";
 import { backends } from "@/lib/backend/registry";
 import { undeclaredBackends } from "@/lib/backend/access";
 import { viewsFor } from "@/lib/problems/views";
+import { invokeFor } from "@/lib/problems/actions";
+import { isInlineBackend } from "@/lib/problems/types";
+import { contestProblemRefs } from "@/lib/contests/refs";
+import { submitFor } from "@/lib/submissions/gate";
 import { listRulesets } from "@/lib/standings/registry";
 import { ANONYMOUS, viewerFor } from "@/lib/authz/viewer";
 import { viewerWith } from "@/test/content-shapes";
@@ -118,6 +122,30 @@ describe("这套 content 的策略集", () => {
 
     expect(allows("judge.readBoard", null, member)).toBe(true);
     expect(allows("judge.readBoard", null, ANONYMOUS)).toBe(false);
+  });
+
+  it("运维组任何时候都能提交与交互，但一律是试交", () => {
+    const staff = viewerFor({ uid: 1, groups: groupsFor(1, "admin@example.test") });
+    const refs = contestProblemRefs();
+    expect(refs.length).toBeGreaterThan(0);
+
+    for (const ref of refs) {
+      const { contest, problem } = ref;
+      for (const at of [
+        new Date(contest.startsAt.getTime() - 60_000),
+        new Date(contest.startsAt.getTime() + 60_000),
+        new Date(contest.endsAt.getTime() + 60_000),
+      ]) {
+        const where = `${contest.slug}/${problem.slug} @ ${at.toISOString()}`;
+        expect(submitFor(contest.slug, problem.slug, staff, at), where)
+          .toMatchObject({ ok: true, trial: true });
+        if (isInlineBackend(problem.backend)) continue;
+        for (const action of Object.keys(problem.backend.actions)) {
+          expect(invokeFor(contest.slug, problem.slug, action, staff, at).kind, `${where} ${action}`)
+            .toBe("allowed");
+        }
+      }
+    }
   });
 
   it("有用户组被策略指定，否则运维台无人可进", () => {

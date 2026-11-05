@@ -36,9 +36,18 @@ export const policies = [
   policy({
     id: "staff:trial",
     effect: "permit",
-    describe: "不能参赛时（开赛前、赛后或不在参赛名单中）试交看得到的题目，不计入排行榜",
+    describe: "试交看得到的题目、执行它的交互操作，照常评测，不计入排行榜",
     action: "problem.trial",
     principal: { group: STAFF },
+  }),
+
+  policy({
+    id: "staff:no-compete",
+    effect: "forbid",
+    describe: "运维组不参加任何比赛，提交一律作为试交",
+    action: "contest.enter",
+    principal: { group: STAFF },
+    reason: { code: "staff", message: "运维组不参加比赛" },
   }),
 
   policy({

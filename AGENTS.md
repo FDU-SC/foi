@@ -151,12 +151,13 @@ Retiring a problem is removing it from `contest.problems`.
 
 ### Trials Stay Off Every Board
 
-`problem.trial` lets a viewer submit to a pair while competing is refused:
-before the window, after it, or outside the roster. `submitFor` asks it only
-after `contest.enter` and `problem.submit`, so a viewer who may compete always
-competes; to make a group only trial in some contest, forbid `contest.enter`
-for that group there. A builtin forbid keeps trials to pairs whose statement
-the viewer can read.
+`problem.trial` lets a viewer submit to a pair, or invoke its actions, while
+competing is refused: before the window, after it, or outside the roster.
+`submitFor` and `invokeFor` ask it only after `contest.enter` and
+`problem.submit` / `problem.invoke`, so a viewer who may compete always
+competes; to make a group only trial, forbid `contest.enter` for that group,
+everywhere or in some contests. A builtin forbid keeps trials to pairs whose
+statement the viewer can read.
 
 A trial is judged as usual and stored with `submissions.trial`. Standings,
 `progressFor` and `activityFor` leave it out, so it never scores and never

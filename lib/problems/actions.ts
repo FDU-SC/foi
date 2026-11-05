@@ -3,6 +3,7 @@ import { authorize } from "@/lib/authz/engine";
 import type { ContestProblemRef } from "@/lib/authz/resources";
 import type { Viewer } from "@/lib/authz/viewer";
 import { contestEntryFor } from "@/lib/contests/access";
+import { contestProblemRef } from "@/lib/contests/refs";
 import {
   DEFAULT_ACTION_RATE_LIMIT,
   isInlineBackend,
@@ -49,7 +50,13 @@ export type InvokeGate =
   | { kind: "denied"; denial: Denial }
   | { kind: "missing" };
 
-/** Preserve entry, authorization, then declaration order for both callers. */
+/**
+ * Preserve entry, authorization, then declaration order for both callers.
+ *
+ * As with `submitFor`, `problem.trial` is asked only once competing is
+ * refused, with the action named in `invocation`, and a refused trial reports
+ * the competing refusal.
+ */
 export function invokeFor(
   contestSlug: string,
   problemSlug: string,
@@ -58,16 +65,26 @@ export function invokeFor(
   now = new Date(),
 ): InvokeGate {
   const entry = contestEntryFor(contestSlug, problemSlug, viewer, now);
-  if (!entry.ok) return { kind: "denied", denial: entry.denial };
+  let refusal: Denial;
+  if (entry.ok) {
+    const decision = authorize("problem.invoke", entry.ref, viewer, {
+      now,
+      invocation: action,
+    });
+    if (decision.allow) return resolve(entry.ref, action);
+    refusal = decision;
+  } else {
+    refusal = entry.denial;
+  }
 
-  const decision = authorize("problem.invoke", entry.ref, viewer, {
-    now,
-    invocation: action,
-  });
-  if (!decision.allow) return { kind: "denied", denial: decision };
+  const ref = entry.ok ? entry.ref : contestProblemRef(contestSlug, problemSlug);
+  if (ref && authorize("problem.trial", ref, viewer, { now, invocation: action }).allow) {
+    return resolve(ref, action);
+  }
+  return { kind: "denied", denial: refusal };
+}
 
-  const resolved = declaredAction(entry.ref.problem, action);
-  return resolved
-    ? { kind: "allowed", ref: entry.ref, resolved }
-    : { kind: "missing" };
+function resolve(ref: ContestProblemRef, action: string): InvokeGate {
+  const resolved = declaredAction(ref.problem, action);
+  return resolved ? { kind: "allowed", ref, resolved } : { kind: "missing" };
 }

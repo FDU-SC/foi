@@ -1,11 +1,11 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { ProfileLink } from "@/components/account/profile-link";
 import type { BoardProps, StandingsRow } from "@/lib/standings/types";
 import { cn } from "@/lib/utils";
 
 export interface SummaryColumn<Cell> {
   label: string;
-  value: (row: StandingsRow<Cell>) => number;
+  value: (row: StandingsRow<Cell>) => ReactNode;
 }
 
 /**

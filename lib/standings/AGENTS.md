@@ -102,8 +102,10 @@ Utility functions available to rulesets:
 
 ## Scoring the Window Is the Ruleset's Job
 
-`compute.ts` passes every submission attributed to the board's contests,
-including those accepted after a contest ends via `afterEnd.submissions`.
+`compute.ts` passes every non-trial submission attributed to the board's
+contests, including those accepted after a contest ends via
+`afterEnd.submissions`. Trials never reach a ruleset, and someone who only
+trialed is not a participant of an open contest.
 Rulesets must use `submissionsInWindow` to restrict scoring to each contest's
 `startsAt`..`endsAt`; late practice submissions must not affect official rankings.
 

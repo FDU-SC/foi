@@ -29,6 +29,7 @@ export function toView(
     | "id"
     | "problemSlug"
     | "contestSlug"
+    | "trial"
     | "state"
     | "result"
     | "detail"
@@ -43,6 +44,7 @@ export function toView(
     id: row.id,
     problemSlug: row.problemSlug,
     contestSlug: row.contestSlug,
+    trial: row.trial,
     state,
     result: row.result ?? null,
     detail: row.detail ?? null,
@@ -125,6 +127,7 @@ export async function listSubmissions(options: {
         uid: submissions.uid,
         problemSlug: submissions.problemSlug,
         contestSlug: submissions.contestSlug,
+        trial: submissions.trial,
         state: submissions.state,
         result: submissions.result,
         detail: submissions.detail,

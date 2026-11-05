@@ -103,6 +103,7 @@ export async function activityFor(
     .where(and(
       eq(submissions.uid, uid),
       inArray(submissions.contestSlug, contests.map(({ slug }) => slug)),
+      eq(submissions.trial, false),
     ))
     .orderBy(asc(submissions.createdAt), asc(submissions.id));
 

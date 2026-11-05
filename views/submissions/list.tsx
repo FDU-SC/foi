@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/auth";
 import { ProblemRef } from "@/components/problem/problem-ref";
 import { QueueBadge } from "@/components/problem/queue-position";
+import { TrialBadge } from "@/components/problem/trial-badge";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { viewerFor } from "@/lib/authz/viewer";
 import { dateFormatter } from "@/lib/format";
@@ -59,6 +60,7 @@ export async function SubmissionListView() {
                   <td>
                     <span className="flex flex-wrap items-center gap-2">
                       <VerdictBadge submission={row} />
+                      <TrialBadge trial={row.trial} />
                       <QueueBadge queue={row.queue} showJudge />
                     </span>
                   </td>

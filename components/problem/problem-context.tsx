@@ -15,6 +15,9 @@ export interface ProblemContextValue {
     submit: Permission;
     actions: Partial<Record<string, Permission>>;
   };
+
+  /** A submission made here would be a trial, outside every leaderboard. */
+  trial: boolean;
 }
 
 const ProblemContext = createContext<ProblemContextValue | null>(null);

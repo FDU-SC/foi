@@ -36,7 +36,7 @@ async function render() {
   await act(async () => {
     root.render(<ProblemProvider value={{
       config: { slug: "example", title: "示例", maxScore: 100, submit: {} },
-      contestSlug: "round", permissions,
+      contestSlug: "round", permissions, trial: false,
     }}>
       <SubmitPanel><button>答案提交</button></SubmitPanel>
       <InstanceControl />

@@ -33,6 +33,7 @@ describeDb("个人进度读取", () => {
       { ...base, id: "progress-old-pass", result: 7, createdAt: new Date(0) },
       { ...base, id: "progress-other-user", uid: uids[1], result: 999, createdAt: new Date(1) },
       { ...base, id: "progress-other-contest", contestSlug: other.contest.slug, result: 888, createdAt: new Date(2) },
+      { ...base, id: "progress-other-trial", contestSlug: other.contest.slug, trial: true, result: 7, createdAt: new Date(3) },
     ]);
     for (let start = 0; start < 5001; start += 500) {
       await db.insert(submissions).values(Array.from({ length: Math.min(500, 5001 - start) }, (_, index) => ({
@@ -63,6 +64,10 @@ describeDb("个人进度读取", () => {
       expect(both.get(here)?.state).toBe("solved");
       expect(both.get(there)?.state).toBe("attempted");
     } finally { interpret.mockRestore(); }
+  });
+  it("试交通过了也不算进自己的进度", async () => {
+    const result = await progressFor([other.contest.slug], viewerWith("submission.read", uids[0]));
+    expect(result.get(there)?.state).toBe("attempted");
   });
   it("游客无进度，未配置解释的题目不返回进度", async () => {
     const views = viewsFor(pair.problem.slug);

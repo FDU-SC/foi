@@ -5,7 +5,9 @@ import { viewerFor, type Viewer } from "@/lib/authz/viewer";
 import {
   archivedProblem,
   contestWithGroupEntry,
+  groupWith,
   independentProblemPermissions,
+  openExternalProblem,
   upcomingProblem,
   viewerWith,
 } from "@/test/content-shapes";
@@ -176,6 +178,26 @@ describe("problem.invoke", () => {
     const { contest, entry } = contestWithGroupEntry();
     const gate = invokeFor(contest.slug, entry.slug, "no-such-action", PLAYER, new Date(contest.startsAt.getTime() + 60_000));
     expect(gate).toMatchObject({ kind: "denied", denial: { reason: { code: "not-entered" } } });
+  });
+
+  const TESTER = viewerFor({ uid: 101, groups: [groupWith("problem.read"), groupWith("problem.trial")] });
+
+  it("能预览并试交的人，开赛前也调得动 action；看不到题面就不行", () => {
+    const ref = openExternalProblem();
+    const action = Object.keys(ref.problem.backend.actions)[0]!;
+    const at = before(ref.contest.startsAt);
+    expect(invocable(ref, action, TESTER, at)).toBe(true);
+    expect(invocable(ref, action, viewerWith("problem.trial", 102), at)).toBe(false);
+  });
+
+  it.skipIf(!archived)("能预览并试交的人，赛后也调得动 action", () => {
+    expect(invocable(archived!.ref, archived!.action, TESTER)).toBe(true);
+  });
+
+  it("试交被拒时，拒绝理由仍是参赛那一层的", () => {
+    const { contest, entry } = contestWithGroupEntry();
+    const gate = invokeFor(contest.slug, entry.slug, "no-such-action", viewerWith("problem.read", 103), new Date(contest.endsAt.getTime() + 60_000));
+    expect(gate).toMatchObject({ kind: "denied", denial: { reason: { code: "contest-closed" } } });
   });
 
   it("授权先于声明检查，继承属性也不是声明的动作", () => {

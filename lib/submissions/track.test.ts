@@ -4,7 +4,7 @@ import type { SubmissionView } from "./types";
 
 function view(state: SubmissionView["state"] = "queued"): SubmissionView {
   return {
-    id: "sub_track", contestSlug: "round", problemSlug: "problem", state,
+    id: "sub_track", contestSlug: "round", problemSlug: "problem", trial: false, state,
     result: null, detail: null, reason: null, runnerStatus: null,
     createdAt: "2026-09-16T00:00:00Z", judgedAt: null, queue: null,
   };

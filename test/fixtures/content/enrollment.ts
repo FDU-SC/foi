@@ -3,7 +3,7 @@ import type {
   EnrollmentPolicyInput,
   EnrollmentRuleInput,
 } from "@/lib/enrollment/types";
-import { AUDIENCE, CONSOLE, ENTRANTS, FULL, SUBMIT_ONLY, INVOKE_ONLY, PARTIAL_INVOKE } from "./groups";
+import { AUDIENCE, CONSOLE, ENTRANTS, FULL, SUBMIT_ONLY, INVOKE_ONLY, PARTIAL_INVOKE, TRIAL } from "./groups";
 
 export const policy: EnrollmentPolicyInput = {
   emailDomains: ["example.test"],
@@ -15,6 +15,7 @@ export const groups: GroupInput[] = [
   { id: PARTIAL_INVOKE, description: "交互动作分别授权。" },
   { id: FULL, description: "夹具的全权组。" },
   { id: CONSOLE, description: "夹具的只读控制台组。" },
+  { id: TRIAL, description: "只能试交。" },
   { id: AUDIENCE, description: "限定受众题目的受众。" },
   { id: ENTRANTS, description: "夹具赛的参赛范围。" },
 ];

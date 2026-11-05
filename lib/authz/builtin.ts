@@ -5,6 +5,7 @@ import {
   showsStatements,
 } from "@/lib/contests/types";
 import { problemsServedBy } from "@/lib/backend/served";
+import { denialFor } from "./actions";
 import { inAudience } from "./audience";
 import { allows } from "./engine";
 import { policy, type CompiledPolicy } from "./types";
@@ -68,10 +69,20 @@ export function builtinPolicies(): CompiledPolicy[] {
     policy({
       id: "builtin:anonymous-cannot-write",
       effect: "forbid",
-      describe: "提交、交互与参赛均须登录",
-      action: ["problem.submit", "problem.invoke", "contest.enter"],
+      describe: "提交、试交、交互与参赛均须登录",
+      action: ["problem.submit", "problem.trial", "problem.invoke", "contest.enter"],
       when: ({ viewer }) => !viewer.authenticated,
       reason: { code: "unauthenticated", message: "请先登录" },
+    }),
+
+    policy({
+      id: "builtin:trial-needs-statement",
+      effect: "forbid",
+      describe: "只能试交自己看得到题面的题目",
+      action: "problem.trial",
+      when: ({ resource, viewer, now }) =>
+        !allows("problem.read", resource, viewer, { now }),
+      reason: denialFor("problem.read"),
     }),
 
     policy({

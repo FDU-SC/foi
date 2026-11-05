@@ -5,6 +5,7 @@ import { VerdictBody } from "@/components/opaque";
 import { JudgeProgress } from "@/components/problem/judge-progress";
 import { useProblem } from "@/components/problem/problem-context";
 import { QueueBadge } from "@/components/problem/queue-position";
+import { TrialBadge } from "@/components/problem/trial-badge";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { isSettled } from "@/lib/backend/types";
@@ -12,7 +13,7 @@ import { useSubmit } from "@/lib/submissions/use-submit";
 import { SubmitProvider } from "./submit-context";
 
 export function SubmitPanel({ children }: { children: ReactNode }) {
-  const { config, permissions } = useProblem();
+  const { config, permissions, trial } = useProblem();
   const { submit, submission, submitting, error } = useSubmit();
 
   return (
@@ -22,6 +23,7 @@ export function SubmitPanel({ children }: { children: ReactNode }) {
         actions={
           submission ? (
             <span className="flex items-center gap-2">
+              <TrialBadge trial={submission.trial} />
               <QueueBadge queue={submission.queue} />
               <VerdictBadge submission={submission} />
             </span>
@@ -47,9 +49,16 @@ export function SubmitPanel({ children }: { children: ReactNode }) {
             )}
           </p>
         ) : (
-          <SubmitProvider value={{ submit, submitting }}>
-            {children}
-          </SubmitProvider>
+          <>
+            {trial ? (
+              <p className="text-fg-muted mb-3 text-sm">
+                这里的提交是试交：照常评测，不计入排行榜。
+              </p>
+            ) : null}
+            <SubmitProvider value={{ submit, submitting }}>
+              {children}
+            </SubmitProvider>
+          </>
         )}
 
         {error ? <p className="text-err mt-3 text-sm">{error}</p> : null}

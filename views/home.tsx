@@ -6,6 +6,7 @@ import { HomePanel, HomePanelSkeleton } from "@/components/ui/home-panel";
 import { Badge } from "@/components/ui/badge";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { QueueBadge } from "@/components/problem/queue-position";
+import { TrialBadge } from "@/components/problem/trial-badge";
 import { site } from "@/lib/site";
 import { siteViews } from "@/lib/site-views";
 import { allows } from "@/lib/authz/engine";
@@ -61,7 +62,10 @@ async function Practice({ rows, viewer, now }: PersonalProps) {
                   {ref.contest.title}　{formatter.format(new Date(row.createdAt))}
                 </p>
               </div>
-              <VerdictBadge submission={row} />
+              <span className="flex items-center gap-2">
+                <TrialBadge trial={row.trial} />
+                <VerdictBadge submission={row} />
+              </span>
             </li>
           ))}
         </ul>
@@ -107,6 +111,7 @@ async function Submissions({ rows, viewer, now }: PersonalProps) {
                 </div>
                 <span className="flex items-center gap-2">
                   <VerdictBadge submission={row} />
+                  <TrialBadge trial={row.trial} />
                   <QueueBadge queue={row.queue} />
                 </span>
                 <Link

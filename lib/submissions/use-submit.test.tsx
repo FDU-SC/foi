@@ -21,7 +21,7 @@ function Probe() {
 async function render(submit: Permission) {
   await act(async () => root.render(<ProblemProvider value={{
     config: { slug: "example", title: "示例", maxScore: 100, submit: {} },
-    contestSlug: "round", permissions: { submit, actions: {} },
+    contestSlug: "round", permissions: { submit, actions: {} }, trial: false,
   }}><Probe /></ProblemProvider>));
 }
 
@@ -59,7 +59,7 @@ describe("提交 hook 的独立权限", () => {
     expect(request).toHaveBeenCalledOnce();
 
     const view: SubmissionView = {
-      id: "sub_test", contestSlug: "round", problemSlug: "example", state: "completed",
+      id: "sub_test", contestSlug: "round", problemSlug: "example", trial: false, state: "completed",
       result: null, detail: null, reason: null, runnerStatus: null, queue: null,
       createdAt: new Date().toISOString(), judgedAt: new Date().toISOString(),
     };

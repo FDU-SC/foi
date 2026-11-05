@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ContestProblemRef } from "@/lib/authz/resources";
 import { isCatalogue } from "@/lib/contests/catalogue";
@@ -49,8 +49,10 @@ function sharedProblemPair(): SharedProblemPair {
 const { target: TARGET, other: OTHER, at: SUBMITTED_AT } = sharedProblemPair();
 const READER = viewerWith("standings.read");
 const USERNAME = "standings-contest-isolation";
+const TRIAL_USERNAME = "standings-trial-only";
 
 let uid = 0;
+let trialUid = 0;
 
 async function reachable(): Promise<boolean> {
   try {
@@ -72,7 +74,7 @@ async function cleanup() {
   const held = await db
     .select({ uid: accounts.uid })
     .from(accounts)
-    .where(eq(accounts.username, USERNAME));
+    .where(inArray(accounts.username, [USERNAME, TRIAL_USERNAME]));
 
   for (const account of held) {
     await db.delete(submissions).where(eq(submissions.uid, account.uid));
@@ -80,6 +82,7 @@ async function cleanup() {
   }
 
   uid = 0;
+  trialUid = 0;
   invalidateStandings(TARGET.contest.slug);
   invalidateStandings(OTHER.contest.slug);
 }
@@ -123,9 +126,41 @@ describeDb("排行榜按比赛隔离提交", () => {
         judgedAt: SUBMITTED_AT,
       },
     ]);
+
+    const [tester] = await db
+      .insert(accounts)
+      .values({ username: TRIAL_USERNAME, nickname: TRIAL_USERNAME })
+      .returning({ uid: accounts.uid });
+    trialUid = tester.uid;
+
+    await db.insert(submissions).values({
+      id: "sub_standings_target_trial",
+      uid: trialUid,
+      problemSlug: TARGET.problem.slug,
+      contestSlug: TARGET.contest.slug,
+      trial: true,
+      payload: {},
+      backendId: "inline",
+      state: "completed",
+      result: { accepted: true },
+      createdAt: SUBMITTED_AT,
+      judgedAt: SUBMITTED_AT,
+    });
   });
 
   afterAll(cleanup);
+
+  it("试交不计分，只交过试交的人也不出现在开放比赛的排行榜上", async () => {
+    const computed = await standingsFor(
+      TARGET.contest.slug,
+      READER,
+      new Date(TARGET.contest.endsAt.getTime() + 60_000),
+    );
+
+    const uids = computed?.boards[0].standings.rows.map(({ participant }) => participant.uid);
+    expect(uids).toContain(uid);
+    expect(uids).not.toContain(trialUid);
+  });
 
   it("同一道题在另一场比赛里的通过不计入本场排行榜", async () => {
     const computed = await standingsFor(

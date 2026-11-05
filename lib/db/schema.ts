@@ -1,6 +1,7 @@
 import { getTableColumns, sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   check,
   customType,
   index,
@@ -144,6 +145,12 @@ export const submissions = pgTable(
     contestSlug: text("contest_slug")
       .notNull()
       .references(() => contests.slug, { onDelete: "restrict" }),
+
+    /**
+     * Made under `problem.trial` by someone who could not compete. Standings,
+     * progress and profile activity leave these rows out.
+     */
+    trial: boolean("trial").notNull().default(false),
 
     payload: jsonb("payload").$type<unknown>().notNull(),
 

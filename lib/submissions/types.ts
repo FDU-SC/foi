@@ -6,6 +6,10 @@ export interface SubmissionView {
   id: string;
   problemSlug: string;
   contestSlug: string;
+
+  /** Outside every leaderboard; see `submitFor`. */
+  trial: boolean;
+
   state: SubmissionState;
 
   result: unknown;

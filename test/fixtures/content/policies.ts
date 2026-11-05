@@ -1,5 +1,5 @@
 import { policy } from "@/lib/authz/types";
-import { CONSOLE, FULL, SUBMIT_ONLY, INVOKE_ONLY, PARTIAL_INVOKE } from "./groups";
+import { CONSOLE, FULL, SUBMIT_ONLY, INVOKE_ONLY, PARTIAL_INVOKE, TRIAL } from "./groups";
 
 /**
  * Every action in the catalogue is permitted by something here or by a builtin,
@@ -45,6 +45,14 @@ export const policies = [
       "backend.manageTokens",
     ],
     principal: { group: FULL },
+  }),
+
+  policy({
+    id: "fixture:trial",
+    effect: "permit",
+    describe: "试交组：不能参赛时试交看得到的题目",
+    action: "problem.trial",
+    principal: { group: TRIAL },
   }),
 
   policy({

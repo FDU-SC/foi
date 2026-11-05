@@ -1,0 +1,1 @@
+ALTER TABLE "submissions" ADD COLUMN "trial" boolean DEFAULT false NOT NULL;

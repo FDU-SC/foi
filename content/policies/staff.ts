@@ -34,6 +34,14 @@ export const policies = [
   }),
 
   policy({
+    id: "staff:trial",
+    effect: "permit",
+    describe: "不能参赛时（开赛前、赛后或不在参赛名单中）试交看得到的题目，不计入排行榜",
+    action: "problem.trial",
+    principal: { group: STAFF },
+  }),
+
+  policy({
     id: "staff:submissions",
     effect: "permit",
     describe: "查看任何人的提交，并把已终结的提交放回评测队列",

@@ -69,6 +69,8 @@ describeDb("选手主页的做题记录", () => {
       row("activity-finished", finished, new Date(finished.contest.startsAt.getTime() + 60_000), 0),
       row("activity-partial", partial, new Date(partial.contest.startsAt.getTime() + 60_000), SOLVED),
       row("activity-hidden", hidden, new Date(hidden.contest.startsAt.getTime() + 60_000), SOLVED),
+      { ...row("activity-peer-trial", early, new Date(now.getTime() - 5 * 60_000), SOLVED), uid: uids[1], trial: true },
+      { ...row("activity-peer-trial-finished", finished, new Date(finished.contest.startsAt.getTime() + 60_000), SOLVED), uid: uids[1], trial: true },
     ]);
   });
 
@@ -125,6 +127,16 @@ describeDb("选手主页的做题记录", () => {
     expect(first.submittedOn).toEqual(["2026-09-01", "2026-09-01", "2026-09-02"]);
     expect(find(finished)?.solvedAt).toBeNull();
     expect(activity.lastAt).toEqual(new Date(now.getTime() - 10 * 60_000));
+  });
+
+  it("只有试交的人主页上没有提交、通过和比赛记录", async () => {
+    const activity = await activityFor(uids[1], viewerFor({ uid: uids[0], groups: [] }), now);
+
+    expect(activity.submissions).toBe(0);
+    expect(activity.solved).toBe(0);
+    expect(activity.pairs).toEqual([]);
+    expect(activity.contests).toEqual([]);
+    expect(activity.lastAt).toBeNull();
   });
 
   it("有题目不解释进度的分区只给通过数，不给总数", async () => {

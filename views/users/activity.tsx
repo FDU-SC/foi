@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ProblemRef } from "@/components/problem/problem-ref";
 import { QueueBadge } from "@/components/problem/queue-position";
+import { TrialBadge } from "@/components/problem/trial-badge";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { Badge } from "@/components/ui/badge";
 import { TableFrame } from "@/components/ui/page";
@@ -296,6 +297,7 @@ function SubmissionsTab({ rows, own }: { rows: SubmissionListItem[]; own: boolea
                 <td>
                   <span className="flex flex-wrap items-center gap-1.5">
                     <VerdictBadge submission={row} />
+                    <TrialBadge trial={row.trial} />
                     <QueueBadge queue={row.queue} />
                   </span>
                 </td>

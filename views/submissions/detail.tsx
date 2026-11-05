@@ -5,6 +5,7 @@ import { allows } from "@/lib/authz/engine";
 import { viewerFor } from "@/lib/authz/viewer";
 import { ProblemRef } from "@/components/problem/problem-ref";
 import { QueueBadge } from "@/components/problem/queue-position";
+import { TrialBadge } from "@/components/problem/trial-badge";
 import { VerdictBadge } from "@/components/problem/verdict-badge";
 import { PayloadBody, VerdictBody } from "@/components/opaque";
 import { RejudgeForm } from "@/components/submissions/rejudge-form";
@@ -49,6 +50,7 @@ export async function SubmissionDetailView({
           />
         </h1>
         <VerdictBadge submission={view} />
+        <TrialBadge trial={view.trial} />
         <QueueBadge queue={view.queue} showJudge />
         <span className="text-fg-subtle ml-auto font-mono text-xs">
           {formatter.format(row.createdAt)}

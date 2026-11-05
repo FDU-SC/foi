@@ -18,9 +18,11 @@ import {
   type InlineJudge,
 } from "@/lib/problems/types";
 import {
+  groupWith,
   inlineProblem,
   openContestProblem,
   openExternalProblem,
+  upcomingProblem,
 } from "@/test/content-shapes";
 
 const USERNAME = "rl-alice";
@@ -40,6 +42,7 @@ const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
 
 let CALLER_UID = 0;
 let CALLER_USERNAME = USERNAME;
+let CALLER_GROUPS: string[] = [];
 
 vi.mock("@/auth", () => ({
   getResolvedUser: async () => ({
@@ -48,7 +51,7 @@ vi.mock("@/auth", () => ({
     nickname: CALLER_USERNAME,
     email: null,
     emailVerified: false,
-    groups: [],
+    groups: CALLER_GROUPS,
     status: "active",
     disabled: false,
   }),
@@ -145,6 +148,70 @@ describeDb("提交端点限流", () => {
 
     const response = await postSubmission(SECOND);
     expect(response.status).toBe(201);
+  });
+});
+
+describeDb("不能参赛时的试交", () => {
+  const UPCOMING = upcomingProblem();
+  const TESTER_GROUPS = [groupWith("problem.read"), groupWith("problem.trial")];
+  const TRIAL_USERNAME = "rl-trial";
+  let TRIAL_UID = 0;
+
+  beforeAll(async () => {
+    for (const [key, value] of Object.entries(TEST_ENV)) {
+      vi.stubEnv(key, value);
+    }
+    vi.stubGlobal("fetch", fetchMock);
+
+    await db.delete(accounts).where(eq(accounts.username, TRIAL_USERNAME));
+    const [acct] = await db
+      .insert(accounts)
+      .values({ username: TRIAL_USERNAME, nickname: TRIAL_USERNAME })
+      .returning({ uid: accounts.uid });
+    TRIAL_UID = acct.uid;
+    CALLER_UID = TRIAL_UID;
+    CALLER_USERNAME = TRIAL_USERNAME;
+    CALLER_GROUPS = TESTER_GROUPS;
+  });
+
+  afterAll(async () => {
+    CALLER_UID = ACCOUNT_UID;
+    CALLER_USERNAME = USERNAME;
+    CALLER_GROUPS = [];
+    await db.delete(submissions).where(eq(submissions.uid, TRIAL_UID));
+    await db.delete(accounts).where(eq(accounts.uid, TRIAL_UID));
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("开赛前的提交落为试交，回执上也标明", async () => {
+    const response = await postSubmission(UPCOMING);
+    expect(response.status).toBe(201);
+    const body = await response.json();
+    expect(body.trial).toBe(true);
+
+    const [stored] = await db.select().from(submissions).where(eq(submissions.id, body.id));
+    expect(stored.trial).toBe(true);
+    expect(stored.contestSlug).toBe(UPCOMING.contest.slug);
+  });
+
+  it("能参赛的题目照常参赛", async () => {
+    const response = await postSubmission(FIRST);
+    expect(response.status).toBe(201);
+    expect((await response.json()).trial).toBe(false);
+  });
+
+  it("没有试交权限时开赛前仍被拒绝，不留行", async () => {
+    CALLER_GROUPS = [groupWith("problem.read")];
+    try {
+      const before = await db.select().from(submissions).where(eq(submissions.uid, TRIAL_UID));
+      const response = await postSubmission(UPCOMING);
+      expect(response.status).toBe(403);
+      const after = await db.select().from(submissions).where(eq(submissions.uid, TRIAL_UID));
+      expect(after).toHaveLength(before.length);
+    } finally {
+      CALLER_GROUPS = TESTER_GROUPS;
+    }
   });
 });
 
@@ -411,7 +478,7 @@ describeDb("提交的幂等键", () => {
     const created = await createdResponse.json();
     expect(created.queue).toMatchObject({ state: "queued" });
     expect(Object.keys(created).sort()).toEqual([
-      "id", "problemSlug", "contestSlug", "state", "result", "detail", "reason",
+      "id", "problemSlug", "contestSlug", "trial", "state", "result", "detail", "reason",
       "runnerStatus", "createdAt", "judgedAt", "queue",
     ].sort());
     const poll = () => getSubmission(

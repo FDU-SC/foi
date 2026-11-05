@@ -119,6 +119,7 @@ async function load({ contests, masked, from, until }: Scope): Promise<Loaded> {
     .innerJoin(accounts, eq(accounts.uid, submissions.uid))
     .where(and(
       inArray(submissions.contestSlug, contests.map(({ slug }) => slug)),
+      eq(submissions.trial, false),
       from ? gte(submissions.createdAt, from) : undefined,
       until ? lt(submissions.createdAt, until) : undefined,
     ))
@@ -143,7 +144,7 @@ async function load({ contests, masked, from, until }: Scope): Promise<Loaded> {
   return { problems, participants: await participantsOf(contests, rows), submissions: records };
 }
 
-/** Each contest's roster, or whoever submitted to an open one; everyone once. */
+/** Each contest's roster, or whoever competed in an open one; everyone once. */
 async function participantsOf(contests: ContestConfig[], rows: Row[]): Promise<Participant[]> {
   const seen = new Map<number, Participant>();
   for (const contest of contests) {

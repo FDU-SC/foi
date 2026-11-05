@@ -40,6 +40,7 @@ describe("主页数据", () => {
       id,
       contestSlug,
       problemSlug,
+      trial: false,
       problemTitle: "题目",
       uid: 321,
       nickname: "用户",

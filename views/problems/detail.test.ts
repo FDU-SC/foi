@@ -17,7 +17,7 @@ import { submitFor } from "@/lib/submissions/gate";
 import { invokeFor } from "@/lib/problems/actions";
 import { permissionFor } from "@/lib/authz/adapters";
 import { isInlineBackend } from "@/lib/problems/types";
-import { archivedProblem, contestWithGroupEntry, independentProblemPermissions, inlineProblem, upcomingProblem, upsolveProblem, viewerWith } from "@/test/content-shapes";
+import { archivedProblem, contestWithGroupEntry, groupWith, independentProblemPermissions, inlineProblem, upcomingProblem, upsolveProblem, viewerWith } from "@/test/content-shapes";
 
 const auth = vi.hoisted(() => ({ getResolvedUser: vi.fn<() => Promise<ResolvedUser | null>>() }));
 vi.mock("@/auth", () => auth);
@@ -38,6 +38,7 @@ async function permissions(ref: ContestProblemRef, viewer: Viewer): Promise<Prob
   expect(value).not.toHaveProperty("blocked");
   const gate = submitFor(ref.contest.slug, ref.problem.slug, viewer);
   expect(value.permissions.submit).toEqual(permissionFor(gate.ok ? null : gate.denial));
+  expect(value.trial).toBe(gate.ok && gate.trial);
   if (!isInlineBackend(ref.problem.backend)) {
     for (const action of Object.keys(ref.problem.backend.actions)) {
       const invocation = invokeFor(ref.contest.slug, ref.problem.slug, action, viewer);
@@ -122,6 +123,14 @@ describe("题面操作预检", () => {
     expect(closed.submit).toMatchObject({ allowed: false, reason: { code: "contest-closed" } });
     const practice = await permissions(upsolveProblem(), viewer);
     expect(practice.submit.allowed).toBe(true);
+  });
+
+  it("预览者有试交权限时，开赛前也能提交，页面标为试交", async () => {
+    const tester = viewerFor({ uid: 101, groups: [groupWith("problem.read"), groupWith("problem.trial")] });
+    const ref = upcomingProblem();
+    expect(submitFor(ref.contest.slug, ref.problem.slug, tester)).toMatchObject({ ok: true, trial: true });
+    const result = await permissions(ref, tester);
+    expect(result.submit.allowed).toBe(true);
   });
 
   it("内联题目不向客户端提供交互动作", async () => {

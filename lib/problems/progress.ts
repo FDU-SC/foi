@@ -70,7 +70,8 @@ export function solvingSubmission(
 
 /**
  * Own progress in these contests, keyed by `pairKey` and interpreted only by
- * each problem's content. Work done in one contest never counts in another.
+ * each problem's content. Work done in one contest never counts in another,
+ * and a trial never counts at all.
  */
 export async function progressFor(
   contestSlugs: readonly string[],
@@ -102,6 +103,7 @@ export async function progressFor(
       eq(submissions.uid, viewer.uid),
       inArray(submissions.contestSlug, contests),
       inArray(submissions.problemSlug, problems),
+      eq(submissions.trial, false),
       scope.kind === "where" ? scope.sql : undefined,
     ))
     .orderBy(asc(submissions.createdAt), asc(submissions.id));

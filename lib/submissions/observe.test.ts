@@ -20,7 +20,7 @@ function held<T>() {
 }
 
 const initial: SubmissionView = {
-  id: "sub_observe", contestSlug: "round", problemSlug: "problem", state: "queued",
+  id: "sub_observe", contestSlug: "round", problemSlug: "problem", trial: false, state: "queued",
   result: null, detail: null, reason: null, runnerStatus: null,
   createdAt: "2026-09-16T00:00:00Z", judgedAt: null, queue: null,
 };

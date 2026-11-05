@@ -144,6 +144,7 @@ async function ProblemDetail({
         config: toPublicConfig(problem),
         contestSlug: contest.slug,
         permissions: { submit, actions },
+        trial: submittable.ok && submittable.trial,
       }}
     >
       <article className="min-w-0">

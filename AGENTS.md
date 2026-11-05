@@ -149,6 +149,19 @@ A problem config carries no visibility of its own. Who may open it is `contest.v
 
 Retiring a problem is removing it from `contest.problems`.
 
+### Trials Stay Off Every Board
+
+`problem.trial` lets a viewer submit to a pair while competing is refused:
+before the window, after it, or outside the roster. `submitFor` asks it only
+after `contest.enter` and `problem.submit`, so a viewer who may compete always
+competes; to make a group only trial in some contest, forbid `contest.enter`
+for that group there. A builtin forbid keeps trials to pairs whose statement
+the viewer can read.
+
+A trial is judged as usual and stored with `submissions.trial`. Standings,
+`progressFor` and `activityFor` leave it out, so it never scores and never
+makes its author a participant of an open contest. Submission lists mark it.
+
 ### The Catalogue Is A Set Of Those Contests
 
 `site.catalogue` names the contests presented as a catalogue, and their pages move rather than multiply:

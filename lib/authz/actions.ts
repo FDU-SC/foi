@@ -48,6 +48,15 @@ export const ACTIONS = {
     describe: "执行比赛中题目的交互操作",
     denial: { code: "not-open", message: "这道题现在不接受交互" },
   },
+  /**
+   * Asked only once competing is refused, so a viewer who may compete always
+   * does. A trial is judged as usual and stays out of every leaderboard.
+   */
+  "problem.trial": {
+    resource: "problem",
+    describe: "不以参赛者身份向比赛中的题目试交，不计入排行榜",
+    denial: { code: "not-open", message: "这道题现在不接受提交" },
+  },
 
   "contest.read": {
     resource: "contest",

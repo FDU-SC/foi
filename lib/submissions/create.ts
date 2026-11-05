@@ -120,6 +120,7 @@ export async function createSubmission(
       uid: user.uid,
       problemSlug: problem.slug,
       contestSlug: contest.slug,
+      trial: gate.trial,
       payload: input.payload,
       clientNonce: clientNonce ?? null,
       backendId: judging.kind === "inline" ? INLINE_BACKEND_ID : judging.backend.id,

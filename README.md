@@ -302,6 +302,11 @@ docker compose up -d              # 想连模拟评测机一起，加 --profile 
 优先于放行规则。邮箱规则不能分配特权组，按用户编号指定的规则可以分配任何组。
 比赛可通过用户组限定参赛范围。
 
+获得 `problem.trial` 的用户组（示例中为运维组）在不能参赛时可以试交看得到的题目，
+包括开赛前、赛后和不在参赛名单中的情况。试交照常评测，不计入排行榜、做题进度和
+选手主页。能参赛的人提交时总是参赛；要让某个组在某场比赛中只能试交，在
+`content/policies/` 中对该组禁止这场比赛的 `contest.enter`。
+
 创建初始管理员账号时：
 
 1. 设置 `DATABASE_URL`，运行 `node scripts/create-account.cjs <username> --nick <昵称> --email <邮箱>`。

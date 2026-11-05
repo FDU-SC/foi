@@ -26,7 +26,7 @@ it("提交列表展示读取结果中的队列排位", async () => {
   vi.mocked(getSessionUser).mockResolvedValue({ uid: 7, username: "reader", nickname: "Reader", avatarUpdatedAt: null, groups: [] });
   vi.mocked(submissionsFor).mockResolvedValue([{
     id: "sub_list_position", uid: 7, nickname: "Reader",
-    contestSlug: "list-fixture", problemSlug: "list-fixture", problemTitle: "Fixture",
+    contestSlug: "list-fixture", problemSlug: "list-fixture", trial: false, problemTitle: "Fixture",
     state: "queued", result: null, detail: null, reason: null, runnerStatus: null,
     createdAt: "2030-01-01T00:00:00Z", judgedAt: null,
     queue: { backendId: "list-backend", state: "queued", ahead: 4 },

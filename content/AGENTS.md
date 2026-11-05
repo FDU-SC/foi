@@ -65,6 +65,10 @@ import { CodeInput } from "@/content/_shared/ui/code-input";
 <SubmitPanel><MyCustomInput /></SubmitPanel> // anything custom
 ```
 
+`SubmitPanel` tells the viewer when a submission here would be a trial, judged
+but kept off every leaderboard. A panel of your own reads the same fact from
+`useProblem().trial`.
+
 In `views.tsx`, compose display templates:
 
 ```typescript
@@ -95,8 +99,8 @@ field access, including unknown-status fallback. Without it the platform shows
 `progress(history)` returns `{ state, verdict }`, where `state` is `untouched`,
 `attempted` or `solved` and `verdict` is a preset or null. The history contains
 `id`, record `state`, opaque `result`, `createdAt` and `judgedAt`, ordered by
-creation time and id. It includes every submission by one person for this
-contest/problem pair, including pending and disrupted records: the current
+creation time and id. It includes every non-trial submission by one person for
+this contest/problem pair, including pending and disrupted records: the current
 user's own for problem lists, someone else's on their profile. On a profile,
 `result` is null for submissions after a freeze the viewer's standings would
 hide, and the function is also called on prefixes of the history to find when

@@ -1,3 +1,5 @@
+import { makeRoom } from "@/lib/bounded-map";
+
 interface Entry {
   value: unknown;
   expiresAt: number;
@@ -12,6 +14,12 @@ declare global {
 
 const DEFAULT_TTL_MS = 10_000;
 
+/**
+ * Boards held at once. Catalogue keys carry the date range and sections a
+ * visitor asks for, so the number of distinct keys has no bound of its own.
+ */
+export const MAX_CACHED_BOARDS = 128;
+
 const cache = (globalThis.__foiStandingsCache ??= new Map<string, Entry>());
 const inflight = (globalThis.__foiStandingsInflight ??= new Map<
   string,
@@ -25,6 +33,16 @@ const tags = (globalThis.__foiStandingsTags ??= new Map<string, readonly string[
 
 export function standingsKey(scope: string, variant: string): string {
   return `${scope}::${variant}`;
+}
+
+/** Keep a fresh board, dropping expired ones and then the oldest past the cap. */
+function keep(key: string, entry: Entry): void {
+  makeRoom(cache, ({ expiresAt }) => expiresAt, Date.now(), MAX_CACHED_BOARDS);
+  // A computing key keeps its tags: invalidation still has to void it.
+  for (const held of tags.keys()) {
+    if (!cache.has(held) && !inflight.has(held)) tags.delete(held);
+  }
+  cache.set(key, entry);
 }
 
 /**
@@ -50,7 +68,7 @@ export async function cachedStandings<T>(
     .then((value) => {
 
       if ((eras.get(key) ?? 0) === startedIn) {
-        cache.set(key, { value, expiresAt: Date.now() + ttlMs });
+        keep(key, { value, expiresAt: Date.now() + ttlMs });
       }
       return value;
     })

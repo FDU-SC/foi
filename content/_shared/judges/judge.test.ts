@@ -143,6 +143,19 @@ describe("judgeLifeOscillator", () => {
     expect(tests[0].message).toContain("超过上限");
   });
 
+  it("一行极宽、其余极短的图案按原始尺寸拒绝，不先铺开成矩形网格", () => {
+    const wide = ["O".repeat(400_000), ...Array.from({ length: 1999 }, () => ".")].join("\n");
+    const verdict = judge(
+      judgeLifeOscillator,
+      { cases: [{ name: "场景 1", maxDim: 16, k: 2 }] },
+      { text: wide },
+    );
+
+    expect(r(verdict).score).toBe(0);
+    const tests = (verdict.detail as { tests: { message: string }[] }).tests;
+    expect(tests[0].message).toBe("尺寸 2000×400000 超过上限 16×16");
+  });
+
   it("非法字符按格式错误处理", () => {
     const verdict = judge(judgeLifeOscillator, config, { text: "XYZ" });
     expect(r(verdict).score).toBe(0);

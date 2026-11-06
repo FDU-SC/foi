@@ -78,6 +78,19 @@ function lifeParse(text: string): LifeGrid | null {
   return rows.map((row) => [...row, ...Array(width - row.length).fill(0)]);
 }
 
+/** The rows and widest row `lifeParse` would produce, counted without building the grid. */
+function lifeSize(text: string): { height: number; width: number } {
+  let height = 0;
+  let width = 0;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    height += 1;
+    width = Math.max(width, [...line].length);
+  }
+  return { height, width };
+}
+
 export const judgeLifeOscillator: InlineJudge = ({ payload, config }) => {
 
   const cases = (
@@ -108,14 +121,21 @@ export const judgeLifeOscillator: InlineJudge = ({ payload, config }) => {
       message,
     });
 
-    const grid = lifeParse(grids[index] ?? "");
-    if (!grid) {
-      return fail("提交的网格缺失或格式不对（每行只能包含 . 和 O）");
+    const block = grids[index] ?? "";
+    const dim = testCase.maxDim ?? 50;
+
+    // lifeParse pads every row to the widest one, so it must only ever see a
+    // block already within bounds: one wide line over many short ones would
+    // otherwise allocate height × width cells and exhaust the heap, which
+    // aborts the whole server process rather than throwing.
+    const { height, width } = lifeSize(block);
+    if (height > dim || width > dim) {
+      return fail(`尺寸 ${height}×${width} 超过上限 ${dim}×${dim}`);
     }
 
-    const dim = testCase.maxDim ?? 50;
-    if (grid.length > dim || grid[0].length > dim) {
-      return fail(`尺寸 ${grid.length}×${grid[0].length} 超过上限 ${dim}×${dim}`);
+    const grid = lifeParse(block);
+    if (!grid) {
+      return fail("提交的网格缺失或格式不对（每行只能包含 . 和 O）");
     }
     if (grid.flat().every((cell) => cell === 0)) {
       return fail("图案为空：至少需要 1 个活细胞");

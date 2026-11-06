@@ -55,6 +55,9 @@ export function interpretProgress(
 /**
  * The submission that first made a pair count as solved: the end of the
  * shortest history prefix its content calls solved. Undefined when none is.
+ *
+ * Content keeps a solve once made, so the prefixes are binary-searched:
+ * interpreting every one would take time quadratic in the history.
  */
 export function solvingSubmission(
   ref: ContestProblemRef,
@@ -62,10 +65,16 @@ export function solvingSubmission(
 ): ProgressSubmission | undefined {
   const interpret = viewsFor(ref.problem.slug).progress;
   if (!interpret) return undefined;
-  for (let end = 1; end <= history.length; end++) {
-    if (interpret(history.slice(0, end)).state === "solved") return history[end - 1];
+  const solved = (end: number) => interpret(history.slice(0, end)).state === "solved";
+  if (history.length === 0 || !solved(history.length)) return undefined;
+  let low = 1;
+  let high = history.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (solved(middle)) high = middle;
+    else low = middle + 1;
   }
-  return undefined;
+  return history[low - 1];
 }
 
 /**

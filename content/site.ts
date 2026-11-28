@@ -1,13 +1,13 @@
 import type { SiteConfig } from "@/lib/site";
 
 export const site: SiteConfig = {
-  name: "FOI",
-  title: "FOI 竞赛平台",
-  description: "内部竞赛平台",
+  name: "FOI Demo",
+  title: "FOI 竞赛平台 · 演示",
+  description: "开源竞赛平台 FOI 的演示站点，数据每晚重置。",
   lang: "zh-CN",
   timezone: "Asia/Shanghai",
 
-  tagline: "在线练习与竞赛",
+  tagline: "用 demo1 到 demo5 登录，密码 foi-demo。数据每晚重置。",
 
   // 这些长期开放的比赛作为题库分区，使用 /problems 路径。
   // 顺序即卡片顺序，分组标题取自各自的 domain。
